@@ -17571,8 +17571,8 @@ It is a script over `data/map.json`, like `carve:caves`, and what it writes is
 ordinary authored content: nothing in the game knows a hill from a platform
 somebody stacked by hand.
 
-**What is raised.** Only open country: a level-0 stack of `grass-2` or
-`sand-dunes` with nothing on it but trees, bushes, flowers and grass, with
+**What is raised.** Only open country: a level-0 stack of `grass-2`,
+`sand-dunes` or `snow` with nothing on it but trees, bushes, flowers and grass, with
 nothing on any level above it, outside the town's rectangle and its margin.
 Everything else is a blocker — paths, water, swamp, buildings, creatures, the
 sand dunes with a footprint, the cave mouth — and ground within `margin` cells
@@ -17615,8 +17615,8 @@ A hill with nothing but trees on top gets no ramp, because there is nowhere
 on it to walk to. Of the 41 hills, 23 have ramps and 18 are wooded.
 
 **Ledges.** A raised lawn is the same green as the lawn below it, and from the
-north and west no cliff face shows, so `grass-ledge` and `sand-ledge`
-(`../scripts/generate-ledges.ts`) put a tufted rim on every raised cell beside
+north and west no cliff face shows, so `grass-ledge`, `sand-ledge` and
+`snow-ledge` (`../scripts/generate-ledges.ts`) put a tufted rim on every raised cell beside
 a drop. They are autotiles laid over the ground only on those cells. They
 connect to the ground tile, which is why the fill under a higher level keeps
 its ground tile at the bottom: a level-1 lawn then runs under the level-2 cliff
@@ -17688,7 +17688,8 @@ the floor, so its side is on the line of a face at every height.
 every open side, since ground fills its whole cell.
 
 **A brink is the ground tile cut to that outline.** `bun run generate:brinks`
-(`../scripts/generate-brinks.ts`) draws `grass-brink` and `sand-brink` from
+(`../scripts/generate-brinks.ts`) draws `grass-brink`, `sand-brink` and
+`snow-brink` from
 `footprint` in `../scripts/cave-wall-outline.ts` at `HILL_CROWN`, the call the
 wall's top layer is drawn from, one slice per neighbourhood. A brink reads its
 neighbours on its own level and the wall reads its own on the level below, so
@@ -17762,6 +17763,26 @@ reports nothing.
 **The order of the scripts.** `raise:hills` and `carve:hill-caves` both look
 for the `half-stone` fill, so they run before this one, and `slope:hills`
 refuses a map that already holds a brink.
+
+## Hills on new land are raised on that land alone
+
+The ice island east of the main one (x 132 and up) got its hills from the same
+two scripts, run on a map holding only the island's cells and merged back.
+Neither script can be run again over the whole map:
+
+- **`raise:hills` raises more of the old land.** Run over the whole map with
+  the island added, it raised 212 cells of the main island that had been open
+  country since the first run. The relief comes from the same seed, but the
+  terraces and ramps are worked out from everything on the board, and the
+  board has been authored since.
+- **`slope:hills` refuses a map that already has a brink.** It is written for
+  a map whose hills are still `half-stone`.
+
+So the new cells go into a file of their own, `start` in `HILLS` and `START`
+in `slope-hills.ts` are pointed at a cell on the new land for that run, both
+scripts run on it, and the result replaces those cells in `data/map.json`.
+The island builder that laid the snow, the lakes and the `ice` over the
+strait was a one-off and is not in the repository, as the desert's was not.
 
 ## Nowhere on the map may strand a player
 

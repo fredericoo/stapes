@@ -223,6 +223,24 @@ an agent drives", lists every call.
   `scripts/limb-caster.ts`, the caster the swamp trees use. `PREVIEW=<dir>`
   also writes `sand-dunes.png` there, a field of the sand faces picked the way
   the renderer picks them
+- `bun run generate:ice` — redraw `data/tilesets/ice.png` and its tiles. `snow` is a scatter tile
+  that is plain in most cells and wears a white drift mark in the rest, each
+  face with a plain border as the sand has; it walks 15% slow. `ice` is an
+  autotile sheet with a white rim and clear corners, which lies over `snow` as
+  a frozen lake or over `deep-water` as a crossing, and walks 30% fast.
+  `snowy-pine` and `snowy-rock` are models cast with `scripts/model-caster.ts`;
+  `PREVIEW=<dir>` also writes each face cast four times larger
+- `bun run generate:snow-beasts` — redraw `data/tilesets/snow-beasts.png` and
+  the sprites of `snow-wolf` and `yeti`. The snow wolf is the wolf's own
+  frames read out of `animals.png` with its coat recoloured, so it follows any
+  change to the wolf's frames. The yeti is a 3D figure of bones (chest,
+  shoulders, head, horns, arms, fists, legs, feet) rendered through the game's
+  projection in four facings and three poses of a stride: fur roughened by
+  noise, bare skin on the hands, feet and face, and a toon render's lines:
+  one where a part passes in front of another with air between them, none
+  where two parts join. `PREVIEW=<dir>` also writes the standing
+  pose of each facing six times larger, which takes about a minute. It leaves
+  the battler, brain and respawn authored on each tile alone
 - `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
   spinner: a crystal modelled in Three.js, rendered in headless Chromium and
   snapped to the logo's sixteen colours. Shape, light and timing are constants
@@ -263,16 +281,17 @@ an agent drives", lists every call.
   leave. `--image <file.png>` draws the map with those places in red. CI runs
   it and, when it fails, uploads the picture as the `stranded` artifact
 - `bun run generate:ledges` — draw `data/tilesets/ledges.png` and write the
-  `grass-ledge` and `sand-ledge` tiles: the tufted rim `raise:hills` lays on
+  `grass-ledge`, `sand-ledge` and `snow-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do
   not read as one
 - `bun run generate:brinks` — draw `data/tilesets/brinks.png` and write the
-  `grass-brink` and `sand-brink` tiles: the ground cut to the outline
+  `grass-brink`, `sand-brink` and `snow-brink` tiles: the ground cut to the outline
   `hill-wall` has at its ceiling, which `slope:hills` lays over the edge of
   every hill
 - `bun run generate:stalagmites` — draw `data/tilesets/stalagmites.png` and
-  write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
-  cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through
+  write the `stalagmite`, `stalagmite-grey` and `ice-spike` tiles: four
+  clusters of tapered cones, in the colours of `cave-wall`, of
+  `cave-wall-grey` and of `ice`, cast through
   the game's projection the way the swamp trees are
 - `bun run generate:bear` — draw `data/tilesets/bear.png` and write the `bear`
   tile: a 3D model cast through the game's projection by

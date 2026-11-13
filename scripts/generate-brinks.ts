@@ -32,6 +32,13 @@ const BRINKS: Brink[] = [
     rim: hex("#cd683d"),
     lip: hex("#e6904e"),
   },
+  {
+    id: "snow-brink",
+    name: "Snow brink",
+    ground: "snow",
+    rim: hex("#9babb2"),
+    lip: hex("#ffffff"),
+  },
 ];
 
 /** The same rows `generate-ledges.ts` draws, so a brink beside a ledge carries on its tufts. */

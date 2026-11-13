@@ -28,6 +28,13 @@ const LEDGES: Ledge[] = [
     lip: hex("#e6904e"),
     ground: ["sand-dunes"],
   },
+  {
+    id: "snow-ledge",
+    name: "Snow ledge",
+    rim: hex("#9babb2"),
+    lip: hex("#ffffff"),
+    ground: ["snow"],
+  },
 ];
 
 /** A bridge leaves a hilltop level with it, so the rim stops where the planks start. */

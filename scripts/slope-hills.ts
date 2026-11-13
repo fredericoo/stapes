@@ -27,6 +27,7 @@ const ROCK = new Set([
 const GROUNDS: Record<string, { ledge: string; brink: string }> = {
   "grass-2": { ledge: "grass-ledge", brink: "grass-brink" },
   "sand-dunes": { ledge: "sand-ledge", brink: "sand-brink" },
+  snow: { ledge: "snow-ledge", brink: "snow-brink" },
 };
 
 /** A cell the reachability walk starts from. It has to be one a player can stand in. */

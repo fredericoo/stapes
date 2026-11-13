@@ -203,7 +203,7 @@
     "id": "ledges",
     "name": "Ledges",
     "file": "ledges.png",
-    "width": 16,
+    "width": 24,
     "height": 376
   },
   {
@@ -211,7 +211,7 @@
     "name": "Stalagmites",
     "file": "stalagmites.png",
     "width": 64,
-    "height": 32
+    "height": 48
   },
   {
     "id": "apple-trees",
@@ -231,7 +231,7 @@
     "id": "brinks",
     "name": "Brinks",
     "file": "brinks.png",
-    "width": 16,
+    "width": 24,
     "height": 376
   },
   {
@@ -240,5 +240,19 @@
     "file": "bear.png",
     "width": 96,
     "height": 128
+  },
+  {
+    "id": "ice",
+    "name": "Ice",
+    "file": "ice.png",
+    "width": 80,
+    "height": 376
+  },
+  {
+    "id": "snow-beasts",
+    "name": "Snow Beasts",
+    "file": "snow-beasts.png",
+    "width": 144,
+    "height": 232
   }
 ]

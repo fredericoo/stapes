@@ -26,6 +26,7 @@ const TONES: Tone[] = [
   { tileId: "stalagmite", name: "Stalagmite", ramp: [18, 13, 11, 3] },
   /** The ramp of `cave-wall-grey`. */
   { tileId: "stalagmite-grey", name: "Grey Stalagmite", ramp: [25, 22, 8, 4] },
+  { tileId: "ice-spike", name: "Ice spike", ramp: [29, 30, 24, 23] },
 ];
 
 /** A cone standing on the floor at `x, y` (pixels of its own cell), `heightPx` tall. */

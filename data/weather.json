@@ -22,5 +22,13 @@
     "y1": -44,
     "rain": true,
     "fog": true
+  },
+  {
+    "x0": 140,
+    "y0": -110,
+    "x1": 240,
+    "y1": 0,
+    "rain": false,
+    "fog": true
   }
 ]

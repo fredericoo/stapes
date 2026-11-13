@@ -53,7 +53,11 @@ const DECK = "wooden-floor";
 const RAIL = "fence";
 
 /** What each kind of ground is edged with where it stops at a drop. */
-const LEDGE: Record<string, string> = { "grass-2": "grass-ledge", "sand-dunes": "sand-ledge" };
+const LEDGE: Record<string, string> = {
+  "grass-2": "grass-ledge",
+  "sand-dunes": "sand-ledge",
+  snow: "snow-ledge",
+};
 const GROUND = new Set(Object.keys(LEDGE));
 const COVER = new Set([
   "grass",

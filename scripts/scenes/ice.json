@@ -1,0 +1,183 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [7, 5],
+  "cells": [
+    {
+      "from": [-6, -6],
+      "to": [20, 18],
+      "tiles": ["snow"]
+    },
+    {
+      "from": [-6, -6],
+      "to": [20, -3],
+      "tiles": ["snow", "water"]
+    },
+    {
+      "from": [-6, -6],
+      "to": [20, -5],
+      "tiles": ["water", "deep-water"]
+    },
+    {
+      "from": [2, -5],
+      "to": [6, -3],
+      "tiles": ["deep-water", "ice"]
+    },
+    {
+      "from": [3, -6],
+      "to": [5, -2],
+      "tiles": ["deep-water", "ice"]
+    },
+    {
+      "from": [8, 6],
+      "to": [14, 10],
+      "tiles": ["snow", "ice"]
+    },
+    {
+      "from": [10, 5],
+      "to": [15, 8],
+      "tiles": ["snow", "ice"]
+    },
+    {
+      "from": [9, 10],
+      "to": [11, 12],
+      "tiles": ["snow", "ice"]
+    },
+    {
+      "at": [4, 2],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [6, 3],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [2, 4],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [16, 2],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [17, 12],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [1, 9],
+      "tiles": ["snow", "snowy-pine"]
+    },
+    {
+      "at": [9, 2],
+      "tiles": ["snow", "snowy-rock"]
+    },
+    {
+      "at": [5, 8],
+      "tiles": ["snow", "snowy-rock"]
+    },
+    {
+      "at": [15, 11],
+      "tiles": ["snow", "snowy-rock"]
+    },
+    {
+      "at": [12, 3],
+      "tiles": ["snow", "ice-spike"]
+    },
+    {
+      "at": [13, 4],
+      "tiles": ["snow", "ice-spike"]
+    },
+    {
+      "at": [3, 12],
+      "tiles": ["snow", "ice-spike"]
+    },
+    {
+      "at": [6, 13],
+      "tiles": ["snow", "ice-spike"]
+    },
+    {
+      "at": [12, 8],
+      "tiles": ["snow", "ice", "ice-spike"]
+    },
+    {
+      "at": [0, 4],
+      "tiles": ["snow", "dead-tree"]
+    },
+    {
+      "at": [14, 13],
+      "tiles": ["snow", "bleached-bones"]
+    },
+    {
+      "at": [7, 6],
+      "tiles": [
+        "snow",
+        {
+          "tile": "water-slime",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [13, 9],
+      "tiles": [
+        "snow",
+        "ice",
+        {
+          "tile": "snow-wolf",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [4, 6],
+      "tiles": [
+        "snow",
+        {
+          "tile": "snow-wolf",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [5, 12],
+      "tiles": [
+        "snow",
+        {
+          "tile": "yeti",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [16, 7],
+      "tiles": [
+        "snow",
+        "ice",
+        {
+          "tile": "yeti",
+          "facing": "w"
+        }
+      ]
+    },
+    {
+      "at": [7, 10],
+      "tiles": [
+        "snow",
+        {
+          "tile": "tide-wisp",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [9, 12],
+      "tiles": [
+        "snow",
+        {
+          "tile": "player",
+          "facing": "s"
+        }
+      ]
+    }
+  ]
+}
