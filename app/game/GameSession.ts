@@ -58,6 +58,7 @@ import {
   UNNAMED_WEAPON,
   type Reach,
   type WeaponStatus,
+  consumeVerb,
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
@@ -142,6 +143,7 @@ import {
   otherArrivalNotice,
   healthNotice,
   noRoomToLeaveNotice,
+  overLimitNotice,
   rewardNotice,
   spawnNotice,
   despawnNotice,
@@ -488,6 +490,8 @@ import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/pro
 import {
   advanceStatuses,
   applyStatus,
+  overLimitFor,
+  grantRange,
   endOnDamage,
   enterCombat,
   incapacitated,
@@ -3548,10 +3552,7 @@ export class GameSession implements PlaySession {
       if (causer && !this.mayHarm(causer, actor)) return "refused";
     }
     const already = actor.statuses.some((instance) => instance.defId === def.id);
-    const range =
-      grant.fromMs === undefined || grant.toMs === undefined
-        ? def
-        : { fromMs: grant.fromMs, toMs: grant.toMs };
+    const range = grantRange(grant, def);
     actor.statuses = applyStatus(actor.statuses, def, this.rng, range, causedBy, elements, blame);
     if (!already) this.say(actor.id, statusAcquiredNotice(def.name));
     this.noteStatusReading(actor);
@@ -5200,6 +5201,13 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  private tooFullFor(actor: ActorRuntime, consumable: ConsumableItem, name: string): boolean {
+    const overLimit = overLimitFor(actor.statuses, consumable.statuses, this.statusDefs);
+    if (overLimit === null) return false;
+    this.say(actor.id, overLimitNotice(consumeVerb(consumable), name, overLimit));
+    return true;
+  }
+
   private recordConsumeSound(actor: ActorRuntime, consumable: ConsumableItem) {
     if (!consumable.sound?.trim()) return;
     const loc = this.tryLocate(actor);
@@ -5218,6 +5226,7 @@ export class GameSession implements PlaySession {
     const def = placed && this.tilesById[placed.tileId];
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable || !placed || !def) return null;
+    if (this.tooFullFor(actor, consumable, def.name)) return null;
 
     const left = peelOne(placed);
     const spent = left
@@ -5275,6 +5284,7 @@ export class GameSession implements PlaySession {
     const def = instance && this.tilesById[instance.tileId];
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable || !def) return null;
+    if (this.tooFullFor(actor, consumable, def.name)) return null;
 
     const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     if (!emptied) return null;

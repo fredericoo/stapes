@@ -100,6 +100,7 @@ const CONTEXT: RefContext = {
   extracting: null,
   conversation: null,
   craftingRef: null,
+  statusDefs: {},
 };
 
 function scan(map: MapFile, others: ActorSnapshot[] = [], overrides: Partial<FarScan> = {}) {

@@ -11,6 +11,8 @@ import {
   craftVerb,
   DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
+import type { StatusDef } from "../lib/status";
+import { overLimitFor } from "./statuses";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
 import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -87,7 +89,8 @@ export type OptionBlock =
   | { kind: "working"; extraction: Extraction }
   | { kind: "noRoom" }
   | { kind: "taken" }
-  | { kind: "needs"; rating: number };
+  | { kind: "needs"; rating: number }
+  | { kind: "overLimit"; words: string };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -120,6 +123,7 @@ export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   if (blocked.kind === "taken") return "in use";
   if (blocked.kind === "needs") return `needs rating ${blocked.rating}`;
+  if (blocked.kind === "overLimit") return blocked.words;
   return "no room";
 }
 
@@ -208,6 +212,7 @@ export function listInteractionOptions(
   previous: readonly InteractionOption[] = [],
   nextBlow: Progress | null = null,
   craftingRef: ObjectRef | null = null,
+  statusDefs: Record<string, StatusDef> = {},
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
   const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
@@ -226,6 +231,7 @@ export function listInteractionOptions(
       tags,
       extracting,
       craftingRef,
+      statusDefs,
     ),
   ];
   const tiers = tiersBySubject(map, tilesById, self, options);
@@ -261,6 +267,7 @@ export type RefContext = {
   extracting: Extraction | null;
   conversation: Conversation | null;
   craftingRef: ObjectRef | null;
+  statusDefs: Record<string, StatusDef>;
 };
 
 /**
@@ -297,6 +304,7 @@ export function refOptionsFrom(
       context.tags,
       context.extracting,
       context.craftingRef,
+      context.statusDefs,
     ),
   );
   return out;
@@ -517,6 +525,7 @@ function objectOptions(
   tags: readonly string[],
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
+  statusDefs: Record<string, StatusDef>,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -543,6 +552,7 @@ function objectOptions(
               tags,
               extracting,
               craftingRef,
+              statusDefs,
             ),
           );
         }
@@ -565,6 +575,7 @@ function slotOptions(
   tags: readonly string[],
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
+  statusDefs: Record<string, StatusDef>,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -636,7 +647,13 @@ function slotOptions(
   if (canConsumeFrom(map, tilesById, self, ref)) {
     const def = tilesById[placed.tileId];
     const consumable = def ? resolveConsumable(def) : null;
-    add("consume", consumable ? consumeVerb(consumable) : LABELS.consume);
+    const words = overLimitFor(self.statuses, consumable?.statuses, statusDefs);
+    add(
+      "consume",
+      consumable ? consumeVerb(consumable) : LABELS.consume,
+      false,
+      words === null ? null : { kind: "overLimit", words },
+    );
   }
 
   return out;

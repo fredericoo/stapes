@@ -9,7 +9,7 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
 import { HudWindow } from "./HudWindow";
-import { ItemSlot } from "./ItemSlot";
+import { type HeldStatus, ItemSlot } from "./ItemSlot";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
@@ -61,6 +61,7 @@ export function ContainerPanel({
   drag,
   masteryXp = {},
   statusDefs,
+  statuses,
   className = "",
 }: {
   container: ContainerView;
@@ -73,6 +74,7 @@ export function ContainerPanel({
   drag: ItemDrag;
   masteryXp?: MasteryXp;
   statusDefs?: Record<string, StatusDef>;
+  statuses?: readonly HeldStatus[];
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -156,6 +158,7 @@ export function ContainerPanel({
               drag={drag}
               masteryXp={masteryXp}
               statusDefs={statusDefs}
+              statuses={statuses}
               sizePx={slotPx}
             />
             {captioned ? (

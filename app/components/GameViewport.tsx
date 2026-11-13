@@ -358,6 +358,7 @@ export function GameViewport({
       equipment={equipment}
       masteryXp={masteryXp}
       statusDefs={statusDefs}
+      statuses={statuses}
       bagOpen={showBag}
       handOpen={heldContainer ? openHand : null}
       tiles={tiles}
@@ -379,6 +380,7 @@ export function GameViewport({
         drag={drag}
         masteryXp={masteryXp}
         statusDefs={statusDefs}
+        statuses={statuses}
       />
     ) : null;
   const handWindow =
@@ -394,6 +396,7 @@ export function GameViewport({
         drag={drag}
         masteryXp={masteryXp}
         statusDefs={statusDefs}
+        statuses={statuses}
       />
     ) : null;
   const containerWindow = openedContainer ? (
@@ -408,6 +411,7 @@ export function GameViewport({
       drag={drag}
       masteryXp={masteryXp}
       statusDefs={statusDefs}
+      statuses={statuses}
     />
   ) : null;
 
