@@ -190,6 +190,14 @@ an agent drives", lists every call.
   `dead-tree`, `dead-tree-twisted`, `mossy-dead-tree` and `dead-snag`, leafless
   trees grown from a seed per species and cast through the game's projection.
   The growth settings and seeds are constants in the script
+- `bun run generate:apple-trees` — redraw `data/tilesets/apple-trees.png`:
+  `apple-tree`, a low trunk forking under a wide crown, ray-traced in the
+  game's projection. The crown is a dark core under a shell of evenly spaced
+  leaf bundles, each shaded as its own ball, in the hand-drawn `tree`'s greens
+  and outline, with no pixel left matching none of its neighbours. A crown
+  that touches the sprite's top or left edge, or runs straight for too long,
+  is rebuilt with its bundles moved. `PREVIEW=<dir>` also writes a 12× copy
+  there; `DRY=1` writes nothing into `data/`
 - `bun run generate:waterfall` — redraw `data/tilesets/waterfall.png`:
   `waterfall-top`, `-middle` and `-base`, half a level each and eight frames,
   a sheet of water on the north edge of its cell that stacks without a seam

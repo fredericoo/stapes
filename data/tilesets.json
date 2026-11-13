@@ -212,5 +212,12 @@
     "file": "stalagmites.png",
     "width": 64,
     "height": 32
+  },
+  {
+    "id": "apple-trees",
+    "name": "Apple Trees",
+    "file": "apple-trees.png",
+    "width": 24,
+    "height": 24
   }
 ]
