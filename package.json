@@ -28,6 +28,7 @@
     "generate:desert": "bun scripts/generate-desert.ts",
     "generate:ledges": "bun scripts/generate-ledges.ts",
     "generate:stalagmites": "bun scripts/generate-stalagmites.ts",
+    "generate:mushrooms": "bun scripts/generate-mushrooms.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "raise:hills": "bun scripts/raise-hills.ts",

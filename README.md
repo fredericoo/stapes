@@ -256,6 +256,13 @@ an agent drives", lists every call.
   write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
   cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through
   the game's projection the way the swamp trees are
+- `bun run generate:mushrooms` — draw `data/tilesets/mushrooms.png` and write
+  the mushrooms: the `mushroom` item, a short meal, and `blue-mushroom`, a
+  poisonous one that looks like it, both piling to 32; and for each, the patch
+  it is picked from and the picked patch that grows back into it, in three
+  faces. The sprites are 3D models cast through the game's projection by
+  `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
+  times larger
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this
