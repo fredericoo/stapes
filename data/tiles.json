@@ -30174,7 +30174,8 @@
                   "data": {
                     "name": "prey"
                   }
-                }
+                },
+                "allowDrops": true
               },
               {
                 "action": "hold"
@@ -31354,7 +31355,8 @@
                   "data": {
                     "name": "prey"
                   }
-                }
+                },
+                "allowDrops": true
               },
               {
                 "action": "hold"
@@ -32070,7 +32072,9 @@
         "traits": [
           {
             "trait": "evades-the-unreachable",
-            "with": {}
+            "with": {
+              "drops": true
+            }
           }
         ]
       },
@@ -56870,7 +56874,8 @@
                   "data": {
                     "name": "prey"
                   }
-                }
+                },
+                "allowDrops": true
               },
               {
                 "action": "attack",
@@ -57979,7 +57984,9 @@
         "traits": [
           {
             "trait": "evades-the-unreachable",
-            "with": {}
+            "with": {
+              "drops": true
+            }
           }
         ]
       },
@@ -59557,7 +59564,8 @@
                   "data": {
                     "name": "prey"
                   }
-                }
+                },
+                "allowDrops": true
               },
               {
                 "action": "attack",
@@ -59578,7 +59586,9 @@
         "traits": [
           {
             "trait": "evades-the-unreachable",
-            "with": {}
+            "with": {
+              "drops": true
+            }
           },
           {
             "trait": "predator",
