@@ -14,6 +14,7 @@ import { getStack, removeTileAt } from "../lib/mapData";
 import { clampWalkSpeedPercent } from "../lib/walkSpeed";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
 import { sparesStander } from "./conjured";
+import { isImmune, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -169,11 +170,16 @@ export function unsafeToStepOn(
   at: Coord,
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
+  traveller: TileDef,
   who?: string,
 ): boolean {
   const fires = firesOnStepAt(map, at, tilesById, statusDefs, who);
   if (fires.teleports) return true;
-  return fires.statusId !== null && statusDefs[fires.statusId]?.tone === "bad";
+  return (
+    fires.statusId !== null &&
+    statusDefs[fires.statusId]?.tone === "bad" &&
+    !isImmune(resolveBattler(traveller), fires.statusId)
+  );
 }
 
 export function wadesIn(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>): boolean {
@@ -193,13 +199,14 @@ function avoidRule(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
+  traveller: TileDef,
   who: string | undefined,
   avoidWade: boolean,
   asked: (cell: Coord) => boolean,
 ): (cell: Coord) => boolean {
   return (cell) =>
     !asked(cell) &&
-    (unsafeToStepOn(map, cell, tilesById, statusDefs, who) ||
+    (unsafeToStepOn(map, cell, tilesById, statusDefs, traveller, who) ||
       (avoidWade && wadesIn(map, cell, tilesById)));
 }
 
@@ -352,6 +359,7 @@ export function findRefuge(
     board,
     tilesById,
     statusDefs,
+    tileDef,
     start.who,
     keepsDry(board, from, opts.avoidWade, tilesById),
     NOTHING_ASKED_FOR,
@@ -415,7 +423,15 @@ export function reachableCells(
 ): Map<string, ReachedCell> {
   const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
-  const avoid = avoidRule(board, tilesById, statusDefs, start.who, false, NOTHING_ASKED_FOR);
+  const avoid = avoidRule(
+    board,
+    tilesById,
+    statusDefs,
+    tileDef,
+    start.who,
+    false,
+    NOTHING_ASKED_FOR,
+  );
 
   const frontier = new Frontier();
   const reached = new Map<string, ReachedCell>();
@@ -460,6 +476,7 @@ export function findPath(
     board,
     tilesById,
     statusDefs,
+    tileDef,
     start.who,
     keepsDry(board, from, opts.avoidWade, tilesById),
     (cell) => arrive === "on" && sameCell(cell, goal),

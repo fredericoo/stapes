@@ -106,7 +106,14 @@ function stepTeleportFrom(world: NavWorld, at: Coord): Coord | null {
 
 function hurtsOnArrival(world: NavWorld, at: Coord): boolean {
   if (stepTeleportFrom(world, at)) return false;
-  return unsafeToStepOn(world.board, at, world.tilesById, world.statusDefs, world.who);
+  return unsafeToStepOn(
+    world.board,
+    at,
+    world.tilesById,
+    world.statusDefs,
+    world.traveller,
+    world.who,
+  );
 }
 
 export function opensToIntangible(

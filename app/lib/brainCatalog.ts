@@ -177,7 +177,7 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
   },
   in_harm: {
     label: "standing in harm",
-    hint: "The tile under this body would give it a bad status it is not immune to, such as a flame's burn. Pair it with a random step, which never lands on a flame or a portal.",
+    hint: "The tile under this body would give it a bad status it is not immune to, such as a flame's burn. Pair it with a random step, which never lands on a flame it is not immune to, nor on a portal.",
     params: [],
     make: () => ({ cond: "in_harm" }),
   },
@@ -287,7 +287,7 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   step_random: {
     label: "step random",
-    hint: "Step to a random walkable neighbour, never onto a flame or a portal, nor into water unless the body swims. Fails when hemmed in.",
+    hint: "Step to a random walkable neighbour, never onto a flame it is not immune to or a portal, nor into water unless the body swims. Fails when hemmed in.",
     params: [{ key: "allowDrops", kind: "boolean", label: "allow drops" }],
     make: () => ({ action: "step_random" }),
   },

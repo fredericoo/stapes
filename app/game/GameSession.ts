@@ -4452,7 +4452,7 @@ export class GameSession implements PlaySession {
 
     const landing = this.stepLandingCell(loc, direction, def, check.to);
     if (!landing) return false;
-    if (unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, actor.id)) {
+    if (unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, def, actor.id)) {
       return true;
     }
     if (def.swims) return false;
