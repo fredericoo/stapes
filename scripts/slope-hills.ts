@@ -9,6 +9,8 @@ import type { Coord, Direction, MapFile, TileDef } from "../app/lib/types";
 const FILL = "half-stone";
 const SLOPE = "hill-wall";
 const RAMP = "ramp";
+const CAVE_FLOOR = "dirt";
+const MOUTH = "hill-cave-mouth";
 
 /** What `hill-wall` is and connects to, so a cell of any of these beside a wall keeps the wall's top whole on that side. */
 const ROCK = new Set([
@@ -55,7 +57,7 @@ const tilesById = tilesByIdFromList(tiles);
 const playerDef = tilesById["player"]!;
 
 const brinks = new Set(Object.values(GROUNDS).map(({ brink }) => brink));
-for (const id of [SLOPE, ...brinks]) {
+for (const id of [SLOPE, MOUTH, ...brinks]) {
   if (!tilesById[id]) throw new Error(`data/tiles.json has no ${id}`);
 }
 const sloped = Object.values(map.levels).some((cells) =>
@@ -124,6 +126,43 @@ function rampHeads(): Set<string> {
 }
 
 const heads = rampHeads();
+
+/**
+ * Where a tunnel comes out of a cliff: a cell of bare cave floor on or above
+ * the surface with a floor over it, rock on both sides, more cave floor behind
+ * it, and in front of it open ground with nothing over that. The hilltop over
+ * it is not asked to be ground with a ledge, because a hill built by hand can
+ * be topped with anything.
+ */
+function caveMouths(): Map<string, Direction> {
+  const mouths = new Map<string, Direction>();
+  for (const [z, cells] of Object.entries(map.levels)) {
+    if (Number(z) < 0) continue;
+    const above = map.levels[String(Number(z) + 1)] ?? {};
+    const rock = (key: string) => cells[key]?.some((placed) => ROCK.has(placed.tileId)) === true;
+    for (const [key, stack] of Object.entries(cells)) {
+      if (stack.length !== 1 || stack[0]!.tileId !== CAVE_FLOOR || !above[key]?.length) continue;
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      const facing = (Object.keys(STEP) as Direction[]).find((direction) => {
+        const { dx, dy } = STEP[direction];
+        const out = coordKey(x + dx, y + dy);
+        return (
+          cells[out] !== undefined &&
+          !rock(out) &&
+          cells[out][0]!.tileId !== CAVE_FLOOR &&
+          !above[out]?.length &&
+          cells[coordKey(x - dx, y - dy)]?.[0]?.tileId === CAVE_FLOOR &&
+          rock(coordKey(x + dy, y + dx)) &&
+          rock(coordKey(x - dy, y - dx))
+        );
+      });
+      if (facing) mouths.set(`${key},${z}`, facing);
+    }
+  }
+  return mouths;
+}
+
+const mouths = caveMouths();
 const isRock = (stack: Placed[] | undefined) =>
   stack?.some((placed) => ROCK.has(placed.tileId)) === true;
 
@@ -144,7 +183,7 @@ function atDrop(below: Record<string, Placed[]>, key: string): boolean {
 }
 
 const levels: Flat["levels"] = {};
-const counts = { walls: 0, brinks: 0, heads: 0 };
+const counts = { walls: 0, brinks: 0, heads: 0, mouths: 0 };
 for (const [z, cells] of Object.entries(map.levels)) {
   const under = String(Number(z) - 1);
   const below = map.levels[under] ?? {};
@@ -156,7 +195,14 @@ for (const [z, cells] of Object.entries(map.levels)) {
       counts.walls++;
       continue;
     }
-    if (!ground || !isFill(below[key])) {
+    const mouth = mouths.get(`${key},${z}`);
+    if (mouth) {
+      out[key] = [stack[0]!, { tileId: MOUTH, direction: mouth }];
+      counts.mouths++;
+      continue;
+    }
+    const mouthBelow = mouths.get(`${key},${under}`);
+    if (!ground || !(isFill(below[key]) || mouthBelow)) {
       out[key] = stack;
       continue;
     }
@@ -175,7 +221,8 @@ for (const [z, cells] of Object.entries(map.levels)) {
 const slopedMap: Flat = { version: map.version, levels };
 
 console.log(
-  `${counts.walls} fill cells sloped, ${counts.brinks} brinks laid, ${counts.heads} ramp heads kept as blocks`,
+  `${counts.walls} fill cells sloped, ${counts.brinks} brinks laid, ` +
+    `${counts.heads} ramp heads kept as blocks, ${counts.mouths} cave mouths set`,
 );
 
 console.log("walking the map before and after…");
