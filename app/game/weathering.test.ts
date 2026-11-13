@@ -48,6 +48,31 @@ function shelteringBrain(): BrainDef {
   };
 }
 
+function roostingBrain(): BrainDef {
+  const coverNear = { cond: "shelter_near", from: "sky", cells: SHELTER_CELLS } as const;
+  return {
+    initial: "out",
+    states: {
+      out: { do: [{ action: "hold" }] },
+      roosting: {
+        do: [{ action: "take_shelter", from: "sky", cells: SHELTER_CELLS }, { action: "hold" }],
+      },
+    },
+    transitions: [
+      {
+        from: "out",
+        if: { combinator: "and", rules: [{ cond: "under_sky" }, coverNear] },
+        to: "roosting",
+      },
+      {
+        from: "roosting",
+        if: { combinator: "and", not: true, rules: [coverNear] },
+        to: "out",
+      },
+    ],
+  };
+}
+
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "glass", height: 0, lightPassing: true }),
@@ -85,6 +110,14 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
     interactions: { brain: shelteringBrain() },
+  }),
+  tile({
+    id: "bat",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { brain: roostingBrain() },
   }),
 ];
 
@@ -129,9 +162,13 @@ function top(session: GameSession, x: number, y: number): string | undefined {
   return getStack(session.getMap(), x, y, 0).at(-1)?.tileId;
 }
 
+function cellOf(session: GameSession, tileId: string): string {
+  const body = session.actorSnapshots().find((actor) => actor.tileId === tileId);
+  return body ? `${body.x},${body.y}` : "gone";
+}
+
 function hareCell(session: GameSession): string {
-  const hare = session.actorSnapshots().find((actor) => actor.tileId === "hare");
-  return hare ? `${hare.x},${hare.y}` : "gone";
+  return cellOf(session, "hare");
 }
 
 describe("weatherOn", () => {
@@ -236,5 +273,16 @@ describe("a brain sheltering from rain", () => {
     const session = world(roofed(on(field(), 0, 0, "hare"), 3, 0), everywhere("clear"));
     run(session, 8000);
     expect(hareCell(session)).toBe("0,0");
+  });
+});
+
+describe("a brain sheltering from the sky", () => {
+  it("walks under the nearest roof on a clear day and stays there", () => {
+    const session = world(roofed(on(field(), 0, 0, "bat"), 3, 0), everywhere("clear"));
+    run(session, 8000);
+    expect(cellOf(session, "bat")).toBe("3,0");
+
+    run(session, 4000);
+    expect(cellOf(session, "bat")).toBe("3,0");
   });
 });

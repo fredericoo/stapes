@@ -31464,6 +31464,18 @@
               }
             ]
           },
+          "seeking_den": {
+            "do": [
+              {
+                "action": "take_shelter",
+                "from": "sky",
+                "cells": 12
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
           "denned": {
             "do": [
               {
@@ -31721,7 +31733,7 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
             "from": "following",
@@ -31740,7 +31752,7 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
             "from": "casting",
@@ -31759,7 +31771,7 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
             "from": "homing",
@@ -31778,7 +31790,7 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
             "from": "investigating",
@@ -31797,7 +31809,7 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
             "from": "feeding",
@@ -31816,10 +31828,13 @@
                 }
               ]
             },
-            "to": "denned"
+            "to": "seeking_den"
           },
           {
-            "from": "denned",
+            "from": [
+              "denned",
+              "seeking_den"
+            ],
             "if": {
               "combinator": "or",
               "rules": [
@@ -31835,6 +31850,35 @@
               ]
             },
             "to": "prowling"
+          },
+          {
+            "from": "seeking_den",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "under_sky"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "shelter_near",
+                      "from": "sky",
+                      "cells": 12
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "denned"
           },
           {
             "from": "feeding",

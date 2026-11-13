@@ -1,4 +1,4 @@
-import type { WeatherKind } from "../lib/weather";
+import type { ShelterFrom, WeatherKind } from "../lib/weather";
 import {
   MAX_HELD_TRANSITIONS,
   transitionOf,
@@ -466,7 +466,7 @@ import {
   findDecayCells,
 } from "./decay";
 import { Weathering, findWeatheringCells } from "./weathering";
-import { CLEAR_SKY, weatherOn, weatherOver, type Sky } from "./weatherOn";
+import { CLEAR_SKY, underOpenSky, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
@@ -840,7 +840,7 @@ type ActorRuntime = {
   shelter: {
     at: Coord | null;
     from: string;
-    weather: WeatherKind;
+    shelterFrom: ShelterFrom;
     cells: number;
     atMs: number;
   } | null;
@@ -2198,7 +2198,8 @@ export class GameSession implements PlaySession {
       inHarm: () => this.standsInHarm(actor, loc),
       weather: (overhead) =>
         overhead ? weatherOver(this.sky, loc) : weatherOn(this.map, this.sky, loc, this.tilesById),
-      nearestShelter: (weather, cells) => this.nearestShelter(actor, loc, weather, cells),
+      underSky: () => underOpenSky(this.map, loc, this.tilesById),
+      nearestShelter: (from, cells) => this.nearestShelter(actor, loc, from, cells),
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
@@ -4688,14 +4689,14 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * The cheapest cell to walk to that `weather` is not on. A flood, so the
+   * The cheapest cell to walk to that is out of `shelterFrom`. A flood, so the
    * answer is a cell the body can reach; it is kept for `SHELTER_MEMORY_MS`
    * from the cell it was asked on because a brain asks every round.
    */
   private nearestShelter(
     actor: ActorRuntime,
     loc: ActorLocation,
-    weather: WeatherKind,
+    shelterFrom: ShelterFrom,
     cells: number,
   ): Coord | null {
     const from = walkKey(loc);
@@ -4703,7 +4704,7 @@ export class GameSession implements PlaySession {
     if (
       known !== null &&
       known.from === from &&
-      known.weather === weather &&
+      known.shelterFrom === shelterFrom &&
       known.cells === cells &&
       !reached(this.elapsedMs - known.atMs, SHELTER_MEMORY_MS)
     ) {
@@ -4722,11 +4723,16 @@ export class GameSession implements PlaySession {
     let best: { at: Coord; cost: number } | null = null;
     for (const cell of flood.values()) {
       if (best !== null && cell.cost >= best.cost) continue;
-      if (weatherOn(this.map, this.sky, cell.at, this.tilesById) === weather) continue;
+      if (this.exposedAt(cell.at, shelterFrom)) continue;
       best = cell;
     }
-    actor.shelter = { at: best?.at ?? null, from, weather, cells, atMs: this.elapsedMs };
+    actor.shelter = { at: best?.at ?? null, from, shelterFrom, cells, atMs: this.elapsedMs };
     return actor.shelter.at;
+  }
+
+  private exposedAt(at: Coord, shelterFrom: ShelterFrom): boolean {
+    if (shelterFrom === "sky") return underOpenSky(this.map, at, this.tilesById);
+    return weatherOn(this.map, this.sky, at, this.tilesById) === shelterFrom;
   }
 
   private walkGoalCell(goal: WalkGoal): Coord | null {

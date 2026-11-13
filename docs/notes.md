@@ -10110,6 +10110,19 @@ cell the named weather is not on, and `shelter_near` holds when there is one.
   is why the deer's `flee` and `cornered` and the cat's `answering` and
   `following` carry one now; without it rain would pull a fleeing deer out of
   its flight.
+- **`sky` is something to shelter from, beside the weathers.** It is on every
+  cell `underOpenSky` holds for, whatever the weather, so `take_shelter` and
+  `shelter_near` with `from: "sky"` walk to and ask about the nearest covered
+  cell, and the `under_sky` condition asks it of the body's own cell. It is
+  the column walk and not the light bake: a cell lit sideways from a cave
+  mouth counts as covered. That is the price of keeping the light off the
+  server. The bake runs only in the tab, and a creature that asked it would need the
+  server to bake the chunks around every brain that cares.
+- **A tree covers only its own cell.** Its crown is drawn on the cell it
+  stands on rather than placed on the level above, so the ground around it is
+  under the sky. In the forests where the surface wolves live, nothing within
+  `SHELTER_MAX_NODES` of any of them is covered: shelter from the sky there
+  needs a den authored on the map, an overhang or a roofed hollow.
 - **`choice` is a catalogue parameter kind** (`ParamSpec` in
   `brainCatalog.ts`) for a fixed list such as the weathers. A trait cannot
   take one as an argument: `scalarKind` in `traits.ts` has no trait kind for it.
@@ -11494,8 +11507,8 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
 
 - **A `denned` state where it puts itself to sleep.** By day on the surface,
   each state the wolf roams in — `prowling`, `following`, `casting`, `homing`,
-  `investigating`, `feeding` — goes to it, and it goes back to `prowling` once
-  the wolf is awake. These rows sit after the `from: any` rows and before the
+  `investigating`, `feeding` — goes to `seeking_den` and from there to it, and
+  it goes back to `prowling` once the wolf is awake. These rows sit after the `from: any` rows and before the
   per-state ones. (`casting` is the wolf's name for the step it takes when
   stuck, not a spell.)
 - **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
@@ -11509,6 +11522,13 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   section. The spell has no `castTimeMs`, because the minimum is 200ms and an
   instant cast is the absent field — and one invalid spell drops the wolf's
   whole battler block.
+- **It looks for cover first.** Each of those rows goes to `seeking_den`,
+  which runs `take_shelter` from `sky` within 12 steps and hands over to
+  `denned` once the wolf is under cover, or straight away when no covered cell
+  is in reach. On today's map that is every surface wolf, so each still curls
+  up where it stands; a den placed within reach is used without any change to
+  the brain. Night takes it out of `seeking_den` the way it takes it out of
+  `denned`.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.
