@@ -10,6 +10,7 @@ const SHOWN_BEFORE_MORE = 4;
 const FIND_LABELS: Record<FindKind, string> = {
   start: "Every new character starts with it",
   gather: "Gathered from",
+  fall: "Falls from",
   drop: "Dropped by",
   decay: "Left when this spoils:",
 };
