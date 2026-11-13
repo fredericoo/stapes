@@ -229,6 +229,13 @@ an agent drives", lists every call.
   movement rules and refuse to write it if a cell a player could walk to before
   can no longer be walked to. The shape of the relief is the `HILLS` block at
   the top of the script; `--dry-run` reports without writing
+- `bun run carve:hill-caves` — dig caves into the rock `raise:hills` left
+  inside hills two or more levels tall, each with a tunnel out to a cliff face,
+  stalagmites and bats, then walk the map with the game's own movement rules
+  and bake its light, and refuse to write it if a carved cell cannot be walked
+  to, a cell that could be walked to before no longer can, or daylight reaches
+  the back of a cave. What to dig is the `CAVES` block at the top of the
+  script; `--dry-run` reports without writing
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs
