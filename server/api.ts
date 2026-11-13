@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { weatherAreasSchema } from "../app/lib/weatherAreas";
 import { Elysia, t } from "elysia";
-import { flattenMap, parseMap, serializeMap } from "../app/lib/mapData";
+import { parseFlatMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
 import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import { untar } from "./untar";
@@ -284,7 +284,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       "/map",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
-        const { removed } = await world.server.replaceWorld(flattenMap(parseMap(body.map)));
+        const { removed } = await world.server.replaceWorld(parseFlatMap(body.map));
         return { ok: true as const, removed };
       },
       { body: t.Object({ map: t.String() }) },

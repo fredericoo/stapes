@@ -1,7 +1,7 @@
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
-import type { MapFile, TileDef, TilesetDef } from "./types";
-import { normalizeTiles } from "./types";
-import { emptyMap, parseMap, serializeMap } from "./mapData";
+import type { FlatMapFile, MapFile, TileDef, TilesetDef } from "./types";
+import { MAP_FILE_VERSION, normalizeTiles } from "./types";
+import { emptyMap, parseFlatMap, parseMap, serializeMap } from "./mapData";
 
 const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
@@ -81,6 +81,12 @@ export class DataStore {
     const raw = await this.blobs.getText(MAP_KEY);
     if (raw === null) return emptyMap();
     return parseMap(raw);
+  }
+
+  async readFlatMap(): Promise<FlatMapFile> {
+    const raw = await this.blobs.getText(MAP_KEY);
+    if (raw === null) return { version: MAP_FILE_VERSION, levels: {} };
+    return parseFlatMap(raw);
   }
 
   async writeMap(map: MapFile) {
