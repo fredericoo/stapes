@@ -233,5 +233,12 @@
     "file": "brinks.png",
     "width": 16,
     "height": 376
+  },
+  {
+    "id": "bear",
+    "name": "Bear",
+    "file": "bear.png",
+    "width": 96,
+    "height": 128
   }
 ]
