@@ -205,5 +205,12 @@
     "file": "ledges.png",
     "width": 16,
     "height": 376
+  },
+  {
+    "id": "stalagmites",
+    "name": "Stalagmites",
+    "file": "stalagmites.png",
+    "width": 64,
+    "height": 32
   }
 ]

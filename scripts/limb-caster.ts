@@ -3,7 +3,8 @@ export type Vec3 = [number, number, number];
 /** A tapered capsule: a limb, a pad, a stem, anything round along a line. */
 export type Capsule = { from: Vec3; to: Vec3; radiusFrom: number; radiusTo: number };
 
-export type Hit<L extends Capsule> = { normal: Vec3; limb: L };
+/** `at` is the point the ray met, in the same pixels as the limb. */
+export type Hit<L extends Capsule> = { normal: Vec3; limb: L; at: Vec3 };
 
 /**
  * Where the standing cell sits in the sprite and how high the ray starts. A
@@ -71,7 +72,7 @@ function castRay<L extends Capsule>(
       if (z < low || z > high) continue;
       const { depth, axis } = insideLimb(limb, p);
       if (depth >= 0)
-        return { limb, normal: normalise([p[0] - axis[0], p[1] - axis[1], p[2] - axis[2]]) };
+        return { limb, at: p, normal: normalise([p[0] - axis[0], p[1] - axis[1], p[2] - axis[2]]) };
     }
   }
   return null;

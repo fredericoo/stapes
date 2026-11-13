@@ -237,6 +237,10 @@ an agent drives", lists every call.
   `grass-ledge` and `sand-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do
   not read as one
+- `bun run generate:stalagmites` — draw `data/tilesets/stalagmites.png` and
+  write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
+  cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through
+  the game's projection the way the swamp trees are
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this
