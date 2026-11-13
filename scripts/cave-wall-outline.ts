@@ -5,6 +5,13 @@ const CELL = CELL_SIZE;
 const HALF = CELL / 2;
 const RIDGE = CELL / 4;
 
+/**
+ * How much wider than a cave wall's a hill wall's outline is at the ceiling.
+ * `generate-brinks.ts` cuts the ground to the same outline, so a body on the
+ * edge of a hill has this much more grass under it.
+ */
+export const HILL_CROWN = 2;
+
 export type Point = { x: number; y: number };
 type Rect = { x0: number; y0: number; x1: number; y1: number };
 

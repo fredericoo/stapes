@@ -12,7 +12,7 @@ import {
   type TileSprite,
   type TilesetDef,
 } from "../app/lib/types";
-import { type Point, footprint } from "./cave-wall-outline";
+import { HILL_CROWN, type Point, footprint } from "./cave-wall-outline";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA = path.join(ROOT, "data");
@@ -90,26 +90,34 @@ const GREY: Rock = {
 /**
  * Every variant shares one sheet, so a cave that mixes them costs no more draw
  * calls than a cave of one, and each connects to the others so the rock stays
- * whole where they meet. All have the same outline at the ceiling; `spread` is
- * how much wider the rock is at the floor.
+ * whole where they meet. `crown` is how much wider than the plain outline the
+ * rock is at the ceiling, and `spread` how much wider it is at the floor.
  */
-const VARIANTS: { tileId: string; name: string; spread: number; rock: Rock }[] = [
-  { tileId: "cave-wall", name: "Cave Wall", spread: 0, rock: RED },
-  { tileId: "cave-wall-sloped", name: "Sloped Cave Wall", spread: HALF, rock: RED },
-  { tileId: "cave-wall-grey", name: "Grey Cave Wall", spread: 0, rock: GREY },
-  { tileId: "cave-wall-sloped-grey", name: "Grey Sloped Cave Wall", spread: HALF, rock: GREY },
+type Variant = { tileId: string; name: string; crown: number; spread: number; rock: Rock };
+const VARIANTS: Variant[] = [
+  { tileId: "cave-wall", name: "Cave Wall", crown: 0, spread: 0, rock: RED },
+  { tileId: "cave-wall-sloped", name: "Sloped Cave Wall", crown: 0, spread: HALF, rock: RED },
+  { tileId: "cave-wall-grey", name: "Grey Cave Wall", crown: 0, spread: 0, rock: GREY },
+  {
+    tileId: "cave-wall-sloped-grey",
+    name: "Grey Sloped Cave Wall",
+    crown: 0,
+    spread: HALF,
+    rock: GREY,
+  },
+  { tileId: "hill-wall", name: "Hill Wall", crown: HILL_CROWN, spread: HALF, rock: RED },
 ];
 
 const NORMAL_REACH = 2;
 
 /**
- * The rock in each pixel of height, floor first: the outline at the ceiling,
- * widened toward the floor by a share of `spread` that grows in a straight line,
- * so the sides slope out evenly.
+ * The rock in each pixel of height, floor first: the outline widened by `crown`
+ * at the ceiling and by `spread` at the floor, in a straight line between, so
+ * the sides slope out evenly.
  */
-function crossSections(mask: number, spread: number): boolean[][][] {
+function crossSections(mask: number, crown: number, spread: number): boolean[][][] {
   return Array.from({ length: RISE }, (_, layer) =>
-    footprint(mask, (spread * (RISE - 1 - layer)) / (RISE - 1)),
+    footprint(mask, crown + ((spread - crown) * (RISE - 1 - layer)) / (RISE - 1)),
   );
 }
 
@@ -193,9 +201,9 @@ function drawSlice(
   originX: number,
   originY: number,
   mask: number,
-  { spread, rock }: { spread: number; rock: Rock },
+  { crown, spread, rock }: Variant,
 ) {
-  const layers = crossSections(mask, spread);
+  const layers = crossSections(mask, crown, spread);
   const heights = layers[0]!.map((row, y) =>
     row.map((_, x) => layers.filter((layer) => layer[y]![x]).length),
   );

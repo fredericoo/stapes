@@ -258,6 +258,10 @@ an agent drives", lists every call.
   `grass-ledge` and `sand-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do
   not read as one
+- `bun run generate:brinks` — draw `data/tilesets/brinks.png` and write the
+  `grass-brink` and `sand-brink` tiles: the ground cut to the outline
+  `hill-wall` has at its ceiling, which `slope:hills` lays over the edge of
+  every hill
 - `bun run generate:stalagmites` — draw `data/tilesets/stalagmites.png` and
   write the `stalagmite` and `stalagmite-grey` tiles: four clusters of tapered
   cones, in the colours of `cave-wall` and of `cave-wall-grey`, cast through
