@@ -1,5 +1,32 @@
 # the-last-stones
 
+## 0.18.0
+
+### Minor Changes
+
+- Apple trees now grow in the orchard, planted in rows of mud, and a few stand among the trees of the forest. Every few minutes one drops an apple on the ground beside it for you, or anything hungry nearby, to eat. Apples rot after an hour or so, and a rotten apple can make you sick.
+- The beaches now have surf: foam washes in and out along the waterline over a strip of wet sand, and the shore curves round its corners instead of meeting the sand in square steps.
+- Bears are a new animal, nearly as dangerous as a cave troll. A fed bear sleeps in its den and can be walked past. A hungry one comes out to hunt deer, rabbits and you, and to pick berry bushes. Bears are weak to fire.
+- Mushrooms now grow in patches in the caves and inside the flower rings where wisps appear. Pick a patch for a few mushrooms and it grows back after a few minutes. A red mushroom keeps you fed for a short while, a blue one is poisonous, and both stack to 32.
+- There is a frozen island off the east coast now. Cross the ice over the strait to reach it: snow slows you a little, ice speeds you up, and it is foggy but never rains. Snow wolves hunt in packs among the pines, water slimes keep to the frozen lakes, tide wisps drift over the open snow, and a yeti waits inside a ring of ice spikes at the island's heart.
+- The bat caves in the hills now open through an arch in the hillside, with the grass running unbroken over it.
+- Six caves now open into the taller hills. Follow a tunnel in from the cliff face to find red and grey stalagmites and the bats that roost among them.
+- You can no longer eat or drink something when one of its effects would not fit: food is refused while you are too full for it, and poison while you are too poisoned. The Eat option and the item in your bag are greyed out and say why. Creatures follow the same rule.
+- Hills now have sloped, rounded sides instead of vertical cliffs.
+
+### Patch Changes
+
+- Berries now heal 1 health when eaten, like apples.
+- Creatures keep to the places they would live: snakes bask in the open and in the desert instead of wolves, wolves stay under cover deep in the woods, and on the ice island the water slimes and tide wisps gather by the frozen lakes.
+- Bats and wisps now fly up and down as well as across. A bat that follows you off a ledge dives after you instead of hanging in the air where it left the ground, and one below you can fly up to reach you.
+- Paths no longer show a line of grass where they meet sand, and deep pools no longer show specks of their bed along the rim.
+- New ramps climb the hills where the way round was long, and onto two hilltops you could not reach before.
+- The world no longer goes down when a new version of the map arrives, now that the map is big enough to include the frozen isle.
+- Dirt paths, mud and swamp beds no longer show dark corners and a dark rim where they meet grass or a floor.
+- A bush you have picked now casts shade like a full one, instead of letting light through until it grows back.
+- The whole island and the frozen isle now meet the sea on sandy beaches, with surf washing up along the shore. Rivers and the northern lake keep their grassy banks.
+- The edges of the woods are thinned out, so the paths between hills and clearings connect instead of ending in a wall of trees.
+
 ## 0.17.0
 
 ### Minor Changes
