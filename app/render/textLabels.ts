@@ -493,8 +493,14 @@ export class WorldLabelLayer {
     this.restack(labels);
   }
 
+  /**
+   * Only labels with an `order` are moved. Re-inserting an element restarts
+   * every CSS animation in it, which replayed a bubble's closing and a
+   * noise's motion each time a body walked; the unordered kinds sit above the
+   * names on `z-index`, so their place in the DOM never decided anything.
+   */
   private restack(labels: WorldLabel[]) {
-    const order = stackingOrder(labels);
+    const order = stackingOrder(labels.filter((label) => label.order !== undefined));
     const stacking = order.join("\n");
     if (stacking === this.stacking) return;
     this.stacking = stacking;

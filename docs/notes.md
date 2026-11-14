@@ -7679,12 +7679,16 @@ pixels, so those are 3 and 2 and every step stays on the pixel grid.
 `closeBubble` adds the class after the bubble is measured, so a bubble rebuilt
 mid-close is never measured at half size.
 
-Three things in `textLabels.ts` look redundant and are not:
+Four things in `textLabels.ts` look redundant and are not:
 
 - **`tightenBubble` sets an explicit width, rounded up.** A shrink-to-fit box
   that wraps takes the width it wrapped in, not its longest line, which left a
   wide empty margin on every two-line bubble. Rounded to nearest, it came out a
   fraction of a pixel short, and `overflow-wrap` split the last word.
+- **`restack` moves only labels with an `order`.** Re-inserting an element
+  restarts every CSS animation in it, and moving every label whenever a body
+  walked replayed bubble and noise animations several times a second. Only
+  names have an `order`, and they sit under every other kind on `z-index`.
 - **A noise is drawn twice in one grid cell**, outline under face. Each glyph
   moves in its own inline-block, and a glyph's two-brick `text-shadow` paints
   over the glyph before it.
