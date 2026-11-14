@@ -28,7 +28,9 @@ table. `bun run verify --help` lists the commands, and
 
 `verify content` exits 1 on an error in tiles, statuses or tilesets and prints
 each finding with its file, the id and what is wrong. What it finds in
-`data/map.json` is a warning and does not change the exit code. `--data <dir>`
+`data/map.json` is a warning and does not change the exit code unless
+`--strict` is given; CI runs it with `--strict`, so a warning fails the build.
+`--data <dir>`
 checks a copy of the content directory instead, which is how to show that it
 catches a fault: seed the fault into a copy and run it there.
 

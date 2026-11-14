@@ -383,8 +383,9 @@ an agent drives", lists every call.
   `x,y,z,tileId[,direction]` separated by `;`. It re-derives the renderer's
   placement rather than calling it, so the two can disagree
 - `bun run verify <command>` — run the game's own code on this checkout and
-  print what it did, as evidence that a change does what its PR says. It is not
-  a CI gate, and it needs no server, database or account. Every command prints
+  print what it did, as evidence that a change does what its PR says. It needs
+  no server, database or account, and CI runs `content --strict` and
+  `stranded`. Every command prints
   the commit it ran on, and `--json` prints one JSON object on stdout instead
   of a table. `bun run verify --help` lists the commands; the `verify` skill in
   `.agents/skills/` says which one goes with which kind of change
