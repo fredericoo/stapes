@@ -41,7 +41,7 @@ function findingLines(finding: Finding, dir: string): string {
   return `${label} ${join(dir, finding.file)}${where ? `  ${where}` : ""}\n      ${finding.message}`;
 }
 
-function summary(report: ContentReport, dir: string): string {
+function summary(report: ContentReport, dir: string, strict: boolean): string {
   const { checked, counts } = report;
   const lines = [
     `checked ${checked.tiles} tiles (${checked.battlers} battlers, ${checked.brains} brains, ${checked.dialogs} dialogs), ${checked.statuses} statuses, ${checked.tilesets} tilesets` +
@@ -54,7 +54,11 @@ function summary(report: ContentReport, dir: string): string {
   if (report.findings.length > 0) lines.push("");
   lines.push(
     `${counts.errors} ${counts.errors === 1 ? "error" : "errors"}, ${counts.warnings} ${counts.warnings === 1 ? "warning" : "warnings"}` +
-      (counts.errors > 0 ? " (errors exit 1; map findings are warnings)" : ""),
+      (strict && counts.warnings > 0
+        ? " (--strict: warnings exit 1)"
+        : counts.errors > 0
+          ? " (errors exit 1; map findings are warnings)"
+          : ""),
   );
   return lines.join("\n");
 }
@@ -62,10 +66,11 @@ function summary(report: ContentReport, dir: string): string {
 export const content: Command = {
   name: "content",
   summary: "load every tile, status, brain and dialog in data/ and check every id they name",
-  usage: "bun run verify content [--data <dir>] [--json]",
-  options: { data: { type: "string" } },
+  usage: "bun run verify content [--data <dir>] [--strict] [--json]",
+  options: { data: { type: "string" }, strict: { type: "boolean" } },
   help: [
     ["--data <dir>", "the content directory to check (default: data)"],
+    ["--strict", "exit 1 on a warning as well as an error"],
     ["--json", "print one JSON object instead of the table"],
   ],
   async run({ values, positionals }): Promise<Outcome> {
@@ -85,11 +90,13 @@ export const content: Command = {
     });
     const nearby = relative(process.cwd(), dir) || ".";
     const shown = nearby.startsWith("..") ? dir : nearby;
+    const strict = values.strict === true;
+    const passed = report.ok && !(strict && report.counts.warnings > 0);
     return {
-      exitCode: report.ok ? 0 : 1,
+      exitCode: passed ? 0 : 1,
       seed: null,
-      json: { data: shown, ...report },
-      text: summary(report, shown),
+      json: { data: shown, strict, ...report },
+      text: summary(report, shown, strict),
     };
   },
 };

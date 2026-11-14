@@ -254,8 +254,8 @@ an agent drives", lists every call.
   `public/apple-touch-icon.png` (180 px, on the ink background)
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
-  is the `SYSTEM` block at the top of the script; `--verify` checks the map as
-  it stands without touching it
+  is the `SYSTEM` block in `scripts/caveSystem.ts`; `--verify` checks the map
+  as it stands without touching it, the same check as `bun run verify caves`
 - `bun run raise:hills` — raise hills and mountains out of the open country in
   `data/map.json` and put ramps on them, then walk the map with the game's own
   movement rules and refuse to write it if a cell a player could walk to before
@@ -383,16 +383,23 @@ an agent drives", lists every call.
   `x,y,z,tileId[,direction]` separated by `;`. It re-derives the renderer's
   placement rather than calling it, so the two can disagree
 - `bun run verify <command>` — run the game's own code on this checkout and
-  print what it did, as evidence that a change does what its PR says. It is not
-  a CI gate, and it needs no server, database or account. Every command prints
+  print what it did, as evidence that a change does what its PR says. It needs
+  no server, database or account, and CI runs `content --strict`, `caves` and
+  `stranded`. Every command prints
   the commit it ran on, and `--json` prints one JSON object on stdout instead
   of a table. `bun run verify --help` lists the commands; the `verify` skill in
   `.agents/skills/` says which one goes with which kind of change
   - `content` loads every tile, status, brain and dialog in `data/` with the
     game's own resolvers, then checks every id they name and every sprite
     against its sheet. It exits 1 on an error in tiles, statuses or tilesets;
-    what it finds in `data/map.json` is a warning. `--data <dir>` checks
-    another copy
+    what it finds in `data/map.json` is a warning, and `--strict` exits 1 on
+    a warning too, which is how CI runs it. `--data <dir>` checks another copy
+  - `caves` checks every dirt floor on levels -1 to -3 for open sky, daylight
+    bright enough to read as a hole, headroom, and a way to walk in, and every
+    ramp for somewhere to climb. A deliberate problem is listed in
+    `data/verify-exceptions.json` by kind and area, a box from one `x,y,z`
+    corner to the other, with a reason; an area with no such problem left in
+    it is reported as stale. Failing or stale exits 1
   - `battle <a> <b>` fights two sides through the Arena's `Duel` for every
     seed, both ways round, and reports wins, losses, draws and undecided
     fights with a 95% interval, time to kill, damage per second each way,

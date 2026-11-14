@@ -3112,6 +3112,34 @@ counted as cells nobody could walk to. A wall fills its cell up to the level
 above, and a barrel, crate or bottle under a floor leaves no room on top of it
 for a three-unit body, so nobody can stand in any of those cells.
 
+## `verify caves` excuses a problem only by kind and area
+
+The cave check moved out of `scripts/carve-caves.ts` into `checkCaves` in
+`app/verify/caves.ts`, so `bun run verify caves` can run it in CI. It reports
+one problem per cell, each with a kind (`open-sky`, `daylight`, `unreachable`,
+`ramp-climbs-nowhere`, ...), where it used to report a count.
+
+Some of what it finds is meant: a stairwell open to the sky, a pit dug from
+the surface, a secret tunnel nobody can walk into. Those are listed in
+`data/verify-exceptions.json`, one entry per check and kind, with a reason and
+one or more areas: boxes given by their lowest and highest `x,y,z` corners.
+`applyExceptions` in `app/verify/exceptions.ts` excuses a problem only when
+it is of the entry's kind and inside one of its areas, so a problem just
+outside the box, on another level, or of another kind inside it still fails.
+A new problem of the same kind inside the box is excused, which is why an
+area is drawn tight round the place it describes. An area with no problem of
+its kind left in it is stale and fails, so an exception goes away when what
+it excused does.
+`server/seed.ts` copies a fixed list of files, so the exceptions file never
+reaches a world.
+
+Daylight is a problem only away from every cell the sky can see on that level,
+whether an opening, a reported `open-sky` cell or open ground like the grass
+hollow at (20, 36). Light near such a cell is that cell's light, and the cell
+itself is already reported or deliberate. Before this, only the brightest
+daylit cell was reported, and the light from the hollow was hidden behind the
+stairwell's.
+
 ## `carve:hill-caves` digs only where a hill is rock above the cave as well
 
 `raise:hills` fills every level of a hill below its top with

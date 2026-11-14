@@ -37,6 +37,12 @@ jobs:
       - name: World tests
         run: bun run test:server
 
+      - name: Every id in the content resolves and the map draws without gaps
+        run: bun run verify content --strict
+
+      - name: Every cave floor is dark, roofed and reachable, or excused
+        run: bun run verify caves
+
       - name: Nowhere on the map strands a player
         run: |
           mkdir -p stranded
