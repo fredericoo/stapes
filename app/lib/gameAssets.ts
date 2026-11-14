@@ -71,7 +71,7 @@ async function loadLabelFont(): Promise<void> {
 
 async function loadTileset(tileset: TilesetDef): Promise<void> {
   const image = new Image();
-  image.src = tilesetUrl(tileset.file);
+  image.src = tilesetUrl(tileset);
   await image.decode();
 }
 

@@ -1863,7 +1863,7 @@ export class WorldRenderer {
         if (this.textures.has(ts.id)) return;
         const loader = new THREE.TextureLoader();
         try {
-          const tex = await loader.loadAsync(tilesetUrl(ts.file));
+          const tex = await loader.loadAsync(tilesetUrl(ts));
           tex.magFilter = THREE.NearestFilter;
           tex.minFilter = THREE.NearestFilter;
           tex.generateMipmaps = false;

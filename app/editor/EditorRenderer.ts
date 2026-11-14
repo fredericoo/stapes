@@ -484,7 +484,7 @@ export class EditorRenderer {
       this.tilesets.map(async (ts) => {
         if (this.textures.has(ts.id)) return;
         const loader = new THREE.TextureLoader();
-        const tex = await loader.loadAsync(tilesetUrl(ts.file));
+        const tex = await loader.loadAsync(tilesetUrl(ts));
         tex.magFilter = THREE.NearestFilter;
         tex.minFilter = THREE.NearestFilter;
         tex.generateMipmaps = false;

@@ -8,6 +8,7 @@ import type { PlayerEntry } from "../../server/world";
 import type { RealmState } from "../../server/realm";
 import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
+import { TILESET_VERSION_PARAM } from "./dataStore";
 import type { RemovedPlacement } from "./validation";
 
 /**
@@ -127,6 +128,12 @@ export async function fetchPlayer(characterId: string): Promise<{
   return unwrap(await client.api.players({ characterId }).get());
 }
 
-export function tilesetUrl(file: string): string {
-  return `/api/tilesets/${encodeURIComponent(file)}`;
+/**
+ * A versioned URL is cached for good, so a sheet that changes is fetched under a
+ * new URL. Without a version the response may be cached for hours by the CDN in
+ * front of the server, so an unversioned caller should fetch with `cache: "no-cache"`.
+ */
+export function tilesetUrl({ file, version }: Pick<TilesetDef, "file" | "version">): string {
+  const path = `/api/tilesets/${encodeURIComponent(file)}`;
+  return version === undefined ? path : `${path}?${TILESET_VERSION_PARAM}=${version}`;
 }

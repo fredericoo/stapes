@@ -171,6 +171,17 @@ route had by accident and this keeps on purpose. `shouldRevalidate` is off
 because none of it can change under a player: authored content changes when an
 author saves, and a save replaces the world and pushes a fresh `hello`.
 
+**A tileset's URL carries a hash of its bytes.** Cloudflare sits in front of the
+deployed world and raises any `max-age` below its Browser Cache TTL to four hours,
+so a sheet under a fixed URL was cached past the deploy that changed it, and the new
+tile catalogue drew from the old pixels. `/api/bootstrap` and `/api/tilesets` add
+`version` to each `TilesetDef` (`DataStore.readVersionedTilesets`), `tilesetUrl`
+puts it in `?v=`, and the server answers `immutable` only when that version is
+the current one — an old tab asking by an old version gets the new bytes as
+`no-store`, so nothing caches them under the wrong name. The version is never
+stored: `writeTilesets` drops it. The human part sheets are not in the catalogue
+and have no version, so `humanSheets.ts` fetches them with `cache: "no-cache"`.
+
 **Nothing connects until the world route.** The socket belongs to `/online` alone and
 is opened as a character, so a tab parked at any other screen costs the world
 nothing — no body standing in a doorway somebody else is walking through.
