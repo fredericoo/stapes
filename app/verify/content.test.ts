@@ -321,6 +321,22 @@ describe("checkContent", () => {
     expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });
 
+  it("accepts water on sand beside a path over grass that connects to sand", () => {
+    const c = content();
+    c.tiles.push(tile("grass-2"), tile("sand-dunes"), autotile("water"), {
+      ...autotile("dirt"),
+      connectsTo: ["sand-dunes"],
+    });
+    for (let x = 2; x <= 8; x++) {
+      for (let y = -3; y <= 3; y++) {
+        c.map = replaceStack(c.map, x, y, 0, [{ tileId: "grass-2" }, { tileId: "dirt" }]);
+      }
+    }
+    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "sand-dunes" }, { tileId: "water" }]);
+
+    expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
+  });
+
   it("accepts water under the rim of deep water it connects to", () => {
     const c = content();
     c.tiles.push({ ...autotile("water"), connectsTo: ["deep-water"] }, autotile("deep-water"));

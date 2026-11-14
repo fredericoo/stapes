@@ -737,6 +737,28 @@ function isFullGround(def: TileDef | undefined): boolean {
   );
 }
 
+/**
+ * True when a neighbour's ground is hidden under an autotile that draws whole
+ * in its cell and connects to `under`, so the edge shows `under` beside that
+ * cover rather than beside the ground below it.
+ */
+function wholeCoverMeets(
+  map: MapFile,
+  at: { x: number; y: number; z: number },
+  stack: readonly PlacedTile[],
+  under: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.slice(1).some((placed) => {
+    const cover = tilesById[placed.tileId];
+    return (
+      isGroundAutotile(cover) &&
+      cover.connectsTo?.includes(under.tileId) === true &&
+      maskBlobCorners(neighborMask(map, at.x, at.y, at.z, cover)) === 0xff
+    );
+  });
+}
+
 type Seams = { strangers: Set<string>; fadedCovers: Set<string> };
 
 /**
@@ -769,7 +791,8 @@ function seamsOf(
       showsGround &&
       base &&
       isFullGround(tilesById[base.tileId]) &&
-      !below.some((placed) => placed.tileId === base.tileId)
+      !below.some((placed) => placed.tileId === base.tileId) &&
+      !wholeCoverMeets(map, { x: at.x + dx, y: at.y + dy, z: at.z }, beside, under, tilesById)
     ) {
       found.strangers.add(base.tileId);
     }
