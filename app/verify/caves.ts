@@ -109,10 +109,24 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
     problem("open-sky", x, y, z, `open sky over ${where(x, y, z)}`);
   }
 
+  /**
+   * Light within reach of a cell the sky can see is that cell's light, and the
+   * cell is either an opening or already reported as open sky. What is left is
+   * light through something that only partly covers the sky.
+   */
+  const skyHoles = new Map<number, Cell[]>();
+  for (const z of levels) {
+    const holes: Cell[] = openings.map(({ x, y }) => ({ x, y }));
+    for (const { x, y } of listCoords(live, z)) {
+      if (isSkyExposed(x, y, z, occlusion)) holes.push({ x, y });
+    }
+    skyHoles.set(z, holes);
+  }
+
   const flood = computeLightingFlood(live, tilesById);
   const daylit = { count: 0, brightest: 0, at: "" };
   for (const [x, y, z] of cellsOf()) {
-    if (openings.some((o) => chebyshev(o, { x, y }) <= MAX_LIGHT_LEVEL)) continue;
+    if (skyHoles.get(z)!.some((o) => chebyshev(o, { x, y }) <= MAX_LIGHT_LEVEL)) continue;
     const lv = flood.levels.get(z);
     if (!lv) continue;
     const lx = x - lv.x0;
