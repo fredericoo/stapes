@@ -34551,8 +34551,8 @@
         {
           "in": "rain",
           "tileId": "",
-          "fromMs": 15000,
-          "toMs": 40000
+          "fromMs": 1000,
+          "toMs": 2000
         }
       ]
     },

@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { constantFormula, type Formula, parseFormula } from "./formula";
 import { NO_VFX, resolveStatusVfx, type StatusVfx, statusVfxSchema } from "./statusVfx";
 import { type CellRect, defaultBase, type AnchoredSprite } from "./types";
+import { WEATHER_KINDS, type WeatherKind } from "./weather";
 import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "./walkSpeed";
 
 export type StatusTone = "good" | "bad";
@@ -43,6 +44,8 @@ export type StatusDef = {
   walkSpeedPercent: number;
   incapacitates: boolean;
   endsOnDamage: boolean;
+  /** The weathers that end it once they are on the bearer's cell: rain putting out a burn. */
+  endsIn: readonly WeatherKind[];
   vfx: StatusVfx;
 };
 
@@ -69,6 +72,7 @@ export const DEFAULT_STATUS_SOURCE = {
   walkSpeedPercent: 0,
   incapacitates: false,
   endsOnDamage: false,
+  endsIn: [] as WeatherKind[],
   vfx: { tint: null, particles: null, light: null, taperMs: 0 },
 };
 
@@ -137,6 +141,7 @@ const statusSourceSchema = v.pipe(
     ),
     incapacitates: v.optional(v.boolean(), false),
     endsOnDamage: v.optional(v.boolean(), false),
+    endsIn: v.optional(v.array(v.picklist(WEATHER_KINDS)), () => []),
     vfx: v.optional(statusVfxSchema, () => ({
       tint: null,
       particles: null,
@@ -187,6 +192,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     walkSpeedPercent: raw.walkSpeedPercent,
     incapacitates: raw.incapacitates,
     endsOnDamage: raw.endsOnDamage,
+    endsIn: [...new Set(raw.endsIn)],
     vfx: resolveStatusVfx(raw.vfx),
   };
 }
@@ -221,6 +227,7 @@ export const COMBAT_STATUS: StatusDef = {
   walkSpeedPercent: 0,
   incapacitates: false,
   endsOnDamage: false,
+  endsIn: [],
   vfx: NO_VFX,
 };
 

@@ -10217,6 +10217,15 @@ going out in rain is `campfire` carrying a `rain` reaction to nothing.
   relight them: give the tile it turns into a reaction to `clear` that names
   the first one.
 
+**A status ends through `endsIn`**, a list of weathers on its def in
+`data/statuses.json`: once one of them is on the bearer's cell, the status is
+taken off on that tick. `burned` names `rain`, so rain puts out a burning body
+in the open and not one under a roof. There is no wait, unlike a tile's
+reaction: a status is short already, and a burn that went on hurting in the
+rain would look like a bug. `endStatusesInWeather` asks `weatherOn` only for
+bodies carrying such a status. Nothing stops the status being granted in that
+weather; it comes off on the next tick.
+
 **A brain asks through `weather`, `shelter_near` and `take_shelter`.**
 `weather` holds when the named weather is on the body's cell, or with
 `overhead` when the sky above is doing it. `take_shelter` walks to the nearest

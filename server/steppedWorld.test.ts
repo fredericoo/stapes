@@ -45,8 +45,12 @@ afterEach(async () => {
   for (const harness of opened.splice(0)) await harness.dispose();
 });
 
+/** Pinned clear: the weather is otherwise drawn from the clock, and rain ends a burn. */
 async function steppedWorld(seed: number): Promise<Harness> {
-  const harness = await Harness.create({}, { manualTicks: { startAtMs: NOON_MS }, seed });
+  const harness = await Harness.create(
+    {},
+    { manualTicks: { startAtMs: NOON_MS }, seed, weather: "clear" },
+  );
   opened.push(harness);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);

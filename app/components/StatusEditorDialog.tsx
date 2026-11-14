@@ -11,6 +11,7 @@ import {
   type StatusSource,
 } from "../lib/status";
 import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "../lib/walkSpeed";
+import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
@@ -97,6 +98,15 @@ function MsField({
   );
 }
 
+function toggledWeather(
+  endsIn: readonly WeatherKind[],
+  kind: WeatherKind,
+  on: boolean,
+): WeatherKind[] {
+  const others = endsIn.filter((other) => other !== kind);
+  return on ? [...others, kind] : others;
+}
+
 export function StatusEditorDialog({
   draft,
   tiles,
@@ -123,6 +133,8 @@ export function StatusEditorDialog({
     }),
     [status.vfx],
   );
+
+  const endsIn = status.endsIn ?? [];
 
   const icon = completeSprite(status.icon);
   const iconTileset = tilesets.find((t) => t.id === icon?.tilesetId) ?? null;
@@ -362,6 +374,24 @@ export function StatusEditorDialog({
               {status.endsOnDamage ? "Any damage taken ends it." : "Runs until its time is up."}
             </span>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Ends the moment the bearer stands in one of these: rain is on a cell under open sky, fog on every cell above ground it reaches. A roof keeps it going.">
+            Ends in weather
+          </FieldLabel>
+          <div className="flex flex-wrap gap-3">
+            {WEATHER_KINDS.map((kind) => (
+              <label key={kind} className="flex items-center gap-1.5 text-xs capitalize">
+                <Switch
+                  checked={endsIn.includes(kind)}
+                  onCheckedChange={(on) => patch({ endsIn: toggledWeather(endsIn, kind, on) })}
+                  ariaLabel={`Ends in ${kind}`}
+                />
+                {kind}
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="border-t-2 border-border pt-3">
