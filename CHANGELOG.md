@@ -1,5 +1,16 @@
 # the-last-stones
 
+## 0.19.0
+
+### Minor Changes
+
+- Rain now puts out arcane flames within a couple of seconds, and stops you burning if you are caught in the open.
+- What people say now appears in a speech bubble that types itself out and follows the speaker around, instead of "Name says: ...". Sounds like chomp, BOOM and hiss now move: they pop, swell, wave, shake or whisper.
+
+### Patch Changes
+
+- After an update, the map no longer draws new tiles with old pictures until you clear your browser's cache.
+
 ## 0.18.0
 
 ### Minor Changes
