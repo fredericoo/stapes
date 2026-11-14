@@ -1,58 +1,13 @@
-import { MAP_FILE_VERSION } from "../app/lib/types";
-import {
-  chunkifyMap,
-  getStack as getMapStack,
-  listCoords,
-  parseMap,
-  removeTileAt,
-  replaceStack,
-  serializeMap,
-  presentLevels,
-} from "../app/lib/mapData";
-import { canWalk, listStandingSurfaces } from "../app/game/movement";
-import { findPlayers } from "../app/game/player";
-import { reachableCells } from "../app/game/navigation";
 import { mulberry32 } from "../app/editor/generator";
-import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
-import { computeLightingFlood } from "../app/lib/lightingFlood";
-import { fitsHeightAtElevation, tilesByIdFromList } from "../app/lib/validation";
-import { HEIGHT_PER_LEVEL, MAX_LIGHT_LEVEL, coordKey, normalizeTileDef } from "../app/lib/types";
+import { stackOcclusion } from "../app/lib/lighting";
+import { chunkifyMap, parseMap, serializeMap } from "../app/lib/mapData";
+import { MAP_FILE_VERSION, MAX_LIGHT_LEVEL, coordKey, normalizeTileDef } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
+import { tilesByIdFromList } from "../app/lib/validation";
+import { checkCaves, type CaveProblem } from "../app/verify/caves";
+import { AUTHORED_HOLES, SYSTEM } from "./caveSystem";
 
 type Placed = { tileId: string; direction?: Direction; description?: string };
-
-const SYSTEM = {
-  levels: [-1, -2, -3] as const,
-  seeds: [0x5ea11ce, 0x7b04e57, 0xcabe770] as const,
-
-  mouth: { x: 10, y: 20 },
-  mouthDescent: "s" as Direction,
-
-  rockChance: { open: 0.5, dense: 0.66 },
-
-  rampsPerTransition: 14,
-  rampSpacing: 14,
-
-  pitsPerFloor: [10, 10, 0],
-
-  population: [
-    { rat: 32, wolf: 0, "cave-troll": 0 },
-    { rat: 40, wolf: 11, "cave-troll": 0 },
-    { rat: 50, wolf: 20, "cave-troll": 1 },
-  ] as ReadonlyArray<Readonly<Record<string, number>>>,
-
-  cellsPerCrystal: 190,
-} as const;
-
-/**
- * Holes in the surface drawn with the `hole` tile: a shaft beside a ladder, and
- * a hole in a house floor over its cellar. Daylight through them is meant, as it
- * is through the mouth, so the sky checks treat them as openings too.
- */
-const AUTHORED_HOLES = [
-  { x: -2, y: 31 },
-  { x: 55, y: -12 },
-] as const;
 
 const CAVE_FLOOR: Placed[] = [{ tileId: "dirt" }];
 
@@ -89,8 +44,6 @@ const ROCK_CROWDING = 5;
 
 const OPEN_SPRAWL = 4;
 const SPRAWL_PASSES = 4;
-
-const DIM_ENOUGH = 64;
 
 const PIT_SPACING = 14;
 const PIT_RAMP_CLEARANCE = 4;
@@ -830,11 +783,7 @@ function writeSystem(carved: Carved) {
   return { placed, conflicts };
 }
 
-function checkWritten(carved?: Carved): string[] {
-  const problems: string[] = [];
-  let live = parseMap(serializeMap(chunkifyMap(map as never)));
-  const playerDef = tilesById["player"]!;
-
+function checkWritten(carved?: Carved): CaveProblem[] {
   const ours = carved
     ? new Set(
         carved.floors.flatMap((floor) => {
@@ -845,177 +794,26 @@ function checkWritten(carved?: Carved): string[] {
           return cells;
         }),
       )
-    : null;
-
-  const denCells = new Set<string>();
-  const bodies: Array<{ x: number; y: number; z: number; def: TileDef }> = [];
-  for (const z of SYSTEM.levels) {
-    for (const { x, y, stack } of listCoords(live, z)) {
-      if (isRock(stack)) continue;
-      if (!stack.some((p) => p.tileId === "dirt")) continue;
-      if (ours && !ours.has(`${x},${y},${z}`)) continue;
-      denCells.add(`${x},${y},${z}`);
-      for (const placed of stack) {
-        const def = tilesById[placed.tileId];
-        if (!def) continue;
-        if (def.kind === "battler") bodies.push({ x, y, z, def });
-      }
-    }
-  }
-
-  const occlusion = new Map<string, ReturnType<typeof stackOcclusion>>();
-  for (const z of presentLevels(live)) {
-    for (const { x, y, stack } of listCoords(live, z)) {
-      occlusion.set(`${z}:${coordKey(x, y)}`, stackOcclusion(stack, tilesById));
-    }
-  }
-  const openings: readonly Cell[] = [SYSTEM.mouth, ...AUTHORED_HOLES];
-  for (const cell of denCells) {
-    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    if (!isSkyExposed(x, y, z, occlusion)) continue;
-    if (openings.some((o) => o.x === x && o.y === y)) continue;
-    problems.push(`open sky over ${x},${y} on L${z}`);
-  }
-
-  const flood = computeLightingFlood(live, tilesById);
-  let daylit = 0;
-  let worst = { sky: 0, at: "" };
-  for (const cell of denCells) {
-    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    if (openings.some((o) => chebyshev(o, { x, y }) <= MAX_LIGHT_LEVEL)) continue;
-    const lv = flood.levels.get(z);
-    if (!lv) continue;
-    const lx = x - lv.x0;
-    const ly = y - lv.y0;
-    if (lx < 0 || ly < 0 || lx >= lv.w || ly >= lv.h) continue;
-    const sky = lv.sky[ly * lv.w + lx]!;
-    if (sky === 0) continue;
-    daylit++;
-    if (sky > worst.sky) worst = { sky, at: `${x},${y} L${z}` };
-  }
-  if (daylit > 0) {
+    : undefined;
+  const report = checkCaves({
+    map: parseMap(serializeMap(chunkifyMap(map as never))),
+    tilesById,
+    levels: SYSTEM.levels,
+    mouth: SYSTEM.mouth,
+    mouthDescent: SYSTEM.mouthDescent,
+    openings: [SYSTEM.mouth, ...AUTHORED_HOLES],
+    carved: ours,
+  });
+  const { daylit } = report;
+  if (daylit.count > 0) {
     console.log(
-      `${daylit} carved cells catch some daylight away from the openings,` +
-        ` the brightest ${worst.sky}/255 at ${worst.at}`,
+      `${daylit.count} carved cells catch some daylight away from the openings,` +
+        ` the brightest ${daylit.brightest}/255 at ${daylit.at}`,
     );
   }
-  if (worst.sky > DIM_ENOUGH) {
-    problems.push(
-      `daylight reaches ${worst.at} at ${worst.sky}/255, which is a hole rather than a glow`,
-    );
-  }
-
-  for (const body of bodies) {
-    const room = fitsHeightAtElevation(
-      live,
-      body.x,
-      body.y,
-      body.z * HEIGHT_PER_LEVEL,
-      body.def.height,
-      tilesById,
-      { throughPlayers: true },
-    );
-    if (!room.ok && room.reason?.includes("ceiling")) {
-      problems.push(`${body.def.id} at ${body.x},${body.y} L${body.z} has no headroom`);
-    }
-  }
-
-  const spawns = findPlayers(live);
-  for (const spawn of spawns) {
-    live = removeTileAt(live, spawn.x, spawn.y, spawn.z, spawn.stackIndex);
-  }
-
-  for (const z of SYSTEM.levels) {
-    for (const { x, y, stack } of listCoords(live, z)) {
-      const kept = stack.filter((p) => tilesById[p.tileId]?.kind !== "battler");
-      if (kept.length === stack.length) continue;
-      live = replaceStack(live, x, y, z, kept);
-    }
-  }
-
-  const settle = (x: number, y: number, feetAbs: number) => {
-    const surfaces = listStandingSurfaces(live, x, y, tilesById);
-    return (
-      surfaces.find((s) => s.abs === feetAbs) ??
-      surfaces.filter((s) => s.abs < feetAbs).sort((a, b) => b.abs - a.abs)[0] ??
-      null
-    );
-  };
-  const feetAt = (x: number, y: number, z: number) =>
-    listStandingSurfaces(live, x, y, tilesById).find((s) => s.z === z)?.abs ?? z * HEIGHT_PER_LEVEL;
-
-  const approach = {
-    x: SYSTEM.mouth.x - STEP[SYSTEM.mouthDescent].x,
-    y: SYSTEM.mouth.y - STEP[SYSTEM.mouthDescent].y,
-  };
-  const start = settle(approach.x, approach.y, 0);
-  if (!start) {
-    problems.push("nowhere to stand on the approach to the mouth");
-    return problems;
-  }
-
-  const starts = [{ ...approach, z: start.z }, ...spawns.map(({ x, y, z }) => ({ x, y, z }))];
-  const world = { board: live, traveller: playerDef, tilesById, statusDefs: {} };
-  const seen = new Set<string>();
-  for (const { x, y, z } of reachableCells(world, starts).values()) seen.add(`${x},${y},${z}`);
-
-  /**
-   * Only a cell a body can stand in has to be reachable. A wall, or a barrel
-   * or crate under a floor, is a dirt cell nobody stands in, not one nobody
-   * can reach.
-   */
-  const standable = (x: number, y: number, z: number) =>
-    listStandingSurfaces(live, x, y, tilesById).some(
-      (s) =>
-        s.z === z &&
-        fitsHeightAtElevation(live, x, y, s.abs, playerDef.height, tilesById, {
-          throughPlayers: true,
-        }).ok,
-    );
-  let stranded = 0;
-  for (const cell of denCells) {
-    if (seen.has(cell)) continue;
-    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    if (standable(x, y, z)) stranded++;
-  }
-  if (stranded > 0) problems.push(`${stranded} carved cells cannot be walked to`);
-
-  for (const body of bodies) {
-    if (seen.has(`${body.x},${body.y},${body.z}`)) continue;
-    problems.push(`${body.def.id} at ${body.x},${body.y} L${body.z} is walled in`);
-  }
-
-  for (const z of SYSTEM.levels) {
-    for (const { x, y, stack } of listCoords(live, z)) {
-      if (!stack.some((p) => p.tileId === "ramp")) continue;
-      const onRamp = settle(x, y, z * HEIGHT_PER_LEVEL + 2);
-      if (!onRamp || onRamp.abs !== z * HEIGHT_PER_LEVEL + 2) {
-        problems.push(`ramp at ${x},${y} L${z} is not stood on`);
-        continue;
-      }
-      const stackIndex = getMapStack(live, x, y, onRamp.z).length;
-      const climbs = DIRS.some((direction) => {
-        const step = canWalk(
-          live,
-          { x, y, z: onRamp.z, stackIndex },
-          direction,
-          playerDef,
-          tilesById,
-        );
-        return step.ok && feetAt(step.to.x, step.to.y, step.to.z) > onRamp.abs;
-      });
-      if (!climbs) problems.push(`ramp at ${x},${y} L${z} climbs nowhere`);
-      if (!seen.has(`${x},${y},${onRamp.z}`)) {
-        problems.push(`ramp at ${x},${y} L${z} cannot be walked to`);
-      }
-    }
-  }
-
-  const walked = SYSTEM.levels.map(
-    (z) => `L${z} ${[...seen].filter((k) => k.endsWith(`,${z}`)).length}`,
-  );
-  console.log(`carved ${denCells.size} cells; walked to ${walked.join(", ")}`);
-  return problems;
+  const walked = Object.entries(report.walked).map(([z, n]) => `${z} ${n}`);
+  console.log(`carved ${report.cells} cells; walked to ${walked.join(", ")}`);
+  return report.problems;
 }
 
 let carved: Carved | undefined;
@@ -1044,7 +842,12 @@ if (problems.length === 0) {
   console.log("checked against the game's own movement rules: no problems");
 } else {
   console.error(`${problems.length} problems:`);
-  console.error(problems.slice(0, 40).join("\n"));
+  console.error(
+    problems
+      .slice(0, 40)
+      .map((p) => p.message)
+      .join("\n"),
+  );
   if (problems.length > 40) console.error(`… and ${problems.length - 40} more`);
   process.exit(1);
 }
