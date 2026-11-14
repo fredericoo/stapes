@@ -7667,6 +7667,56 @@ a creature in earshot listening for a noise gets to notice it.
   woods is now something a wolf can come and look at — the same rule eating in
   the woods is under.
 
+### Speech is a bubble, and a noise has a style
+
+**A line hangs in a bubble over its speaker, one bubble per speaker.**
+`pushSpeechLabels` groups `snap.chats` by `actorId` and anchors the bubble on
+the body as it is drawn, so it walks with them; a speaker not drawn (out of
+sight, hidden) falls back to the cell the line was said in. The tail is placed
+by `tailPlacement` in `app/render/speechBubble.ts` after the label layout, so
+when the screen edge or another label pushes the bubble sideways the tail
+still ends over the speaker.
+
+**The bubble is typed out from `HangingChat.elapsedMs`**, the session's own
+age for the line, not a renderer clock. `typedLength` is 35ms a character,
+squeezed so the longest line is out by 40% of `CHAT_LIFETIME_MS`. The label's
+signature carries the typed prefix, so the layer rebuilds and remeasures once
+per character, not per frame.
+
+**A bubble shrinks away in its last `BUBBLE_CLOSE_MS`**, timed from its newest
+line, so a line said into a closing bubble opens it again. It steps to 75%
+and 50% about the tail tip rather than easing: at 2x a brick is 4 device
+pixels, so those are 3 and 2 and every step stays on the pixel grid.
+`closeBubble` adds the class after the bubble is measured, so a bubble rebuilt
+mid-close is never measured at half size.
+
+Four things in `textLabels.ts` look redundant and are not:
+
+- **`tightenBubble` sets an explicit width, rounded up.** A shrink-to-fit box
+  that wraps takes the width it wrapped in, not its longest line, which left a
+  wide empty margin on every two-line bubble. Rounded to nearest, it came out a
+  fraction of a pixel short, and `overflow-wrap` split the last word.
+- **`restack` moves only labels with an `order`.** Re-inserting an element
+  restarts every CSS animation in it, and moving every label whenever a body
+  walked replayed bubble and noise animations several times a second. Only
+  names have an `order`, and they sit under every other kind on `z-index`.
+- **A noise is drawn twice in one grid cell**, outline under face. Each glyph
+  moves in its own inline-block, and a glyph's two-brick `text-shadow` paints
+  over the glyph before it.
+
+Speech and bubble positions snap to whole bricks (`onBrickGrid`), so the
+rounded corners and the font's pixels share one grid.
+
+**A noise's style is authored or read from its text.** `soundStyle` on a
+consumable or stone and `style` on a brain `noise` effect pick one of
+`NOISE_STYLES`; unset, `inferNoiseStyle` reads how the word is written —
+`*BOOM*` is loud, `*sssk*` is wavy, anything else pops — which covers every
+sound in the content today without touching it. The server sends `style`
+only when it was authored. Each noise is its own label now rather than one
+per cell, so a second sound in a cell does not rebuild and restart the first.
+The motion is CSS (`.world-label__noise--*` in `app.css`), started
+`--noise-elapsed` in so a late build joins where the noise already is.
+
 ### Castability is one pure module, and it answers with a reason
 
 `app/game/casting.ts` answers "which stones can be cast right now, and why not"

@@ -1,3 +1,4 @@
+import { type NoiseStyle, noiseStyleSchema } from "./noiseStyle";
 import * as v from "valibot";
 import { MAX_HOUR_OF_DAY } from "./clock";
 import { SHELTER_FROM, WEATHER_KINDS, type ShelterFrom, type WeatherKind } from "./weather";
@@ -122,7 +123,9 @@ export type BrainActionDef =
   | { action: "take_shelter"; from: ShelterFrom; cells: number }
   | { action: "fade" };
 
-export type BrainEffectDef = { effect: "say"; text: string } | { effect: "noise"; text: string };
+export type BrainEffectDef =
+  | { effect: "say"; text: string }
+  | { effect: "noise"; text: string; style?: NoiseStyle };
 
 export type BrainSignalValue = "on" | "off";
 
@@ -329,6 +332,7 @@ const effectSchema = v.variant("effect", [
   v.object({
     effect: v.literal("noise"),
     text: v.pipe(v.string(), v.minLength(1)),
+    style: v.optional(noiseStyleSchema),
   }),
 ]);
 

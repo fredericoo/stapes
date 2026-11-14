@@ -1,3 +1,4 @@
+import { SoundStyleField } from "./SoundStyleField";
 import type {
   ArcaneStoneItem,
   PhysicalBlow,
@@ -390,6 +391,10 @@ export function StoneFields({
             onChange={(e) => onChange({ sound: e.target.value })}
           />
         </label>
+        <SoundStyleField
+          value={stone.soundStyle}
+          onChange={(soundStyle) => onChange({ soundStyle })}
+        />
       </div>
 
       {stone.castTimeMs ? (

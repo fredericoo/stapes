@@ -1,3 +1,4 @@
+import type { NoiseStyle } from "../lib/noiseStyle";
 import {
   MAX_HEALTH_PERCENT,
   leavesFrom,
@@ -78,7 +79,7 @@ export type BrainContext = {
   walkTo(goal: WalkGoal, route: RouteOptions): WalkOrderState;
   fleeFrom(threat: Coord, route: RouteOptions): WalkOrderState;
   say(text: string): void;
-  noise(text: string): void;
+  noise(text: string, style?: NoiseStyle): void;
   canSee(at: Coord): boolean;
   sight: SightLevels;
   heard(): readonly Utterance[];
@@ -172,7 +173,7 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
   for (const effect of onEnter) {
     const text = fillSlots(effect.text, memory, ctx);
     if (effect.effect === "say") ctx.say(text);
-    else ctx.noise(text);
+    else ctx.noise(text, effect.style);
   }
 }
 

@@ -1125,6 +1125,7 @@ function SelectorPicker({
 }
 
 const NO_TARGET_LABEL = "No target (self)";
+const AUTO_CHOICE_LABEL = "auto";
 const NO_TARGET_KEY = "";
 
 function TileChips({
@@ -1241,7 +1242,8 @@ export function paramPatch(
   const cleared =
     value === undefined ||
     (spec.kind === "boolean" && value === false) ||
-    (spec.kind === "text" && spec.optional === true && value === "");
+    (spec.kind === "text" && spec.optional === true && value === "") ||
+    (spec.kind === "choice" && spec.optional === true && value === "");
   if (cleared) delete next[spec.key];
   else next[spec.key] = value;
   return next;
@@ -1324,9 +1326,12 @@ function ParamField({
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
         {spec.label}
         <Select
-          value={typeof value === "string" ? value : null}
-          onValueChange={(choice) => choice && onChange(choice)}
-          options={spec.options.map((option) => ({ value: option, label: option }))}
+          value={typeof value === "string" ? value : spec.optional ? "" : null}
+          onValueChange={(choice) => (choice || spec.optional) && onChange(choice ?? "")}
+          options={[
+            ...(spec.optional ? [{ value: "", label: AUTO_CHOICE_LABEL }] : []),
+            ...spec.options.map((option) => ({ value: option, label: option })),
+          ]}
           className="min-w-[5rem]"
           placeholder="Pick one…"
         />

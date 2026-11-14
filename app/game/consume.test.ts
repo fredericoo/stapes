@@ -77,6 +77,14 @@ const tiles: TileDef[] = [
   consumable("poison", -10, "glug"),
   consumable("hemlock", -PLAYER_MAX_HP, "glug"),
   consumable("quiet-cherry", 5),
+  tile({
+    id: "loud-cherry",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "consumable", label: "Eat", hp: 5, sound: "chomp", soundStyle: "loud" },
+    },
+  }),
   granter("berry", [{ id: "fed" }]),
   granter("mystery-fruit", [{ id: "no-such-status" }]),
   granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
@@ -352,6 +360,16 @@ describe("the noise a consumable makes", () => {
 
     session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } });
     expect(session.drainNoise().map((s) => s.text)).toEqual(["crunch"]);
+  });
+
+  it("carries the style its author picked, and none when they picked none", () => {
+    const styled = withItem(1, 0, "loud-cherry");
+    styled.consume({ kind: "floor", ref: refAt(styled, 1, 0) });
+    expect(styled.drainNoise()[0]).toMatchObject({ text: "chomp", style: "loud" });
+
+    const plain = withItem(1, 0, "cherry");
+    plain.consume({ kind: "floor", ref: refAt(plain, 1, 0) });
+    expect(plain.drainNoise()[0]).not.toHaveProperty("style");
   });
 
   it("stays silent for one with no noise authored on it", () => {

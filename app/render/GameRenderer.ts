@@ -1,3 +1,5 @@
+import { noiseStyleOf } from "../lib/noiseStyle";
+import { bubbleClosingMs } from "./speechBubble";
 import type { WeatherArea } from "../lib/weatherAreas";
 import {
   absoluteElevation,
@@ -12,6 +14,7 @@ import type {
   ActorSnapshot,
   DamageNumber,
   GameSnapshot,
+  HangingChat,
   ObjectRef,
   PlaySession,
 } from "../game/GameSession";
@@ -1695,7 +1698,7 @@ export class GameRenderer {
   ): WorldLabel[] {
     const labels: WorldLabel[] = [];
     this.pushNameLabels(snap, labels, camera, cut);
-    this.pushSpeechLabels(snap, labels);
+    this.pushSpeechLabels(snap, labels, camera, cut);
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
     const nearby = inscribedNearby(snap.map, this.tilesById, snap.self);
@@ -1886,24 +1889,30 @@ export class GameRenderer {
     }
   }
 
-  private pushSpeechLabels(snap: GameSnapshot, into: WorldLabel[]) {
+  /**
+   * One bubble per speaker, its lines oldest first. It hangs over the body
+   * wherever it walks while the body is drawn, and over the cell the line was
+   * said in otherwise, so a speaker out of sight leaves the bubble where it was.
+   */
+  private pushSpeechLabels(
+    snap: GameSnapshot,
+    into: WorldLabel[],
+    camera: { x: number; y: number },
+    cut: RoofCut | undefined,
+  ) {
     if (snap.chats.length === 0) return;
 
-    const byCell = new Map<string, WorldLabel>();
+    const bySpeaker = new Map<string, WorldLabel>();
     for (const chat of snap.chats) {
-      const key = `${chat.x},${chat.y},${chat.z}`;
-      const group = byCell.get(key);
-      const line = {
-        id: chat.id,
-        text: `${bodyNameFor(chat, this.tilesById)} says: ${chat.text}`,
-      };
-      if (group) {
-        group.lines.push(line);
+      const line = { id: chat.id, text: chat.text, typedMs: chat.elapsedMs };
+      const bubble = bySpeaker.get(chat.actorId);
+      if (bubble) {
+        bubble.lines.push(line);
         continue;
       }
-      const at = this.speechAnchor(chat, snap.map);
-      byCell.set(key, {
-        id: `speech:${key}`,
+      const at = this.speakerAnchor(snap, chat, camera, cut);
+      bySpeaker.set(chat.actorId, {
+        id: `speech:${chat.actorId}`,
         kind: "speech",
         x: at.x,
         y: at.y,
@@ -1911,32 +1920,48 @@ export class GameRenderer {
       });
     }
 
-    for (const group of byCell.values()) into.push(group);
+    for (const bubble of bySpeaker.values()) {
+      const newestMs = Math.min(
+        ...bubble.lines.map((line) => ("typedMs" in line ? (line.typedMs ?? 0) : 0)),
+      );
+      const closingMs = bubbleClosingMs(newestMs);
+      into.push(closingMs === undefined ? bubble : { ...bubble, closingMs });
+    }
   }
 
-  private pushNoiseLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    if (snap.noises.length === 0) return;
+  private speakerAnchor(
+    snap: GameSnapshot,
+    chat: HangingChat,
+    camera: { x: number; y: number },
+    cut: RoofCut | undefined,
+  ): { x: number; y: number } {
+    const body = snap.actors.find((actor) => actor.id === chat.actorId);
+    if (!body || body.hidden || !this.showsBody(snap, body, camera, cut)) {
+      return this.speechAnchor(chat, snap.map);
+    }
+    const visual = this.actorVisualWorld(snap.map, body);
+    const head = elevationScreenOffset(this.bodyOwnHeight(snap.map, body, body.stackIndex));
+    return { x: visual.x + head.x, y: visual.y + head.y };
+  }
 
-    const byCell = new Map<string, WorldLabel>();
+  /** One label per noise, so a second sound in the same cell does not restart the first one's motion. */
+  private pushNoiseLabels(snap: GameSnapshot, into: WorldLabel[]) {
     for (const noise of snap.noises) {
-      const key = `${noise.x},${noise.y},${noise.z}`;
-      const group = byCell.get(key);
-      const line = { id: noise.id, text: noise.text };
-      if (group) {
-        group.lines.push(line);
-        continue;
-      }
       const at = this.speechAnchor(noise, snap.map);
-      byCell.set(key, {
-        id: `noise:${key}`,
+      into.push({
+        id: `noise:${noise.id}`,
         kind: "noise",
         x: at.x,
         y: at.y,
-        lines: [line],
+        lines: [
+          {
+            id: noise.id,
+            text: noise.text,
+            noise: { style: noiseStyleOf(noise), elapsedMs: noise.elapsedMs },
+          },
+        ],
       });
     }
-
-    for (const group of byCell.values()) into.push(group);
   }
 
   private speechAnchor(

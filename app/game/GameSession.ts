@@ -1,3 +1,4 @@
+import type { NoiseStyle } from "../lib/noiseStyle";
 import type { ShelterFrom, WeatherKind } from "../lib/weather";
 import {
   MAX_HELD_TRANSITIONS,
@@ -573,6 +574,7 @@ export type ActorSnapshot = {
 export type NoiseEmission = {
   id: string;
   text: string;
+  style?: NoiseStyle;
   x: number;
   y: number;
   z: number;
@@ -608,6 +610,9 @@ export type ChatBubble = {
   stackIndex: number;
 };
 
+/** A line still hanging, and how long it has been up, which is how much of it is typed out. */
+export type HangingChat = ChatBubble & { elapsedMs: number };
+
 export type GameSnapshot = {
   map: MapFile;
   self: ActorSnapshot;
@@ -625,7 +630,7 @@ export type GameSnapshot = {
   masteryXp: MasteryXp;
   attributes: Attributes | null;
   pvp: { on: boolean; changeable: boolean };
-  chats: ChatBubble[];
+  chats: HangingChat[];
   noises: NoiseEmission[];
   afflicted: readonly AfflictedPlacement[];
   depots: Depots;
@@ -2245,7 +2250,7 @@ export class GameSession implements PlaySession {
       walkTo: (goal, route) => this.setWalkOrder(actor, goal, route),
       fleeFrom: (threat, route) => this.setFleeOrder(actor, loc, threat, route),
       say: (text) => this.recordSpeech(actor, loc, text),
-      noise: (text) => this.recordNoise(actor.id, loc, text),
+      noise: (text, style) => this.recordNoise(actor.id, loc, text, style),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
       inHarm: () => this.standsInHarm(actor, loc),
@@ -2390,13 +2395,14 @@ export class GameSession implements PlaySession {
     });
   }
 
-  private recordNoise(sourceId: string, loc: ActorLocation, raw: string) {
+  private recordNoise(sourceId: string, loc: ActorLocation, raw: string, style?: NoiseStyle) {
     if (this.isConcealed(sourceId)) return;
     const text = sanitizeChatText(raw);
     if (!text) return;
     const noise: NoiseEmission = {
       id: `noise-${this.nextNoiseId++}`,
       text,
+      ...(style ? { style } : {}),
       x: loc.x,
       y: loc.y,
       z: loc.z,
@@ -3841,7 +3847,7 @@ export class GameSession implements PlaySession {
 
   private recordCastSound(actor: ActorRuntime, at: ActorLocation, stone: ArcaneStoneItem) {
     if (!stone.sound?.trim()) return;
-    this.recordNoise(actor.id, at, stone.sound);
+    this.recordNoise(actor.id, at, stone.sound, stone.soundStyle);
   }
 
   private cancelCasting(actor: ActorRuntime, notice?: string) {
@@ -5228,7 +5234,7 @@ export class GameSession implements PlaySession {
     if (!consumable.sound?.trim()) return;
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    this.recordNoise(actor.id, loc, consumable.sound);
+    this.recordNoise(actor.id, loc, consumable.sound, consumable.soundStyle);
   }
 
   private consumeFromFloor(actor: ActorRuntime, ref: ObjectRef): Eaten | null {

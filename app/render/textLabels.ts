@@ -6,14 +6,35 @@ import {
   healthBarFillHeightBricks,
   healthBarTrackBricks,
 } from "./healthBar";
-import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout";
+import {
+  type LabelKind,
+  type LabelPlacement,
+  type LabelRequest,
+  layoutLabels,
+} from "./labelLayout";
+import type { NoiseStyle } from "../lib/noiseStyle";
+import {
+  BUBBLE_CLOSE_MS,
+  TAIL_PIXELS,
+  type TailLean,
+  tailPlacement,
+  typedLength,
+} from "./speechBubble";
 
 export type MouseButton = "left" | "right";
 
 export type ButtonHint = { button: MouseButton; text: string; rating?: number; color?: string };
 
 export type LabelLine =
-  | { id: string; text: string; rating?: number; crown?: boolean }
+  | {
+      id: string;
+      text: string;
+      rating?: number;
+      crown?: boolean;
+      /** Typed out one character at a time, this long after it was said. */
+      typedMs?: number;
+      noise?: { style: NoiseStyle; elapsedMs: number };
+    }
   | { id: string; hints: ButtonHint[] };
 
 export type WorldLabel = {
@@ -27,6 +48,8 @@ export type WorldLabel = {
   reserveBar?: boolean;
   above?: string;
   progress?: { fraction: number };
+  /** A speech bubble only: how far into shrinking away it is. */
+  closingMs?: number;
   order?: number;
   color?: string;
 };
@@ -59,6 +82,20 @@ const CROWNED_LINE_CLASS = "world-label__line--crowned";
 const HINTS_LINE_CLASS = "world-label__line--hints";
 const HINT_CLASS = "world-label__hint";
 const SVG_NS = "http://www.w3.org/2000/svg";
+const BUBBLE_CLASS = "speech-bubble";
+const TAIL_CLASS = "speech-bubble__tail";
+const CLOSING_CLASS = "speech-bubble--closing";
+const NOISE_CLASS = "world-label__noise";
+const NOISE_GLYPH_CLASS = "world-label__noise-glyph";
+const NOISE_OUTLINE_CLASS = "world-label__noise-outline";
+const NOISE_FACE_CLASS = "world-label__noise-face";
+
+const reducedMotion =
+  typeof matchMedia === "undefined" ? null : matchMedia("(prefers-reduced-motion: reduce)");
+
+function prefersReducedMotion(): boolean {
+  return reducedMotion?.matches ?? false;
+}
 
 /**
  * One character per font pixel, so the icon sits on the same brick grid as
@@ -139,7 +176,49 @@ function hintSpan(hint: ButtonHint): HTMLElement {
   return span;
 }
 
+function typedText(text: string, typedMs: number | undefined): string {
+  if (typedMs === undefined || prefersReducedMotion()) return text;
+  return text.slice(0, typedLength(text.length, typedMs));
+}
+
+function typedRow(text: string, typedMs: number): HTMLElement {
+  const row = document.createElement("div");
+  row.textContent = typedText(text, typedMs);
+  return row;
+}
+
+/**
+ * One span per character, numbered in `--i` so the stylesheet can stagger
+ * them, and the whole row started `elapsedMs` in so a late build joins the
+ * animation where it already is. The word is laid twice in one grid cell, its
+ * outline under its face: one glyph's outline would otherwise paint over the
+ * glyph before it, since each letter moves in its own box.
+ */
+function noiseRow(text: string, noise: { style: NoiseStyle; elapsedMs: number }): HTMLElement {
+  const row = document.createElement("div");
+  row.className = `${NOISE_CLASS} ${NOISE_CLASS}--${noise.style}`;
+  row.style.setProperty("--noise-elapsed", `${-Math.round(noise.elapsedMs)}ms`);
+  row.append(noiseLayer(text, NOISE_OUTLINE_CLASS), noiseLayer(text, NOISE_FACE_CLASS));
+  return row;
+}
+
+function noiseLayer(text: string, className: string): HTMLElement {
+  const layer = document.createElement("span");
+  layer.className = className;
+  if (className === NOISE_OUTLINE_CLASS) layer.setAttribute("aria-hidden", "true");
+  for (const [index, character] of [...text].entries()) {
+    const glyph = document.createElement("span");
+    glyph.className = NOISE_GLYPH_CLASS;
+    glyph.style.setProperty("--i", String(index));
+    glyph.textContent = character;
+    layer.append(glyph);
+  }
+  return layer;
+}
+
 function lineRow(line: LabelLine): HTMLElement {
+  if ("text" in line && line.noise) return noiseRow(line.text, line.noise);
+  if ("text" in line && line.typedMs !== undefined) return typedRow(line.text, line.typedMs);
   const row = document.createElement("div");
   if ("text" in line && line.crown) {
     row.className = CROWNED_LINE_CLASS;
@@ -156,6 +235,10 @@ function lineRow(line: LabelLine): HTMLElement {
 }
 
 function lineSignature(line: LabelLine): string {
+  if ("text" in line && line.noise) return `${line.text}\u0006${line.noise.style}`;
+  if ("text" in line && line.typedMs !== undefined) {
+    return `${typedText(line.text, line.typedMs)}\u0007${line.text.length}`;
+  }
   if ("text" in line) return `${line.crown ? "\u0004" : ""}${line.text}\u0005${line.rating ?? ""}`;
   return line.hints
     .map(
@@ -185,6 +268,87 @@ function fillTrack(
 function shapeTrack(track: HTMLElement, trackBricks: number) {
   track.style.width = brickLength(trackBricks);
   track.style.height = brickLength(healthBarFillHeightBricks(trackBricks));
+}
+
+function tailIcon(lean: TailLean): SVGSVGElement {
+  const { rows } = TAIL_PIXELS[lean];
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", `${TAIL_CLASS}-${lean}`);
+  svg.setAttribute("viewBox", `0 0 ${rows[0]!.length} ${rows.length}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("shape-rendering", "crispEdges");
+  for (const cell of filledCells(rows, (pixel) => pixel === "f")) {
+    svg.appendChild(brickRect(cell, "currentColor"));
+  }
+  return svg;
+}
+
+function speechTail(): HTMLElement {
+  const tail = document.createElement("div");
+  tail.className = TAIL_CLASS;
+  tail.dataset.lean = "none";
+  tail.append(tailIcon("left"), tailIcon("none"), tailIcon("right"));
+  return tail;
+}
+
+/**
+ * A wrapped line leaves its box as wide as the space it wrapped in, not as its
+ * longest line, so the bubble is set to the widest line box it actually has,
+ * rounded up to whole bricks so its edges stay on the font's grid.
+ */
+function tightenBubble(bubble: HTMLElement, brickPx: number) {
+  bubble.style.width = "";
+  if (brickPx <= 0) return;
+  const span = textSpan(bubble);
+  if (!span) return;
+  const style = getComputedStyle(bubble);
+  const padding = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+  /**
+   * Rounded up, never to nearest: a box a fraction of a pixel narrower than its
+   * line wraps that line, and `overflow-wrap` then splits its last word.
+   */
+  const textBricks = Math.ceil(span / brickPx);
+  bubble.style.width = `${textBricks * brickPx + padding}px`;
+}
+
+/** How wide the bubble's text runs, from its line boxes. */
+function textSpan(bubble: HTMLElement): number | null {
+  const range = document.createRange();
+  let left = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  for (const row of bubble.children) {
+    if (row.classList.contains(TAIL_CLASS)) continue;
+    range.selectNodeContents(row);
+    for (const rect of range.getClientRects()) {
+      if (rect.width === 0) continue;
+      left = Math.min(left, rect.left);
+      right = Math.max(right, rect.right);
+    }
+  }
+  return right > left ? right - left : null;
+}
+
+/**
+ * Called after the bubble is measured, so a bubble rebuilt mid-close is never
+ * measured at half size. The delay starts the shrink as far in as it already
+ * is, for a bubble that was rebuilt or first drawn partway through closing.
+ */
+function closeBubble(element: HTMLElement, closingMs: number | undefined) {
+  const bubble = element.querySelector<HTMLElement>(`.${BUBBLE_CLASS}`);
+  if (!bubble) return;
+  if (closingMs === undefined) {
+    bubble.classList.remove(CLOSING_CLASS);
+    return;
+  }
+  if (bubble.classList.contains(CLOSING_CLASS)) return;
+  bubble.style.animationDuration = `${BUBBLE_CLOSE_MS}ms`;
+  bubble.style.animationDelay = `${-Math.round(closingMs)}ms`;
+  bubble.classList.add(CLOSING_CLASS);
+}
+
+function snapToBrick(px: number, brickPx: number): number {
+  if (brickPx <= 0) return px;
+  return Math.round(px / brickPx) * brickPx;
 }
 
 function brickLength(bricks: number): string {
@@ -316,14 +480,27 @@ export class WorldLabelLayer {
     });
 
     const layout = layoutLabels(requests, this.view);
-    for (const { label, entry } of entries) {
-      this.place(entry, layout.get(label.id));
+    for (const [index, { label, entry }] of entries.entries()) {
+      const at = layout.get(label.id);
+      if (at && label.kind === "speech") {
+        this.place(entry, this.onBrickGrid(at));
+        this.aimTail(entry, requests[index]!, this.onBrickGrid(at));
+        closeBubble(entry.element, label.closingMs);
+        continue;
+      }
+      this.place(entry, at);
     }
     this.restack(labels);
   }
 
+  /**
+   * Only labels with an `order` are moved. Re-inserting an element restarts
+   * every CSS animation in it, which replayed a bubble's closing and a
+   * noise's motion each time a body walked; the unordered kinds sit above the
+   * names on `z-index`, so their place in the DOM never decided anything.
+   */
   private restack(labels: WorldLabel[]) {
-    const order = stackingOrder(labels);
+    const order = stackingOrder(labels.filter((label) => label.order !== undefined));
     const stacking = order.join("\n");
     if (stacking === this.stacking) return;
     this.stacking = stacking;
@@ -331,6 +508,24 @@ export class WorldLabelLayer {
       const entry = this.entries.get(id);
       if (entry) this.container.appendChild(entry.element);
     }
+  }
+
+  private onBrickGrid(at: LabelPlacement): LabelPlacement {
+    const brick = this.brick();
+    return { ...at, left: snapToBrick(at.left, brick), top: snapToBrick(at.top, brick) };
+  }
+
+  private aimTail(entry: LabelEntry, request: LabelRequest, at: LabelPlacement) {
+    const tail = entry.element.querySelector<HTMLElement>(`.${TAIL_CLASS}`);
+    const brick = this.brick();
+    if (!tail || brick <= 0) return;
+    const widthBricks = Math.round(request.width / brick);
+    const towardBrick = (request.anchorX - at.left) / brick;
+    const { leftBrick, lean } = tailPlacement(widthBricks, towardBrick);
+    if (tail.dataset.lean !== lean) tail.dataset.lean = lean;
+    tail.style.setProperty("--tail-x", `${leftBrick * brick}px`);
+    const tipBrick = leftBrick + TAIL_PIXELS[lean].tipColumn;
+    tail.parentElement?.style.setProperty("--tail-tip-x", `${(tipBrick + 0.5) * brick}px`);
   }
 
   private place(entry: LabelEntry, at: LabelPlacement | undefined) {
@@ -365,6 +560,8 @@ export class WorldLabelLayer {
     if (entry.size) return entry.size;
 
     const { element } = entry;
+    const bubble = element.querySelector<HTMLElement>(`.${BUBBLE_CLASS}`);
+    if (bubble) tightenBubble(bubble, this.brick());
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize) || 0;
     const size = {
       width: element.offsetWidth,
@@ -420,7 +617,15 @@ export class WorldLabelLayer {
     if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
     else if (label.reserveBar) rows.push(this.track(`${HEALTH_BAR_CLASS} ${RESERVED_BAR_CLASS}`));
 
-    element.replaceChildren(...rows);
+    if (label.kind !== "speech") {
+      element.replaceChildren(...rows);
+      return;
+    }
+    const tail = element.querySelector(`.${TAIL_CLASS}`) ?? speechTail();
+    const bubble = document.createElement("div");
+    bubble.className = BUBBLE_CLASS;
+    bubble.append(...rows, tail);
+    element.replaceChildren(bubble);
   }
 
   private track(kindClass: string): HTMLElement {
