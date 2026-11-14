@@ -489,6 +489,8 @@ import { withTraits, type TraitCatalogue } from "../lib/traits";
 import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
+  endInWeather,
+  endsInAnyWeather,
   applyStatus,
   overLimitFor,
   grantRange,
@@ -1585,6 +1587,7 @@ export class GameSession implements PlaySession {
     this.ageProjectiles(tickMs);
 
     this.tickStatuses(tickMs);
+    this.endStatusesInWeather();
 
     this.advanceCooldowns(tickMs);
     this.tickStrikes(tickMs);
@@ -2072,6 +2075,19 @@ export class GameSession implements PlaySession {
     if (statuses === actor.statuses) return;
     actor.statuses = statuses;
     this.noteStatusReading(actor);
+  }
+
+  private endStatusesInWeather() {
+    for (const actor of this.actors.values()) {
+      if (!endsInAnyWeather(actor.statuses, this.statusDefs)) continue;
+      const loc = this.tryLocate(actor);
+      if (!loc) continue;
+      const weather = weatherOn(this.map, this.sky, loc, this.tilesById);
+      const statuses = endInWeather(actor.statuses, this.statusDefs, weather);
+      if (statuses === actor.statuses) continue;
+      actor.statuses = statuses;
+      this.noteStatusReading(actor);
+    }
   }
 
   private incapacitated(actor: ActorRuntime): boolean {

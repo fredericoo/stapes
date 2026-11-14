@@ -2,6 +2,7 @@ import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
 import { MAX_PERCENT_STAT, type StatusGrant } from "../lib/item";
+import type { WeatherKind } from "../lib/weather";
 import {
   COMBAT_DURATION_MS,
   COMBAT_STATUS_ID,
@@ -323,4 +324,21 @@ export function endOnDamage(
     return statuses;
   }
   return statuses.filter((instance) => catalogue[instance.defId]?.endsOnDamage !== true);
+}
+
+export function endsInAnyWeather(
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+): boolean {
+  return statuses.some((instance) => (catalogue[instance.defId]?.endsIn.length ?? 0) > 0);
+}
+
+export function endInWeather(
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+  weather: WeatherKind,
+): readonly StatusInstance[] {
+  const ends = (instance: StatusInstance) =>
+    catalogue[instance.defId]?.endsIn.includes(weather) === true;
+  return statuses.some(ends) ? statuses.filter((instance) => !ends(instance)) : statuses;
 }

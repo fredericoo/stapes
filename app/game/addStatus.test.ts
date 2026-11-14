@@ -11,6 +11,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { canAddStatusFrom, reachableAddStatusAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import type { Sky } from "./weatherOn";
 import { FRAME, tile } from "../lib/testTile";
 
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
@@ -144,6 +145,7 @@ const catalogue = statusesById([
     maxMs: BURN_MS * 3,
     everyMs: 1_000,
     effects: { hp: "0 - max(4, ceil(MAX_HP / 10))" },
+    endsIn: ["rain"],
   },
   {
     id: "blessed",
@@ -537,5 +539,35 @@ describe("a body authored immune", () => {
     expect(play.requestStep(resident, "e")).toBe("started");
     run(play, TICKS_PER_STEP + TICKS_PER_SECOND * 2);
     expect(held(play, resident)).toEqual([]);
+  });
+});
+
+describe("a status that ends in the weather", () => {
+  const RAIN: Sky = { weather: "rain", areas: [] };
+  const FOG: Sky = { weather: "fog", areas: [] };
+
+  it("puts out a burn the moment rain falls on its bearer", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    expect(held(play)).toEqual(["burned"]);
+
+    play.setSky(RAIN);
+    play.tick(TICK_MS);
+    expect(held(play)).toEqual([]);
+  });
+
+  it("keeps a burn going under a roof while it rains", () => {
+    const play = session(replaceStack(world("fire"), 1, 0, 1, [{ tileId: "grass" }]));
+    play.setSky(RAIN);
+    step(play, "e");
+    expect(held(play)).toEqual(["burned"]);
+  });
+
+  it("leaves a burn alone in weather it does not name", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    play.setSky(FOG);
+    play.tick(TICK_MS);
+    expect(held(play)).toEqual(["burned"]);
   });
 });

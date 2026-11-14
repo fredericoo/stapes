@@ -177,6 +177,7 @@
     "stacks": true,
     "maxMs": 24000,
     "everyMs": "250",
+    "endsIn": ["rain"],
     "effects": {
       "hp": "0 - ceil(MAX_HP / 100)"
     },
