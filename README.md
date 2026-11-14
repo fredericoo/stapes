@@ -280,6 +280,16 @@ an agent drives", lists every call.
   grows back where it was, so these are the only places mushrooms grow. How
   many is the `MUSHROOMS` block at the top of the script; `--dry-run` reports
   without writing
+- `bun run thin:forests` — fell trees at the edge of every wood outside the
+  town, in ragged bays, keeping lone trees and every gap two cells wide, then
+  walk the map with the game's own movement rules and refuse to write it if it
+  strands anybody. It prints reachable cells, dead ends and detour before and
+  after. It runs once; `--dry-run` reports without writing
+- `bun run ramp:hills` — lay ramps up the sloped hills: onto hilltops nobody
+  can walk onto, and as shortcuts where the walk round from the foot of a
+  cliff to its top is long. It walks the map with the game's own movement
+  rules, undoes any ramp that strands anybody, and prints each ramp. It runs
+  once; `--dry-run` reports without writing
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs

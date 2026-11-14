@@ -11603,13 +11603,29 @@ walking out of any gate meets them in the order they can handle:
   `dirt, water`): `water-slime`, between about 30 and 70 cells from the wall.
 - **About 35 to 65 cells from the wall**: snakes, alone.
 - **Deep forest at least 60 cells from the wall**: four wolves, alone, each
-  on a clearing with trees on at least 50 of the 121 cells around it and at
-  least 15 cells from any water. Wolves do not go on the beach.
+  on a clearing with trees on at least 45 of the 121 cells around it and at
+  least 15 cells from any water. Wolves do not go on the beach, and none is
+  within 15 cells of another. The bar was 50 until `thin:forests` cut the
+  edges back; three wolves moved back under cover, and the one at
+  (-40, -174) has no such site within 35 cells and is still on its clearing.
 
-Deer, rabbits, the wisps and the swamp's bog imps are outside this scheme and
-stay where they were authored, as do the caves. The south guard's warning
-still names snakes, which now start about 35 cells past it rather than at the
-gate. A creature placed by hand in the wrong ring is not caught by anything;
+Deer, rabbits, the wisps and the swamp's bog imps are outside this scheme, as
+are the caves. On top of the rings, each kind keeps to the ground it would
+live on:
+
+- **Snakes bask.** Trees cover fewer than 25 of the 121 cells around every
+  snake. The three that stood deeper in the wood moved to ground with at
+  most 12, still at least 35 cells from the wall.
+- **The desert's hostiles are snakes, fire slimes and skeletons.** The desert
+  was raised over four wolves; they are snakes now.
+- **Deer and rabbits graze the edge of a wood**, with trees on no more than
+  about 30 of the 121 cells around them.
+- **On the ice island, water slimes and tide wisps keep to the frozen lakes
+  and the shore**, within four cells of `ice` or water. Wolves there are
+  `snow-wolf`.
+
+The south guard's warning still names snakes, which now start about 35 cells
+past it rather than at the gate. A creature placed by hand in the wrong ring is not caught by anything;
 check it against these bands.
 
 ### The wolf we ship sleeps through the day on the surface
@@ -17834,3 +17850,79 @@ refuses a map that strands more cells than the one it was given.
 Creatures are taken off the board before the walk, because a body in a
 doorway is in the way for a moment and not for good. Nothing is exempt yet;
 a place meant as a trap would need a list of exceptions in the command.
+
+## The edge of every wood is thinned, so the woods stop walling the paths in
+
+`bun run thin:forests` (`../scripts/thin-forests.ts`) fells trees at the edge
+of every stand outside the town. Players called the hilly map "dozens and
+dozens of dead ends, nothing connects": the forest generator's rectangles
+ended in straight walls of trees, and once `raise:hills` put cliffs between
+them, a lane between two woods was often one way in and no way on.
+
+**Which trees.** A tree's depth is how many cells it stands from open ground
+on its own level, counted through other trees. Only trees at depth one to
+three are candidates, and a tree with fewer than three trees around it is a
+lone tree in a field and is kept: felling those flattened every meadow into
+lawn. A candidate is felled when a noise score beats a threshold that rises
+with depth, so the edge is cut back in bays a few cells across and stays
+ragged, with a scatter of survivors in each bay, rather than speckled.
+
+**The same two rules as the forest generator.** A felled cell has to be part
+of a 2×2 square of open ground, or the tree goes back (see "A forest is a
+path and what grows either side of it"). And a felled tree can open a
+hilltop onto a ledge that drops into a hollow the trees close; the script
+runs `findStranded` and fells the trees beside each such hollow, which opens
+it rather than closing the hilltop again. It refuses to write a map that
+strands more cells than the one it was given.
+
+**What the run did.** 4,943 trees felled of 12,081 within three cells of open
+ground; 12,941 trees are left. Measured with the game's own walk on foot,
+drops excluded:
+
+| | before | after |
+| --- | --- | --- |
+| cells reachable on foot | 43,342 | 48,197 |
+| dead ends (cells with one way out) | 714 | 514 |
+| median walk ÷ straight-line distance, 400 surface pairs 20–50 apart | 1.19 | 1.12 |
+| stranded cells | 0 | 0 |
+
+**It runs once.** Nothing marks a thinned map, and a second run thins the new
+edge again. To thin differently, start from the map before the thinning.
+
+**What it does not fix.** Cliffs with no ramp near. `ramp:hills` lays those
+afterwards; see "Ramps onto the hills nobody could climb, and shortcuts up
+the long ones".
+
+## Ramps onto the hills nobody could climb, and shortcuts up the long ones
+
+`bun run ramp:hills` (`../scripts/ramp-hills.ts`) lays ramps on the sloped
+hills after `slope:hills` and `thin:forests`, in the shape `raise:hills` used:
+from the open ground at the foot, `[ground, ramp]`, then
+`[ground, half-stone, ramp]`, then the head, where the cliff's
+`[ground, hill-wall]` becomes `[ground, half-stone, half-stone]` and the
+brink above becomes plain ground. A ramp faces away from the hill. It may
+clear a tree, bush or flowers off its own cells and off its foot.
+
+**Two passes.**
+
+- **Hilltops nobody can walk onto.** Raised open ground of at least
+  `minUsefulCells` (40, the bar `raise:hills` used) that the walk on foot
+  does not reach. A ramp is kept only if it opens at least that many new
+  cells: a ramp onto a strip that trees cut off from the rest of the hilltop
+  reaches its own head and nothing else. After the thinning there were only
+  five such hilltops. Two have ramps now. Two are the `dirt`-topped hills
+  over the caves near (-72, -148) and (-57, -138), where every ramp lets a
+  player drop into a hollow with no way out. The fifth, at (35, 83), has walls
+  and the wisp ring round the foot of its cliff.
+- **Shortcuts.** A ramp up a cliff whose top a player can already reach,
+  where the walk round from the foot to the top is at least `shortcutSteps`
+  (40). The longest walks go first, each shortcut 25 cells from the next and
+  20 from any ramp already there. The run laid 19, where the walk round was
+  55 to 193 steps and is now 3. This is what "nothing connects" was about:
+  the top of a cliff in plain sight and a long way round to reach it.
+
+Every ramp is undone if `findStranded` then finds more stranded cells than
+before, and the script refuses to write a map that does.
+
+**It runs once.** A second run finds new shortcuts measured against the
+first run's ramps.
