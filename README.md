@@ -384,7 +384,7 @@ an agent drives", lists every call.
   placement rather than calling it, so the two can disagree
 - `bun run verify <command>` — run the game's own code on this checkout and
   print what it did, as evidence that a change does what its PR says. It needs
-  no server, database or account, and CI runs `content --strict` and
+  no server, database or account, and CI runs `content --strict`, `caves` and
   `stranded`. Every command prints
   the commit it ran on, and `--json` prints one JSON object on stdout instead
   of a table. `bun run verify --help` lists the commands; the `verify` skill in
