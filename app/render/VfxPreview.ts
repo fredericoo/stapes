@@ -172,7 +172,7 @@ export class VfxPreview {
     const token = ++this.loadToken;
     const loader = new THREE.TextureLoader();
     void loader
-      .loadAsync(tilesetUrl(tileset.file))
+      .loadAsync(tilesetUrl(tileset))
       .then((tex) => {
         if (this.disposed || token !== this.loadToken) {
           tex.dispose();

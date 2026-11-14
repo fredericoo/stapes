@@ -302,6 +302,8 @@ export type TilesetDef = {
   height: number;
   /** The play renderer blends this sheet's sprites by their alpha instead of cutting them out at half. */
   translucent?: boolean;
+  /** A hash of the sheet's bytes the server adds on read; never stored. */
+  version?: string;
 };
 
 /** What a player must have to take a placement's reward; a missing criterion asks nothing. */

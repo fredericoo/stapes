@@ -40,7 +40,9 @@ export class ApiBlobs implements Blobs {
   async getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
     if (!key.startsWith("tilesets/")) return null;
     const file = key.slice("tilesets/".length);
-    const response = await fetch(`${this.origin}/api/tilesets/${encodeURIComponent(file)}`);
+    const response = await fetch(`${this.origin}/api/tilesets/${encodeURIComponent(file)}`, {
+      cache: "no-cache",
+    });
     if (!response.ok) return null;
     return new Uint8Array(await response.arrayBuffer()) as Uint8Array<ArrayBuffer>;
   }

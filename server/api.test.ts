@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import traitsJson from "../data/traits.json";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
-import type { MapFile } from "../app/lib/types";
+import type { MapFile, TilesetDef } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { emptyEquipment } from "../app/game/equipment";
 import { createApi } from "./api";
@@ -692,5 +692,58 @@ describe("weather areas", () => {
     expect((await saveAreas([area], null)).status).toBe(404);
     expect((await saveAreas([{ x0: 1 }])).status).toBe(400);
     expect(await servedAreas()).toEqual([]);
+  });
+});
+
+describe("tileset sheets", () => {
+  const FILE = "basic.png";
+
+  async function versionOf(file: string): Promise<string | undefined> {
+    const response = await api.handle(new Request("http://localhost/api/bootstrap"));
+    const { tilesets } = (await response.json()) as { tilesets: TilesetDef[] };
+    return tilesets.find((tileset) => tileset.file === file)?.version;
+  }
+
+  function sheet(version: string | undefined): Promise<Response> {
+    const query = version === undefined ? "" : `?v=${version}`;
+    return api.handle(new Request(`http://localhost/api/tilesets/${FILE}${query}`));
+  }
+
+  it("names a sheet by a new version once its bytes change, so a cached copy is never reused", async () => {
+    await world.blobs.writeTilesetPng(FILE, new Uint8Array([1, 2, 3]));
+    const before = await versionOf(FILE);
+    await world.blobs.writeTilesetPng(FILE, new Uint8Array([4, 5, 6]));
+    const after = await versionOf(FILE);
+
+    expect(before).toBeString();
+    expect(after).toBeString();
+    expect(after).not.toBe(before);
+  });
+
+  it("caches a sheet for good only under the version it has now", async () => {
+    await world.blobs.writeTilesetPng(FILE, new Uint8Array([1, 2, 3]));
+    const stale = await versionOf(FILE);
+    await world.blobs.writeTilesetPng(FILE, new Uint8Array([4, 5, 6]));
+    const current = await versionOf(FILE);
+
+    expect((await sheet(current)).headers.get("Cache-Control")).toContain("immutable");
+    const old = await sheet(stale);
+    expect(old.headers.get("Cache-Control")).toBe("no-store");
+    expect(new Uint8Array(await old.arrayBuffer())).toEqual(new Uint8Array([4, 5, 6]));
+  });
+
+  it("does not store a version an editor sends back with the catalogue", async () => {
+    await world.blobs.writeTilesetPng(FILE, new Uint8Array([1, 2, 3]));
+    const tilesets = await world.blobs.readVersionedTilesets();
+    const saved = await api.handle(
+      new Request("http://localhost/api/tilesets", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ tilesets }),
+      }),
+    );
+
+    expect(saved.status).toBe(200);
+    expect((await world.blobs.readTilesets()).some((tileset) => "version" in tileset)).toBe(false);
   });
 });

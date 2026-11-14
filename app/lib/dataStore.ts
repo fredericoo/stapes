@@ -16,6 +16,10 @@ const PNG_TYPE = "image/png";
 
 const SAFE_TILESET_NAME = /^[a-zA-Z0-9._-]+\.png$/;
 
+const TILESET_VERSION_HEX_LENGTH = 16;
+
+export const TILESET_VERSION_PARAM = "v";
+
 export interface Blobs {
   getText(key: string): Promise<string | null>;
   getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
@@ -73,8 +77,26 @@ export class DataStore {
     return JSON.parse(raw) as TilesetDef[];
   }
 
+  /** Each def carries a hash of its sheet's bytes, so a sheet's URL changes exactly when the sheet does. */
+  async readVersionedTilesets(): Promise<TilesetDef[]> {
+    const tilesets = await this.readTilesets();
+    return Promise.all(
+      tilesets.map(async (tileset) => {
+        const version = await this.readTilesetVersion(tileset.file);
+        return version === null ? tileset : { ...tileset, version };
+      }),
+    );
+  }
+
+  async readTilesetVersion(fileName: string): Promise<string | null> {
+    const bytes = await this.readTilesetPng(fileName);
+    return bytes === null ? null : contentVersion(bytes);
+  }
+
+  /** A version is derived from the stored bytes on every read; one written into the catalogue would go stale. */
   async writeTilesets(tilesets: TilesetDef[]) {
-    await this.blobs.put(TILESETS_KEY, `${JSON.stringify(tilesets, null, 2)}\n`, JSON_TYPE);
+    const unversioned = tilesets.map(({ version: _version, ...tileset }) => tileset);
+    await this.blobs.put(TILESETS_KEY, `${JSON.stringify(unversioned, null, 2)}\n`, JSON_TYPE);
   }
 
   async readMap(): Promise<MapFile> {
@@ -104,4 +126,10 @@ export class DataStore {
     }
     await this.blobs.put(TILESET_PREFIX + fileName, bytes, PNG_TYPE);
   }
+}
+
+async function contentVersion(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, TILESET_VERSION_HEX_LENGTH);
 }

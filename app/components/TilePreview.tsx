@@ -94,7 +94,7 @@ export async function drawSprite(
     ctx.fillRect(0, 0, size, size);
     return;
   }
-  await drawFrom(ctx, loadImage(tilesetUrl(tileset.file)), sprite, size);
+  await drawFrom(ctx, loadImage(tilesetUrl(tileset)), sprite, size);
 }
 
 async function drawFrom(

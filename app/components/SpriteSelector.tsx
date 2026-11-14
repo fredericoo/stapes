@@ -26,7 +26,7 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
       return;
     }
     const image = new Image();
-    image.src = tilesetUrl(tileset.file);
+    image.src = tilesetUrl(tileset);
     image.onload = () => setImg(image);
   }, [tileset]);
 

@@ -15,7 +15,7 @@ let blocksPromise: Promise<LayerBlocks> | null = null;
 const canvases = new Map<string, Promise<HTMLCanvasElement>>();
 
 async function loadPartFile(file: string): Promise<Rgba[]> {
-  const response = await fetch(tilesetUrl(file));
+  const response = await fetch(tilesetUrl({ file }), { cache: "no-cache" });
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
   const bitmap = await createImageBitmap(await response.blob());
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);

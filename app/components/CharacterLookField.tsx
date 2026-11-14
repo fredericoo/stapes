@@ -197,12 +197,12 @@ function buildFloor(): Promise<ImageBitmap> {
     if (!ground) throw new Error(`no ${GROUND_TILE} tile`);
     const images = new Map<string, Promise<ImageBitmap>>();
     const imageFor = (tilesetId: string) => {
-      const file = tilesets.find((s) => s.id === tilesetId)?.file;
-      if (!file) throw new Error(`no tileset ${tilesetId}`);
-      let image = images.get(file);
+      const tileset = tilesets.find((s) => s.id === tilesetId);
+      if (!tileset) throw new Error(`no tileset ${tilesetId}`);
+      let image = images.get(tileset.file);
       if (!image) {
-        image = fetch(tilesetUrl(file)).then(async (r) => createImageBitmap(await r.blob()));
-        images.set(file, image);
+        image = fetch(tilesetUrl(tileset)).then(async (r) => createImageBitmap(await r.blob()));
+        images.set(tileset.file, image);
       }
       return image;
     };

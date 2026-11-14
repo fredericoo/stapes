@@ -3,6 +3,7 @@ import { weatherAreasSchema } from "../app/lib/weatherAreas";
 import { Elysia, t } from "elysia";
 import { parseFlatMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
+import { TILESET_VERSION_PARAM } from "../app/lib/dataStore";
 import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
@@ -20,6 +21,20 @@ import {
 } from "./feedback";
 
 const FEEDBACK_LIST_LIMIT = 500;
+
+const UNVERSIONED_TILESET_MAX_AGE_S = 60;
+const VERSIONED_TILESET_MAX_AGE_S = 365 * 24 * 60 * 60;
+
+/**
+ * A sheet asked for by the version it has now is cached for good. One asked for
+ * by an old version is still served, to a tab opened before the sheet changed,
+ * but never cached: under that URL the bytes are not the ones it names.
+ */
+function tilesetCacheControl(requested: string | undefined, current: string | null): string {
+  if (requested === undefined) return `public, max-age=${UNVERSIONED_TILESET_MAX_AGE_S}`;
+  if (requested !== current) return "no-store";
+  return `public, max-age=${VERSIONED_TILESET_MAX_AGE_S}, immutable`;
+}
 
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
@@ -203,7 +218,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
     .get("/tiles", async () => ({ tiles: await store.readTiles() }))
     .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
     .get("/traits", async () => ({ traits: await store.readTraits() }))
-    .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))
+    .get("/tilesets", async () => ({ tilesets: await store.readVersionedTilesets() }))
     .get("/weather-areas", async () => ({ areas: await store.readWeatherAreas() }))
     .get("/map", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
@@ -211,22 +226,28 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
     })
     .get("/bootstrap", async () => ({
       tiles: await store.readTiles(),
-      tilesets: await store.readTilesets(),
+      tilesets: await store.readVersionedTilesets(),
       statuses: await store.readStatuses(),
     }))
     .get(
       "/tilesets/:file",
-      async ({ params, status }) => {
+      async ({ params, query, status }) => {
         const bytes = await store.readTilesetPng(params.file);
         if (!bytes) return status(404, "Not found");
+        const requested = query[TILESET_VERSION_PARAM];
+        const current =
+          requested === undefined ? null : await store.readTilesetVersion(params.file);
         return new Response(bytes as unknown as BodyInit, {
           headers: {
             "Content-Type": "image/png",
-            "Cache-Control": "public, max-age=60",
+            "Cache-Control": tilesetCacheControl(requested, current),
           },
         });
       },
-      { params: t.Object({ file: t.String() }) },
+      {
+        params: t.Object({ file: t.String() }),
+        query: t.Object({ [TILESET_VERSION_PARAM]: t.Optional(t.String()) }),
+      },
     )
 
     .post(
