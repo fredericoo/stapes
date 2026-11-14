@@ -391,8 +391,8 @@ an agent drives", lists every call.
   - `content` loads every tile, status, brain and dialog in `data/` with the
     game's own resolvers, then checks every id they name and every sprite
     against its sheet. It exits 1 on an error in tiles, statuses or tilesets;
-    what it finds in `data/map.json` is a warning. `--data <dir>` checks
-    another copy
+    what it finds in `data/map.json` is a warning, and `--strict` exits 1 on
+    a warning too, which is how CI runs it. `--data <dir>` checks another copy
   - `battle <a> <b>` fights two sides through the Arena's `Duel` for every
     seed, both ways round, and reports wins, losses, draws and undecided
     fights with a 95% interval, time to kill, damage per second each way,
