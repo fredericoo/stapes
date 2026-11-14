@@ -1,3 +1,4 @@
+import { NOISE_STYLES } from "./noiseStyle";
 import {
   ATTACKER_SELECTOR,
   MAX_HEALTH_PERCENT,
@@ -30,7 +31,14 @@ export type ParamSpec =
   | { key: string; kind: "ground"; label: string }
   | { key: string; kind: "aim"; label: string; spell: string }
   | { key: string; kind: "spell"; label: string }
-  | { key: string; kind: "choice"; label: string; options: readonly string[] }
+  | {
+      key: string;
+      kind: "choice";
+      label: string;
+      options: readonly string[];
+      /** Offered as `auto` first; picking it leaves the key out. */
+      optional?: boolean;
+    }
   | {
       key: string;
       kind: "tile";
@@ -419,8 +427,11 @@ export const EFFECTS: Record<BrainEffectDef["effect"], CatalogEntry<BrainEffectD
   },
   noise: {
     label: "noise",
-    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it. {slot} becomes the name of whoever is in that slot.",
-    params: [{ key: "text", kind: "text", label: "text" }],
+    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it. {slot} becomes the name of whoever is in that slot. Style is how the word moves; auto reads it from the text, so *ROAR* is loud and sss is wavy.",
+    params: [
+      { key: "text", kind: "text", label: "text" },
+      { key: "style", kind: "choice", label: "style", options: NOISE_STYLES, optional: true },
+    ],
     make: () => ({ effect: "noise", text: "sss" }),
   },
 };

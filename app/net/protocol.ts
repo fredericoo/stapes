@@ -1,3 +1,4 @@
+import { type NoiseStyle, noiseStyleSchema } from "../lib/noiseStyle";
 import { weatherAreasSchema, type WeatherArea } from "../lib/weatherAreas";
 import { WEATHER_KINDS, type WeatherKind } from "../lib/weather";
 import * as v from "valibot";
@@ -449,6 +450,7 @@ export type ServerMessage =
       type: "noise";
       id: string;
       text: string;
+      style?: NoiseStyle;
       x: number;
       y: number;
       z: number;
@@ -919,6 +921,7 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("noise"),
     id: v.string(),
     text: v.string(),
+    style: v.optional(noiseStyleSchema),
     x: v.number(),
     y: v.number(),
     z: v.number(),
@@ -963,7 +966,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 39;
+export const PROTOCOL_VERSION = 40;
 
 export const MAX_STEPS_AHEAD = 5;
 

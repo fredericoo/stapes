@@ -51,6 +51,7 @@ import { StatField } from "./StatField";
 import { CharmFields } from "./CharmFields";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
+import { SoundStyleField } from "./SoundStyleField";
 import { ElementFields } from "./ElementFields";
 import { WeaponFields } from "./WeaponFields";
 
@@ -345,6 +346,11 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
                   onChange={(e) => patchConsumable({ sound: e.target.value })}
                 />
               </label>
+
+              <SoundStyleField
+                value={item.soundStyle}
+                onChange={(soundStyle) => patchConsumable({ soundStyle })}
+              />
 
               <StatField
                 label="HP"

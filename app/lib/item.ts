@@ -1,3 +1,4 @@
+import { type NoiseStyle, noiseStyleSchema } from "./noiseStyle";
 import * as v from "valibot";
 import {
   AREA_SHAPES,
@@ -61,6 +62,7 @@ export type ConsumableItem = {
   label?: string;
   hp: number;
   sound?: string;
+  soundStyle?: NoiseStyle;
   statuses?: StatusGrant[];
   pile?: number;
   leaves?: string;
@@ -192,6 +194,7 @@ export type ArcaneStoneItem = {
   /** Read only on a physical bolt aimed at a target; absent is `DEFAULT_STONE_ACCURACY`. */
   accuracy?: number;
   sound?: string;
+  soundStyle?: NoiseStyle;
   requirements?: Masteries;
   reach?: Reach;
   elements?: Element[];
@@ -408,6 +411,7 @@ const consumableSchema = v.object({
   type: v.literal("consumable"),
   label: v.optional(v.string()),
   sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
+  soundStyle: v.optional(noiseStyleSchema),
   hp: v.pipe(
     v.number(),
     v.integer(),
@@ -568,6 +572,7 @@ export const stoneSchema = v.object({
   physical: v.optional(v.picklist(PHYSICAL_BLOWS)),
   accuracy: v.optional(percent),
   sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
+  soundStyle: v.optional(noiseStyleSchema),
   requirements: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
   elements: v.optional(elementsSchema),
@@ -759,6 +764,7 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       type: "consumable",
       ...(label ? { label } : {}),
       ...(sound ? { sound } : {}),
+      ...(sound && item.soundStyle ? { soundStyle: item.soundStyle } : {}),
       hp: item.hp,
       ...(statuses ? { statuses } : {}),
       ...(leaves ? { leaves } : {}),
@@ -825,6 +831,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...(stone.physical ? { physical: stone.physical } : {}),
     ...(stone.physical && stone.accuracy !== undefined ? { accuracy: stone.accuracy } : {}),
     ...(sound ? { sound } : {}),
+    ...(sound && stone.soundStyle ? { soundStyle: stone.soundStyle } : {}),
     ...requirementsForSave(stone.requirements),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),
     ...elementsForSave(stone.elements),

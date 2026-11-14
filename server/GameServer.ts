@@ -1860,11 +1860,12 @@ export class GameServer {
     const actors = session.actorSnapshots();
     for (const bubble of said) this.broadcastChat(actors, bubble);
     for (const noise of made) {
-      const { id, text, x, y, z, stackIndex } = noise;
+      const { id, text, style, x, y, z, stackIndex } = noise;
       this.sendToNearby({ x, y, z }, actors, {
         type: "noise",
         id,
         text,
+        ...(style ? { style } : {}),
         x,
         y,
         z,
@@ -2260,11 +2261,12 @@ export class GameServer {
 
   private broadcastNoise(session: GameSession, actors: ActorSnapshot[]) {
     for (const noise of session.drainNoise()) {
-      const { id, text, x, y, z, stackIndex } = noise;
+      const { id, text, style, x, y, z, stackIndex } = noise;
       this.sendToNearby({ x, y, z }, actors, {
         type: "noise",
         id,
         text,
+        ...(style ? { style } : {}),
         x,
         y,
         z,

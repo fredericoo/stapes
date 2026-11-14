@@ -360,7 +360,6 @@ body {
    the sum of two squares is a square). Must stay after `.world-label` — same
    specificity, so it is source order that decides, and this replaces the
    property rather than adding to it. */
-.world-label--speech,
 .world-label--noise,
 .damage-number {
   text-shadow:
@@ -446,6 +445,300 @@ body {
 
 .world-label--noise {
   color: var(--color-label);
+}
+
+.world-label--speech {
+  --bubble-fill: #f4ecd8;
+  --bubble-ink: #1a1014;
+  text-shadow: none;
+  /* The tail is absolutely placed, so the measured height would leave it out;
+     this puts it back, and the lift then clears the tail tip. */
+  padding-bottom: calc(var(--world-label-brick) * 4);
+}
+
+.speech-bubble {
+  --b1: var(--world-label-brick);
+  --b3: calc(var(--world-label-brick) * 3);
+  position: relative;
+  isolation: isolate;
+  color: var(--bubble-ink);
+  padding: 0 var(--b3);
+}
+
+/* The fill is on a layer behind the text rather than on the bubble, because
+   the clip that rounds its corners — in three bricks on the outer row, then one
+   for two rows, a pixel circle's quarter — would clip the
+   tail hanging below the bubble too. */
+.speech-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bubble-fill);
+  clip-path: polygon(
+    var(--b3) 0,
+    calc(100% - var(--b3)) 0,
+    calc(100% - var(--b3)) var(--b1),
+    calc(100% - var(--b1)) var(--b1),
+    calc(100% - var(--b1)) var(--b3),
+    100% var(--b3),
+    100% calc(100% - var(--b3)),
+    calc(100% - var(--b1)) calc(100% - var(--b3)),
+    calc(100% - var(--b1)) calc(100% - var(--b1)),
+    calc(100% - var(--b3)) calc(100% - var(--b1)),
+    calc(100% - var(--b3)) 100%,
+    var(--b3) 100%,
+    var(--b3) calc(100% - var(--b1)),
+    var(--b1) calc(100% - var(--b1)),
+    var(--b1) calc(100% - var(--b3)),
+    0 calc(100% - var(--b3)),
+    0 var(--b3),
+    var(--b1) var(--b3),
+    var(--b1) var(--b1),
+    var(--b3) var(--b1)
+  );
+}
+
+/* `--tail-x` is written by `aimTail` in `textLabels.ts`, in whole bricks from
+   the bubble's left edge. */
+.speech-bubble__tail {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  height: calc(var(--world-label-brick) * 4);
+  color: var(--bubble-fill);
+  transform: translateX(var(--tail-x, 0px));
+  line-height: 0;
+}
+
+.speech-bubble__tail > svg {
+  display: none;
+  height: 100%;
+  width: auto;
+}
+
+.speech-bubble__tail[data-lean="none"] > .speech-bubble__tail-none,
+.speech-bubble__tail[data-lean="left"] > .speech-bubble__tail-left,
+.speech-bubble__tail[data-lean="right"] > .speech-bubble__tail-right {
+  display: block;
+}
+
+.speech-bubble__tail-none {
+  aspect-ratio: 7 / 4;
+}
+
+.speech-bubble__tail-left,
+.speech-bubble__tail-right {
+  aspect-ratio: 5 / 4;
+}
+
+/* Steps to 75% and 50%, about the tail tip, then the label is gone. At 2x a
+   brick is 4 device pixels, so these are 3 and 2: every step stays on the
+   pixel grid. `aimTail` writes `--tail-tip-x`; the duration and delay are
+   written by `closeBubble`. */
+.speech-bubble--closing {
+  transform-origin: var(--tail-tip-x, 50%) calc(100% + var(--world-label-brick) * 4);
+  animation-name: speech-bubble-close;
+  animation-timing-function: step-end;
+  animation-fill-mode: both;
+}
+
+@keyframes speech-bubble-close {
+  0% {
+    transform: scale(1);
+  }
+  33.333% {
+    transform: scale(0.75);
+  }
+  66.667%,
+  100% {
+    transform: scale(0.5);
+  }
+}
+
+/* Noises. `--noise-elapsed` is minus how long the noise has been up, so a
+   label built late starts as far in as the noise already is; `--i` is the
+   glyph's index, which staggers the per-letter styles. Every style fades out
+   over the end of `NOISE_LIFETIME_MS` (2s). */
+.world-label__noise {
+  --noise-life: 2000ms;
+  display: grid;
+  justify-items: center;
+  animation: noise-fade var(--noise-life) linear var(--noise-elapsed, 0ms) both;
+}
+
+.world-label__noise-outline,
+.world-label__noise-face {
+  grid-area: 1 / 1;
+  display: flex;
+}
+
+.world-label__noise-outline {
+  color: transparent;
+}
+
+.world-label__noise-face {
+  text-shadow: none;
+}
+
+.world-label__noise-glyph {
+  display: inline-block;
+  white-space: pre;
+}
+
+@keyframes noise-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Pop: each letter snaps in from nothing, 40ms after the one before, with an
+   overshoot. A chomp, a crunch, a gulp. */
+.world-label__noise--pop .world-label__noise-glyph {
+  animation: noise-pop 180ms steps(4, jump-end) calc(var(--i) * 40ms + var(--noise-elapsed, 0ms))
+    both;
+}
+
+@keyframes noise-pop {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.5) translateY(var(--o1n));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Loud: the whole word starts small and swells past full size inside a tenth
+   of a second, then settles big and trembles. A boom, a roar. */
+.world-label__noise--loud {
+  transform-origin: 50% 100%;
+  animation:
+    noise-loud 2000ms steps(40, jump-none) var(--noise-elapsed, 0ms) both,
+    noise-fade var(--noise-life) linear var(--noise-elapsed, 0ms) both;
+}
+
+@keyframes noise-loud {
+  0% {
+    transform: scale(0.3);
+  }
+  5% {
+    transform: scale(2.2);
+  }
+  10% {
+    transform: scale(1.6) translateX(var(--o1));
+  }
+  12% {
+    transform: scale(1.6) translateX(var(--o1n));
+  }
+  14%,
+  100% {
+    transform: scale(1.6);
+  }
+}
+
+/* Wavy: a sine through the letters, stepped one brick at a time so the
+   letters stay on the font's grid. A hiss, a breath, a snore. */
+.world-label__noise--wavy .world-label__noise-glyph {
+  animation: noise-wave 640ms step-end calc(var(--i) * -80ms + var(--noise-elapsed, 0ms)) infinite;
+}
+
+@keyframes noise-wave {
+  0% {
+    transform: translateY(0);
+  }
+  12.5% {
+    transform: translateY(var(--o1n));
+  }
+  25% {
+    transform: translateY(var(--o2n));
+  }
+  37.5% {
+    transform: translateY(var(--o1n));
+  }
+  50% {
+    transform: translateY(0);
+  }
+  62.5% {
+    transform: translateY(var(--o1));
+  }
+  75% {
+    transform: translateY(var(--o2));
+  }
+  87.5% {
+    transform: translateY(var(--o1));
+  }
+}
+
+/* Shake: every letter jumps a brick about on its own beat. A growl, a rumble. */
+.world-label__noise--shake .world-label__noise-glyph {
+  animation: noise-shake 200ms step-end calc(var(--i) * -50ms + var(--noise-elapsed, 0ms)) infinite;
+}
+
+@keyframes noise-shake {
+  0% {
+    transform: translate(var(--o1), 0);
+  }
+  25% {
+    transform: translate(0, var(--o1n));
+  }
+  50% {
+    transform: translate(var(--o1n), var(--o1));
+  }
+  75% {
+    transform: translate(0, var(--o1));
+  }
+}
+
+/* Whisper: half size, which at 20px is the font's own 10px grid, faded in and
+   spreading apart a brick a letter. A psst, a rustle. */
+.world-label__noise--whisper {
+  transform-origin: 50% 100%;
+  animation: noise-whisper var(--noise-life) steps(10, jump-none) var(--noise-elapsed, 0ms) both;
+}
+
+.world-label__noise--whisper .world-label__noise-glyph {
+  animation: noise-spread var(--noise-life) steps(4, jump-none) var(--noise-elapsed, 0ms) both;
+}
+
+@keyframes noise-whisper {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  25%,
+  75% {
+    opacity: 0.8;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes noise-spread {
+  from {
+    margin: 0;
+  }
+  to {
+    margin: 0 calc(var(--world-label-brick) * 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech-bubble--closing,
+  .world-label__noise-glyph,
+  .world-label__noise--loud,
+  .world-label__noise--whisper {
+    animation: none;
+  }
 }
 
 .world-label__bar {

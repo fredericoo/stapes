@@ -533,6 +533,7 @@ export class RemoteSession implements PlaySession {
       this.noises.push({
         id: message.id,
         text: message.text,
+        ...(message.style ? { style: message.style } : {}),
         x: message.x,
         y: message.y,
         z: message.z,
