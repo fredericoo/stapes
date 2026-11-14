@@ -17834,3 +17834,45 @@ refuses a map that strands more cells than the one it was given.
 Creatures are taken off the board before the walk, because a body in a
 doorway is in the way for a moment and not for good. Nothing is exempt yet;
 a place meant as a trap would need a list of exceptions in the command.
+
+## The edge of every wood is thinned, so the woods stop walling the paths in
+
+`bun run thin:forests` (`../scripts/thin-forests.ts`) fells trees at the edge
+of every stand outside the town. Players called the hilly map "dozens and
+dozens of dead ends, nothing connects": the forest generator's rectangles
+ended in straight walls of trees, and once `raise:hills` put cliffs between
+them, a lane between two woods was often one way in and no way on.
+
+**Which trees.** A tree's depth is how many cells it stands from open ground
+on its own level, counted through other trees. Only trees at depth one to
+three are candidates, and a tree with fewer than three trees around it is a
+lone tree in a field and is kept: felling those flattened every meadow into
+lawn. A candidate is felled when a noise score beats a threshold that rises
+with depth, so the edge is cut back in bays a few cells across and stays
+ragged, with a scatter of survivors in each bay, rather than speckled.
+
+**The same two rules as the forest generator.** A felled cell has to be part
+of a 2×2 square of open ground, or the tree goes back (see "A forest is a
+path and what grows either side of it"). And a felled tree can open a
+hilltop onto a ledge that drops into a hollow the trees close; the script
+runs `findStranded` and fells the trees beside each such hollow, which opens
+it rather than closing the hilltop again. It refuses to write a map that
+strands more cells than the one it was given.
+
+**What the run did.** 4,943 trees felled of 12,081 within three cells of open
+ground; 12,941 trees are left. Measured with the game's own walk on foot,
+drops excluded:
+
+| | before | after |
+| --- | --- | --- |
+| cells reachable on foot | 43,342 | 48,197 |
+| dead ends (cells with one way out) | 714 | 514 |
+| median walk ÷ straight-line distance, 400 surface pairs 20–50 apart | 1.19 | 1.12 |
+| stranded cells | 0 | 0 |
+
+**It runs once.** Nothing marks a thinned map, and a second run thins the new
+edge again. To thin differently, start from the map before the thinning.
+
+**What it does not fix.** A hill whose top was all trees got no ramp from
+`raise:hills`, and thinning its edge opens ground nobody can climb to. The
+dead ends left are mostly cliffs with no ramp, not trees.
