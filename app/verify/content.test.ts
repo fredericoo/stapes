@@ -218,8 +218,9 @@ const FAULTS: {
   {
     fault: "mud on dirt with nothing under either but each other",
     seed: (c) => {
-      c.tiles.push(autotile("dirt"), autotile("mud"));
+      c.tiles.push(tile("grass-2"), autotile("dirt"), autotile("mud"));
       c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "dirt" }, { tileId: "mud" }]);
+      c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "grass-2" }]);
     },
     found: { severity: "warn", file: "map.json", id: "mud", path: "" },
   },
@@ -275,6 +276,25 @@ describe("checkContent", () => {
       { tileId: "dirt" },
       { tileId: "mud" },
     ]);
+
+    expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
+  });
+
+  it("accepts mud on dirt inside a field of dirt, which draws whole under it", () => {
+    const c = content();
+    c.tiles.push(tile("grass-2"), autotile("dirt"), autotile("mud"));
+    for (let x = 2; x <= 8; x++) {
+      for (let y = -3; y <= 3; y++) c.map = replaceStack(c.map, x, y, 0, [{ tileId: "dirt" }]);
+    }
+    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "dirt" }, { tileId: "mud" }]);
+
+    expect(check(c).findings.filter((f) => f.id === "mud")).toEqual([]);
+  });
+
+  it("accepts dirt with nothing under it whose edges face only empty cells", () => {
+    const c = content();
+    c.tiles.push(autotile("dirt"));
+    c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "dirt" }]);
 
     expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });

@@ -671,8 +671,9 @@ const BACKED_GROUND = new Set(["mud", "dirt", "sand-ledge"]);
 
 /**
  * True when a placement's edges have something to show through them: a tile
- * below it that is not an autotile, or an autotile it connects to. A placement
- * with every neighbour connected draws no edge and needs nothing.
+ * below it that is not an autotile, an autotile it connects to, or an autotile
+ * that draws whole in this cell. An edge towards an empty cell needs nothing,
+ * since it shows the same background the empty cell beside it does.
  */
 function groundBacked(
   map: MapFile,
@@ -681,10 +682,22 @@ function groundBacked(
   def: TileDef,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  if (maskBlobCorners(neighborMask(map, at.x, at.y, at.z, def)) === 0xff) return true;
+  const mask = neighborMask(map, at.x, at.y, at.z, def);
+  if (maskBlobCorners(mask) === 0xff) return true;
+  const edgesFaceOnlyEmpty = SEAMS.every(
+    ({ bit, dx, dy, between }) =>
+      mask & bit ||
+      (mask & between) !== between ||
+      getStack(map, at.x + dx, at.y + dy, at.z).length === 0,
+  );
+  if (edgesFaceOnlyEmpty) return true;
   return below.some((placed) => {
     const under = tilesById[placed.tileId];
-    return under?.type !== "autotile" || def.connectsTo?.includes(placed.tileId) === true;
+    return (
+      under?.type !== "autotile" ||
+      def.connectsTo?.includes(placed.tileId) === true ||
+      maskBlobCorners(neighborMask(map, at.x, at.y, at.z, under)) === 0xff
+    );
   });
 }
 
