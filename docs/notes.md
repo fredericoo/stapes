@@ -17889,6 +17889,40 @@ drops excluded:
 **It runs once.** Nothing marks a thinned map, and a second run thins the new
 edge again. To thin differently, start from the map before the thinning.
 
-**What it does not fix.** A hill whose top was all trees got no ramp from
-`raise:hills`, and thinning its edge opens ground nobody can climb to. The
-dead ends left are mostly cliffs with no ramp, not trees.
+**What it does not fix.** Cliffs with no ramp near. `ramp:hills` lays those
+afterwards; see "Ramps onto the hills nobody could climb, and shortcuts up
+the long ones".
+
+## Ramps onto the hills nobody could climb, and shortcuts up the long ones
+
+`bun run ramp:hills` (`../scripts/ramp-hills.ts`) lays ramps on the sloped
+hills after `slope:hills` and `thin:forests`, in the shape `raise:hills` used:
+from the open ground at the foot, `[ground, ramp]`, then
+`[ground, half-stone, ramp]`, then the head, where the cliff's
+`[ground, hill-wall]` becomes `[ground, half-stone, half-stone]` and the
+brink above becomes plain ground. A ramp faces away from the hill. It may
+clear a tree, bush or flowers off its own cells and off its foot.
+
+**Two passes.**
+
+- **Hilltops nobody can walk onto.** Raised open ground of at least
+  `minUsefulCells` (40, the bar `raise:hills` used) that the walk on foot
+  does not reach. A ramp is kept only if it opens at least that many new
+  cells: a ramp onto a strip that trees cut off from the rest of the hilltop
+  reaches its own head and nothing else. After the thinning there were only
+  five such hilltops. Two have ramps now. Two are the `dirt`-topped hills
+  over the caves near (-72, -148) and (-57, -138), where every ramp lets a
+  player drop into a hollow with no way out. The fifth, at (35, 83), has walls
+  and the wisp ring round the foot of its cliff.
+- **Shortcuts.** A ramp up a cliff whose top a player can already reach,
+  where the walk round from the foot to the top is at least `shortcutSteps`
+  (40). The longest walks go first, each shortcut 25 cells from the next and
+  20 from any ramp already there. The run laid 19, where the walk round was
+  55 to 193 steps and is now 3. This is what "nothing connects" was about:
+  the top of a cliff in plain sight and a long way round to reach it.
+
+Every ramp is undone if `findStranded` then finds more stranded cells than
+before, and the script refuses to write a map that does.
+
+**It runs once.** A second run finds new shortcuts measured against the
+first run's ramps.
