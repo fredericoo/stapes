@@ -2,12 +2,13 @@ import { join } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { type Command, commitOf, describeCommit, type Outcome, UsageError } from "./verify/cli";
 import { battle } from "./verify/battle";
+import { caves } from "./verify/caves";
 import { content } from "./verify/content";
 import { stranded } from "./verify/stranded";
 
 const ROOT = join(import.meta.dir, "..");
 
-const COMMANDS: readonly Command[] = [content, stranded, battle];
+const COMMANDS: readonly Command[] = [content, caves, stranded, battle];
 
 const COMMON_OPTIONS: ParseArgsOptionsConfig = {
   json: { type: "boolean" },
@@ -20,7 +21,8 @@ function overview(): string {
     "Usage: bun run verify <command> [options]",
     "",
     "Runs the game's own code on this checkout and prints what it found, as evidence that a",
-    "change does what its PR says. Nothing needs a server, and CI runs only `stranded`.",
+    "change does what its PR says. Nothing needs a server. CI runs `content --strict` and",
+    "`stranded`.",
     "",
     "Commands:",
     ...COMMANDS.map((command) => `  ${command.name.padEnd(width)}  ${command.summary}`),

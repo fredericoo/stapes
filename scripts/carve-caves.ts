@@ -5,6 +5,7 @@ import { MAP_FILE_VERSION, MAX_LIGHT_LEVEL, coordKey, normalizeTileDef } from ".
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { checkCaves, type CaveProblem } from "../app/verify/caves";
+import { applyExceptions, parseExceptions } from "../app/verify/exceptions";
 import { AUTHORED_HOLES, SYSTEM } from "./caveSystem";
 
 type Placed = { tileId: string; direction?: Direction; description?: string };
@@ -65,6 +66,7 @@ const LOW_CRYSTAL_TILES = ["arcane-crystal-3"];
 
 const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
+const EXCEPTIONS_PATH = "data/verify-exceptions.json";
 const verifyOnly = process.argv.includes("--verify");
 
 type Flat = {
@@ -837,7 +839,16 @@ if (!verifyOnly) {
   }
 }
 
-const problems = checkWritten(carved);
+/**
+ * Stale exceptions are left to `verify caves`: after a carve this checks only
+ * the cells just carved, so most exceptions have nothing to match here.
+ */
+const { failing: problems, excused } = applyExceptions(
+  "caves",
+  checkWritten(carved),
+  parseExceptions(JSON.parse(await Bun.file(EXCEPTIONS_PATH).text())),
+);
+if (excused.length > 0) console.log(`${excused.length} problems excused in ${EXCEPTIONS_PATH}`);
 if (problems.length === 0) {
   console.log("checked against the game's own movement rules: no problems");
 } else {

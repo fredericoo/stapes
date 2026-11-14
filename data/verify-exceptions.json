@@ -1,0 +1,38 @@
+[
+  {
+    "check": "caves",
+    "kind": "open-sky",
+    "areas": [{ "from": [10, -16, -1], "to": [11, -15, -1] }],
+    "reason": "Stone stairs go down from the flagstone plaza into the crypt, so the sky shows over the stairwell."
+  },
+  {
+    "check": "caves",
+    "kind": "open-sky",
+    "areas": [{ "from": [50, 76, -3], "to": [52, 78, -3] }],
+    "reason": "A pit dug from the surface down to a walled yard at L-3, with wooden platforms over it at L-1 and L-2."
+  },
+  {
+    "check": "caves",
+    "kind": "unreachable",
+    "areas": [
+      { "from": [64, -47, -1], "to": [67, -34, -1] },
+      { "from": [65, -36, -2], "to": [65, -36, -2] }
+    ],
+    "reason": "A secret tunnel from the cellar of the plastered house to the slate building. Its ladder comes up under a wooden box, and the hole in the house floor drops past it."
+  },
+  {
+    "check": "caves",
+    "kind": "daylight",
+    "areas": [
+      { "from": [64, -40, -1], "to": [67, -34, -1] },
+      { "from": [65, -36, -2], "to": [65, -36, -2] }
+    ],
+    "reason": "The secret tunnel is lit through the hole in the house floor at 65,-36."
+  },
+  {
+    "check": "caves",
+    "kind": "ramp-not-stood-on",
+    "areas": [{ "from": [20, 36, -1], "to": [20, 36, -1] }],
+    "reason": "The upper of two ramps out of the grass hollow stands on half-stone, so it is stood on one step higher than a ramp on bare floor."
+  }
+]
