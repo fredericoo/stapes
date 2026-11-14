@@ -11603,13 +11603,29 @@ walking out of any gate meets them in the order they can handle:
   `dirt, water`): `water-slime`, between about 30 and 70 cells from the wall.
 - **About 35 to 65 cells from the wall**: snakes, alone.
 - **Deep forest at least 60 cells from the wall**: four wolves, alone, each
-  on a clearing with trees on at least 50 of the 121 cells around it and at
-  least 15 cells from any water. Wolves do not go on the beach.
+  on a clearing with trees on at least 45 of the 121 cells around it and at
+  least 15 cells from any water. Wolves do not go on the beach, and none is
+  within 15 cells of another. The bar was 50 until `thin:forests` cut the
+  edges back; three wolves moved back under cover, and the one at
+  (-40, -174) has no such site within 35 cells and is still on its clearing.
 
-Deer, rabbits, the wisps and the swamp's bog imps are outside this scheme and
-stay where they were authored, as do the caves. The south guard's warning
-still names snakes, which now start about 35 cells past it rather than at the
-gate. A creature placed by hand in the wrong ring is not caught by anything;
+Deer, rabbits, the wisps and the swamp's bog imps are outside this scheme, as
+are the caves. On top of the rings, each kind keeps to the ground it would
+live on:
+
+- **Snakes bask.** Trees cover fewer than 25 of the 121 cells around every
+  snake. The three that stood deeper in the wood moved to ground with at
+  most 12, still at least 35 cells from the wall.
+- **The desert's hostiles are snakes, fire slimes and skeletons.** The desert
+  was raised over four wolves; they are snakes now.
+- **Deer and rabbits graze the edge of a wood**, with trees on no more than
+  about 30 of the 121 cells around them.
+- **On the ice island, water slimes and tide wisps keep to the frozen lakes
+  and the shore**, within four cells of `ice` or water. Wolves there are
+  `snow-wolf`.
+
+The south guard's warning still names snakes, which now start about 35 cells
+past it rather than at the gate. A creature placed by hand in the wrong ring is not caught by anything;
 check it against these bands.
 
 ### The wolf we ship sleeps through the day on the surface
