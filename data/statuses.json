@@ -632,5 +632,49 @@
       "light": null,
       "taperMs": 3000
     }
+  },
+  {
+    "id": "charging",
+    "name": "Charging",
+    "description": "Running flat out at whoever it is after.",
+    "tone": "good",
+    "fromMs": 2500,
+    "toMs": 2500,
+    "stacks": false,
+    "maxMs": 2500,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {},
+    "walkSpeedPercent": 120,
+    "vfx": {
+      "tint": {
+        "color": "#c2a878",
+        "strength": 0.35,
+        "keepLuma": 0.85
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 500
+    }
+  },
+  {
+    "id": "winded",
+    "name": "Winded",
+    "description": "Out of breath after a charge, and cannot charge again until it recovers.",
+    "tone": "bad",
+    "fromMs": 10000,
+    "toMs": 10000,
+    "stacks": false,
+    "maxMs": 10000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {},
+    "walkSpeedPercent": 0,
+    "vfx": {
+      "tint": null,
+      "particles": null,
+      "light": null,
+      "taperMs": 0
+    }
   }
 ]
