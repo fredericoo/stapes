@@ -478,7 +478,7 @@ const props: TileDef[] = [
   stoneTile("split-stone", {
     effect: { kind: "conjure", tileId: "rat", count: 2, consumesCaster: true },
     cooldownMs: 10_000,
-    sound: "*squelch*",
+    sound: "squelch",
   }),
   tile({
     id: "formed-flame",
@@ -980,7 +980,7 @@ describe("conjuring", () => {
     ]);
     expect(bodyAt(play, { x: 0, y: 0, z: 0 })).not.toBe("");
     expect(bodyAt(play, { x: 1, y: 0, z: 0 })).not.toBe("");
-    expect(play.drainNoise().map((noise) => noise.text)).toEqual(["*squelch*"]);
+    expect(play.drainNoise().map((noise) => noise.text)).toEqual(["squelch"]);
   });
 
   it("refuses to conjure into a wall, and spends nothing", () => {

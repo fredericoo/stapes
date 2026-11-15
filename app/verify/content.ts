@@ -354,8 +354,36 @@ function checkTile(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findin
     checkHuman(def, findings);
     checkWornPart(def, findings);
     checkReferences(def, catalogue, findings);
+    checkSounds(def, findings);
   } catch (error) {
     findings.error(id, "", `Checking this tile threw: ${messageOf(error)}.`);
+  }
+}
+
+/**
+ * A sound is the noise itself, written as an onomatopoeia (`ROAR`, `squeak`),
+ * never an action between asterisks (`*screams*`). The fix is a rewrite, so the
+ * message asks for one rather than offering the text with its asterisks gone.
+ */
+function asteriskError(text: string): string | null {
+  return text.includes("*")
+    ? `The sound "${text}" is written between asterisks. Rewrite it as an onomatopoeia of the noise itself, like ROAR or squeak, not as a description of the action.`
+    : null;
+}
+
+function checkSounds(def: TileDef, findings: Findings) {
+  const item = resolveItem(def);
+  const itemSound = item && "sound" in item ? item.sound : undefined;
+  const itemProblem = itemSound === undefined ? null : asteriskError(itemSound);
+  if (itemProblem) findings.error(def.id, "interactions.item.sound", itemProblem);
+
+  const brain = resolveBrain(def);
+  for (const [name, state] of Object.entries(brain?.states ?? {})) {
+    state.onEnter?.forEach((effect, index) => {
+      const problem = effect.effect === "noise" ? asteriskError(effect.text) : null;
+      if (problem)
+        findings.error(def.id, `interactions.brain.states.${name}.onEnter[${index}].text`, problem);
+    });
   }
 }
 
