@@ -1,5 +1,18 @@
 # the-last-stones
 
+## 0.21.0
+
+### Minor Changes
+
+- Bears are tougher, and backing off no longer keeps you safe: a bear charges at anyone who keeps their distance, and flies into a rage when badly hurt.
+- Burning now lasts two seconds after you step out of a fire instead of piling up for most of a minute. A Flame cast in front of a tree or bush now lands under it, and while it lasts it sets alight what burns right next to it. Food poisoning now shows as Nauseous.
+
+### Patch Changes
+
+- The bear has been redrawn with a shoulder hump, a head carried low, and legs that bend as it walks.
+- The north and south gate guards no longer tell you to stay out. They let you through and warn you only about how far it is safe to walk.
+- Rats squeak now: they eek when they bolt from you, shriek when they bite, squeak at food and chatter quietly to each other in a pack. Every creature and spell sound is now the noise itself rather than a description in asterisks, so a wolf goes awooo instead of *howl*.
+
 ## 0.20.0
 
 ### Minor Changes
