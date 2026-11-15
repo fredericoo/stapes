@@ -46858,7 +46858,7 @@
             "onEnter": [
               {
                 "effect": "say",
-                "text": "Hey {traveller}, I wouldn't go north if I were you."
+                "text": "Hey {traveller}, don't stray too far north."
               }
             ],
             "do": [
@@ -47301,7 +47301,7 @@
             "then": [
               {
                 "kind": "say",
-                "text": "Hold up, {partner}. North of here is bog country, and you're not ready for what lives in it."
+                "text": "Go on through, {partner}. The rats by the wall are a fair fight, but don't walk as far as the bog."
               }
             ],
             "else": [
@@ -47323,7 +47323,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Bog and black water, as far as you can walk. The bog imps live out there."
+                    "text": "Rats and the odd slime near the wall. Further out it's bog and black water, and the bog imps live in it. Past the bog, the deep forest and its wolves."
                   },
                   {
                     "kind": "goto",
@@ -47349,15 +47349,15 @@
                 ]
               },
               {
-                "label": "Where should I go instead?",
+                "label": "How far is safe?",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "East, through the other gate. The rats out there are a fair first fight, and they'll teach you to swing."
+                    "text": "Keep the wall in sight and you'll meet nothing worse than a rat or a slime. They'll teach you to swing."
                   },
                   {
                     "kind": "say",
-                    "text": "South is next, once you've a few fights behind you."
+                    "text": "Snakes start a long walk out, and the bog past them. When you see black water, turn back."
                   },
                   {
                     "kind": "goto",
@@ -47370,7 +47370,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Keep to the road."
+                    "text": "Keep the wall in sight."
                   }
                 ]
               }
@@ -49092,7 +49092,7 @@
             "onEnter": [
               {
                 "effect": "say",
-                "text": "Hey {traveller}, I wouldn't go south if I were you."
+                "text": "Hey {traveller}, don't stray too far south."
               }
             ],
             "do": [
@@ -49535,13 +49535,13 @@
             "then": [
               {
                 "kind": "say",
-                "text": "The south road's no place for you yet, {partner}. There are snakes in the grass and wolves in the woods."
+                "text": "Go on through, {partner}. Near the wall it's rats and slimes, but the snakes are further out, in the long grass."
               }
             ],
             "else": [
               {
                 "kind": "say",
-                "text": "Heading south, {partner}? Then you'd best know about the snakes and the wolves."
+                "text": "Heading south, {partner}? Mind the snakes in the long grass."
               }
             ]
           },
@@ -49576,6 +49576,10 @@
               {
                 "label": "When do wolves hunt?",
                 "then": [
+                  {
+                    "kind": "say",
+                    "text": "Not on this road. They keep to the deep forest up north, and to the caves."
+                  },
                   {
                     "kind": "say",
                     "text": "By day they curl up in their dens and sleep. Walk past quietly and they'll never know you were there."
@@ -49629,11 +49633,15 @@
                 ]
               },
               {
-                "label": "Where should I go instead?",
+                "label": "How far is safe?",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "East, through the other gate. The rats out there are a fair fight for anyone."
+                    "text": "Near the wall you'll meet rats and the odd slime. A fair fight for anyone."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "The snakes start a long walk out. Once the grass grows tall, turn back."
                   },
                   {
                     "kind": "goto",
@@ -49646,7 +49654,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Stay on the road, and keep some meat in your pack."
+                    "text": "Don't wander too far, and keep some meat in your pack."
                   }
                 ]
               }
