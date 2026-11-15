@@ -7416,6 +7416,36 @@ player who casts one dies on the terms of any other death. The stone's sound
 is placed where the caster stood, located before the effect, since after it
 there is no caster to locate.
 
+#### An area conjure fills a shape around its caster
+
+`area` on a conjure (`{ shape, radius }`) puts the tile in every cell of an
+area shape centred on the caster, on the caster's level, and ignores `count`
+and the target. It is how the yeti's Icicle ring cages whoever it is fighting.
+`areaLandings` in `app/game/casting.ts` skips any cell that will not take the
+tile rather than refusing the cast: a wall, a drop, water, ground more than a
+climb above or below the caster's feet, and, for a body, a cell somebody
+already stands in. A ring cast beside a house comes out with a gap, and the
+cast is refused as `blocked` only when not one cell fits.
+
+**`ring` is the circle's rim and nothing inside it**: the cells with
+`r(r-1) < dx²+dy² <= r(r+1)`. Those are exactly the circle of `r` less the
+circle of `r - 1`, and `app/lib/area.test.ts` checks that no run of cardinal
+steps from the centre gets out through one at any radius. A body cannot step
+diagonally, so that is the closed cage the yeti needs. The yeti only casts it
+once its prey is within 5 steps: `in_range` counts steps (`|dx| + |dy|`), and
+at 6 the prey could be standing on the rim, where its own cell is skipped and
+it is already outside.
+
+**`castConjure` settles the board once per cast**, after every landing, then
+hands each body it was laid under the tile's status. Settling per landing ran
+`settleBoardNow`, which walks every actor's emitters, forty times for one ring.
+
+**An icicle is a battler with one hit point**, so breaking one is an ordinary
+attack and a flame melts one on its first `burned` tick (`ceil(MAX_HP / 100)`
+is 1). It melts on its own through its brain: `after 9–12 s`, then `fade`.
+Because the timer is a brain's, it runs only while somebody is online: a ring
+standing when the last player leaves stays up until somebody connects.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
