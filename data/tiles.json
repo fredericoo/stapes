@@ -30144,6 +30144,12 @@
             ]
           },
           "sniffing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "squeak?"
+              }
+            ],
             "do": [
               {
                 "action": "walk_n_steps",
@@ -30169,6 +30175,13 @@
             ]
           },
           "gnawing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*SKREEK*",
+                "style": "shake"
+              }
+            ],
             "do": [
               {
                 "action": "attack",
@@ -30195,6 +30208,13 @@
             ]
           },
           "loitering": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "squeak squeak",
+                "style": "whisper"
+              }
+            ],
             "do": [
               {
                 "action": "walk_n_steps",
@@ -30309,7 +30329,8 @@
               "threats": [
                 "player"
               ],
-              "sight": 7
+              "sight": 7,
+              "cry": "*eek!*"
             }
           },
           {
@@ -30334,7 +30355,9 @@
           },
           {
             "trait": "scavenges",
-            "with": {}
+            "with": {
+              "cry": "*squeak*"
+            }
           },
           {
             "trait": "returns-home",
