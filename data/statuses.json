@@ -93,7 +93,7 @@
   },
   {
     "id": "food-poisoning",
-    "name": "Food poisoning",
+    "name": "Nauseous",
     "description": "Doubled over from something that should have been cooked.",
     "tone": "bad",
     "icon": {
