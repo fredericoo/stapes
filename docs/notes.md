@@ -13944,6 +13944,15 @@ that burns whoever steps in it does not also start eating its own floor. It is
 independent of `trigger`, which is about a body arriving or reaching, and a
 tile does neither.
 
+### A flame cast at a tree goes in under it
+
+A tree or a bush cannot be walked into, so the cell in front of a caster facing
+one is not a step, and a conjure used to be refused there. A conjured tile whose
+`addStatus` sets the ground alight now lands in that cell anyway, at the stack
+index of the topmost placement its status burns (`underWhatBurns` in
+`app/game/casting.ts`), so the flame sits under the tree and the tree catches.
+A wall, water or a bush that does not burn still refuses the cast.
+
 ### The arcanist is paid for the whole forest
 
 `causedBy` and `elements` ride the status instance already, for the conjured

@@ -22,9 +22,10 @@ import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
 import type { Equipment } from "./equipment";
+import { afflictionFor, resolveAddStatus, resolveEndure } from "../lib/interactions";
 import { MAX_CLIMB_HEIGHT } from "./constants";
 import { isSupported } from "./gravity";
-import { canWalk } from "./movement";
+import { canWalk, DIR_DELTA } from "./movement";
 import type { Progress } from "./progress";
 
 export const CAST_SQUARES = ["weapon", "offhand", "charm"] as const;
@@ -200,7 +201,7 @@ export function conjureLandings(
   const target = context.target;
   const landing: ConjureLanding | null = target
     ? { at: { x: target.x, y: target.y, z: target.z }, under: target.stackIndex }
-    : cellInFront(context);
+    : (cellInFront(context) ?? underWhatBurns(context, def));
   if (!landing) return null;
 
   const { at } = landing;
@@ -216,6 +217,40 @@ function cellInFront(context: CastContext): ConjureLanding | null {
   const { to } = step;
   const under = lowestBodyIn(getStack(map, to.x, to.y, to.z), tilesById);
   return under === undefined ? { at: to } : { at: to, under };
+}
+
+/**
+ * A tree or a bush blocks the step a flame would otherwise land on, so a
+ * conjured tile that sets the ground alight goes in under the topmost thing in
+ * the faced cell that its status burns.
+ */
+function underWhatBurns(context: CastContext, def: TileDef): ConjureLanding | null {
+  const addStatus = resolveAddStatus(def);
+  if (!addStatus?.ground) return null;
+  const statusId = addStatus.statusId;
+  const { caster, map, tilesById } = context;
+  const delta = DIR_DELTA[caster.facing];
+  const at = { x: caster.x + delta.dx, y: caster.y + delta.dy, z: caster.z };
+  const under = topmostBurning(getStack(map, at.x, at.y, at.z), statusId, tilesById);
+  return under < 0 ? null : { at, under };
+}
+
+function topmostBurning(
+  stack: readonly PlacedTile[],
+  statusId: string,
+  tilesById: Record<string, TileDef>,
+): number {
+  for (let index = stack.length - 1; index >= 0; index--) {
+    if (burns(stack[index]!, statusId, tilesById)) return index;
+  }
+  return -1;
+}
+
+function burns(placed: PlacedTile, statusId: string, tilesById: Record<string, TileDef>): boolean {
+  if (placed.owner || placed.itemId) return false;
+  const tile = tilesById[placed.tileId];
+  const endure = tile ? resolveEndure(tile) : null;
+  return endure != null && afflictionFor(endure, statusId) != null;
 }
 
 /**
