@@ -70,7 +70,6 @@ const TRUNK: Ellipsoid[] = [
   { part: "fur", at: RUMP_AT, radii: [3.8, 3.6, 2.9] },
   { part: "fur", at: [-1.2, 0, 6.4], radii: [3.2, 3.8, 3.0] },
   { part: "fur", at: SHOULDERS_AT, radii: [3.4, 3.9, 3.2] },
-  { part: "fur", at: [1.2, 0, 9.0], radii: [2.6, 3.0, 1.6] },
   { part: "fur", at: [4.8, 0, 5.6], radii: [2.2, 2.5, 2.2] },
   { part: "fur", at: HEAD_AT, radii: [2.6, 2.7, 2.3] },
   { part: "ear", at: onHead([3.6, -2, 5.3]), radii: [1.1, 1.1, 1.1] },
@@ -81,15 +80,15 @@ const TRUNK: Ellipsoid[] = [
 
 /**
  * Front right, front left, hind right, hind left: the front pair under the
- * shoulders and the hind pair under the rump. Both stand inside the bear's own
- * cell, so the cell it occupies is the one its feet are drawn on and only the
- * body above them overhangs the neighbours.
+ * shoulders and the hind pair under the rump, as far back as the rump itself,
+ * which leaves a long belly between them. The hind paws stand a pixel past the
+ * back of the bear's cell.
  */
 const LEGS: [number, number][] = [
   [2.6, 2.2],
   [2.6, -2.2],
-  [-3.4, 2.2],
-  [-3.4, -2.2],
+  [-4.3, 2.2],
+  [-4.3, -2.2],
 ];
 const FRONT_LEGS = 2;
 
@@ -106,18 +105,31 @@ const PAW_SHARE = 0.3;
  * `LEGS`: a walking bear moves a front leg with the hind leg on the other
  * side. `dropPx` is how far the whole body sinks, head and all, in whole pixels
  * so the head keeps its face: one pixel on a stride, none with the legs under
- * it. The paws stay where they are, so the legs take up the drop.
+ * it. The paws stay where they are, so the legs take up the drop. `lifts`
+ * says whether a leg swung back is off the ground.
+ *
+ * The standing frame is also the walk's passing frame, so it cannot be a
+ * stride, but a bear at rest never stands square either: one front paw a
+ * little ahead of the other and the hind pair staggered the other way, every
+ * paw planted.
  */
 type Pose = {
   swing: [number, number, number, number];
   dropPx: number;
+  lifts: boolean;
 };
 const STRIDE = 1.9;
 const STRIDE_DROP_PX = 1;
+const STANCE_AHEAD = 0.8;
+const STANCE_BEHIND = 0.4;
 const POSES: Pose[] = [
-  { swing: [0, 0, 0, 0], dropPx: 0 },
-  { swing: [STRIDE, -STRIDE, -STRIDE, STRIDE], dropPx: STRIDE_DROP_PX },
-  { swing: [-STRIDE, STRIDE, STRIDE, -STRIDE], dropPx: STRIDE_DROP_PX },
+  {
+    swing: [STANCE_AHEAD, -STANCE_BEHIND, -STANCE_AHEAD, STANCE_BEHIND],
+    dropPx: 0,
+    lifts: false,
+  },
+  { swing: [STRIDE, -STRIDE, -STRIDE, STRIDE], dropPx: STRIDE_DROP_PX, lifts: true },
+  { swing: [-STRIDE, STRIDE, STRIDE, -STRIDE], dropPx: STRIDE_DROP_PX, lifts: true },
 ];
 
 function dropOf(pose: Pose): number {
@@ -142,7 +154,7 @@ function jointOf(leg: number, pose: Pose): Joint {
   const [along, across] = LEGS[leg]!;
   const swing = pose.swing[leg]!;
   const front = leg < FRONT_LEGS;
-  const lifted = swing < 0;
+  const lifted = pose.lifts && swing < 0;
   const hip: Vec3 = [along, across, HIP_UP - dropOf(pose)];
   const paw: Vec3 = [along + swing, across, lifted ? PAW_LIFT : 0];
   const fold = front ? (lifted ? FRONT_FOLD : 0) : -(lifted ? HIND_FOLD : HIND_REST_FOLD);
