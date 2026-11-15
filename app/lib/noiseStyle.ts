@@ -21,7 +21,7 @@ const DRAWN_OUT = /(\p{L})\1\1/iu;
 
 /**
  * The style a noise takes when its author picked none, read from how it is
- * written: the content already spells a roar `*ROAR*` and a hiss `*sssk*`.
+ * written: the content already spells a roar `ROAR` and a hiss `sssk`.
  */
 export function inferNoiseStyle(text: string): NoiseStyle {
   const letters = text.replace(/[^\p{L}]/gu, "");

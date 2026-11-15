@@ -3343,11 +3343,11 @@ describe("the wolf we ship", () => {
     });
 
     it("hunts somebody it can see at night on the surface", () => {
-      expect(noisesOver(den(0, MIDNIGHT), BRAIN_TICK_MS * 2)).toContain("*howl*");
+      expect(noisesOver(den(0, MIDNIGHT), BRAIN_TICK_MS * 2)).toContain("awooo");
     });
 
     it("hunts underground at any hour", () => {
-      expect(noisesOver(den(-1, NOON), BRAIN_TICK_MS * 2)).toContain("*howl*");
+      expect(noisesOver(den(-1, NOON), BRAIN_TICK_MS * 2)).toContain("awooo");
     });
 
     it("turns on somebody who hits it by day", () => {
@@ -3358,7 +3358,7 @@ describe("the wolf we ship", () => {
       session.setTarget(wolf.id, "alice");
       session.setAttackMode(true, "alice");
 
-      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toContain("*howl*");
+      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toContain("awooo");
     });
   });
 });
@@ -3560,7 +3560,7 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
 
   it("sends the cyclops after somebody it can see by day", () => {
     expect(noisesOver(field("cyclops", NOON, { aliceX: 3 }), BRAIN_TICK_MS * 2)).toContain(
-      "*BELLOW*",
+      "BWAAAH",
     );
   });
 
@@ -3614,8 +3614,8 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
       dazed ||= hasStatus(session, "alice", "dazed");
     }
 
-    expect(noises).toContain("*lifts a foot*");
-    expect(noises).toContain("*BOOM*");
+    expect(noises).toContain("hnnngh");
+    expect(noises).toContain("BOOM");
     expect(dazed).toBe(true);
   });
 
@@ -3627,7 +3627,7 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
 
     const noises = noisesOver(session, BRAIN_TICK_MS * 4);
 
-    expect(noises).toContain("*ROAR*");
+    expect(noises).toContain("ROAR");
     expect(hasStatus(session, cyclops, "enraged")).toBe(true);
   });
 

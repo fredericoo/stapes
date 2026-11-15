@@ -202,6 +202,53 @@ const FAULTS: {
     found: { severity: "error", file: "tiles.json", id: "rat", path: "interactions.brain" },
   },
   {
+    fault: "a brain noise written between asterisks",
+    seed: (c) => {
+      c.tiles.find((t) => t.id === "rat")!.interactions.brain = {
+        initial: "idle",
+        states: {
+          idle: { onEnter: [{ effect: "noise", text: "*squeak*" }], do: [{ action: "hold" }] },
+        },
+        transitions: [],
+      };
+    },
+    found: {
+      severity: "error",
+      file: "tiles.json",
+      id: "rat",
+      path: "interactions.brain.states.idle.onEnter[0].text",
+    },
+  },
+  {
+    fault: "a trait's noise written between asterisks, found in the brain it expands into",
+    seed: (c) => {
+      c.traits[0]!.states.napping = {
+        band: "rest",
+        onEnter: [{ effect: "noise", text: "*snore*" }],
+        do: [{ action: "hold" }],
+      };
+      c.tiles.find((t) => t.id === "rat")!.interactions.brain = {
+        initial: "idle",
+        states: { idle: { do: [{ action: "hold" }] } },
+        transitions: [],
+        traits: [{ trait: "naps" }],
+      };
+    },
+    found: {
+      severity: "error",
+      file: "tiles.json",
+      id: "rat",
+      path: "interactions.brain.states.naps/napping.onEnter[0].text",
+    },
+  },
+  {
+    fault: "a consumable's sound written between asterisks",
+    seed: (c) => {
+      c.tiles.find((t) => t.id === "bread")!.interactions.item.sound = "*crunch*";
+    },
+    found: { severity: "error", file: "tiles.json", id: "bread", path: "interactions.item.sound" },
+  },
+  {
     fault: "a status formula asking about a status nobody defines",
     seed: (c) => {
       c.statuses[0]!.everyMs = "1000 * (2 - has_status('fighting'))";

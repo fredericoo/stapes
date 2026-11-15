@@ -7740,10 +7740,16 @@ rounded corners and the font's pixels share one grid.
 **A noise's style is authored or read from its text.** `soundStyle` on a
 consumable or stone and `style` on a brain `noise` effect pick one of
 `NOISE_STYLES`; unset, `inferNoiseStyle` reads how the word is written —
-`*BOOM*` is loud, `*sssk*` is wavy, anything else pops — which covers every
+`BOOM` is loud, `sssk` is wavy, anything else pops — which covers every
 sound in the content today without touching it. The server sends `style`
 only when it was authored. Each noise is its own label now rather than one
 per cell, so a second sound in a cell does not rebuild and restart the first.
+A sound is an onomatopoeia of the noise itself — `ROAR`, `squeak`, `awooo`
+— never an action between asterisks like `*screams*` or `*lifts a foot*`.
+`bun run verify content` reports an asterisk in a brain noise (traits
+expanded) or an item's `sound` as an error, and CI runs it. Its message asks
+for a rewrite: stripping the asterisks from `*screams*` leaves `screams`,
+which is still a description.
 The motion is CSS (`.world-label__noise--*` in `app.css`), started
 `--noise-elapsed` in so a late build joins where the noise already is.
 
@@ -12176,8 +12182,8 @@ spells change that.
   through walls, reaching a whole level up or down (height 4), 30 damage at 20%
   variance and **Dazed** (half walking speed, −15 accuracy, −40 dodge, 6–7
   seconds) on everybody else in it. It winds up for 1.5 seconds,
-  uninterruptible, with `*lifts a foot*` over its head and the cells marked on
-  the ground, and lands with `*BOOM*`. A player who reacts at once walks about
+  uninterruptible, with `hnnngh` over its head and the cells marked on
+  the ground, and lands with `BOOM`. A player who reacts at once walks about
   seven cells in that time, so stepping out of the circle is the answer, not
   hitting it harder. The −40 to `flee` takes a rung-33 veteran's dodge (53)
   below a fresh character's (21), so the cyclops's next blows land. It lasts
@@ -12198,7 +12204,7 @@ spells change that.
 - **Rage** (spell 3) puts **Enraged** on the cyclops: +25% walking speed
   (192ms a cell, faster than a player), +10 attack speed, +5 damage, −5
   defence, a red tint, for 30 seconds, recast on its 30-second cooldown with
-  `*ROAR*`. It is cast from `raging`, which `hunting` enters at 30% health or
+  `ROAR`. It is cast from `raging`, which `hunting` enters at 30% health or
   less. `raging`'s last row holds it there, so it fights to the end. It leaves
   only when its prey is 12 cells away or gone.
 - The stomp, the transitions into `stomping` and `raging`, and the rows that
