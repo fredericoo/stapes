@@ -5024,7 +5024,9 @@ describe("patches scoped to a subscription", () => {
     const { alice, bob } = await bothConnected();
     const heard = record(alice.ws);
 
-    command(bob.ws, "/tile flame +1");
+    command(bob.ws, "/weather clear");
+    await tickTimes(1);
+    command(bob.ws, "/tile arcane-flame +1");
     await tickTimes(3);
     await settled(alice.ws);
     const lit = cellsHeard(heard).filter((cell) => cell.x === BODY_OUT + 1);
@@ -5035,7 +5037,7 @@ describe("patches scoped to a subscription", () => {
     const after = cellsHeard(heard)
       .filter((cell) => cell.x === BODY_OUT + 1)
       .at(-1);
-    expect(after?.stack.map((placed) => placed.tileId)).toEqual(["dirt", "flame"]);
+    expect(after?.stack.map((placed) => placed.tileId)).toEqual(["dirt", "arcane-flame"]);
     expect(after?.afflicted).toBeUndefined();
 
     const caught = cellsHeard(heard).filter((cell) => cell.x === BODY_OUT + 2);
