@@ -3437,7 +3437,7 @@ describe("keeping to its weapon's range", () => {
   });
 });
 
-describe("the bog imp and the cyclops we ship", () => {
+describe("the bog imp, the cyclops and the bear we ship", () => {
   const authored = shippedTiles();
   const statuses = statusesById(statusesJson as unknown[]);
   const NOON = 12 * 60;
@@ -3636,6 +3636,35 @@ describe("the bog imp and the cyclops we ship", () => {
     noisesOver(session, BRAIN_TICK_MS * 4);
 
     expect(hasStatus(session, body(session, "cyclops").id, "enraged")).toBe(false);
+  });
+
+  /** Out of the bear's reach, and inside the eight cells it hunts on sight. */
+  const KEEPING_HER_DISTANCE_X = 7;
+
+  it("has the bear charge somebody who keeps their distance", () => {
+    const session = field("bear", NOON, { aliceX: KEEPING_HER_DISTANCE_X });
+    const bear = body(session, "bear").id;
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("*snort*");
+    expect(hasStatus(session, bear, "charging")).toBe(true);
+  });
+
+  it("does not charge somebody already beside the bear", () => {
+    const session = field("bear", NOON, { aliceX: 1 });
+    session.runCommand(`/health ${FULL_HEALTH}`, "alice");
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).not.toContain("*snort*");
+  });
+
+  it("enrages the bear once it is down to a third of its health", () => {
+    const session = field("bear", NOON, { aliceX: 1 });
+    const bear = body(session, "bear").id;
+    const maxHp = body(session, "bear").maxHp!;
+    session.runCommand(`/health ${FULL_HEALTH}`, "alice");
+    session.runCommand(`/health ${Math.floor(maxHp / 3)} ${bear}`, "alice");
+    noisesOver(session, BRAIN_TICK_MS * 4);
+
+    expect(hasStatus(session, bear, "enraged")).toBe(true);
   });
 });
 

@@ -12440,6 +12440,19 @@ apart from rows that could never be the first to hold.
   triggers rank ahead of the brain's own in the same band, and its
   `attacked` trigger has to come before `fights-back`'s or `fights-back` turns
   the slime on whoever shot it. See *A slime splits into two small ones*.
+- **The bear charges and enrages through triggers of its own, not rows out of
+  `mauling`.** `hunts-on-sight` retargets, so its row back into `mauling`
+  matches on every tick the prey is in sight and is asked before any of the
+  brain's own rows: a row `from: "mauling"` never fires while the bear can see
+  what it is fighting. Both are `danger` triggers instead. `charging` fires
+  with the prey more than 3 cells off and in sight within 10, unless the bear
+  is `winded`; its Charge spell grants `charging` (walk +120% for 2.5 s) and
+  `winded` (10 s, the spell's cooldown), so the status is what stops the
+  trigger firing again on every tick of the cooldown. `enraging` fires at 40%
+  health or less, unless the bear is already `enraged`. Each holds for one
+  tick and returns to `mauling`. The charge cannot be a line in `mauling`'s
+  list ahead of `step_toward`: `attack` fails between swings as well as out of
+  reach, so the bear charged at somebody standing beside it.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
   own rows. See *A creature can hunt only what it outrates, and scavenge*.
