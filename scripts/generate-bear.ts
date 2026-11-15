@@ -102,16 +102,27 @@ const PAW_RADIUS = 1.55;
 const PAW_SHARE = 0.3;
 
 /**
- * How far along the bear each leg has swung, in the order of `LEGS`. A walking
- * bear moves a front leg with the hind leg on the other side.
+ * `swing` is how far along the bear each leg has swung, in the order of
+ * `LEGS`: a walking bear moves a front leg with the hind leg on the other
+ * side. `dropPx` is how far the whole body sinks, head and all, in whole pixels
+ * so the head keeps its face: one pixel on a stride, none with the legs under
+ * it. The paws stay where they are, so the legs take up the drop.
  */
-type Pose = [number, number, number, number];
+type Pose = {
+  swing: [number, number, number, number];
+  dropPx: number;
+};
 const STRIDE = 1.9;
+const STRIDE_DROP_PX = 1;
 const POSES: Pose[] = [
-  [0, 0, 0, 0],
-  [STRIDE, -STRIDE, -STRIDE, STRIDE],
-  [-STRIDE, STRIDE, STRIDE, -STRIDE],
+  { swing: [0, 0, 0, 0], dropPx: 0 },
+  { swing: [STRIDE, -STRIDE, -STRIDE, STRIDE], dropPx: STRIDE_DROP_PX },
+  { swing: [-STRIDE, STRIDE, STRIDE, -STRIDE], dropPx: STRIDE_DROP_PX },
 ];
+
+function dropOf(pose: Pose): number {
+  return pose.dropPx / SIZE;
+}
 
 /**
  * A leg swung back is pushing off, so its paw is just off the ground and the
@@ -127,11 +138,12 @@ const HIND_REST_FOLD = 0.35;
 
 type Joint = { hip: Vec3; knee: Vec3; paw: Vec3 };
 
-function jointOf(leg: number, swing: number): Joint {
+function jointOf(leg: number, pose: Pose): Joint {
   const [along, across] = LEGS[leg]!;
+  const swing = pose.swing[leg]!;
   const front = leg < FRONT_LEGS;
   const lifted = swing < 0;
-  const hip: Vec3 = [along, across, HIP_UP];
+  const hip: Vec3 = [along, across, HIP_UP - dropOf(pose)];
   const paw: Vec3 = [along + swing, across, lifted ? PAW_LIFT : 0];
   const fold = front ? (lifted ? FRONT_FOLD : 0) : -(lifted ? HIND_FOLD : HIND_REST_FOLD);
   const knee: Vec3 = [(hip[0] + paw[0]) / 2 + fold, across, (hip[2] + paw[2]) / 2];
@@ -162,7 +174,8 @@ type Hit = { part: Part; normal: Vec3 };
 function sampler(facing: Facing, pose: Pose) {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
-  const joints = LEGS.map((_, i) => jointOf(i, pose[i]!));
+  const joints = LEGS.map((_, i) => jointOf(i, pose));
+  const trunk = TRUNK.map((part) => ({ ...part, z: part.at[2] - dropOf(pose) }));
   return (p: Vec3, scale: number): Hit | null => {
     const x = (p[0] / scale - centre) / SIZE;
     const y = (p[1] / scale - centre) / SIZE;
@@ -172,9 +185,9 @@ function sampler(facing: Facing, pose: Pose) {
     const toWorld = (n: Vec3): Vec3 =>
       normalise([n[0] * ax - n[1] * ay, n[0] * ay + n[1] * ax, n[2]]);
 
-    for (let i = TRUNK.length - 1; i >= 0; i--) {
-      const { part, at, radii } = TRUNK[i]!;
-      const d: Vec3 = [along - at[0], across - at[1], up - at[2]];
+    for (let i = trunk.length - 1; i >= 0; i--) {
+      const { part, at, radii, z } = trunk[i]!;
+      const d: Vec3 = [along - at[0], across - at[1], up - z];
       if ((d[0] / radii[0]) ** 2 + (d[1] / radii[1]) ** 2 + (d[2] / radii[2]) ** 2 > 1) continue;
       return {
         part,
@@ -206,12 +219,13 @@ function shade(hit: Hit): number {
 const EYES: Vec3[] = [onHead([6, 1.4, 4.2]), onHead([6, -1.4, 4.2])];
 
 /** An eye shows when its side of the head faces south or east, the two sides the projection draws. */
-function eyePixels(facing: Facing): [number, number][] {
+function eyePixels(facing: Facing, pose: Pose): [number, number][] {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
   const seen: [number, number][] = [];
-  for (const [along, across, up] of EYES) {
-    const out: Vec3 = [along - HEAD_AT[0], across - HEAD_AT[1], up - HEAD_AT[2]];
+  for (const [along, across, raised] of EYES) {
+    const up = raised - dropOf(pose);
+    const out: Vec3 = [along - HEAD_AT[0], across - HEAD_AT[1], raised - HEAD_AT[2]];
     const outX = out[0] * ax - out[1] * ay;
     const outY = out[0] * ay + out[1] * ax;
     if (outX + outY + out[2] <= 0) continue;
@@ -243,7 +257,7 @@ function outlined(pixels: Int16Array, size: number): Int16Array {
 
 function castBear(facing: Facing, pose: Pose): Int16Array {
   const pixels = castModel({ sample: sampler(facing, pose), shade }, PROJECTION);
-  for (const [u, v] of eyePixels(facing)) {
+  for (const [u, v] of eyePixels(facing, pose)) {
     if (pixels[v * FRAME_PX + u]! >= 0) pixels[v * FRAME_PX + u] = EYE;
   }
   const edged = outlined(pixels, FRAME_PX);
