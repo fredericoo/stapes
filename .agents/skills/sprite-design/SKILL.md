@@ -86,6 +86,14 @@ Whichever you use:
 - **A prop of height 4 makes the cell above it unwalkable**, because it tops out
   on the floor plane of the level above. Keep anything meant to stand under a
   roof at 3 or less.
+- **Moving a part by a fraction of a pixel redraws it.** The cast samples a
+  fixed grid, so a head moved 1.96 px comes out with different pixels from the
+  one it was. To move a part somebody likes without changing how it looks,
+  move it by whole pixels: divide the pixel distance by the model's scale, as
+  `generate-bear.ts` does with `HEAD_FORWARD_PX`.
+- **A model-caster preview at 6× of a 48 px frame takes many minutes.** The
+  cost grows with the frame's area times its height. Cast the sheet alone and
+  scale it up to look at it.
 
 ## Looking at it in the game
 
