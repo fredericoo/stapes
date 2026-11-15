@@ -143,13 +143,20 @@ export type StoneEffect =
 /**
  * `count` is how many bodies it stands up, each in a cell of its own; a thing is
  * always one. `consumesCaster` kills the caster as it lands, and its cell is
- * the first one a body takes.
+ * the first one a body takes. `area` instead fills every cell of a shape
+ * around the caster that will take the tile, and `count` is then ignored.
  */
 export type ConjureEffect = {
   kind: "conjure";
   tileId: string;
   count?: number;
   consumesCaster?: boolean;
+  area?: ConjureArea;
+};
+
+export type ConjureArea = {
+  shape: AreaShape;
+  radius: number;
 };
 
 /** The caster's own cell and the cells a step away. */
@@ -525,6 +532,11 @@ const spellAreaSchema = v.pipe(
   ),
 );
 
+const conjureAreaSchema = v.object({
+  shape: v.picklist(AREA_SHAPES),
+  radius: v.pipe(v.number(), v.integer(), v.minValue(MIN_AREA_RADIUS), v.maxValue(MAX_AREA_RADIUS)),
+});
+
 const stoneEffectSchema = v.variant("kind", [
   v.pipe(
     v.object({
@@ -553,6 +565,7 @@ const stoneEffectSchema = v.variant("kind", [
       v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONJURED_BODIES)),
     ),
     consumesCaster: v.optional(v.boolean()),
+    area: v.optional(conjureAreaSchema),
   }),
 ]);
 
@@ -844,8 +857,11 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     return {
       kind: "conjure",
       tileId: effect.tileId.trim(),
-      ...(effect.count && effect.count > 1 ? { count: Math.round(effect.count) } : {}),
+      ...(!effect.area && effect.count && effect.count > 1
+        ? { count: Math.round(effect.count) }
+        : {}),
       ...(effect.consumesCaster ? { consumesCaster: true } : {}),
+      ...(effect.area ? { area: { shape: effect.area.shape, radius: effect.area.radius } } : {}),
     };
   }
   const statuses = statusGrantsForSave(effect.statuses);

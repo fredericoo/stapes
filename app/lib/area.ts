@@ -1,4 +1,4 @@
-export const AREA_SHAPES = ["circle", "square", "cross", "diagonal-cross"] as const;
+export const AREA_SHAPES = ["circle", "square", "cross", "diagonal-cross", "ring"] as const;
 
 export type AreaShape = (typeof AREA_SHAPES)[number];
 
@@ -15,6 +15,8 @@ export type AreaOffset = { dx: number; dy: number };
  * `r(r+1)` rather than `r²` for the circle: it lies halfway between two
  * squares, so the disc takes in the cells its rim only grazes and comes out
  * round instead of diamond-shaped, the same reason `MELEE_REACH` is 1.5.
+ * The ring is that disc less the one a radius smaller, so it is the circle's
+ * rim exactly and no step in a cardinal direction crosses it.
  */
 export function inAreaShape(shape: AreaShape, radius: number, dx: number, dy: number): boolean {
   const ax = Math.abs(dx);
@@ -23,7 +25,10 @@ export function inAreaShape(shape: AreaShape, radius: number, dx: number, dy: nu
   if (shape === "square") return true;
   if (shape === "cross") return ax === 0 || ay === 0;
   if (shape === "diagonal-cross") return ax === ay;
-  return ax * ax + ay * ay <= radius * (radius + 1);
+  const distanceSq = ax * ax + ay * ay;
+  if (shape === "ring")
+    return distanceSq > radius * (radius - 1) && distanceSq <= radius * (radius + 1);
+  return distanceSq <= radius * (radius + 1);
 }
 
 export function areaOffsets(shape: AreaShape, radius: number): AreaOffset[] {

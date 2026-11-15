@@ -18,6 +18,7 @@ import {
   type ArmorItem,
   type ArmorSlot,
   type CharmItem,
+  type ConjureEffect,
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
@@ -468,12 +469,7 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
       stats.push({ term: "cures", value: cures.join(", "), tone: "good" });
     }
   } else {
-    const count = stone.effect.count ?? 1;
-    stats.push({
-      term: "conjure",
-      value: count > 1 ? `${count} tiles` : "A tile",
-      tone: "plain",
-    });
+    stats.push({ term: "conjure", value: conjuredLine(stone.effect), tone: "plain" });
     if (stone.effect.consumesCaster) {
       stats.push({ term: "costs", value: "Your life", tone: "bad" });
     }
@@ -492,11 +488,20 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
   return stats;
 }
 
+function conjuredLine(effect: ConjureEffect): string {
+  if (effect.area) {
+    return `${AREA_SHAPE_LABELS[effect.area.shape]} of ${effect.area.radius} around you`;
+  }
+  const count = effect.count ?? 1;
+  return count > 1 ? `${count} tiles` : "A tile";
+}
+
 const AREA_SHAPE_LABELS: Record<AreaShape, string> = {
   circle: "Circle",
   square: "Square",
   cross: "Cross",
   "diagonal-cross": "Diagonal cross",
+  ring: "Ring",
 };
 
 const AREA_AFFECTS_LABELS: Record<AreaSubject, string> = {

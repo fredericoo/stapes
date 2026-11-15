@@ -31,11 +31,12 @@ import { StatusCures } from "./StatusCures";
 import { StatusGrants } from "./StatusGrants";
 import { type TransitionPlay, VfxPreview } from "./VfxPreview";
 
-const SHAPE_OPTIONS: Array<{ value: AreaShape; label: string }> = [
+export const SHAPE_OPTIONS: Array<{ value: AreaShape; label: string }> = [
   { value: "circle", label: "Circle" },
   { value: "square", label: "Square" },
   { value: "cross", label: "Cross" },
   { value: "diagonal-cross", label: "Diagonal" },
+  { value: "ring", label: "Ring" },
 ];
 
 const AFFECTS_OPTIONS: Array<{ value: AreaSubject; label: string }> = [

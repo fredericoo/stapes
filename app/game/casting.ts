@@ -1,6 +1,6 @@
 import type { NaturalSpell } from "../lib/battler";
-import type { AreaShape } from "../lib/area";
-import type { ArcaneStoneItem, ConjureEffect, Reach, StoneSubject } from "../lib/item";
+import { type AreaShape, areaOffsets } from "../lib/area";
+import type { ArcaneStoneItem, ConjureArea, ConjureEffect, Reach, StoneSubject } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
 import {
   type Masteries,
@@ -9,13 +9,21 @@ import {
   requirementShare,
   REQUIREMENTS_MET,
 } from "../lib/mastery";
-import { getStack, isBodyPlacement, removeTileAt } from "../lib/mapData";
+import {
+  absoluteStandingElevation,
+  getStack,
+  isBodyPlacement,
+  isWalkableSurfaceAt,
+  removeTileAt,
+} from "../lib/mapData";
 import type { AnchoredSprite, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { DIRECTIONS, resolveActor } from "../lib/types";
 import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
 import type { Equipment } from "./equipment";
+import { MAX_CLIMB_HEIGHT } from "./constants";
+import { isSupported } from "./gravity";
 import { canWalk } from "./movement";
 import type { Progress } from "./progress";
 
@@ -186,6 +194,7 @@ export function conjureLandings(
 ): ConjureLanding[] | null {
   const def = context.tilesById[effect.tileId];
   if (!def) return null;
+  if (effect.area) return areaLandings(context, def, effect.area);
   if (resolveActor(def)) return bodyLandings(context, def, effect);
 
   const target = context.target;
@@ -244,6 +253,44 @@ function bodyLandings(
     if (canPlace(map, to.x, to.y, to.z, def, tilesById).ok) landings.push({ at: to });
   }
   return landings.length === wanted ? landings : null;
+}
+
+/**
+ * Centred on the caster, on the caster's level, and it takes whichever cells of
+ * the shape will hold the tile: a ring cast beside a wall comes out with a gap
+ * rather than not at all. Refused only when not one cell fits.
+ */
+function areaLandings(
+  context: CastContext,
+  def: TileDef,
+  area: ConjureArea,
+): ConjureLanding[] | null {
+  const { caster } = context;
+  const landings = areaOffsets(area.shape, area.radius).flatMap(({ dx, dy }) => {
+    const at = { x: caster.x + dx, y: caster.y + dy, z: caster.z };
+    const landing = areaLanding(context, def, at);
+    return landing ? [landing] : [];
+  });
+  return landings.length > 0 ? landings : null;
+}
+
+/**
+ * A body needs a cell nobody stands in, and a thing lands under whoever does,
+ * as a targeted conjure would. Either needs ground the caster could walk on
+ * within a climb of its own feet, which leaves out a drop, water and the top
+ * of a wall, the same three `canWalk` turns away for a conjure in front.
+ */
+function areaLanding(context: CastContext, def: TileDef, at: Coord): ConjureLanding | null {
+  const { caster, map, tilesById } = context;
+  const stack = getStack(map, at.x, at.y, at.z);
+  const under = lowestBodyIn(stack, tilesById);
+  if (under !== undefined && resolveActor(def)) return null;
+  if (!isSupported(map, at.x, at.y, at.z, stack.length, tilesById)) return null;
+  const groundAbs = absoluteStandingElevation(at.z, stack, tilesById);
+  if (Math.abs(groundAbs - caster.elevAbs) > MAX_CLIMB_HEIGHT) return null;
+  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById)) return null;
+  if (!canPlace(map, at.x, at.y, at.z, def, tilesById).ok) return null;
+  return under === undefined ? { at } : { at, under };
 }
 
 function lowestBodyIn(
