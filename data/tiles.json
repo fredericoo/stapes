@@ -109177,10 +109177,20 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*ROAR*"
+                "text": "*HOWL*"
               }
             ],
             "do": [
+              {
+                "action": "cast",
+                "spell": 2,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
               {
                 "action": "attack",
                 "of": {
@@ -109277,31 +109287,37 @@
               }
             ]
           },
-          "stomping": {
-            "onEnter": [
-              {
-                "effect": "noise",
-                "text": "*lifts a foot*"
-              }
-            ],
-            "do": [
-              {
-                "action": "cast",
-                "spell": 2
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "raging": {
+          "caging": {
             "do": [
               {
                 "action": "cast",
                 "spell": 3
               },
               {
+                "action": "hold"
+              }
+            ]
+          },
+          "mauling": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*ROAR*"
+              }
+            ],
+            "do": [
+              {
                 "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "cast",
+                "spell": 2,
                 "of": {
                   "type": "slot",
                   "data": {
@@ -109326,7 +109342,7 @@
         },
         "transitions": [
           {
-            "from": "stomping",
+            "from": "caging",
             "if": {
               "combinator": "and",
               "not": true,
@@ -109337,23 +109353,15 @@
                 }
               ]
             },
-            "to": "stomping"
+            "to": "caging"
           },
           {
-            "from": "stomping",
+            "from": "caging",
             "if": {
               "cond": "after",
               "ms": 0
             },
-            "to": "hunting"
-          },
-          {
-            "from": "hunting",
-            "if": {
-              "cond": "health",
-              "atMostPercent": 30
-            },
-            "to": "raging"
+            "to": "mauling"
           },
           {
             "from": "hunting",
@@ -109368,41 +109376,18 @@
                       "name": "prey"
                     }
                   },
-                  "cells": 3
+                  "cells": 5
                 },
                 {
                   "cond": "after",
-                  "ms": 9000
+                  "ms": 3000
                 }
               ]
             },
-            "to": "stomping"
+            "to": "caging"
           },
           {
-            "from": "raging",
-            "if": {
-              "combinator": "and",
-              "rules": [
-                {
-                  "cond": "in_range",
-                  "of": {
-                    "type": "slot",
-                    "data": {
-                      "name": "prey"
-                    }
-                  },
-                  "cells": 3
-                },
-                {
-                  "cond": "after",
-                  "ms": 9000
-                }
-              ]
-            },
-            "to": "stomping"
-          },
-          {
-            "from": "raging",
+            "from": "mauling",
             "if": {
               "cond": "out_of_range",
               "of": {
@@ -109416,7 +109401,7 @@
             "to": "wandering"
           },
           {
-            "from": "raging",
+            "from": "mauling",
             "if": {
               "cond": "attacked"
             },
@@ -109425,15 +109410,29 @@
                 "type": "attacker"
               }
             },
-            "to": "raging"
+            "to": "mauling"
           },
           {
-            "from": "raging",
+            "from": "mauling",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 12000
+                }
+              ]
+            },
+            "to": "mauling"
+          },
+          {
+            "from": "mauling",
             "if": {
               "cond": "after",
               "ms": 0
             },
-            "to": "raging"
+            "to": "hunting"
           },
           {
             "from": "any",
@@ -109882,74 +109881,48 @@
           },
           {
             "type": "stone",
-            "name": "Stomp",
-            "physical": "blunt",
+            "name": "Frost shard",
             "effect": {
               "kind": "bolt",
-              "on": "caster",
-              "area": {
-                "shape": "circle",
-                "radius": 5,
-                "height": 4,
-                "affects": "others",
-                "throughWalls": true,
-                "damage": 30,
-                "variance": 20,
-                "statuses": [
-                  {
-                    "id": "dazed",
-                    "chance": 100
-                  },
-                  {
-                    "id": "chilled",
-                    "chance": 100,
-                    "fromMs": 8000,
-                    "toMs": 15000
-                  }
-                ],
-                "burst": {
-                  "durationMs": 800,
-                  "particles": {
-                    "ratePerSecond": 200,
-                    "ttlFromMs": 300,
-                    "ttlToMs": 700,
-                    "spawnRadiusCells": 0.5,
-                    "spawnElevFrom": 0,
-                    "spawnElevTo": 0.5,
-                    "riseFrom": 1,
-                    "riseTo": 3,
-                    "driftCellsPerSecond": 0.4,
-                    "lit": true,
-                    "ownDepth": false,
-                    "gravity": -4,
-                    "offsetX": "",
-                    "offsetY": "",
-                    "offsetElev": "",
-                    "shape": null,
-                    "sizeFromPx": 5,
-                    "sizeToPx": null,
-                    "radiusFromPx": 1,
-                    "radiusToPx": 1,
-                    "alphaFrom": 0.9,
-                    "alphaTo": 0,
-                    "ramp": [
-                      {
-                        "at": 0,
-                        "color": "#ffffff"
-                      },
-                      {
-                        "at": 1,
-                        "color": "#9babb2"
-                      }
-                    ]
-                  }
+              "on": "target",
+              "damage": 16,
+              "variance": 25,
+              "projectile": "frost-shard",
+              "statuses": [
+                {
+                  "id": "chilled",
+                  "chance": 40,
+                  "fromMs": 4000,
+                  "toMs": 7000
                 }
+              ]
+            },
+            "cooldownMs": 4000,
+            "castTimeMs": 1200,
+            "requirements": {
+              "arcane": 20,
+              "water": 5
+            },
+            "reach": {
+              "cells": 6.5,
+              "height": 2
+            },
+            "sound": "*hurls ice*"
+          },
+          {
+            "type": "stone",
+            "name": "Icicle ring",
+            "effect": {
+              "kind": "conjure",
+              "tileId": "icicle",
+              "area": {
+                "shape": "ring",
+                "radius": 6
               }
             },
-            "cooldownMs": 10000,
+            "cooldownMs": 18000,
             "castTimeMs": 1500,
             "uninterruptible": true,
-            "sound": "*BOOM*",
             "casterEffect": {
               "durationMs": 400,
               "particles": {
@@ -109990,64 +109963,8 @@
                   }
                 ]
               }
-            }
-          },
-          {
-            "type": "stone",
-            "name": "Rage",
-            "effect": {
-              "kind": "bolt",
-              "on": "caster",
-              "statuses": [
-                {
-                  "id": "enraged",
-                  "chance": 100
-                }
-              ]
             },
-            "cooldownMs": 30000,
-            "sound": "*ROAR*",
-            "casterEffect": {
-              "durationMs": 500,
-              "particles": {
-                "ratePerSecond": 120,
-                "ttlFromMs": 300,
-                "ttlToMs": 600,
-                "spawnRadiusCells": 0.25,
-                "spawnElevFrom": 0,
-                "spawnElevTo": 1,
-                "riseFrom": 4,
-                "riseTo": 8,
-                "driftCellsPerSecond": 0.8,
-                "lit": false,
-                "ownDepth": true,
-                "gravity": -18,
-                "offsetX": "",
-                "offsetY": "",
-                "offsetElev": "",
-                "shape": null,
-                "sizeFromPx": 5,
-                "sizeToPx": null,
-                "radiusFromPx": 1,
-                "radiusToPx": 1,
-                "alphaFrom": 1,
-                "alphaTo": 0,
-                "ramp": [
-                  {
-                    "at": 0,
-                    "color": "#ffffff"
-                  },
-                  {
-                    "at": 0.5,
-                    "color": "#53d5cf"
-                  },
-                  {
-                    "at": 1,
-                    "color": "#225ac0"
-                  }
-                ]
-              }
-            }
+            "sound": "*CRACK*"
           }
         ],
         "elements": [
@@ -110057,6 +109974,209 @@
       "respawn": {
         "fromMs": 1800000,
         "toMs": 2700000
+      }
+    }
+  },
+  {
+    "id": "icicle",
+    "name": "Icicle",
+    "height": 3,
+    "type": "simple",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "stalagmites",
+      "x": 0,
+      "y": 4
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 450,
+        "scale": {},
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 2
+          },
+          "clumpPx": 2,
+          "edgeColor": "#ffffff",
+          "edgeWidth": 0.15
+        },
+        "particles": {
+          "ratePerSecond": 30,
+          "ttlFromMs": 400,
+          "ttlToMs": 800,
+          "spawnRadiusCells": 0.45,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 0,
+          "riseFrom": 0.5,
+          "riseTo": 1.5,
+          "driftCellsPerSecond": 0.4,
+          "lit": true,
+          "ownDepth": false,
+          "gravity": -0.5,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
+          "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
+          "radiusFromPx": 2,
+          "radiusToPx": 3,
+          "alphaFrom": 0.5,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffffff"
+            },
+            {
+              "at": 0.5,
+              "color": "#c7dcd0"
+            },
+            {
+              "at": 1,
+              "color": "#9babb2"
+            }
+          ]
+        }
+      },
+      "disappear": {
+        "durationMs": 350,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 2,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.2
+        },
+        "particles": {
+          "ratePerSecond": 40,
+          "ttlFromMs": 300,
+          "ttlToMs": 600,
+          "spawnRadiusCells": 0.3,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 3,
+          "riseFrom": 1,
+          "riseTo": 4,
+          "driftCellsPerSecond": 1.2,
+          "lit": true,
+          "ownDepth": false,
+          "gravity": -18,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
+          "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
+          "radiusFromPx": 1,
+          "radiusToPx": 2,
+          "alphaFrom": 1,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffffff"
+            },
+            {
+              "at": 0.5,
+              "color": "#c7dcd0"
+            },
+            {
+              "at": 1,
+              "color": "#9babb2"
+            }
+          ]
+        }
+      }
+    },
+    "interactions": {
+      "brain": {
+        "initial": "standing",
+        "states": {
+          "standing": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "melting": {
+            "do": [
+              {
+                "action": "fade"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "standing",
+            "if": {
+              "cond": "after",
+              "ms": 9000,
+              "toMs": 12000
+            },
+            "to": "melting"
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 1,
+        "masteries": {
+          "toughness": 1,
+          "agility": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Nothing",
+          "damage": 0,
+          "def": 0,
+          "accuracy": 0,
+          "variance": 0,
+          "spd": 0,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist"
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "immuneTo": [
+          "chilled",
+          "poison",
+          "paralysed",
+          "food-poisoning",
+          "sleep",
+          "dazed"
+        ],
+        "elements": [
+          "water"
+        ]
       }
     }
   },

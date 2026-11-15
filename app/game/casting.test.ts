@@ -31,6 +31,7 @@ import {
   type CasterPoint,
   type CastPoint,
   conjureLandings,
+  type ConjureLanding,
   spellPress,
   spellReading,
 } from "./casting";
@@ -450,6 +451,71 @@ describe("a conjure that stands up bodies", () => {
 
   it("is refused unless every body it stands up has a cell", () => {
     expect(conjureLandings(context({}, { map: standing }), twoRats)).toBeNull();
+  });
+});
+
+describe("a conjure that fills a shape around its caster", () => {
+  const RAT_RING: ConjureEffect = {
+    kind: "conjure",
+    tileId: "rat",
+    area: { shape: "ring", radius: 1 },
+  };
+  const FIRE_RING: ConjureEffect = {
+    kind: "conjure",
+    tileId: "fire",
+    area: { shape: "ring", radius: 1 },
+  };
+
+  function floored(): MapFile {
+    let map = emptyMap();
+    for (let y = -1; y <= 1; y++) {
+      for (let x = -1; x <= 1; x++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
+  }
+
+  const cellsOf = (landings: ConjureLanding[] | null) =>
+    (landings ?? []).map(({ at }) => `${at.x},${at.y}`).sort();
+
+  it("fills every cell of the ring on open ground", () => {
+    const state = context({}, { map: floored() });
+    expect(cellsOf(conjureLandings(state, RAT_RING))).toEqual([
+      "-1,-1",
+      "-1,0",
+      "-1,1",
+      "0,-1",
+      "0,1",
+      "1,-1",
+      "1,0",
+      "1,1",
+    ]);
+  });
+
+  it("leaves a gap where a wall, a drop, water or a body is in the way", () => {
+    let map = floored();
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    map = replaceStack(map, -1, 0, 0, []);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "water" }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "rat" }]);
+    expect(cellsOf(conjureLandings(context({}, { map }), RAT_RING))).toEqual([
+      "-1,-1",
+      "-1,1",
+      "1,-1",
+      "1,1",
+    ]);
+  });
+
+  it("lays a thing beneath whoever stands in the ring", () => {
+    const map = replaceStack(floored(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "rat" }]);
+    expect(conjureLandings(context({}, { map }), FIRE_RING)).toContainEqual({
+      at: { x: 1, y: 0, z: 0 },
+      under: 1,
+    });
+  });
+
+  it("is refused only when not one cell will hold it", () => {
+    const alone = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
+    expect(conjureLandings(context({}, { map: alone }), RAT_RING)).toBeNull();
   });
 });
 

@@ -1,3 +1,4 @@
+import { ConjureAreaFields } from "./ConjureAreaFields";
 import { SoundStyleField } from "./SoundStyleField";
 import type {
   ArcaneStoneItem,
@@ -291,18 +292,28 @@ export function StoneFields({
               ariaLabel="Tile this stone conjures"
             />
           </label>
+          <ConjureAreaFields
+            area={effect.area}
+            onChange={(area) =>
+              onChange({
+                effect: { ...effect, area, ...(area ? { count: undefined } : {}) },
+              })
+            }
+          />
           {conjuresBody ? (
             <div className="flex flex-wrap items-end gap-4">
-              <StatField
-                label="Bodies"
-                info="How many it stands up, each in a free cell a step from the caster. Refused unless every one fits."
-                value={effect.count ?? 1}
-                min={1}
-                max={MAX_CONJURED_BODIES}
-                onChange={(count) =>
-                  onChange({ effect: { ...effect, count: count > 1 ? count : undefined } })
-                }
-              />
+              {effect.area ? null : (
+                <StatField
+                  label="Bodies"
+                  info="How many it stands up, each in a free cell a step from the caster. Refused unless every one fits."
+                  value={effect.count ?? 1}
+                  min={1}
+                  max={MAX_CONJURED_BODIES}
+                  onChange={(count) =>
+                    onChange({ effect: { ...effect, count: count > 1 ? count : undefined } })
+                  }
+                />
+              )}
               <SwitchField
                 checked={effect.consumesCaster === true}
                 onCheckedChange={(consumesCaster) =>

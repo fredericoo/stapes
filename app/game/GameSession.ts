@@ -4281,26 +4281,36 @@ export class GameSession implements PlaySession {
 
     if (effect.consumesCaster) {
       this.kill(actor, { source: this.spellName(actor, slot) });
-    } else {
+    } else if (!effect.area) {
       const casting = this.tryLocate(actor);
       if (casting) this.turnToward(actor, casting, landings[0]!.at);
     }
 
-    for (const landing of landings) this.placeConjured(actor, def, landing, elements);
+    const stoodOn = landings.flatMap((landing) => {
+      const stood = this.placeConjured(actor, def, landing, elements);
+      return stood ? [stood] : [];
+    });
+    this.settleBoardNow();
+    for (const stood of stoodOn) {
+      if (stood !== actor) this.notePendingHurt(stood.id, actor.id);
+      this.statusOnArrival(stood);
+    }
   }
 
   /**
    * Checked again because a consumed caster has died between the landing being
    * found and the body arriving, and may have spilled its kit into that cell.
+   * Returns whoever it was laid under, for the caller to settle the board
+   * once and then hand them the tile's status.
    */
   private placeConjured(
     actor: ActorRuntime,
     def: TileDef,
     where: ConjureLanding,
     elements: readonly Element[],
-  ) {
+  ): ActorRuntime | undefined {
     const at = where.at;
-    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) return;
+    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) return undefined;
 
     const stack = getStack(this.map, at.x, at.y, at.z);
     const stoodId = where.under == null ? undefined : stack[where.under]?.owner;
@@ -4322,12 +4332,7 @@ export class GameSession implements PlaySession {
     }
     this.noteTransition("appear", def.id, at, stackIndex);
     this.reindexCells([at]);
-    this.settleBoardNow();
-
-    const stood = stoodId ? this.actors.get(stoodId) : undefined;
-    if (!stood) return;
-    if (stood !== actor) this.notePendingHurt(stood.id, actor.id);
-    this.statusOnArrival(stood);
+    return stoodId ? this.actors.get(stoodId) : undefined;
   }
 
   statusesOf(id: string): readonly StatusInstance[] | null {
