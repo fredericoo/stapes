@@ -13863,6 +13863,10 @@ would never be what puts a fire out.
 - **A placement that went out forgets its flame** (`outIfCold` in
   `advance`). Otherwise a new flame conjured on the old flame's cell would bring
   back to life a fire that had stopped.
+- **`burned` does not stack.** It runs for two seconds and a fresh helping
+  refreshes it to two seconds, so a body standing in a fire is hurt for as long
+  as it stays and for two seconds after it leaves. A stacking burn piles up
+  under a flame cast on somebody and kills them long after they walk out.
 
 Durability reads directly as seconds of fire, which is the only reason the
 authored numbers are legible: `burned` takes `ceil(MAX_HP / 100)` every 250 ms,

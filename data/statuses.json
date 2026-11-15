@@ -172,10 +172,10 @@
       },
       "tilesetId": "tiny-ranch-tiles"
     },
-    "fromMs": 4000,
-    "toMs": 8000,
-    "stacks": true,
-    "maxMs": 24000,
+    "fromMs": 2000,
+    "toMs": 2000,
+    "stacks": false,
+    "maxMs": 2000,
     "everyMs": "250",
     "endsIn": ["rain"],
     "effects": {
