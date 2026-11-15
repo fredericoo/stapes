@@ -8,14 +8,14 @@ import { paint, paletteRgba, writeTileset } from "./tileset-output";
 const TILESET_ID = "bear";
 
 /**
- * Four cells square with the bear standing on the third, as the cyclops is: a
+ * Six cells square with the bear standing on the fourth, as the cyclops is: a
  * body longer than a cell overhangs it at both ends, and its back leans up and
- * to the left a further cell.
+ * to the left further still.
  */
-const FRAME_CELLS = 4;
-const BASE_CELL = 2;
+const FRAME_CELLS = 6;
+const BASE_CELL = 3;
 const FRAME_PX = FRAME_CELLS * CELL_SIZE;
-const PROJECTION = { spritePx: FRAME_PX, groundPx: BASE_CELL * CELL_SIZE, topPx: 10 };
+const PROJECTION = { spritePx: FRAME_PX, groundPx: BASE_CELL * CELL_SIZE, topPx: 14 };
 
 const OUTLINE = 0;
 const FUR_RAMP = [11, 3, 2];
@@ -39,53 +39,155 @@ type Part = "fur" | "ear" | "muzzle" | "paw" | "nose";
 /** Along the bear, across it to its right, and up, from the middle of its cell on the ground. */
 type Ellipsoid = { part: Part; at: Vec3; radii: Vec3 };
 
-const HEAD_AT: Vec3 = [4.3, 0, 3.3];
-
-const TRUNK: Ellipsoid[] = [
-  { part: "fur", at: [-3.6, 0, 3.5], radii: [3.6, 3.3, 2.4] },
-  { part: "fur", at: [0.4, 0, 3.9], radii: [3.7, 3.5, 2.7] },
-  { part: "fur", at: HEAD_AT, radii: [2.6, 2.7, 2.3] },
-  { part: "ear", at: [3.6, -2, 5.3], radii: [1.1, 1.1, 1.1] },
-  { part: "ear", at: [3.6, 2, 5.3], radii: [1.1, 1.1, 1.1] },
-  { part: "muzzle", at: [6.6, 0, 2.7], radii: [1.4, 1.25, 1.1] },
-  { part: "nose", at: [7.7, 0, 3], radii: [0.7, 0.7, 0.7] },
-];
-
-/**
- * Front right, front left, hind right, hind left. All four stand inside the
- * bear's own cell, so the cell it occupies is the one its feet are drawn on
- * and only the body above them overhangs the neighbours.
- */
-const LEGS: [number, number][] = [
-  [2, 1.9],
-  [2, -1.9],
-  [-2, 1.9],
-  [-2, -1.9],
-];
 /** The model below is drawn this many times larger. */
 const SIZE = 1.15;
 
-const LEG_RADIUS = 1.4;
-const LEG_TOP = 2.8;
-const PAW_TOP = 0.9;
+/**
+ * Shaped after a walking brown bear: the shoulder hump is the highest point,
+ * the back slopes down to a lower rump, the head hangs low and forward of the
+ * shoulders, and the legs are thick and about a third of the bear's height.
+ */
+const SHOULDERS_AT: Vec3 = [1.8, 0, 6.6];
+const RUMP_AT: Vec3 = [-4.4, 0, 6.0];
 
 /**
- * How far along the bear each leg has swung, in the order of `LEGS`. A walking
- * bear moves a front leg with the hind leg on the other side.
+ * The head keeps the shape it was first drawn with and is only moved, by whole
+ * pixels: a head moved by a fraction of one samples onto a different grid, and
+ * its face comes out different from the one drawn before.
  */
-type Pose = [number, number, number, number];
-const STRIDE = 1.1;
-const POSES: Pose[] = [
-  [0, 0, 0, 0],
-  [STRIDE, -STRIDE, -STRIDE, STRIDE],
-  [-STRIDE, STRIDE, STRIDE, -STRIDE],
+const HEAD_FORWARD_PX = 3;
+const HEAD_UP_PX = 3;
+const HEAD_FORWARD = HEAD_FORWARD_PX / SIZE;
+const HEAD_UP = HEAD_UP_PX / SIZE;
+
+function onHead([along, across, up]: Vec3): Vec3 {
+  return [along + HEAD_FORWARD, across, up + HEAD_UP];
+}
+
+const HEAD_AT: Vec3 = onHead([4.3, 0, 3.3]);
+
+const TRUNK: Ellipsoid[] = [
+  { part: "fur", at: RUMP_AT, radii: [3.8, 3.6, 2.9] },
+  { part: "fur", at: [-1.2, 0, 6.4], radii: [3.2, 3.8, 3.0] },
+  { part: "fur", at: SHOULDERS_AT, radii: [3.4, 3.9, 3.2] },
+  { part: "fur", at: [4.8, 0, 5.6], radii: [2.2, 2.5, 2.2] },
+  { part: "fur", at: HEAD_AT, radii: [2.6, 2.7, 2.3] },
+  { part: "ear", at: onHead([3.6, -2, 5.3]), radii: [1.1, 1.1, 1.1] },
+  { part: "ear", at: onHead([3.6, 2, 5.3]), radii: [1.1, 1.1, 1.1] },
+  { part: "muzzle", at: onHead([6.6, 0, 2.7]), radii: [1.4, 1.25, 1.1] },
+  { part: "nose", at: onHead([7.7, 0, 3]), radii: [0.7, 0.7, 0.7] },
 ];
+
+/**
+ * Front right, front left, hind right, hind left: the front pair under the
+ * shoulders and the hind pair under the rump, as far back as the rump itself,
+ * which leaves a long belly between them. The hind paws stand a pixel past the
+ * back of the bear's cell.
+ */
+const LEGS: [number, number][] = [
+  [2.6, 2.2],
+  [2.6, -2.2],
+  [-4.3, 2.2],
+  [-4.3, -2.2],
+];
+const FRONT_LEGS = 2;
+
+/** The leg starts inside the body, so the body covers where it joins. */
+const HIP_UP = 5.6;
+const THIGH_RADIUS = 1.9;
+const KNEE_RADIUS = 1.4;
+const PAW_RADIUS = 1.55;
+/** How much of the lower leg, from the ground up, is drawn as paw. */
+const PAW_SHARE = 0.3;
+
+/**
+ * `swing` is how far along the bear each leg has swung, in the order of
+ * `LEGS`: a walking bear moves a front leg with the hind leg on the other
+ * side. `dropPx` is how far the whole body sinks, head and all, in whole pixels
+ * so the head keeps its face: one pixel on a stride, none with the legs under
+ * it. The paws stay where they are, so the legs take up the drop. `lifts`
+ * says whether a leg swung back is off the ground.
+ *
+ * The standing frame is also the walk's passing frame, so it cannot be a
+ * stride, but a bear at rest never stands square either: one front paw a
+ * little ahead of the other and the hind pair staggered the other way, every
+ * paw planted.
+ */
+type Pose = {
+  swing: [number, number, number, number];
+  dropPx: number;
+  lifts: boolean;
+};
+const STRIDE = 1.9;
+const STRIDE_DROP_PX = 1;
+const STANCE_AHEAD = 0.8;
+const STANCE_BEHIND = 0.4;
+const POSES: Pose[] = [
+  {
+    swing: [STANCE_AHEAD, -STANCE_BEHIND, -STANCE_AHEAD, STANCE_BEHIND],
+    dropPx: 0,
+    lifts: false,
+  },
+  { swing: [STRIDE, -STRIDE, -STRIDE, STRIDE], dropPx: STRIDE_DROP_PX, lifts: true },
+  { swing: [-STRIDE, STRIDE, STRIDE, -STRIDE], dropPx: STRIDE_DROP_PX, lifts: true },
+];
+
+function dropOf(pose: Pose): number {
+  return pose.dropPx / SIZE;
+}
+
+/**
+ * A leg swung back is pushing off, so its paw is just off the ground and the
+ * leg folds: a front leg at the wrist, which juts forward, and a hind leg at
+ * the hock, which juts back. The leg reaching forward stays nearly straight. A
+ * planted hind leg keeps a little of that bend, which is what tells a hind leg
+ * from a front one at a glance.
+ */
+const PAW_LIFT = 1.0;
+const FRONT_FOLD = 1.1;
+const HIND_FOLD = 1.3;
+const HIND_REST_FOLD = 0.35;
+
+type Joint = { hip: Vec3; knee: Vec3; paw: Vec3 };
+
+function jointOf(leg: number, pose: Pose): Joint {
+  const [along, across] = LEGS[leg]!;
+  const swing = pose.swing[leg]!;
+  const front = leg < FRONT_LEGS;
+  const lifted = pose.lifts && swing < 0;
+  const hip: Vec3 = [along, across, HIP_UP - dropOf(pose)];
+  const paw: Vec3 = [along + swing, across, lifted ? PAW_LIFT : 0];
+  const fold = front ? (lifted ? FRONT_FOLD : 0) : -(lifted ? HIND_FOLD : HIND_REST_FOLD);
+  const knee: Vec3 = [(hip[0] + paw[0]) / 2 + fold, across, (hip[2] + paw[2]) / 2];
+  return { hip, knee, paw };
+}
+
+/** How far `p` lies from the segment `a`-`b`, and where along it, from 0 at `a` to 1 at `b`. */
+function fromSegment(p: Vec3, a: Vec3, b: Vec3): { off: Vec3; t: number } {
+  const d: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const rel: Vec3 = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+  const lengthSq = d[0] ** 2 + d[1] ** 2 + d[2] ** 2;
+  const t = Math.max(0, Math.min(1, (rel[0] * d[0] + rel[1] * d[1] + rel[2] * d[2]) / lengthSq));
+  return { off: [rel[0] - d[0] * t, rel[1] - d[1] * t, rel[2] - d[2] * t], t };
+}
+
+function legHit(p: Vec3, joint: Joint): { part: Part; off: Vec3 } | null {
+  const upper = fromSegment(p, joint.hip, joint.knee);
+  const upperRadius = THIGH_RADIUS + (KNEE_RADIUS - THIGH_RADIUS) * upper.t;
+  if (Math.hypot(...upper.off) <= upperRadius) return { part: "fur", off: upper.off };
+  const lower = fromSegment(p, joint.knee, joint.paw);
+  const lowerRadius = KNEE_RADIUS + (PAW_RADIUS - KNEE_RADIUS) * lower.t;
+  if (Math.hypot(...lower.off) > lowerRadius || p[2] < 0) return null;
+  return { part: lower.t > 1 - PAW_SHARE ? "paw" : "fur", off: lower.off };
+}
 
 type Hit = { part: Part; normal: Vec3 };
 
 function sampler(facing: Facing, pose: Pose) {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
+  const joints = LEGS.map((_, i) => jointOf(i, pose));
+  const trunk = TRUNK.map((part) => ({ ...part, z: part.at[2] - dropOf(pose) }));
   return (p: Vec3, scale: number): Hit | null => {
     const x = (p[0] / scale - centre) / SIZE;
     const y = (p[1] / scale - centre) / SIZE;
@@ -95,21 +197,19 @@ function sampler(facing: Facing, pose: Pose) {
     const toWorld = (n: Vec3): Vec3 =>
       normalise([n[0] * ax - n[1] * ay, n[0] * ay + n[1] * ax, n[2]]);
 
-    for (let i = TRUNK.length - 1; i >= 0; i--) {
-      const { part, at, radii } = TRUNK[i]!;
-      const d: Vec3 = [along - at[0], across - at[1], up - at[2]];
+    for (let i = trunk.length - 1; i >= 0; i--) {
+      const { part, at, radii, z } = trunk[i]!;
+      const d: Vec3 = [along - at[0], across - at[1], up - z];
       if ((d[0] / radii[0]) ** 2 + (d[1] / radii[1]) ** 2 + (d[2] / radii[2]) ** 2 > 1) continue;
       return {
         part,
         normal: toWorld([d[0] / radii[0] ** 2, d[1] / radii[1] ** 2, d[2] / radii[2] ** 2]),
       };
     }
-    if (up < 0 || up > LEG_TOP) return null;
-    for (let i = 0; i < LEGS.length; i++) {
-      const da = along - LEGS[i]![0] - pose[i]!;
-      const dc = across - LEGS[i]![1];
-      if (Math.hypot(da, dc) > LEG_RADIUS) continue;
-      return { part: up < PAW_TOP ? "paw" : "fur", normal: toWorld([da, dc, 0.2]) };
+    if (up < 0 || up > HIP_UP) return null;
+    for (const joint of joints) {
+      const hit = legHit([along, across, up], joint);
+      if (hit) return { part: hit.part, normal: toWorld(hit.off) };
     }
     return null;
   };
@@ -128,18 +228,16 @@ function shade(hit: Hit): number {
 }
 
 /** Eyes are smaller than a pixel on the model, so they are put on after the cast, where the model has them. */
-const EYES: Vec3[] = [
-  [6, 1.4, 4.2],
-  [6, -1.4, 4.2],
-];
+const EYES: Vec3[] = [onHead([6, 1.4, 4.2]), onHead([6, -1.4, 4.2])];
 
 /** An eye shows when its side of the head faces south or east, the two sides the projection draws. */
-function eyePixels(facing: Facing): [number, number][] {
+function eyePixels(facing: Facing, pose: Pose): [number, number][] {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
   const seen: [number, number][] = [];
-  for (const [along, across, up] of EYES) {
-    const out: Vec3 = [along - HEAD_AT[0], across - HEAD_AT[1], up - HEAD_AT[2]];
+  for (const [along, across, raised] of EYES) {
+    const up = raised - dropOf(pose);
+    const out: Vec3 = [along - HEAD_AT[0], across - HEAD_AT[1], raised - HEAD_AT[2]];
     const outX = out[0] * ax - out[1] * ay;
     const outY = out[0] * ay + out[1] * ax;
     if (outX + outY + out[2] <= 0) continue;
@@ -171,7 +269,7 @@ function outlined(pixels: Int16Array, size: number): Int16Array {
 
 function castBear(facing: Facing, pose: Pose): Int16Array {
   const pixels = castModel({ sample: sampler(facing, pose), shade }, PROJECTION);
-  for (const [u, v] of eyePixels(facing)) {
+  for (const [u, v] of eyePixels(facing, pose)) {
     if (pixels[v * FRAME_PX + u]! >= 0) pixels[v * FRAME_PX + u] = EYE;
   }
   const edged = outlined(pixels, FRAME_PX);
