@@ -27814,8 +27814,8 @@
             {
               "id": "burned",
               "chance": 30,
-              "fromMs": 2000,
-              "toMs": 4000
+              "fromMs": 1000,
+              "toMs": 1500
             }
           ]
         },
@@ -33288,9 +33288,7 @@
               "statuses": [
                 {
                   "id": "burned",
-                  "chance": 50,
-                  "fromMs": 3000,
-                  "toMs": 6000
+                  "chance": 50
                 }
               ]
             },
@@ -55662,8 +55660,8 @@
                 {
                   "id": "burned",
                   "chance": 30,
-                  "fromMs": 2000,
-                  "toMs": 4000
+                  "fromMs": 1000,
+                  "toMs": 1500
                 }
               ]
             },
@@ -61787,9 +61785,7 @@
           "statuses": [
             {
               "id": "burned",
-              "chance": 10,
-              "fromMs": 8000,
-              "toMs": 15000
+              "chance": 10
             }
           ]
         },
@@ -62502,9 +62498,7 @@
           "statuses": [
             {
               "id": "burned",
-              "chance": 10,
-              "fromMs": 8000,
-              "toMs": 15000
+              "chance": 10
             }
           ]
         },
@@ -73827,9 +73821,7 @@
               "statuses": [
                 {
                   "id": "burned",
-                  "chance": 20,
-                  "fromMs": 1000,
-                  "toMs": 2000
+                  "chance": 20
                 }
               ]
             },

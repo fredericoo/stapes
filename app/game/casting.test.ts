@@ -145,6 +145,18 @@ const tiles: TileDef[] = [
   tile({ id: "rat", height: 2, interactions: { brain: { kind: "wander" } } }),
   tile({ id: "water", walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
+  tile({
+    id: "dry-bush",
+    height: 2,
+    walkable: false,
+    interactions: { endure: { durability: 8, suffers: [{ statusId: "burned", tileId: "" }] } },
+  }),
+  tile({
+    id: "kindling",
+    intangible: true,
+    lightPassing: true,
+    interactions: { addStatus: { trigger: "step", statusId: "burned", ground: true } },
+  }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);
@@ -415,6 +427,13 @@ describe("a conjuring stone", () => {
   it("lands beneath a target, so they are standing in it", () => {
     const state = context({}, { target: point(2) });
     expect(conjureLandings(state, FIRE)).toEqual([{ at: { x: 2, y: 0, z: 0 }, under: 1 }]);
+  });
+
+  it("lands under a bush in front when it sets the ground alight and the bush burns", () => {
+    const KINDLING: ConjureEffect = { kind: "conjure", tileId: "kindling" };
+    const state = context({}, { map: inFront("dry-bush") });
+    expect(conjureLandings(state, KINDLING)).toEqual([{ at: { x: 1, y: 0, z: 0 }, under: 1 }]);
+    expect(conjureLandings(context({}, { map: inFront("bush") }), KINDLING)).toBeNull();
   });
 
   it.each(["wall", "bush", "water"])("refuses to conjure where a %s is in front", (tileId) => {

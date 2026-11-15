@@ -999,10 +999,10 @@ are CSS alone.
 
 - **Wolves on the surface only hunt from 19:00 to 06:00.** 05:20 to 05:40 is
   twilight light with the wolves still hunting, which is the chase on the page.
-- **One flame burns its own ground and passes on what is left**, divided, so a
-  single Flame scorches a tree and rarely fells it (see "Fire divides its
-  fuel"). With a flame either side, the trees between get heat from both, and
-  the clip on the page fells three of them.
+- **One Flame burns what burns in its own cell and the four cells beside it,
+  for as long as it lasts** (see "Fire spreads only while a flame that goes out
+  is there to feed it"), so a single cast at a copse fells at most the trees
+  next to it.
 - **The cyclops's tower** (`-25, -185, 1`) opens the way in only while
   somebody stands on the plate outside, and shuts it when they step off; the
   plate inside opens the way out.
@@ -13816,7 +13816,7 @@ what the screencast sends are repeats of the same canvas: keep the frames
 whose pixels differ and read those. The editor's preview draws a much smaller
 scene and runs far faster.
 
-## Fire divides its fuel, which is the only reason a forest survives one
+## Fire spreads only while a flame that goes out is there to feed it
 
 A tile can be worn down by the statuses running on it and turn into another tile
 — grass to dirt, a tree to nothing. One block, one flag and one index
@@ -13840,31 +13840,46 @@ is the trap that comment was holding space to avoid. The affliction, the spread
 and every future reader all ask `afflictionFor`, so none of them can come to a
 different view of what burns.
 
-### The division is the whole design
+### A fire reaches the cells beside its flame, for as long as the flame lasts
 
-When a placement is worn through, whatever is **left** of the status that
-finished it is divided equally among the neighbours that suffer the same status
-(`spreadShares`). Fuel is conserved and never created: eight seconds of burning
-split four ways is four two-second burns.
+A placement that a flame with a `decay` set alight is **kindled** by that flame:
+its pool records the flame's cell and how many more cells the fire may travel
+(`Kindling`, in `Endurance.kindledBy`). The flame's own cell starts with
+`FIRE_REACH_CELLS`. Once every `FIRE_SPREAD_EVERY_MS`, each kindled placement
+that is still burning renews its own status, and, if it has any reach left,
+puts the same status on every neighbour that suffers it with one cell less
+(`EndureIndex.embers`, `GameSession.spreadFire`). A placement lit from two
+sides keeps the larger reach. It all happens only while `flameLives` finds
+that flame still in its cell. Once the flame decays or the rain puts it out,
+nothing renews anything, every burn runs out within `burned`'s two seconds,
+and the fire is over.
 
-That one line is why a fire is bounded. The obvious alternative — give each
-neighbour the *full* remainder, or conjure a fresh flame onto each — doubles the
-fuel at every branch, and one flame in a wood burns until the wood runs out.
-Under division a fire spends a budget and goes out on its own, which is what
-makes it safe to put a permanent hearth on a map. **Anything that lets a spread
-add burn time turns a bounded fire into an unbounded one**, and it will not look
-like a bug until somebody lights a forest.
+So a fire is bounded twice: in space by `FIRE_REACH_CELLS`, through connected
+fuel, and in time by the flame's `decay`. Everything kindled burns down while
+the flame is there, and nothing beyond the reach catches. **Without the reach,
+the time bound alone is not enough**: grass connects most of the map, and a
+30 to 60 second `arcane-flame` moving a cell a second set the whole map
+alight in play. A reach of three still let one player clear a forest with a
+handful of casts, so the reach is one: the flame's cell and its four
+neighbours.
 
-Two consequences worth knowing before tuning:
+`spreadFire` runs every tick on its own, not from inside `tickAfflictions`.
+That sweep returns early when no flame is left on the map. Called from inside
+it, the spread would stop as a side effect of that, and the `flameLives` check
+would never be what puts a fire out.
 
-- **A share that floors to zero does not catch.** The last embers go out at the
-  fire's edge rather than laying an infinitely thin burn across the map.
-- **The division is by what *catches*, not by what is there.** A fire beside a
-  stone wall does not lose half its fuel to the stone.
-- **`burned` stacks**, and a pool keeps its damage when a burn ends without
-  finishing the job. So a tile fed by two burning neighbours accumulates, and a
-  fire crosses dense ground it could not cross in one hop. That is emergent and
-  it is the good kind: it makes a thicket burn and a scattered copse not.
+- **A flame with no `decay` never spreads.** The `flame` authored on
+  `data/map.json` is permanent, and under this rule a permanent source would
+  burn every connected meadow on the map. It burns only the cell it stands in
+  (`GroundSource.fades`). Anything that lets a permanent source kindle turns a
+  hearth into a map-wide fire.
+- **A placement that went out forgets its flame** (`outIfCold` in
+  `advance`). Otherwise a new flame conjured on the old flame's cell would bring
+  back to life a fire that had stopped.
+- **`burned` does not stack.** It runs for two seconds and a fresh helping
+  refreshes it to two seconds, so a body standing in a fire is hurt for as long
+  as it stays and for two seconds after it leaves. A stacking burn piles up
+  under a flame cast on somebody and kills them long after they walk out.
 
 Durability reads directly as seconds of fire, which is the only reason the
 authored numbers are legible: `burned` takes `ceil(MAX_HP / 100)` every 250 ms,
@@ -13935,19 +13950,9 @@ every world ticked forever.
 `tickAfflictions` is a per-tick sweep, and it goes through `EndureIndex.hold`
 rather than `EndureIndex.afflict`. The ground catches on contact and takes another helping
 every `STANDING_STATUS_EVERY_MS` — the second `tickStandingStatuses` holds a
-body to — so `burned` stacks on the grass under a flame exactly as it does on
-somebody standing in one, up to the status's `maxMs`. The clock lives on the
-pool (`Endurance.heldMs`, per status id), which keeps the sweep at one roll of
-the world's dice per helping rather than thirty a second per burning tile.
-
-This is what gives a forest fire its reach. Ground that stood in a fire for a
-few seconds goes out carrying close to `maxMs` of burn, and that is the
-remainder the spread divides, so the first ring of neighbours catches long
-enough to fell a tree rather than to scorch it. Spread shares go through
-`EndureIndex.afflict`, which also stacks on a placement already burning, so two burning
-neighbours feed a third more than one does. The source is the only thing that
-adds fuel. The spread still only divides it, and a stack that clamps at `maxMs`
-can only lose some, so a fire with no flame left in it still burns out.
+body to. The clock lives on the pool (`Endurance.heldMs`, per status id), which
+keeps the sweep at one roll of the world's dice per helping rather than thirty a
+second per burning tile.
 
 A hearth whose ground survives a burn is set alight again on the next tick,
 since contact is "the status is not running on this placement". Burning the
@@ -13956,10 +13961,19 @@ that burns whoever steps in it does not also start eating its own floor. It is
 independent of `trigger`, which is about a body arriving or reaching, and a
 tile does neither.
 
+### A flame cast at a tree goes in under it
+
+A tree or a bush cannot be walked into, so the cell in front of a caster facing
+one is not a step, and a conjure used to be refused there. A conjured tile whose
+`addStatus` sets the ground alight now lands in that cell anyway, at the stack
+index of the topmost placement its status burns (`underWhatBurns` in
+`app/game/casting.ts`), so the flame sits under the tree and the tree catches.
+A wall, water or a bush that does not burn still refuses the cast.
+
 ### The arcanist is paid for the whole forest
 
 `causedBy` and `elements` ride the status instance already, for the conjured
-flame that burns whoever walks into it. They are carried across the division too,
+flame that burns whoever walks into it. They are carried along the spread too,
 so the burn that kills a rat three trees away still names whoever cast the first
 flame and still turns on the wheel that spell was made of. This falls out of
 `awardCausedDamage` with no new code, and it is worth not losing.

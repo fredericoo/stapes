@@ -1,5 +1,5 @@
 import type { Affliction, EndureInteraction } from "../lib/interactions";
-import { afflictionFor, resolveAddStatus, resolveEndure } from "../lib/interactions";
+import { afflictionFor, resolveAddStatus, resolveDecay, resolveEndure } from "../lib/interactions";
 import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -21,6 +21,21 @@ export type Endurance = {
   endure: EndureInteraction;
   statuses: readonly StatusInstance[];
   heldMs: Readonly<Record<string, number>>;
+  kindledBy?: Kindling;
+  spreadMs: number;
+};
+
+/** `hopsLeft` is how many more cells this fire may travel from `flame`; at zero a placement burns but lights nothing around it. */
+export type Kindling = { flame: Coord; hopsLeft: number };
+
+export const FIRE_REACH_CELLS = 1;
+
+export type Ember = {
+  cell: Coord;
+  statusId: string;
+  kindledBy: Kindling;
+  causedBy?: string;
+  elements?: readonly Element[];
 };
 
 export type Consumed = {
@@ -28,7 +43,6 @@ export type Consumed = {
   tileId: string;
   statusId: string;
   becomes: string;
-  remainingMs: number;
   causedBy?: string;
   elements?: readonly Element[];
 };
@@ -46,18 +60,6 @@ function endureOf(tileId: string, tilesById: Record<string, TileDef>): EndureInt
   return def ? resolveEndure(def) : null;
 }
 
-export function cellSuffers(
-  map: MapFile,
-  cell: Coord,
-  statusId: string,
-  tilesById: Record<string, TileDef>,
-): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
-    const endure = endureOf(placed.tileId, tilesById);
-    return endure != null && afflictionFor(endure, statusId) != null;
-  });
-}
-
 export function neighboursOf(cell: Coord): Coord[] {
   return [
     { x: cell.x + 1, y: cell.y, z: cell.z },
@@ -65,20 +67,6 @@ export function neighboursOf(cell: Coord): Coord[] {
     { x: cell.x, y: cell.y + 1, z: cell.z },
     { x: cell.x, y: cell.y - 1, z: cell.z },
   ];
-}
-
-export function spreadShares(
-  map: MapFile,
-  consumed: Consumed,
-  tilesById: Record<string, TileDef>,
-): { cell: Coord; shareMs: number }[] {
-  const catching = neighboursOf(consumed.cell).filter((cell) =>
-    cellSuffers(map, cell, consumed.statusId, tilesById),
-  );
-  if (catching.length === 0) return [];
-  const shareMs = Math.floor(consumed.remainingMs / catching.length);
-  if (shareMs <= 0) return [];
-  return catching.map((cell) => ({ cell, shareMs }));
 }
 
 export function cellAfflicts(
@@ -103,26 +91,38 @@ export function findAfflictCells(map: MapFile, tilesById: Record<string, TileDef
   return out;
 }
 
+export type GroundSource = {
+  statusId: string;
+  /** Only a source that goes out by itself may spread, or a hearth would burn every connected meadow on the map. */
+  fades: boolean;
+  causedBy?: string;
+  elements?: readonly Element[];
+};
+
+export function flameLives(
+  map: MapFile,
+  cell: Coord,
+  statusId: string,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return afflictionsFrom(map, cell, tilesById).some(
+    (source) => source.fades && source.statusId === statusId,
+  );
+}
+
 export function afflictionsFrom(
   map: MapFile,
   cell: Coord,
   tilesById: Record<string, TileDef>,
-): {
-  statusId: string;
-  causedBy?: string;
-  elements?: readonly Element[];
-}[] {
-  const out: {
-    statusId: string;
-    causedBy?: string;
-    elements?: readonly Element[];
-  }[] = [];
+): GroundSource[] {
+  const out: GroundSource[] = [];
   for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
     const def = tilesById[placed.tileId];
     const addStatus = def ? resolveAddStatus(def) : null;
     if (!addStatus?.ground) continue;
     out.push({
       statusId: addStatus.statusId,
+      fades: resolveDecay(def!) != null,
       ...(placed.castBy ? { causedBy: placed.castBy } : {}),
       ...(placed.castElements?.length ? { elements: placed.castElements } : {}),
     });
@@ -180,12 +180,14 @@ export class EndureIndex {
     range?: { fromMs: number; toMs: number },
     causedBy?: string,
     elements?: readonly Element[],
+    kindledBy?: Kindling,
   ): boolean {
     if (!afflictionFor(endure, def.id)) return false;
     const pool = this.poolFor(cell, tileId, endure);
     this.pools.set(poolKey(cell, tileId), {
       ...pool,
       statuses: applyStatus(pool.statuses, def, this.rng, range, causedBy, elements),
+      ...kindled(pool, kindledBy),
     });
     return true;
   }
@@ -199,6 +201,7 @@ export class EndureIndex {
     everyMs: number,
     causedBy?: string,
     elements?: readonly Element[],
+    kindledBy?: Kindling,
   ): boolean {
     if (!afflictionFor(endure, def.id)) return false;
     const key = poolKey(cell, tileId);
@@ -219,6 +222,7 @@ export class EndureIndex {
       ...pool,
       statuses: applyStatus(pool.statuses, def, this.rng, undefined, causedBy, elements),
       heldMs: { ...pool.heldMs, [def.id]: heldMs },
+      ...kindled(pool, kindledBy),
     });
     return true;
   }
@@ -232,8 +236,30 @@ export class EndureIndex {
         endure,
         statuses: [],
         heldMs: {},
+        spreadMs: 0,
       }
     );
+  }
+
+  /**
+   * Each burning placement a fading flame lit renews its status on itself and
+   * passes it to its neighbours once every `everyMs`. The caller decides whether that flame is
+   * still there, since only it holds the map.
+   */
+  embers(tickMs: number, everyMs: number): Ember[] {
+    const out: Ember[] = [];
+    for (const [key, pool] of this.pools) {
+      const kindledBy = pool.kindledBy;
+      if (!kindledBy || pool.statuses.length === 0) continue;
+      const spreadMs = pool.spreadMs + tickMs;
+      if (!reached(spreadMs, everyMs)) {
+        this.pools.set(key, { ...pool, spreadMs });
+        continue;
+      }
+      this.pools.set(key, { ...pool, spreadMs: spreadMs - everyMs });
+      for (const instance of pool.statuses) out.push(emberOf(pool, kindledBy, instance));
+    }
+    return out;
   }
 
   advance(tickMs: number, statusDefs: Record<string, StatusDef>): Consumed[] {
@@ -259,38 +285,54 @@ export class EndureIndex {
           this.pools.delete(key);
           continue;
         }
-        this.pools.set(key, { ...pool, hp, statuses: tick.statuses });
+        this.pools.set(key, { ...pool, hp, statuses: tick.statuses, ...outIfCold(tick.statuses) });
         continue;
       }
 
       this.pools.delete(key);
-      const finisher = this.finisherOf(pool, tick.statuses, statusDefs);
+      const finisher = this.finisherOf(pool, statusDefs);
       if (finisher) consumed.push(finisher);
     }
     return consumed;
   }
 
-  private finisherOf(
-    pool: Endurance,
-    after: readonly StatusInstance[],
-    statusDefs: Record<string, StatusDef>,
-  ): Consumed | null {
+  private finisherOf(pool: Endurance, statusDefs: Record<string, StatusDef>): Consumed | null {
     for (const instance of pool.statuses) {
       const affliction = afflictionFor(pool.endure, instance.defId);
       if (!affliction || !statusDefs[instance.defId]) continue;
-      const left = after.find((one) => one.defId === instance.defId);
       return {
         cell: pool.cell,
         tileId: pool.tileId,
         statusId: instance.defId,
         becomes: affliction.tileId,
-        remainingMs: Math.max(0, left?.remainingMs ?? 0),
         ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
         ...(instance.elements?.length ? { elements: instance.elements } : {}),
       };
     }
     return null;
   }
+}
+
+/** A placement lit from two sides keeps the kindling nearer its flame, so a farther ember cannot shorten how far it may still spread. */
+function kindled(pool: Endurance, kindledBy: Kindling | undefined): Partial<Endurance> {
+  const held = pool.kindledBy;
+  if (!kindledBy || (held && held.hopsLeft >= kindledBy.hopsLeft)) return { kindledBy: held };
+  return { kindledBy: { flame: { ...kindledBy.flame }, hopsLeft: kindledBy.hopsLeft } };
+}
+
+/** A placement whose fire went out forgets the flame that lit it, so a new flame on that old cell cannot spread through it. */
+function outIfCold(statuses: readonly StatusInstance[]): Partial<Endurance> {
+  return statuses.length === 0 ? { kindledBy: undefined, spreadMs: 0 } : {};
+}
+
+function emberOf(pool: Endurance, kindledBy: Kindling, instance: StatusInstance): Ember {
+  return {
+    cell: pool.cell,
+    statusId: instance.defId,
+    kindledBy,
+    ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
+    ...(instance.elements?.length ? { elements: instance.elements } : {}),
+  };
 }
 
 export type EndureResult = {

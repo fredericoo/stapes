@@ -8,7 +8,7 @@ import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
-import { EndureIndex, applyConsumed, neighboursOf, spreadShares } from "./endure";
+import { EndureIndex, FIRE_REACH_CELLS, applyConsumed, neighboursOf } from "./endure";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 
@@ -37,6 +37,9 @@ const BURN_MS = 8_000;
 const BURN_PER_SECOND = 4;
 const GRASS_DURABILITY = 12;
 const TREE_DURABILITY = 40;
+const FLAME_LIFETIME_MS = 20_000;
+/** Ten times what a flame's lifetime can burn, so only the flame going out can save it. */
+const OAK_DURABILITY = (FLAME_LIFETIME_MS / 1_000) * BURN_PER_SECOND * 10;
 
 const catalogue = statusesById([
   {
@@ -75,6 +78,17 @@ const tiles: TileDef[] = [
       },
     },
   }),
+  tile({
+    id: "oak",
+    height: 4,
+    walkable: false,
+    interactions: {
+      endure: {
+        durability: OAK_DURABILITY,
+        suffers: [{ statusId: "burned", tileId: "" }],
+      },
+    },
+  }),
   tile({ id: "stone", height: 4, walkable: false }),
   tile({
     id: "flame",
@@ -82,6 +96,16 @@ const tiles: TileDef[] = [
     intangible: true,
     lightPassing: true,
     interactions: { addStatus: { trigger: "step", statusId: "burned", ground: true } },
+  }),
+  tile({
+    id: "fading-flame",
+    height: 2,
+    intangible: true,
+    lightPassing: true,
+    interactions: {
+      addStatus: { trigger: "step", statusId: "burned", ground: true },
+      decay: { tileId: "", fromMs: FLAME_LIFETIME_MS, toMs: FLAME_LIFETIME_MS },
+    },
   }),
   tile({
     id: "haunt",
@@ -296,12 +320,11 @@ describe("EndureIndex", () => {
     expect([...endure.afflicted()][0]?.hp).toBe(GRASS_DURABILITY - BURN_PER_SECOND * 2);
   });
 
-  it("hands back what the placement becomes, and what is left to spread", () => {
+  it("hands back what the placement becomes", () => {
     const endure = index();
     endure.afflict(ORIGIN, "grass", grassEndure(), BURNED);
 
     let consumed = endure.advance(TICK_MS, catalogue);
-    const secondsToBurn = GRASS_DURABILITY / BURN_PER_SECOND;
     for (let ms = TICK_MS; consumed.length === 0 && ms < BURN_MS; ms += TICK_MS) {
       consumed = endure.advance(TICK_MS, catalogue);
     }
@@ -309,8 +332,6 @@ describe("EndureIndex", () => {
     expect(consumed).toHaveLength(1);
     expect(consumed[0]?.becomes).toBe("dirt");
     expect(consumed[0]?.statusId).toBe("burned");
-    expect(consumed[0]?.remainingMs).toBeGreaterThan(0);
-    expect(consumed[0]?.remainingMs).toBeLessThanOrEqual(BURN_MS - secondsToBurn * 1_000 + TICK_MS);
     expect(endure.pending()).toBe(false);
   });
 
@@ -382,57 +403,7 @@ describe("what is reported as alight", () => {
   });
 });
 
-describe("spreadShares", () => {
-  const consumed = {
-    cell: ORIGIN,
-    tileId: "grass",
-    statusId: "burned",
-    becomes: "dirt",
-    remainingMs: 4_000,
-  };
-
-  it("divides the remainder rather than copying it", () => {
-    const map = world([
-      { at: ORIGIN, stack: ["grass"] },
-      { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
-      { at: { x: -1, y: 0, z: 0 }, stack: ["grass"] },
-    ]);
-    const shares = spreadShares(map, consumed, tilesById);
-
-    expect(shares).toHaveLength(2);
-    expect(shares.every((share) => share.shareMs === 2_000)).toBe(true);
-    const total = shares.reduce((sum, share) => sum + share.shareMs, 0);
-    expect(total).toBeLessThanOrEqual(consumed.remainingMs);
-  });
-
-  it("skips a neighbour that cannot suffer it", () => {
-    const map = world([
-      { at: ORIGIN, stack: ["grass"] },
-      { at: { x: 1, y: 0, z: 0 }, stack: ["stone"] },
-      { at: { x: -1, y: 0, z: 0 }, stack: ["grass"] },
-    ]);
-    const shares = spreadShares(map, consumed, tilesById);
-
-    expect(shares).toHaveLength(1);
-    expect(shares[0]?.shareMs).toBe(consumed.remainingMs);
-  });
-
-  it("gives nothing away when nothing around it burns", () => {
-    const map = world([{ at: ORIGIN, stack: ["grass"] }]);
-    expect(spreadShares(map, consumed, tilesById)).toEqual([]);
-  });
-
-  it("lets the last embers go out rather than laying an infinitely thin burn", () => {
-    const map = world([
-      { at: ORIGIN, stack: ["grass"] },
-      { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
-      { at: { x: -1, y: 0, z: 0 }, stack: ["grass"] },
-      { at: { x: 0, y: 1, z: 0 }, stack: ["grass"] },
-      { at: { x: 0, y: -1, z: 0 }, stack: ["grass"] },
-    ]);
-    expect(spreadShares(map, { ...consumed, remainingMs: 3 }, tilesById)).toEqual([]);
-  });
-
+describe("neighboursOf", () => {
   it("never reaches diagonally, so a one-cell firebreak holds", () => {
     expect(neighboursOf(ORIGIN)).toEqual([
       { x: 1, y: 0, z: 0 },
@@ -454,7 +425,6 @@ describe("applyConsumed", () => {
           tileId: "grass",
           statusId: "burned",
           becomes: "dirt",
-          remainingMs: 0,
         },
       ],
       tilesById,
@@ -474,7 +444,6 @@ describe("applyConsumed", () => {
           tileId: "tree",
           statusId: "burned",
           becomes: "",
-          remainingMs: 0,
         },
       ],
       tilesById,
@@ -493,7 +462,6 @@ describe("applyConsumed", () => {
           tileId: "grass",
           statusId: "burned",
           becomes: "ash",
-          remainingMs: 0,
         },
       ],
       tilesById,
@@ -535,30 +503,58 @@ describe("a flame in a world", () => {
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
   });
 
-  it("passes what is left to the grass beside it", () => {
-    const play = session(
-      world([
-        { at: ORIGIN, stack: ["grass", "flame"] },
-        { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
-      ]),
-    );
-    run(play, Math.ceil(((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000) / TICK_MS) + 2);
+  function grassRow(length: number, flame: string): { at: Coord; stack: string[] }[] {
+    return Array.from({ length }, (_, x) => ({
+      at: { x, y: 0, z: 0 },
+      stack: x === 0 ? ["grass", flame] : ["grass"],
+    }));
+  }
 
-    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
-    run(play, Math.ceil(BURN_MS / TICK_MS));
-    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
+  it("spreads along the grass while a flame that goes out by itself lasts", () => {
+    const play = session(world(grassRow(FIRE_REACH_CELLS + 1, "fading-flame")));
+    run(play, Math.ceil(FLAME_LIFETIME_MS / 2 / TICK_MS));
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "fading-flame"]);
+    for (let x = 1; x <= FIRE_REACH_CELLS; x++)
+      expect(stackIds(play.getMap(), x, 0)).toEqual(["dirt"]);
   });
 
-  it("stacks the burn under a flame, so the grass hands on enough to fell a tree", () => {
+  it("goes no further than its reach from the flame, however long the flame lasts", () => {
+    const lastCaught = FIRE_REACH_CELLS;
+    const play = session(world(grassRow(lastCaught + 3, "fading-flame")));
+    run(play, Math.ceil(FLAME_LIFETIME_MS / TICK_MS));
+    expect(stackIds(play.getMap(), lastCaught, 0)).toEqual(["dirt"]);
+    expect(stackIds(play.getMap(), lastCaught + 1, 0)).toEqual(["grass"]);
+  });
+
+  it("goes out once that flame is gone, leaving standing what it had not finished", () => {
     const play = session(
       world([
-        { at: ORIGIN, stack: ["grass", "flame"] },
+        { at: ORIGIN, stack: ["grass", "fading-flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["dirt", "oak"] },
+      ]),
+    );
+    run(play, Math.ceil((FLAME_LIFETIME_MS + BURN_MS * 4) / TICK_MS));
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt", "oak"]);
+    expect(play.isAtRest()).toBe(true);
+  });
+
+  it("never spreads from a flame that does not go out, so a hearth cannot burn the map", () => {
+    const play = session(world(grassRow(2, "flame")));
+    run(play, Math.ceil((BURN_MS * 4) / TICK_MS));
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["grass"]);
+  });
+
+  it("keeps a tree beside it alight until it falls, after the grass under the flame is gone", () => {
+    const play = session(
+      world([
+        { at: ORIGIN, stack: ["grass", "fading-flame"] },
         { at: { x: 1, y: 0, z: 0 }, stack: ["dirt", "tree"] },
       ]),
     );
     const grassSeconds = GRASS_DURABILITY / BURN_PER_SECOND;
     const treeSeconds = TREE_DURABILITY / BURN_PER_SECOND;
-    run(play, Math.ceil(((grassSeconds + treeSeconds + 1) * 1_000) / TICK_MS));
+    run(play, Math.ceil(((grassSeconds + treeSeconds + 2) * 1_000) / TICK_MS));
     expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
   });
 
@@ -608,11 +604,22 @@ describe("the content in data/", () => {
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
   });
 
-  it("carries into the grass beside it", () => {
+  it("carries an arcane flame into the grass beside it", () => {
     const play = burn(
       [
-        { at: ORIGIN, stack: ["grass", "flame"] },
+        { at: ORIGIN, stack: ["grass", "arcane-flame"] },
         { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
+      ],
+      30_000,
+    );
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
+  });
+
+  it("fells a tree beside an arcane flame", () => {
+    const play = burn(
+      [
+        { at: ORIGIN, stack: ["grass", "arcane-flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["dirt", "tree"] },
       ],
       30_000,
     );

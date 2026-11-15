@@ -480,9 +480,12 @@ import {
   applyConsumed,
   cellAfflicts,
   findAfflictCells,
-  spreadShares,
   sufferersIn,
-  type Consumed,
+  flameLives,
+  neighboursOf,
+  type Ember,
+  type Kindling,
+  FIRE_REACH_CELLS,
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor, spanningTileIds } from "../lib/footprint";
@@ -894,6 +897,7 @@ type ActorRuntime = {
 };
 
 const STANDING_STATUS_EVERY_MS = 1000;
+const FIRE_SPREAD_EVERY_MS = 1000;
 
 const SELF_SPELL_MULTIPLIER = 1;
 
@@ -1618,6 +1622,7 @@ export class GameSession implements PlaySession {
     this.applyWeathering(tickMs);
     this.applyShedding(tickMs);
     this.tickAfflictions(tickMs);
+    this.spreadFire(tickMs);
     this.applyWornThrough(tickMs);
 
     this.advanceExtractions(tickMs);
@@ -1740,46 +1745,52 @@ export class GameSession implements PlaySession {
             STANDING_STATUS_EVERY_MS,
             source.causedBy,
             source.elements,
+            source.fades ? { flame: cell, hopsLeft: FIRE_REACH_CELLS } : undefined,
           );
         }
       }
     }
   }
 
-  /**
-   * The order is load-bearing in one place: the shares a finished status
-   * passes on are worked out against the map as it was before the swap. A
-   * stack of two burning things needs the first one still counted when the
-   * second one's share is divided, or turning one first changes what the
-   * other divides by.
-   */
+  private spreadFire(tickMs: number) {
+    for (const ember of this.endure.embers(tickMs, FIRE_SPREAD_EVERY_MS)) {
+      if (!flameLives(this.map, ember.kindledBy.flame, ember.statusId, this.tilesById)) continue;
+      this.catchFrom(ember);
+    }
+  }
+
+  private catchFrom(ember: Ember) {
+    const def = this.statusDefs[ember.statusId];
+    if (!def) return;
+    this.kindle(ember, ember.cell, def, ember.kindledBy);
+    const { flame, hopsLeft } = ember.kindledBy;
+    if (hopsLeft <= 0) return;
+    const onward = { flame, hopsLeft: hopsLeft - 1 };
+    for (const cell of neighboursOf(ember.cell)) this.kindle(ember, cell, def, onward);
+  }
+
+  private kindle(ember: Ember, cell: Coord, def: StatusDef, kindledBy: Kindling) {
+    for (const sufferer of sufferersIn(this.map, cell, ember.statusId, this.tilesById)) {
+      this.endure.afflict(
+        cell,
+        sufferer.tileId,
+        sufferer.endure,
+        def,
+        undefined,
+        ember.causedBy,
+        ember.elements,
+        kindledBy,
+      );
+    }
+  }
+
   private applyWornThrough(tickMs: number) {
     const consumed = this.endure.advance(tickMs, this.statusDefs);
     if (consumed.length === 0) return;
 
-    for (const one of consumed) this.spreadFrom(one);
-
     const turned = applyConsumed(this.map, consumed, this.tilesById);
     this.map = turned.map;
     this.reindexCells(turned.changed);
-  }
-
-  private spreadFrom(consumed: Consumed) {
-    const def = this.statusDefs[consumed.statusId];
-    if (!def) return;
-    for (const { cell, shareMs } of spreadShares(this.map, consumed, this.tilesById)) {
-      for (const sufferer of sufferersIn(this.map, cell, consumed.statusId, this.tilesById)) {
-        this.endure.afflict(
-          cell,
-          sufferer.tileId,
-          sufferer.endure,
-          def,
-          { fromMs: shareMs, toMs: shareMs },
-          consumed.causedBy,
-          consumed.elements,
-        );
-      }
-    }
   }
 
   private observed(): boolean {
