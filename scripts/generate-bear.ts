@@ -224,7 +224,7 @@ const BRAIN = {
   states: {
     lumbering: { do: [{ action: "walk_n_steps", steps: 2 }] },
     mauling: {
-      onEnter: [{ effect: "noise", text: "*ROAR*" }],
+      onEnter: [{ effect: "noise", text: "ROAR" }],
       do: [{ action: "attack", of: PREY }, { action: "step_toward", of: PREY }, { action: "hold" }],
     },
     denning: {

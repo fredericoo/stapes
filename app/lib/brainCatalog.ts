@@ -427,7 +427,7 @@ export const EFFECTS: Record<BrainEffectDef["effect"], CatalogEntry<BrainEffectD
   },
   noise: {
     label: "noise",
-    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it. {slot} becomes the name of whoever is in that slot. Style is how the word moves; auto reads it from the text, so *ROAR* is loud and sss is wavy.",
+    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it. {slot} becomes the name of whoever is in that slot. Style is how the word moves; auto reads it from the text, so ROAR is loud and sss is wavy.",
     params: [
       { key: "text", kind: "text", label: "text" },
       { key: "style", kind: "choice", label: "style", options: NOISE_STYLES, optional: true },

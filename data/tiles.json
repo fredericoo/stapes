@@ -29453,7 +29453,7 @@
         "cooldownMs": 20000,
         "castTimeMs": 1500,
         "uninterruptible": true,
-        "sound": "*BOOM*",
+        "sound": "BOOM",
         "requirements": {
           "toughness": 40,
           "arcane": 20
@@ -30775,7 +30775,7 @@
             },
             "cooldownMs": 12000,
             "castTimeMs": 500,
-            "sound": "*sssk*"
+            "sound": "sssk"
           }
         ]
       },
@@ -31347,7 +31347,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*howl*"
+                "text": "awoooo"
               }
             ],
             "do": [
@@ -31379,7 +31379,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*whine*"
+                "text": "hnnnn"
               }
             ],
             "do": [
@@ -32966,7 +32966,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*ROAR*"
+                "text": "ROAR"
               }
             ],
             "do": [
@@ -33007,7 +33007,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*snort*"
+                "text": "snrrk"
               }
             ],
             "do": [
@@ -33297,7 +33297,7 @@
             "cooldownMs": 12000,
             "castTimeMs": 3000,
             "uninterruptible": true,
-            "sound": "*hhhaaa*",
+            "sound": "hhhaaa",
             "requirements": {
               "arcane": 20,
               "fire": 10
@@ -56913,7 +56913,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*screech*"
+                "text": "skreee"
               }
             ],
             "do": [
@@ -56955,7 +56955,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*slurp*"
+                "text": "slurp"
               }
             ],
             "do": [
@@ -57062,7 +57062,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*scrape scrape*"
+                "text": "scritch scritch"
               }
             ],
             "do": [
@@ -58484,7 +58484,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*BELLOW*"
+                "text": "BWAAARGH"
               }
             ],
             "do": [
@@ -58515,7 +58515,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*crunch*"
+                "text": "crunch"
               }
             ],
             "do": [
@@ -58546,7 +58546,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*grunt*"
+                "text": "hrngh"
               }
             ],
             "do": [
@@ -58588,7 +58588,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*lifts a foot*"
+                "text": "hnnnngh"
               }
             ],
             "do": [
@@ -59257,7 +59257,7 @@
             "cooldownMs": 10000,
             "castTimeMs": 1500,
             "uninterruptible": true,
-            "sound": "*BOOM*",
+            "sound": "BOOM",
             "casterEffect": {
               "durationMs": 400,
               "particles": {
@@ -59314,7 +59314,7 @@
               ]
             },
             "cooldownMs": 30000,
-            "sound": "*ROAR*",
+            "sound": "ROAR",
             "casterEffect": {
               "durationMs": 500,
               "particles": {
@@ -59617,7 +59617,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*clatter*"
+                "text": "clik clak"
               }
             ],
             "do": [
@@ -60164,7 +60164,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*blup*"
+                "text": "blup"
               }
             ],
             "do": [
@@ -60196,7 +60196,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*gloop*"
+                "text": "gloop"
               }
             ],
             "do": [
@@ -60349,7 +60349,7 @@
             "cooldownMs": 60000,
             "castTimeMs": 2000,
             "uninterruptible": true,
-            "sound": "*squelch*"
+            "sound": "squelch"
           }
         ]
       },
@@ -60950,7 +60950,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*plip*"
+                "text": "plip"
               }
             ],
             "do": [
@@ -61638,7 +61638,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*hiss*"
+                "text": "hiss"
               }
             ],
             "do": [
@@ -61670,7 +61670,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*gloop*"
+                "text": "gloop"
               }
             ],
             "do": [
@@ -61823,7 +61823,7 @@
             "cooldownMs": 60000,
             "castTimeMs": 2000,
             "uninterruptible": true,
-            "sound": "*squelch*"
+            "sound": "squelch"
           }
         ]
       },
@@ -62428,7 +62428,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*plip*"
+                "text": "plip"
               }
             ],
             "do": [
@@ -63074,7 +63074,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*blorp*"
+                "text": "blorp"
               }
             ],
             "do": [
@@ -63106,7 +63106,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*gloop*"
+                "text": "gloop"
               }
             ],
             "do": [
@@ -63259,7 +63259,7 @@
             "cooldownMs": 60000,
             "castTimeMs": 2000,
             "uninterruptible": true,
-            "sound": "*squelch*"
+            "sound": "squelch"
           }
         ]
       },
@@ -63822,7 +63822,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*plip*"
+                "text": "plip"
               }
             ],
             "do": [
@@ -73888,7 +73888,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*a low hum*"
+                "text": "hmmmmm"
               }
             ],
             "do": [
@@ -74496,7 +74496,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*a low hum*"
+                "text": "hmmmmm"
               }
             ],
             "do": [
@@ -75104,7 +75104,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*a low hum*"
+                "text": "hmmmmm"
               }
             ],
             "do": [
@@ -103680,7 +103680,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*ROAR*"
+                "text": "ROAR"
               }
             ],
             "do": [
@@ -107892,7 +107892,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*howl*"
+                "text": "awoooo"
               }
             ],
             "do": [
@@ -107924,7 +107924,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*whine*"
+                "text": "hnnnn"
               }
             ],
             "do": [
@@ -109177,7 +109177,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*HOWL*"
+                "text": "AWOOOO"
               }
             ],
             "do": [
@@ -109218,7 +109218,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*crunch*"
+                "text": "crunch"
               }
             ],
             "do": [
@@ -109249,7 +109249,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*grunt*"
+                "text": "hrngh"
               }
             ],
             "do": [
@@ -109302,7 +109302,7 @@
             "onEnter": [
               {
                 "effect": "noise",
-                "text": "*ROAR*"
+                "text": "ROAR"
               }
             ],
             "do": [
@@ -109907,7 +109907,7 @@
               "cells": 6.5,
               "height": 2
             },
-            "sound": "*hurls ice*"
+            "sound": "krssh"
           },
           {
             "type": "stone",
@@ -109964,7 +109964,7 @@
                 ]
               }
             },
-            "sound": "*CRACK*"
+            "sound": "CRACK"
           }
         ],
         "elements": [

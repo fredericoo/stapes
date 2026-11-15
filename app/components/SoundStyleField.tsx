@@ -21,7 +21,7 @@ export function SoundStyleField({
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs">
-      <FieldLabel info="How the sound moves on screen. Pop snaps in letter by letter, loud swells and settles, wavy rolls, shake trembles, whisper fades in small. Auto reads it from the text: *BOOM* is loud, *sssk* is wavy, anything else pops.">
+      <FieldLabel info="How the sound moves on screen. Pop snaps in letter by letter, loud swells and settles, wavy rolls, shake trembles, whisper fades in small. Auto reads it from the text: BOOM is loud, sssk is wavy, anything else pops.">
         Sound style
       </FieldLabel>
       <Select
