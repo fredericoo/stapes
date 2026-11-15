@@ -44,13 +44,13 @@ function heard(session: GameSession, ticks = SETTLE_TICKS): string[] {
   return said;
 }
 
-const warnings = (said: string[]) => said.filter((text) => text.includes("I wouldn't go"));
+const warnings = (said: string[]) => said.filter((text) => text.includes("don't stray too far"));
 
 describe("a gate guard", () => {
   it("warns a newcomer once, and again only after they have left and come back", () => {
     const session = atGate("north-gate-guard");
 
-    expect(warnings(heard(session))).toEqual([expect.stringContaining("go north")]);
+    expect(warnings(heard(session))).toEqual([expect.stringContaining("too far north")]);
     expect(warnings(heard(session))).toEqual([]);
 
     session.runCommand(`/goto 0 ${FAR_CELLS} 0`);
