@@ -110012,7 +110012,8 @@
     },
     "transitions": {
       "appear": {
-        "durationMs": 400,
+        "durationMs": 450,
+        "scale": {},
         "dissolve": {
           "pattern": "sweep",
           "from": {
@@ -110022,15 +110023,91 @@
           "clumpPx": 2,
           "edgeColor": "#ffffff",
           "edgeWidth": 0.15
+        },
+        "particles": {
+          "ratePerSecond": 30,
+          "ttlFromMs": 400,
+          "ttlToMs": 800,
+          "spawnRadiusCells": 0.45,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 0,
+          "riseFrom": 0.5,
+          "riseTo": 1.5,
+          "driftCellsPerSecond": 0.4,
+          "lit": true,
+          "ownDepth": false,
+          "gravity": -0.5,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
+          "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
+          "radiusFromPx": 2,
+          "radiusToPx": 3,
+          "alphaFrom": 0.5,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffffff"
+            },
+            {
+              "at": 0.5,
+              "color": "#c7dcd0"
+            },
+            {
+              "at": 1,
+              "color": "#9babb2"
+            }
+          ]
         }
       },
       "disappear": {
-        "durationMs": 500,
+        "durationMs": 350,
         "dissolve": {
           "pattern": "noise",
           "clumpPx": 2,
           "edgeColor": "#8ce6ff",
-          "edgeWidth": 0.15
+          "edgeWidth": 0.2
+        },
+        "particles": {
+          "ratePerSecond": 40,
+          "ttlFromMs": 300,
+          "ttlToMs": 600,
+          "spawnRadiusCells": 0.3,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 3,
+          "riseFrom": 1,
+          "riseTo": 4,
+          "driftCellsPerSecond": 1.2,
+          "lit": true,
+          "ownDepth": false,
+          "gravity": -18,
+          "offsetX": "",
+          "offsetY": "",
+          "offsetElev": "",
+          "shape": null,
+          "sizeFromPx": 5,
+          "sizeToPx": null,
+          "radiusFromPx": 1,
+          "radiusToPx": 2,
+          "alphaFrom": 1,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffffff"
+            },
+            {
+              "at": 0.5,
+              "color": "#c7dcd0"
+            },
+            {
+              "at": 1,
+              "color": "#9babb2"
+            }
+          ]
         }
       }
     },
