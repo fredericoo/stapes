@@ -238,8 +238,8 @@
     "id": "bear",
     "name": "Bear",
     "file": "bear.png",
-    "width": 96,
-    "height": 128
+    "width": 144,
+    "height": 192
   },
   {
     "id": "ice",
