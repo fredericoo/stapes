@@ -25921,7 +25921,8 @@
         "mastery": "sharp",
         "requirements": {
           "sharp": 5
-        }
+        },
+        "humanPart": "sword"
       }
     },
     "sprite": {
@@ -25971,7 +25972,8 @@
         "requirements": {
           "sharp": 10,
           "toughness": 5
-        }
+        },
+        "humanPart": "axe"
       }
     },
     "sprite": {
@@ -26020,7 +26022,8 @@
         "mastery": "sharp",
         "requirements": {
           "sharp": 15
-        }
+        },
+        "humanPart": "sword"
       }
     },
     "sprite": {
@@ -26071,7 +26074,8 @@
         "requirements": {
           "sharp": 22,
           "toughness": 10
-        }
+        },
+        "humanPart": "sword"
       }
     },
     "sprite": {
@@ -26126,7 +26130,8 @@
           "height": 4,
           "min": 2
         },
-        "projectile": "arrow"
+        "projectile": "arrow",
+        "humanPart": "bow"
       }
     },
     "sprite": {
@@ -26176,7 +26181,8 @@
         "requirements": {
           "arcane": 5
         },
-        "twoHanded": true
+        "twoHanded": true,
+        "humanPart": "staff"
       }
     },
     "sprite": {
@@ -26225,7 +26231,8 @@
         "mastery": "blunt",
         "requirements": {
           "blunt": 5
-        }
+        },
+        "humanPart": "mace"
       }
     },
     "sprite": {
@@ -26274,7 +26281,8 @@
         "mastery": "sharp",
         "requirements": {
           "sharp": 10
-        }
+        },
+        "humanPart": "sword"
       }
     },
     "sprite": {
@@ -26323,7 +26331,8 @@
         "mastery": "sharp",
         "requirements": {
           "sharp": 33
-        }
+        },
+        "humanPart": "sword"
       }
     },
     "sprite": {
@@ -26373,7 +26382,8 @@
         "requirements": {
           "sharp": 15,
           "toughness": 10
-        }
+        },
+        "humanPart": "axe"
       }
     },
     "sprite": {
@@ -26424,7 +26434,8 @@
           "sharp": 33,
           "toughness": 15
         },
-        "twoHanded": true
+        "twoHanded": true,
+        "humanPart": "axe"
       }
     },
     "sprite": {
@@ -26473,7 +26484,8 @@
         "mastery": "blunt",
         "requirements": {
           "blunt": 15
-        }
+        },
+        "humanPart": "mace"
       }
     },
     "sprite": {
@@ -26524,7 +26536,8 @@
           "blunt": 33,
           "toughness": 15
         },
-        "twoHanded": true
+        "twoHanded": true,
+        "humanPart": "mace"
       }
     },
     "sprite": {
@@ -26579,7 +26592,8 @@
           "height": 5,
           "min": 2
         },
-        "projectile": "arrow"
+        "projectile": "arrow",
+        "humanPart": "bow"
       }
     },
     "sprite": {
@@ -26634,7 +26648,8 @@
           "height": 6,
           "min": 2
         },
-        "projectile": "arrow"
+        "projectile": "arrow",
+        "humanPart": "bow"
       }
     },
     "sprite": {
@@ -29848,7 +29863,8 @@
         "def": 1,
         "requirements": {
           "agility": 5
-        }
+        },
+        "humanPart": "wooden-shield"
       }
     },
     "sprite": {
@@ -29892,7 +29908,8 @@
         "def": 2,
         "requirements": {
           "toughness": 5
-        }
+        },
+        "humanPart": "wooden-shield"
       }
     },
     "sprite": {
@@ -29936,7 +29953,8 @@
         "def": 3,
         "requirements": {
           "toughness": 12
-        }
+        },
+        "humanPart": "metal-shield"
       }
     },
     "sprite": {
@@ -60186,6 +60204,12 @@
           }
         ]
       }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "white",
+      "head": "skull",
+      "base": "bones"
     }
   },
   {

@@ -99,6 +99,8 @@ const outfitPatchSchema = v.object({
     hat: v.optional(v.string()),
     clothes: v.optional(v.string()),
     shoes: v.optional(v.string()),
+    weaponHand: v.optional(v.string()),
+    offHand: v.optional(v.string()),
   }),
 });
 

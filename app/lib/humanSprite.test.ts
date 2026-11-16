@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { HANDS, HELD_PLACEMENT } from "./heldPlacement";
 import {
   DEFAULT_LOOK,
+  FRAME_PX,
   HAIR_COLOURS,
+  SHEET_FACINGS,
   SHEET_HEIGHT_PX,
   SHEET_WIDTH_PX,
   SKIN_TONES,
   composeSheet,
+  randomLook,
+  readAppearance,
   resolveHumanLook,
   splitBlocks,
   type LayerBlocks,
@@ -35,7 +40,16 @@ function pixelAt(sheet: Uint8ClampedArray, at: number): number[] {
 }
 
 function partsWith(overrides: Partial<LayerBlocks>): LayerBlocks {
-  return { base: [block()], shoes: [], clothes: [], head: [block()], hat: [], ...overrides };
+  return {
+    base: [block()],
+    shoes: [],
+    clothes: [],
+    head: [block()],
+    hat: [],
+    weaponHand: [],
+    offHand: [],
+    ...overrides,
+  };
 }
 
 describe("splitBlocks", () => {
@@ -113,6 +127,38 @@ describe("composeSheet", () => {
     expect(pixelAt(hatless, 0)).toEqual(rgb("#111111"));
     expect(pixelAt(hatted, 0)).toEqual(rgb("#222222"));
   });
+
+  it("moves a held part to its hand in every pose, behind the figure or over it as that frame says", () => {
+    const everywhere = Object.fromEntries(
+      Array.from({ length: SHEET_WIDTH_PX * SHEET_HEIGHT_PX }, (_, at) => [at, "#111111"]),
+    );
+    const gripAt = FRAME_PX / 2;
+    const held = block(
+      Object.fromEntries(
+        SHEET_FACINGS.map((_, row) => [
+          (row * FRAME_PX + gripAt) * SHEET_WIDTH_PX + gripAt,
+          "#222222",
+        ]),
+      ),
+    );
+
+    for (const hand of HANDS) {
+      const sheet = composeSheet(
+        partsWith({ base: [block(everywhere)], weaponHand: [held], offHand: [held] }),
+        { ...DEFAULT_LOOK, parts: { ...DEFAULT_LOOK.parts, clothes: null, [hand]: "sword" } },
+      );
+
+      SHEET_FACINGS.forEach((facing, row) => {
+        HELD_PLACEMENT[hand][facing].forEach(({ behind, at: [dx, dy] }, pose) => {
+          const x = pose * FRAME_PX + gripAt + dx;
+          const y = row * FRAME_PX + gripAt + dy;
+          expect(pixelAt(sheet, y * SHEET_WIDTH_PX + x)).toEqual(
+            rgb(behind ? "#111111" : "#222222"),
+          );
+        });
+      });
+    }
+  });
 });
 
 describe("resolveHumanLook", () => {
@@ -121,8 +167,8 @@ describe("resolveHumanLook", () => {
   it("wears what is equipped over the fallback outfit, and the fallback where a slot is empty", () => {
     const look = resolveHumanLook(
       appearance,
-      { clothes: "brown-tunic", shoes: "dark-boots" },
-      { clothes: "steel-mail", hat: "iron-helmet" },
+      { clothes: "brown-tunic", shoes: "dark-boots", offHand: "wooden-shield" },
+      { clothes: "steel-mail", hat: "iron-helmet", weaponHand: "sword" },
     );
 
     expect(look).toEqual({
@@ -132,6 +178,8 @@ describe("resolveHumanLook", () => {
         clothes: "steel-mail",
         head: "beard",
         hat: "iron-helmet",
+        weaponHand: "sword",
+        offHand: "wooden-shield",
       },
       skin: "pale",
       hair: "black",
@@ -142,5 +190,19 @@ describe("resolveHumanLook", () => {
     const look = resolveHumanLook(appearance);
 
     expect(look.parts).toMatchObject({ shoes: null, clothes: null, hat: null });
+  });
+});
+
+describe("creature parts", () => {
+  it("refuses a creature's head for a player's character", () => {
+    expect(readAppearance({ skin: "pale", hair: "black", head: "beard" })).not.toBeNull();
+    expect(readAppearance({ skin: "pale", hair: "black", head: "skull" })).toBeNull();
+  });
+
+  it("never rolls a creature's body or head into a random look", () => {
+    const rolls = Array.from({ length: 50 }, (_, i) => randomLook(() => (i % 50) / 50));
+
+    expect(rolls.map((look) => look.parts.base)).not.toContain("bones");
+    expect(rolls.map((look) => look.parts.head)).not.toContain("skull");
   });
 });

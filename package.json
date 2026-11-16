@@ -18,6 +18,7 @@
     "generate:ramps": "bun scripts/generate-ramps.ts",
     "generate:hats": "bun scripts/generate-hats.ts",
     "generate:clothes": "bun scripts/generate-clothes.ts",
+    "generate:held": "bun scripts/generate-held.ts",
     "generate:cave-wall": "bun scripts/generate-cave-wall-tileset.ts",
     "generate:masonry": "bun scripts/generate-masonry-tileset.ts",
     "generate:swamp": "bun scripts/generate-swamp.ts",

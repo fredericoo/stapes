@@ -155,6 +155,23 @@ const FAULTS: {
     },
   },
   {
+    fault: "a shield drawn as a part that is worn rather than held",
+    seed: (c) => {
+      c.tiles.push(
+        tile("targe", {
+          kind: "item",
+          interactions: { item: { type: "shield", def: 1, humanPart: "iron-helmet" } },
+        }),
+      );
+    },
+    found: {
+      severity: "error",
+      file: "tiles.json",
+      id: "targe",
+      path: "interactions.item.humanPart",
+    },
+  },
+  {
     fault: "a kit naming a tile nobody defines",
     seed: (c) => {
       battlerOf(c).kit[0].tileId = "loaf";

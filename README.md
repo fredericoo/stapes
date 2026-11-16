@@ -144,6 +144,11 @@ an agent drives", lists every call.
   `data/tilesets/equipment.png` from the same model, seen from the front.
   `PREVIEW=<dir>` also writes `hats.png` there, every hat on a head at 12×,
   and `hat-icons.png`
+- `bun run generate:held` — redraw `data/tilesets/human_held.png`, every
+  weapon and shield a human holds, one frame per facing, from
+  the models in the script. Where each hand holds them is `HELD_PLACEMENT` in
+  `app/lib/heldPlacement.ts`. `PREVIEW=<dir>` also writes each part in each
+  hand at 12×.
 - `bun run generate:clothes` — redraw the clothes listed in the script's
   `CLOTHES` in `data/tilesets/human_clothes.png`, and their icons in
   `equipment.png`. Each is coloured into a hand-drawn template part, so it

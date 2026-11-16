@@ -311,15 +311,19 @@ function VariantField({
   );
 }
 
-/** A piece of armour's part, previewed on the default look so the piece reads on its own. */
+/** An item's part, previewed on the default look so the piece reads on its own. */
 export function WornPartField({
   layer,
   value,
   onChange,
+  title = "Worn as",
+  info = "How a human wearing this piece is drawn. None leaves that layer as the wearer's own outfit has it.",
 }: {
   layer: WornLayer;
   value: HumanPartId | null;
   onChange: (id: HumanPartId | null) => void;
+  title?: string;
+  info?: string;
 }) {
   const { parts, error } = useLayerBlocks();
   const look = useMemo(() => withPart(DEFAULT_LOOK, layer, value), [layer, value]);
@@ -331,8 +335,8 @@ export function WornPartField({
       parts={parts}
       look={look}
       onChange={onChange}
-      title="Worn as"
-      info="How a human wearing this piece is drawn. None leaves that layer as the wearer's own outfit has it."
+      title={title}
+      info={info}
     />
   );
 }
