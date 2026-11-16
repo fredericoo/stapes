@@ -357,7 +357,7 @@ function TradeOffer({
               {...less}
               aria-label="Fewer"
               aria-disabled={amount <= trade.min}
-              className="talk-step"
+              className="talk-step talk-step--square"
             >
               -
             </button>
@@ -369,7 +369,7 @@ function TradeOffer({
               {...more}
               aria-label="More"
               aria-disabled={amount >= trade.max}
-              className="talk-step"
+              className="talk-step talk-step--square"
             >
               +
             </button>

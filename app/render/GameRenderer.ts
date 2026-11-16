@@ -498,9 +498,14 @@ export class GameRenderer {
     cut: RoofCut | undefined,
     cssScale: number,
   ) {
-    if (!this.onTalkAnchor) return;
-    const npcId = snap.conversation?.npcId;
-    const body = npcId ? snap.actors.find((actor) => actor.id === npcId) : undefined;
+    /**
+     * Nothing is published once the conversation is gone: the bubble is still
+     * mounted until React renders the close, and a null here would move it to
+     * the middle of the frame for that one frame.
+     */
+    if (!this.onTalkAnchor || !snap.conversation) return;
+    const npcId = snap.conversation.npcId;
+    const body = snap.actors.find((actor) => actor.id === npcId);
     if (!body || body.hidden || !this.showsBody(snap, body, camera, cut)) {
       this.onTalkAnchor(null);
       return;

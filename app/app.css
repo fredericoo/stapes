@@ -718,6 +718,14 @@ body {
   cursor: default;
 }
 
+.talk-step--square {
+  width: 1.4em;
+  height: 1.4em;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
+}
+
 /* A finger needs a 44px target and room between two of them; a mouse does
    not, so there the options are one line each with nothing between. */
 @media (pointer: coarse) {
@@ -730,6 +738,12 @@ body {
     min-height: 44px;
     align-items: center;
     padding: var(--b3) var(--b4);
+  }
+
+  .talk-step--square {
+    width: 44px;
+    height: 44px;
+    padding: 0;
   }
 }
 
@@ -783,7 +797,7 @@ body {
 
 .talk-trade__amount {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: var(--b3);
 }
 
