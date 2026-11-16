@@ -1270,6 +1270,7 @@ export function interactionsForSave(
   const savedBattler = battler
     ? {
         baseHp: battler.baseHp ?? DEFAULT_BATTLER.baseHp,
+        ...(battler.rating === undefined ? {} : { rating: battler.rating }),
         masteries: Object.fromEntries(
           MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map((mastery) => [
             mastery,

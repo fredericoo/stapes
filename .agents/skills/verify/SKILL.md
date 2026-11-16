@@ -26,6 +26,7 @@ table. `bun run verify --help` lists the commands, and
 | caves, cellars, holes in the ground, ramps below level 0 | `bun run verify caves` | Is every cave floor roofed, dark and reachable, and is every problem left listed in `data/verify-exceptions.json` with its reason? |
 | `data/map.json`, or anything in how a body walks, climbs, drops or teleports | `bun run verify stranded` | Starting where a player starts, is there anywhere they can get to and not get back from? |
 | combat numbers, a weapon, a creature's stats | `bun run verify battle <a> <b> --against main`, for example `bun run verify battle wolf player:sharp=15,agility=15,toughness=15,weapon=knights-sword --against main` | Who wins, how often and how fast, sampled over seeds beside the closed-form figures, and how far each figure moved from `main`? |
+| a creature's masteries, hit points, weapon, spells or kit, or its `rating` | `bun run verify ratings` | At what level does a player fight each creature even, how does that compare with the rating it shows, and how much of such a player's hit points is its heaviest blow? |
 
 `verify content` exits 1 on an error in tiles, statuses or tilesets and prints
 each finding with its file, the id and what is wrong. What it finds in
@@ -56,6 +57,12 @@ which is hit points over damage per second. To ask why a fight went the way it
 did, `--trace <seed>` prints that one fight blow by blow. `--matrix` fights
 every creature against a player at rungs 10, 15 and 33, which is the table to
 show when a change could move more than one creature.
+
+`verify ratings` bisects each creature's even level through the same `Duel`,
+with the kit rolled, and prints it beside the rating the creature shows. A
+creature that carries a `rating` in `data/tiles.json` keeps that number
+whatever its stats become, so a change to one needs the rating written again.
+The `Duel` casts no spells, so a caster is harder than its even level.
 
 `--against <ref>` fights the same battles, on the same seeds, on another commit
 in a temporary git worktree, and adds the change in each figure. That

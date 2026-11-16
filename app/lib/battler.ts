@@ -20,6 +20,7 @@ import {
   masteriesSchema,
   masteryLevel,
   MAX_MASTERY,
+  MIN_RATING,
   rating,
   requirementShare,
   requirementShortfall,
@@ -30,6 +31,7 @@ import { type AnchoredSprite, defaultBase, type TileDef } from "./types";
 
 export type BattlerDef = {
   baseHp: number;
+  rating?: number;
   masteries: Masteries;
   naturalWeapon: WeaponItem;
   sight: { up: number; down: number };
@@ -137,12 +139,14 @@ export function hurtsAnybody(battler: Pick<BattlerDef, "naturalWeapon" | "spells
   return battler.naturalWeapon.damage > 0 || (battler.spells?.length ?? 0) > 0;
 }
 
+export const MAX_AUTHORED_RATING = 999;
+
 /**
  * Hit points a body cannot hurt anybody with are left out, so a training dummy
  * kept alive by ten thousand of them is not rated far above every player and
  * paid for at the top rate.
  */
-export function battlerRating(
+export function computedRating(
   battler: Pick<BattlerDef, "baseHp" | "masteries" | "naturalWeapon" | "spells">,
 ): number {
   if (!hurtsAnybody(battler)) return rating(battler.masteries);
@@ -150,6 +154,12 @@ export function battlerRating(
   const rated = ratedToughness(battler.baseHp, toughness);
   if (rated === toughness) return rating(battler.masteries);
   return rating({ ...battler.masteries, toughness: rated });
+}
+
+export function battlerRating(
+  battler: Pick<BattlerDef, "baseHp" | "masteries" | "naturalWeapon" | "spells" | "rating">,
+): number {
+  return battler.rating ?? computedRating(battler);
 }
 
 export function defFrom(toughness: number): number {
@@ -326,6 +336,9 @@ const iconSchema = v.pipe(
 
 const battlerSchema = v.object({
   baseHp: v.pipe(v.number(), v.integer(), v.minValue(MIN_BASE_HP), v.maxValue(MAX_BASE_HP)),
+  rating: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(MIN_RATING), v.maxValue(MAX_AUTHORED_RATING)),
+  ),
   masteries: masteriesSchema,
   naturalWeapon: weaponSchema,
   sight: v.optional(v.object({ up: levelSlack, down: levelSlack }), () => ({ up: 0, down: 0 })),

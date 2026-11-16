@@ -4,11 +4,12 @@ import { type Command, commitOf, describeCommit, type Outcome, UsageError } from
 import { battle } from "./verify/battle";
 import { caves } from "./verify/caves";
 import { content } from "./verify/content";
+import { ratings } from "./verify/ratings";
 import { stranded } from "./verify/stranded";
 
 const ROOT = join(import.meta.dir, "..");
 
-const COMMANDS: readonly Command[] = [content, caves, stranded, battle];
+const COMMANDS: readonly Command[] = [content, caves, stranded, battle, ratings];
 
 const COMMON_OPTIONS: ParseArgsOptionsConfig = {
   json: { type: "boolean" },

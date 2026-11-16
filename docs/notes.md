@@ -5535,12 +5535,10 @@ player rated 15 three times in four.
 with past `PLAYER_BASE_HP` as the Toughness that would have grown them.**
 `ratedToughness` inverts the curve `maxHpFrom` climbs, so a point of born hit
 points is rated at whatever a point of Toughness would have cost at that height
-on the curve, and no exchange rate is tuned. It is the only rating
-`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
-number experience is weighed against, and the one `rated_below_self` compares.
+on the curve, and no exchange rate is tuned. `computedRating` is that reading.
 
-- **Fewer than a player's is not marked down.** A rat is born with 8 and is
-  rated 8. Only a body born with more moves.
+- **Fewer than a player's is not marked down.** A body born with 8 is rated on
+  its masteries alone. Only a body born with more moves.
 - **A body that cannot hurt anybody is rated on its masteries alone**
   (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
@@ -5550,15 +5548,35 @@ number experience is weighed against, and the one `rated_below_self` compares.
   clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
   long before that, so the number only says how far out of reach it is.
 
-**How well it reads.** `bun run verify battle` was run for each creature
-against a player with Sharp, Toughness and Agility at one level and that
-level's sword, and the level bisected to where the player wins half the
-fights. The skeleton as it was then, born with 110, had an even level of 28
-and was rated 29 by this, against 13 before. The cave troll moved from 51 to
-61 against an even level of 38, and the cyclops from 61 to 150 against 75.
-For creatures born with 8 the rating already ran high — the wolf is rated 28
-against an even level of 15, a slime 15 against 5 — because `rating` counts a
-weapon mastery whatever weapon it is used with.
+#### A creature's rating can be authored
+
+`battlerRating` returns the `rating` written on the battler block when there is
+one, and `computedRating` otherwise. It is the only rating
+`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
+number experience is weighed against, and the one `rated_below` compares. The
+tile editor's Battle tab has the field.
+
+**No creature in `data/tiles.json` carries one.** The field is there for a
+creature whose computed rating is wrong in a way its stats cannot say.
+
+- **An authored rating does not follow the creature's stats.** After a change
+  to its masteries, hit points or spells, the number has to be written again.
+- **The player tile must not carry one.** A player's star is `rating` of what
+  they have trained; an authored number on the tile would show on every
+  player. `verify content` fails on it.
+
+**`bun run verify ratings` measures how far a rating is from how hard the
+creature is to fight.** For each creature it bisects the *even level*: the
+lowest level at which a player with Sharp, Toughness and Agility at that level,
+holding that level's sword and the kit a player is born with, wins at least as
+often as it loses in the Arena's `Duel`. The computed ratings run well above
+it: the wolf computes 31 and fights even at 15. The `Duel` casts no spells, so
+a caster's even level leaves its spells out.
+
+The report also prints each creature's heaviest blow: the most one swing of its
+natural weapon or any weapon its kit can roll is worth before armour, and that
+as a share of the hit points of a player whose Toughness is the creature's
+rating.
 
 #### The skeleton and the bog imp hold lighter weapons than they drop
 

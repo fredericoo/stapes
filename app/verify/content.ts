@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { PLAYER_TILE_ID } from "../game/constants";
 import { findPlayers } from "../game/player";
 import { battlerIssues, resolveBattler } from "../lib/battler";
 import { needsExpansion, resolveBrain, validateBrain } from "../lib/brain";
@@ -469,6 +470,16 @@ function checkWornPart(def: TileDef, findings: Findings) {
   );
 }
 
+function checkRating(def: TileDef, findings: Findings) {
+  if (def.id !== PLAYER_TILE_ID) return;
+  if (resolveBattler(def)?.rating === undefined) return;
+  findings.error(
+    def.id,
+    "interactions.battler.rating",
+    "The player tile has an authored rating, so every player would show it whatever they have trained.",
+  );
+}
+
 function checkBlocks(raw: Entry, def: TileDef, catalogue: ContentCatalogue, findings: Findings) {
   const id = def.id;
   const blocks = isEntry(raw.interactions) ? raw.interactions : {};
@@ -484,6 +495,7 @@ function checkBlocks(raw: Entry, def: TileDef, catalogue: ContentCatalogue, find
         `The battler block does not load (${issue}), so this body has no hit points, no natural weapon and no spells.`,
       );
     }
+    checkRating(def, findings);
   } else if ((def.kind === "item" || def.kind === "projectile") && blocks[def.kind] == null) {
     findings.error(
       id,

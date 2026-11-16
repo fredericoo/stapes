@@ -89,6 +89,20 @@ describe("battlerRating", () => {
     };
     expect(battlerRating(dummy)).toBe(rating(fighter));
   });
+
+  it("shows an authored rating in place of the one its stats give", () => {
+    const authored = { ...body(fighter), baseHp: 500, rating: 7 };
+    expect(battlerRating(authored)).toBe(7);
+  });
+
+  it("keeps an authored rating through the schema", () => {
+    const wolf = tile({
+      id: "wolf",
+      kind: "battler",
+      interactions: { battler: { ...body(fighter), rating: 15 } },
+    });
+    expect(resolveBattler(wolf)?.rating).toBe(15);
+  });
 });
 
 describe("hitChanceFrom", () => {
