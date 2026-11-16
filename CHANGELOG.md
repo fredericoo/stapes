@@ -1,5 +1,15 @@
 # the-last-stones
 
+## 0.23.0
+
+### Minor Changes
+
+- You can now see what people are holding. Swords, axes, maces, bows, staffs and shields are drawn in whichever hand holds them, so two swords or two shields show as two. Skeletons show their weapon too, so you can tell an archer from a swordsman before it reaches you.
+
+### Patch Changes
+
+- A sword's guard and the shafts of axes, maces, bows and staffs are no longer drawn in skin colours, so they stop looking like a hand that ignores your character's skin tone.
+
 ## 0.22.0
 
 ### Minor Changes
