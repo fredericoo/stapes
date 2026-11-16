@@ -1,0 +1,11 @@
+{
+  "time": "12:00",
+  "zoom": 2,
+  "look": [16, 0],
+  "weather": "fog",
+  "weatherAreas": [
+    { "x0": -60, "y0": -60, "x1": 60, "y1": 60, "rain": true, "fog": false },
+    { "x0": 10, "y0": -60, "x1": 60, "y1": 60, "rain": true, "fog": true }
+  ],
+  "cells": [{ "from": [-30, -30], "to": [40, 30], "tiles": ["grass-2"] }]
+}

@@ -10146,11 +10146,13 @@ one, in `hello` and in a `weather` message whenever it changes.
 - **Rain falls down and to the right**, because the projection draws height up
   and to the left. A streak runs along one diagonal of art pixels and is
   placed in world pixels, so it does not slide when the camera moves.
-- **Fog is an opacity, and the palette pass does the rest.** Past
-  `FOG_CLEAR_CELLS` from the viewer the fog colour is mixed over the fragment,
-  more with distance, until `FOG_FADE_CELLS` further it is all there is. The
-  palette pass snaps the mix, so the edge is a few rings of palette colours;
-  the fade is seven cells wide so that there are several rings and not one.
+- **Fog is an opacity, dithered per art pixel.** Past `FOG_CLEAR_CELLS` from
+  the viewer the fog amount rises with distance, until `FOG_FADE_CELLS` further
+  it is all there is. Each art pixel is then either fog or not, by comparing
+  that amount with a 4×4 Bayer threshold (`fxBayer4`) at its world pixel. A
+  plain mix was snapped by the palette pass, and between grass and fog grey the
+  palette has nothing, so every fade (the clear ring, an area's edge, a lamp's
+  hole) showed as one hard line with a purple rim.
 - **A lamp burns a hole in fog.** The fog over a fragment is cut by the block
   light round it, none at `FOG_LIGHT_FROM` and all at `FOG_LIGHT_TO`. The
   cells round it are asked because a wall or a tree holds no light of its own
@@ -10184,9 +10186,9 @@ one, in `hello` and in a `weather` message whenever it changes.
   what the shader asks: the distance, the level, the lamp light and the
   shelter. `GameRenderer.isOutOfSight` uses it beside the pitch-black test, so
   a body in the fog has no name, no health bar and cannot be targeted. It
-  counts a cell as hidden from halfway through the fade (`FOG_HIDES_CELLS`),
-  because the palette pass has already snapped a half-fogged body to the fog's
-  colour by then, and a name left over it floats on nothing. The body is still
+  counts a cell as hidden from three quarters through the fade
+  (`FOG_HIDES_CELLS`), where three art pixels in four are fog and the body is
+  gone from the picture, and a name left over it floats on nothing. The body is still
   sent to the client: the fog is drawn, not enforced.
 - **Unlit quads and particles get no rain.** Rain is inside the lit branch of
   the shader; fog is outside it.

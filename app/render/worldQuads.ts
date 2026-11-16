@@ -714,7 +714,12 @@ if (uFog > 0.0) {
       vec2 shelterUv = (vBox.xy / ${glsl(CELL_SIZE)} - 0.5 - uShelterOrigin) / uShelterSize;
       if (texture2D(uShelterMask, shelterUv).r > 0.5) fogSky = 0.0;
     }
-    diffuseColor.rgb = mix(diffuseColor.rgb, uFogColor, fogThick * fogSky * uFog * fogReach(fogLightCell));
+    // The palette pass snaps any partial mix to the nearest palette colour,
+    // which turned every fade into one hard line, so each art pixel is either
+    // fog or not, by a Bayer threshold fixed in world pixels.
+    float fogAmount = fogThick * fogSky * uFog * fogReach(fogLightCell);
+    float fogPixel = step(fxBayer4(depthPx) + ${glsl(1 / 32)}, fogAmount);
+    diffuseColor.rgb = mix(diffuseColor.rgb, uFogColor, fogPixel);
   }
 }
 #endif
