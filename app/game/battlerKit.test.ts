@@ -415,10 +415,10 @@ describe("what a body of a given kind carries", () => {
 
 describe("the bog imp we ship", () => {
   const catalogue = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
-  const WEAPONS = ["knights-sword", "broad-axe", "iron-mace", "hunting-bow"];
+  const WEAPONS = ["iron-sword", "simple-hammer", "simple-bow"];
   const BODIES = 4000;
 
-  it("holds each of its four weapons about a quarter of the time", () => {
+  it("holds each of its three weapons about a third of the time", () => {
     const rng = new Rng(20260925);
     const counts: Record<string, number> = {};
     for (let i = 0; i < BODIES; i++) {
@@ -428,8 +428,8 @@ describe("the bog imp we ship", () => {
 
     expect(Object.keys(counts).sort()).toEqual([...WEAPONS].sort());
     for (const weapon of WEAPONS) {
-      expect(counts[weapon]! / BODIES).toBeGreaterThan(0.22);
-      expect(counts[weapon]! / BODIES).toBeLessThan(0.28);
+      expect(counts[weapon]! / BODIES).toBeGreaterThan(0.3);
+      expect(counts[weapon]! / BODIES).toBeLessThan(0.37);
     }
   });
 });

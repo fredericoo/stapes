@@ -5560,14 +5560,30 @@ For creatures born with 8 the rating already ran high — the wolf is rated 28
 against an even level of 15, a slime 15 against 5 — because `rating` counts a
 weapon mastery whatever weapon it is used with.
 
-**The skeleton's strength then moved from its hit points into its
-masteries.** It is born with 20 rather than 110, with Sharp, Blunt, Ranged
-and Arcane at 33 rather than 15, Toughness 22 rather than 10 and Agility 25
-rather than 10: 47 hit points rather than 121, rated 30, with an even level of
-26. In `verify battle --matrix` a player at level 15 still loses to it about
-three times in four, but a won fight takes 6.2s rather than 16.0s, and a
-player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
-a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
+#### The skeleton and the bog imp hold lighter weapons than they drop
+
+Both used to roll a broad axe or a hunting bow from the level-15 rung into the
+hand. A skeleton swinging the axe at Sharp 33 did up to 43 to a player rated 18
+with 33 hit points, and a bog imp did up to 37 to players with fewer. A player
+who could win the fight died to one blow of it.
+
+Their kits now put lighter weapons in the hand and the heavy ones in the bag:
+
+- **The skeleton** holds an iron sword, a simple axe, an iron mace or a simple
+  bow, one time in five each, and claws otherwise. Its heaviest blow is the
+  mace's 30. The broad axe and the hunting bow are in its bag one time in five
+  each, which is how often it used to hold them, so it drops them as often.
+  It is born with 30 hit points rather than 20. With the lighter kit alone a
+  player at level 15 won 36% of fights against it in `verify battle`; with 30
+  hit points that is 30%, against 27% before the change, and the level a player
+  fights it even at is 24, down from 28.
+- **The bog imp** holds an iron sword, a simple hammer or a simple bow, a third
+  of the time each. Its heaviest blow is the bow's 16. The knight's sword,
+  broad axe, iron mace and hunting bow are each in its bag one time in four.
+
+Bag contents are listed with the weapons ahead of the bones and the second
+lantern, because `fill` in `app/game/battlerKit.ts` stops at the bag's size and
+drops what is listed last.
 
 #### Arcane is added to the best held weapon
 
