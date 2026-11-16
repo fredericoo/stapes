@@ -285,7 +285,8 @@ body {
   image-rendering: pixelated;
 }
 
-.world-label-layer {
+.world-label-layer,
+.talk-layer {
   /* Must stay a multiple of 10: the NF Pixels font's em is 1000 units on a
      100-unit grid, so any other size puts block edges on half pixels, which
      the browser antialiases into grey. */
@@ -305,7 +306,8 @@ body {
 }
 
 @media (pointer: coarse) {
-  .world-label-layer {
+  .world-label-layer,
+  .talk-layer {
     --world-label-size: 16px;
   }
 }
@@ -554,6 +556,223 @@ body {
   100% {
     transform: scale(0.5);
   }
+}
+
+/* An NPC conversation: the same bubble, held over the NPC by
+   `AnchoredConversation`, which writes the transform, `data-side` and the
+   tail's `--tail-x`. The layer lets clicks through to the canvas; the bubble
+   takes its own. */
+.talk-layer {
+  --bubble-fill: #f4ecd8;
+  --bubble-ink: #1a1014;
+  --talk-item: #1d5fa8;
+  /* `MARGIN_BRICKS` in `ConversationBubble.tsx` is the same 8. */
+  --talk-margin: calc(var(--world-label-brick) * 8);
+  --talk-tail: calc(var(--world-label-brick) * 4);
+  overflow: visible;
+  z-index: 2;
+}
+
+/* In the dialog editor's try-out the bubble is laid out in the page instead. */
+.talk-layer--inline {
+  position: relative;
+  inset: auto;
+  pointer-events: auto;
+  padding-bottom: var(--talk-tail);
+}
+
+.talk-bubble {
+  --b4: calc(var(--world-label-brick) * 4);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: min(10em, calc(100% - var(--talk-margin) * 2));
+  max-width: min(24em, calc(100% - var(--talk-margin) * 2));
+  /* The tail hangs outside the box, so it comes off the height as well. */
+  max-height: calc(100% - var(--talk-margin) * 2 - var(--talk-tail));
+  padding: var(--b1) var(--b1) var(--b1) var(--b4);
+  font-family: "NF Pixels", monospace;
+  font-size: var(--world-label-size);
+  line-height: 1.2;
+  text-align: left;
+  text-shadow: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.talk-layer--inline > .talk-bubble {
+  position: relative;
+  max-width: 100%;
+  max-height: 24em;
+}
+
+.talk-bubble[data-side="none"] > .speech-bubble__tail {
+  display: none;
+}
+
+.talk-bubble[data-side="below"] > .speech-bubble__tail {
+  top: auto;
+  bottom: 100%;
+  transform: translateX(var(--tail-x, 0px)) scaleY(-1);
+}
+
+/* The scrollbar's gutter is kept whether or not the stage scrolls, so the
+   text does not rewrap when a longer stage arrives. */
+.talk-bubble__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--b3);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--bubble-ink) 45%, transparent) transparent;
+  scrollbar-gutter: stable;
+  padding: var(--b1) var(--b1) var(--b1) 0;
+}
+
+.talk-bubble__speaker,
+.talk-bubble__note,
+.talk-trade__label {
+  color: color-mix(in srgb, var(--bubble-ink) 60%, transparent);
+}
+
+.talk-bubble__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--b3);
+}
+
+.talk-bubble__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--b3);
+}
+
+.talk-bubble [data-pending] {
+  visibility: hidden;
+}
+
+.talk-options {
+  display: flex;
+  flex-direction: column;
+  border-top: var(--b1) dotted color-mix(in srgb, var(--bubble-ink) 35%, transparent);
+  padding-top: var(--b3);
+}
+
+.talk-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--b4);
+  width: 100%;
+  padding: 0 calc(var(--world-label-brick) * 2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.talk-option__key {
+  flex-shrink: 0;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
+.talk-option:hover,
+.talk-option:focus-visible,
+.talk-step:hover,
+.talk-step:focus-visible {
+  --talk-item: var(--bubble-fill);
+  background: var(--bubble-ink);
+  color: var(--bubble-fill);
+  outline: none;
+}
+
+.talk-option[aria-disabled="true"],
+.talk-step[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  .talk-option,
+  .talk-step {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+/* An item named in a line, a label or a trade. The icon is as tall as the
+   line box and pulled up by the two bricks under the baseline, so it does not
+   make its line taller than its neighbours. */
+.talk-item {
+  white-space: nowrap;
+  cursor: help;
+}
+
+.talk-item:focus-visible {
+  outline: var(--b1) solid currentColor;
+  outline-offset: var(--b1);
+}
+
+.talk-item__icon {
+  display: inline-block;
+  vertical-align: bottom;
+  margin: calc(var(--world-label-brick) * -2) var(--b1) 0 0;
+}
+
+.talk-item__name {
+  color: var(--talk-item);
+  border-bottom: var(--b1) solid currentColor;
+}
+
+.talk-trade {
+  display: flex;
+  flex-direction: column;
+  gap: var(--b3);
+  border-top: var(--b1) dotted color-mix(in srgb, var(--bubble-ink) 35%, transparent);
+  padding-top: var(--b3);
+}
+
+.talk-trade__side {
+  display: flex;
+  gap: var(--b4);
+}
+
+.talk-trade__label {
+  flex-shrink: 0;
+  width: 4.5em;
+}
+
+.talk-trade__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--world-label-brick) * 6);
+}
+
+.talk-trade__amount {
+  display: flex;
+  align-items: stretch;
+  gap: var(--b3);
+}
+
+.talk-trade__count {
+  display: grid;
+  place-items: center;
+  min-width: 3em;
+}
+
+.talk-step {
+  display: grid;
+  place-items: center;
+  min-width: 1.6em;
+  padding: 0 var(--b3);
+  border: var(--b1) solid currentColor;
+  cursor: pointer;
 }
 
 /* Noises. `--noise-elapsed` is minus how long the noise has been up, so a

@@ -46,6 +46,7 @@ import { NO_VITALS, type Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
+import { TalkAnchorChannel } from "../render/talkBubble";
 import { debugViewRequested } from "../render/debugView";
 import { installStapes, StapesEventLog } from "./stapes";
 
@@ -161,6 +162,7 @@ export function WorldPage({
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const talkAnchor = useMemo(() => new TalkAnchorChannel(), []);
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   const [vitals, setVitals] = useState<Vitals>(NO_VITALS);
   const [openedContainer, setOpenedContainer] = useState<OpenedContainer | null>(null);
@@ -353,6 +355,7 @@ export function WorldPage({
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
         renderer.setOnConversation(setConversation);
+        renderer.setOnTalkAnchor(talkAnchor.publish);
         renderer.setOnSpells(setSpells);
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
@@ -549,6 +552,7 @@ export function WorldPage({
                 onInteract={act}
                 onHoverInteraction={hoverInteraction}
                 conversation={conversation}
+                talkAnchor={talkAnchor}
                 onTalk={talk}
                 crafting={crafting}
                 onCraft={craft}

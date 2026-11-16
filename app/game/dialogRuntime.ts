@@ -22,13 +22,19 @@ export type TalkAction =
   | { kind: "cancel" }
   | { kind: "close" };
 
-export type TranscriptEntry = { who: "npc" | "you" | "note"; text: string };
+export type TranscriptEntry = { who: "npc" | "note"; text: string };
 
+/**
+ * `transcript` holds the current stage only: what was said since the player's
+ * last press. `exited` is set when the script ran an `exit`; the transcript is
+ * then the NPC's parting lines, and the conversation is over.
+ */
 export type Conversation = {
   npcId: string;
   tileId: string;
   pc: number[];
   transcript: TranscriptEntry[];
+  exited?: true;
 };
 
 export type DialogEffectDef =
@@ -52,7 +58,9 @@ export const MAX_STEPS_PER_PRESS = 200;
 
 export const TRADE_REFUSED = "That trade did not go through.";
 
-export const CANCEL_LABEL = "Cancel";
+export function tradedNote(amount: number): string {
+  return `Traded x${amount}.`;
+}
 
 export function openConversation(
   dialog: DialogDef,
@@ -81,12 +89,7 @@ export function chooseOption(
   if (waiting?.kind !== "choices") return null;
   const option = waiting.options[index];
   if (!option) return null;
-  const said = [...conversation.transcript, { who: "you" as const, text: option.label }];
-  return run(
-    dialog,
-    { ...conversation, pc: [...conversation.pc, index, 0], transcript: said },
-    view,
-  );
+  return run(dialog, { ...conversation, pc: [...conversation.pc, index, 0], transcript: [] }, view);
 }
 
 export function acceptTrade(
@@ -100,16 +103,12 @@ export function acceptTrade(
   const amount = clampAmount(waiting, requestedAmount);
   const done = view.attempt([scaledTrade(waiting, amount)]);
   if (!done) {
+    const kept = conversation.transcript.filter((entry) => entry.who === "npc");
     const note = { who: "note" as const, text: TRADE_REFUSED };
-    return { ...conversation, transcript: [...conversation.transcript, note] };
+    return { ...conversation, transcript: [...kept, note] };
   }
-  const note = { who: "note" as const, text: `Traded ×${amount}.` };
-  const at = {
-    ...conversation,
-    pc: [...conversation.pc, 0, 0],
-    transcript: [...conversation.transcript, note],
-  };
-  return run(dialog, at, view);
+  const note = { who: "note" as const, text: tradedNote(amount) };
+  return run(dialog, { ...conversation, pc: [...conversation.pc, 0, 0], transcript: [note] }, view);
 }
 
 export function scaledTrade(trade: DialogTrade, amount: number): DialogEffectDef {
@@ -124,8 +123,7 @@ export function cancelTrade(
 ): Conversation | null {
   const waiting = waitingOn(dialog, conversation);
   if (waiting?.kind !== "request_trade") return null;
-  const said = [...conversation.transcript, { who: "you" as const, text: CANCEL_LABEL }];
-  return run(dialog, { ...conversation, pc: [...conversation.pc, 1, 0], transcript: said }, view);
+  return run(dialog, { ...conversation, pc: [...conversation.pc, 1, 0], transcript: [] }, view);
 }
 
 function run(dialog: DialogDef, at: Conversation, view: PartnerView): Conversation {
@@ -141,6 +139,10 @@ function run(dialog: DialogDef, at: Conversation, view: PartnerView): Conversati
     }
     if (command.kind === "choices" || command.kind === "request_trade") {
       return { ...at, pc, transcript };
+    }
+    if (command.kind === "exit") {
+      const parting = transcript.filter((entry) => entry.who === "npc");
+      return { ...at, pc, transcript: parting, exited: true };
     }
     if (command.kind === "if") {
       pc = [...pc, holds(command.when, view) ? 0 : 1, 0];

@@ -25,6 +25,7 @@ describe("the dialog catalog", () => {
       "add_status",
       "anchor",
       "choices",
+      "exit",
       "goto",
       "if",
       "remove_status",

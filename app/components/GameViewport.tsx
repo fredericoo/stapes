@@ -13,6 +13,7 @@ import type { MasteryXp } from "../lib/mastery";
 import { NO_VITALS, type Vitals } from "../game/GameSession";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
+import { TalkAnchorChannel } from "../render/talkBubble";
 import { tilesByIdFromList } from "../lib/validation";
 import { AppMenuButton } from "./AppShell";
 import { ChatBar, ChatButton } from "./ChatBar";
@@ -21,7 +22,7 @@ import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { HealthGauge } from "./HealthGauge";
 import { DragLayer } from "./DragLayer";
-import { ConversationPanel } from "./ConversationPanel";
+import { AnchoredConversation } from "./ConversationBubble";
 import { CraftPanel } from "./CraftPanel";
 import { InteractionList } from "./InteractionList";
 import type { ActionButtonSize } from "./actionButton";
@@ -61,6 +62,7 @@ export function GameViewport({
   interactions = [],
   onInteract,
   conversation = null,
+  talkAnchor,
   onTalk,
   crafting = null,
   onCraft,
@@ -96,6 +98,7 @@ export function GameViewport({
   interactions?: InteractionOption[];
   onInteract?: (option: InteractionOption) => void;
   conversation?: Conversation | null;
+  talkAnchor?: TalkAnchorChannel;
   onTalk?: (action: TalkAction) => void;
   crafting?: CraftingWindow | null;
   onCraft?: (ref: ObjectRef, recipeIndex: number) => void;
@@ -166,11 +169,11 @@ export function GameViewport({
   const showStats = statsOpen;
   const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
-  const panelsHidden = coarse && (conversation != null || crafting != null);
+  const panelsHidden = coarse && crafting != null;
   const shutWhatHidesPanels = () => {
-    if (conversation) onTalk?.({ kind: "close" });
     if (crafting) onCloseCrafting?.();
   };
+  const unanchored = useMemo(() => new TalkAnchorChannel(), []);
 
   const openEquipment = (pressed: boolean) => {
     const open = pressed || panelsHidden;
@@ -262,20 +265,6 @@ export function GameViewport({
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback((typing: boolean) => onTypingChange?.(typing), [onTypingChange]);
 
-  const talkPanel = conversation ? (
-    <ConversationPanel
-      conversation={conversation}
-      tiles={tiles}
-      tilesets={tilesets}
-      equipment={equipment}
-      masteryXp={masteryXp}
-      statusDefs={statusDefs}
-      onTalk={(action) => onTalk?.(action)}
-      hotkeys
-      className="min-h-0 w-full flex-1"
-    />
-  ) : null;
-
   const craftPanel = crafting ? (
     <CraftPanel
       crafting={crafting}
@@ -287,7 +276,7 @@ export function GameViewport({
       className="min-h-0 w-full flex-1"
     />
   ) : null;
-  const replacesList = talkPanel ?? craftPanel;
+  const replacesList = craftPanel;
 
   const list = (
     <InteractionList
@@ -302,7 +291,7 @@ export function GameViewport({
         onInteract?.(option);
       }}
       onHover={coarse ? undefined : onHoverInteraction}
-      hotkeys
+      hotkeys={conversation == null}
       className={coarse ? "min-h-0 w-full flex-1" : "min-h-0 w-full flex-1 p-1"}
     />
   );
@@ -436,6 +425,20 @@ export function GameViewport({
               style={{ imageRendering: "pixelated" }}
             />
             <div ref={labelRef} className="world-label-layer" />
+            {conversation ? (
+              <AnchoredConversation
+                key={conversation.npcId}
+                channel={talkAnchor ?? unanchored}
+                conversation={conversation}
+                tiles={tiles}
+                tilesets={tilesets}
+                equipment={equipment}
+                masteryXp={masteryXp}
+                statusDefs={statusDefs}
+                onTalk={(action) => onTalk?.(action)}
+                hotkeys
+              />
+            ) : null}
             <RatingUpBanner rating={vitals.rating} live={live} />
           </div>
         </div>

@@ -5,7 +5,7 @@ import { craftRecipeName, type CraftInput, type CraftOutput } from "../lib/inter
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
-import { LABEL_CLASS, PanelButton } from "./ConversationPanel";
+import { LABEL_CLASS, PanelButton } from "./PanelButton";
 import { HudWindow } from "./HudWindow";
 import { KeyHint } from "./KeyHint";
 import { Tooltip } from "../ui";

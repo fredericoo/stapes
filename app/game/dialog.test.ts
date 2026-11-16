@@ -52,6 +52,10 @@ const dialog: DialogDef = {
           label: "Cure me",
           then: [{ kind: "remove_status", statusId: "luminous" }, say("Dim."), back],
         },
+        {
+          label: "Bye",
+          then: [say("Mind the dark \u2014 take a {item:potion}."), { kind: "exit" }],
+        },
       ],
     },
   ],
@@ -352,12 +356,24 @@ describe("opening a conversation", () => {
 });
 
 describe("pressing", () => {
-  it("records the choice, answers, and comes back to the menu", () => {
+  it("answers in place of what was said before, and comes back to the menu", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     talkTo(session, "seller");
     const after = press(session, 0);
-    expect(after?.transcript.slice(1).map((e) => e.text)).toEqual(["Recipe", "Fourteen shards."]);
+    expect(after?.transcript.map((e) => e.text)).toEqual(["Fourteen shards."]);
     expect(after?.pc).toEqual([2]);
+  });
+
+  it("closes on an exit, and the seller says its parting line aloud", () => {
+    const session = new GameSession(fieldWith("seller"), tiles);
+    talkTo(session, "seller");
+    session.drainConversationChanges();
+    expect(press(session, 4)).toBeNull();
+    expect(session.drainConversationChanges()).toEqual(["local"]);
+    const seller = session.actorSnapshots().find((a) => a.tileId === "seller")!;
+    expect(session.drainSpeech().map((b) => [b.actorId, b.text])).toEqual([
+      [seller.id, `Mind the dark - take a ${tiles.find((t) => t.id === "potion")!.name}.`],
+    ]);
   });
 
   it("ignores a press with no panel open, and one at nothing", () => {
@@ -396,7 +412,7 @@ describe("trading through the panel", () => {
       trade(session, 1)
         ?.transcript.slice(-2)
         .map((e) => e.text),
-    ).toEqual(["Traded ×1.", "Here you go."]);
+    ).toEqual(["Traded x1.", "Here you go."]);
     expect(bagOf(session)).toEqual(["potion"]);
     expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
   });

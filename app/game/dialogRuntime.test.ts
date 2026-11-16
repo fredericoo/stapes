@@ -103,10 +103,10 @@ describe("opening", () => {
 });
 
 describe("choosing", () => {
-  it("records the press, runs the branch, and comes back to the menu by goto", () => {
+  it("clears what was said before the press, runs the branch, and comes back to the menu by goto", () => {
     const view = partner();
     const how = chooseOption(shop, openConversation(shop, npc, view), 1, view)!;
-    expect(lines(how)).toEqual(["npc: Hello, ann!", "you: How", "npc: Crystals.", "npc: Light."]);
+    expect(lines(how)).toEqual(["npc: Crystals.", "npc: Light."]);
     expect(how.pc).toEqual([2]);
     expect(waitingOn(shop, how)?.kind).toBe("choices");
   });
@@ -122,7 +122,7 @@ describe("choosing", () => {
     expect(waitingOn(shop, blessed)).toBeNull();
   });
 
-  it("stops after a dangling branch, transcript intact", () => {
+  it("stops after a dangling branch, its lines still up", () => {
     const view = partner();
     const bye = chooseOption(shop, openConversation(shop, npc, view), 3, view)!;
     expect(lines(bye).at(-1)).toBe("npc: Mind the dark.");
@@ -166,7 +166,7 @@ describe("trading", () => {
         },
       ],
     ]);
-    expect(lines(done).slice(-2)).toEqual(["note: Traded ×3.", "npc: Thanks."]);
+    expect(lines(done)).toEqual(["note: Traded x3.", "npc: Thanks."]);
     expect(waitingOn(shop, done)?.kind).toBe("choices");
   });
 
@@ -176,19 +176,55 @@ describe("trading", () => {
     expect(view.attempts[0]![0]).toMatchObject({ take: [{ tileId: "shard", count: 56 }] });
   });
 
-  it("notes a refusal and keeps waiting, nothing run", () => {
+  it("notes a refusal once under the offer and keeps waiting, nothing run", () => {
     const view = partner(() => false);
     const refused = acceptTrade(shop, atCounter(view), 1, view)!;
-    expect(lines(refused).at(-1)).toBe(`note: ${TRADE_REFUSED}`);
-    expect(waitingOn(shop, refused)?.kind).toBe("request_trade");
+    const again = acceptTrade(shop, refused, 1, view)!;
+    expect(lines(again)).toEqual(["npc: Fourteen shards each.", `note: ${TRADE_REFUSED}`]);
+    expect(waitingOn(shop, again)?.kind).toBe("request_trade");
   });
 
   it("runs the cancel branch on cancel", () => {
     const view = partner();
     const cancelled = cancelTrade(shop, atCounter(view), view)!;
-    expect(lines(cancelled).slice(-2)).toEqual(["you: Cancel", "npc: Stop wasting my time."]);
+    expect(lines(cancelled)).toEqual(["npc: Stop wasting my time."]);
     expect(view.attempts).toEqual([]);
     expect(waitingOn(shop, cancelled)?.kind).toBe("choices");
+  });
+});
+
+describe("exit", () => {
+  const leaving: DialogDef = {
+    script: [
+      say("Hello."),
+      {
+        kind: "choices",
+        options: [
+          {
+            label: "Bye",
+            then: [
+              { kind: "tag", tag: "left" },
+              say("Mind the dark, {partner}."),
+              { kind: "exit" },
+              say("Unheard."),
+            ],
+          },
+        ],
+      },
+      say("Unreached."),
+    ],
+  };
+
+  it("ends the conversation there, holding only the lines said on the way out", () => {
+    const view = partner();
+    const left = chooseOption(leaving, openConversation(leaving, npc, view), 0, view)!;
+    expect(left.exited).toBe(true);
+    expect(lines(left)).toEqual(["npc: Mind the dark, ann."]);
+    expect(view.attempts).toEqual([[{ effect: "tag", tag: "left" }]]);
+  });
+
+  it("leaves a conversation that is still waiting unmarked", () => {
+    expect(openConversation(leaving, npc, partner()).exited).toBeUndefined();
   });
 });
 
@@ -206,7 +242,7 @@ describe("goto", () => {
     };
     const view = partner();
     const gone = chooseOption(nested, openConversation(nested, npc, view), 0, view)!;
-    expect(lines(gone).slice(0, 4)).toEqual(["you: In", "npc: Deep.", "npc: Top.", "npc: Deep."]);
+    expect(lines(gone).slice(0, 3)).toEqual(["npc: Deep.", "npc: Top.", "npc: Deep."]);
     expect(gone.transcript.length).toBeLessThanOrEqual(MAX_STEPS_PER_PRESS);
     expect(waitingOn(nested, gone)).toBeNull();
   });

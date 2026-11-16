@@ -19,7 +19,7 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { MIN_RATING } from "../lib/mastery";
 import { tilesByIdFromList } from "../lib/validation";
 import { Button, Input, NumberInput, Select, Switch } from "../ui";
-import { ConversationPanel } from "./ConversationPanel";
+import { ConversationBubble } from "./ConversationBubble";
 
 const PRETEND_NAME = "you";
 
@@ -127,6 +127,7 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
     rating: MIN_RATING,
   }));
   const [adding, setAdding] = useState<string | null>(null);
+  const [parting, setParting] = useState<string[]>([]);
 
   const itemOptions = tiles
     .filter((tile) => resolveItem(tile) != null && resolveContainer(tile) == null)
@@ -135,8 +136,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
   const npc = { id: "pretend", tileId: "pretend" };
   const view = pretendPartner(pretend, tilesById, statusDefs, setPretend);
 
+  const settle = (next: Conversation) => {
+    setParting(next.exited ? next.transcript.map((entry) => entry.text) : []);
+    setConversation(next.exited ? null : next);
+  };
   const talk = (action: TalkAction) => {
-    if (action.kind === "open") return setConversation(openConversation(dialog, npc, view));
+    if (action.kind === "open") return settle(openConversation(dialog, npc, view));
     if (action.kind === "close") return setConversation(null);
     if (!conversation) return;
     const next =
@@ -145,7 +150,7 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
         : action.kind === "trade"
           ? acceptTrade(dialog, conversation, action.amount, view)
           : chooseOption(dialog, conversation, action.index, view);
-    if (next) setConversation(next);
+    if (next) settle(next);
   };
 
   const addOne = (tileId: string) => {
@@ -265,24 +270,33 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
 
       <div className="flex min-h-40 flex-col gap-2 bg-ink p-2 text-paper">
         {conversation ? (
-          <ConversationPanel
-            conversation={conversation}
-            dialog={dialog}
-            title="This body"
-            tiles={tiles}
-            tilesets={tilesets}
-            equipment={pretend.equipment}
-            statusDefs={statusDefs}
-            onTalk={talk}
-          />
+          <div className="talk-layer talk-layer--inline">
+            <ConversationBubble
+              conversation={conversation}
+              dialog={dialog}
+              speaker="This body"
+              tiles={tiles}
+              tilesets={tilesets}
+              equipment={pretend.equipment}
+              statusDefs={statusDefs}
+              onTalk={talk}
+            />
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => talk({ kind: "open", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })}
-            className="flex min-h-9 items-center justify-center border border-paper/30 px-2 text-[11px] font-medium text-paper hover:border-paper hover:bg-paper/10"
-          >
-            Talk
-          </button>
+          <>
+            {parting.length > 0 ? (
+              <p className="text-[11px] text-paper/70">
+                Exited. Said over its head: {parting.join(" ")}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => talk({ kind: "open", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })}
+              className="flex min-h-9 items-center justify-center border border-paper/30 px-2 text-[11px] font-medium text-paper hover:border-paper hover:bg-paper/10"
+            >
+              Talk
+            </button>
+          </>
         )}
       </div>
     </div>

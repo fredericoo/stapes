@@ -1,5 +1,6 @@
 import { noiseStyleOf } from "../lib/noiseStyle";
 import { bubbleClosingMs } from "./speechBubble";
+import type { TalkAnchor } from "./talkBubble";
 import type { WeatherArea } from "../lib/weatherAreas";
 import {
   absoluteElevation,
@@ -54,7 +55,12 @@ import type { Reach as CastReach } from "../lib/item";
 import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby, type NearbyInscription } from "./nearbyInscriptions";
 import { BLOCKED_INK, INTERACTION_COLORS } from "./interactionColors";
-import { type LabelLine, WorldLabelLayer, type WorldLabel } from "./textLabels";
+import {
+  type LabelLine,
+  labelScreenPosition,
+  WorldLabelLayer,
+  type WorldLabel,
+} from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
@@ -97,7 +103,7 @@ import {
   viewAnchorFor,
 } from "../lib/levelVisibility";
 import type { Coord, LightDef, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
 import { clumpExtentAt, steppingClumpHeight } from "./depthClump";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
@@ -278,6 +284,7 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   private equipmentSent: Equipment | null = null;
   private onConversation: ((conversation: Conversation | null) => void) | null = null;
+  private onTalkAnchor: ((anchor: TalkAnchor | null) => void) | null = null;
   private conversationSent: Conversation | null | undefined = undefined;
   private onVitals: ((vitals: Vitals) => void) | null = null;
   private vitalsSent: Vitals | null = null;
@@ -474,6 +481,35 @@ export class GameRenderer {
     if (snap.conversation === this.conversationSent) return;
     this.conversationSent = snap.conversation;
     this.onConversation(snap.conversation);
+  }
+
+  setOnTalkAnchor(cb: ((anchor: TalkAnchor | null) => void) | null) {
+    this.onTalkAnchor = cb;
+  }
+
+  /**
+   * Where the body being talked to is drawn, in the canvas's CSS pixels, each
+   * frame the conversation is open. Null while that body is not drawn.
+   */
+  private pushTalkAnchor(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    drawn: { x: number; y: number },
+    cut: RoofCut | undefined,
+    cssScale: number,
+  ) {
+    if (!this.onTalkAnchor) return;
+    const npcId = snap.conversation?.npcId;
+    const body = npcId ? snap.actors.find((actor) => actor.id === npcId) : undefined;
+    if (!body || body.hidden || !this.showsBody(snap, body, camera, cut)) {
+      this.onTalkAnchor(null);
+      return;
+    }
+    const visual = this.actorVisualWorld(snap.map, body);
+    const head = elevationScreenOffset(this.bodyOwnHeight(snap.map, body, body.stackIndex));
+    const top = labelScreenPosition(visual.x + head.x, visual.y + head.y, drawn, cssScale);
+    const feet = labelScreenPosition(visual.x, visual.y + CELL_SIZE / 2, drawn, cssScale);
+    this.onTalkAnchor({ x: top.left, headY: top.top, feetY: feet.top });
   }
 
   setOnVitals(cb: ((vitals: Vitals) => void) | null) {
@@ -2118,6 +2154,7 @@ export class GameRenderer {
     this.world.setOverlays(this.overlaysFor(snap));
     this.pushEquipment(snap);
     this.pushConversation(snap);
+    this.pushTalkAnchor(snap, camera, drawn, cut, fit.cssScale);
     this.pushMasteries(snap);
     this.pushSpells(snap, nowMs);
     this.stepWalkTo(snap, camera);

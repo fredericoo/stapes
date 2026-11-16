@@ -701,9 +701,7 @@ const serverMessageSchema = v.variant("type", [
         npcId: v.string(),
         tileId: v.string(),
         pc: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
-        transcript: v.array(
-          v.object({ who: v.picklist(["npc", "you", "note"]), text: v.string() }),
-        ),
+        transcript: v.array(v.object({ who: v.picklist(["npc", "note"]), text: v.string() })),
       }),
     ),
   }),
