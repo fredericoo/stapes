@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
-import { HUMAN_PARTS, LAYERS, wornPartOf } from "./humanParts";
-import type { ArmorItem } from "./item";
+import { HUMAN_PARTS, LAYERS, heldPartOf, wornPartOf } from "./humanParts";
+import type { ArmorItem, ShieldItem } from "./item";
 import { splitBlocks } from "./humanSprite";
 
 const TILESETS = path.resolve(import.meta.dirname, "../../data/tilesets");
@@ -29,8 +29,8 @@ describe("HUMAN_PARTS", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it.each(LAYERS)("names exactly the drawn blocks of $file", ({ id, file }) => {
-    const named = HUMAN_PARTS.filter((p) => p.layer === id)
+  it.each(LAYERS)("names exactly the drawn blocks of $file", ({ parts, file }) => {
+    const named = HUMAN_PARTS.filter((p) => p.layer === parts)
       .map((p) => p.block)
       .sort((a, b) => a - b);
 
@@ -56,5 +56,23 @@ describe("wornPartOf", () => {
     expect(wornPartOf(armor({ slot: "footwear", humanPart: "iron-helmet" }))).toBeNull();
     expect(wornPartOf(armor({ slot: "head", humanPart: "crown" }))).toBeNull();
     expect(wornPartOf(armor({ slot: "charm", humanPart: "iron-helmet" }))).toBeNull();
+  });
+});
+
+describe("heldPartOf", () => {
+  const shield = (fields: Partial<ShieldItem>): ShieldItem => ({
+    type: "shield",
+    def: 1,
+    ...fields,
+  });
+
+  it("finds the held part a shield names", () => {
+    expect(heldPartOf(shield({ humanPart: "wooden-shield" }))).toBe("wooden-shield");
+  });
+
+  it("draws nothing for a part that is worn rather than held, an unknown part, or armour", () => {
+    expect(heldPartOf(shield({ humanPart: "iron-helmet" }))).toBeNull();
+    expect(heldPartOf(shield({ humanPart: "tower-shield" }))).toBeNull();
+    expect(heldPartOf({ type: "armor", def: 1, humanPart: "sword" })).toBeNull();
   });
 });

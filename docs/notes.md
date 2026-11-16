@@ -7038,8 +7038,49 @@ the slot clears the pick. The field is a loose string on the item, resolved
 by `wornPartOf`, so a name nobody drew never stops the armour loading; `bun
 run verify content` reports it instead.
 
-**A human actor is drawn in what they wear.** `GameSession` keeps each
-actor's `outfit` (`wornOutfit`: the part each worn piece names) beside
+**A weapon and a shield name the part they are held as** in
+the same `humanPart` field, picked as *Held as* in the Item tab and resolved
+by `heldPartOf`. There is one part per kind of thing (`sword`, `axe`, `mace`,
+`bow`, `staff`, two shields), not per item, so every
+sword in the catalogue names `sword`. The parts are listed under `held` in
+`HUMAN_PARTS` and drawn in `human_held.png`, which both hand layers
+(`weaponHand`, the figure's right hand, and `offHand`, the left) read. The
+slot decides the layer (`weapon` dresses `weaponHand`, `offhand` dresses
+`offHand`) and never the part, so anything can be held in either hand and the
+same thing in both. An arcane stone has no held part and draws nothing,
+in a hand or in the accessory slot.
+
+**A held part is one frame per facing, placed per hand.** Only the first
+frame of each row of its block is drawn: the part alone, outlined all round,
+with nothing of the figure cut out of it, because what the figure wears
+changes its silhouette. `composeSheet` does not paint a hand in layer order.
+`HELD_PLACEMENT` in `app/lib/heldPlacement.ts` says, for each hand, facing
+and pose, whether the part is behind the figure or in front of it and how far
+its frame is moved; the parts held behind are laid down before the body
+and the ones in front after the hat. The table is the same for every part,
+because every model is built around the same grip, so aligning the sword
+aligned them all. A frame moved past the edge of its 16×16 frame is clipped.
+
+`bun run generate:held` casts the file and rewrites it whole, the way the
+hats are cast: each part is solids around the grip, on the true world axes
+for the facing. The grip is at a fixed pixel centre, so `HELD_PLACEMENT` can
+move a part by whole pixels without redrawing it; changing `HAND_DROP` or
+`HAND_AHEAD` redraws every part on other pixels and invalidates the table.
+
+**The skeleton is a human tile made of two creature parts**, so it is drawn
+holding the weapon its kit rolled. `bones` in `human_base.png` is its whole
+sprite from `monsters.png`, and `skull` in `human_heads.png` is the pixels of
+that sprite under the bald head, so the two composed are the original sprite
+and a hat sits on the skull as it does on a head. A tile's `human` names its
+body in `base`, which is `body` when left out. `isCreaturePart` keeps both out
+of a random look and out of character creation, and `humanAppearanceSchema`
+refuses `skull`, so a player cannot send one. The skeleton shares the humans'
+`HELD_PLACEMENT`. Drawn from a composed sheet, it no longer shares the
+`monsters` texture with the creatures beside it, which is one more world mesh
+wherever a skeleton is in view; `maxWorldMeshes` rose from 97 to 98 for it.
+
+**A human actor is drawn in what they wear and hold.** `GameSession` keeps each
+actor's `outfit` (`wornOutfit`: the part each worn or held piece names) beside
 `carriedLights`, and the server sends it to other clients the same way, as an
 `outfits` list in `hello` and `patch`, diffed per actor. The list is optional
 on the wire and each part is a loose string checked per layer by

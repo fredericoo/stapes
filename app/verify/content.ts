@@ -28,7 +28,7 @@ import {
   type TileInteractions,
 } from "../lib/interactions";
 import { armorSlotOf, resolveItem } from "../lib/item";
-import { layerForSlot, wornPartOf } from "../lib/humanParts";
+import { heldPartOf, layerForSlot, wornPartOf } from "../lib/humanParts";
 import { E, maskBlobCorners, N, NE, neighborMask, NW, S, SE, SW, W } from "../lib/autotile";
 import { getStack, listCoords, presentLevels } from "../lib/mapData";
 import { resolveProjectile } from "../lib/projectile";
@@ -449,6 +449,15 @@ function checkHuman(def: TileDef, findings: Findings) {
 
 function checkWornPart(def: TileDef, findings: Findings) {
   const item = resolveItem(def);
+  if (item?.type === "weapon" || item?.type === "shield") {
+    if (!item.humanPart || heldPartOf(item)) return;
+    findings.error(
+      def.id,
+      "interactions.item.humanPart",
+      `"${item.humanPart}" is not a held part in HUMAN_PARTS, so a human holding it is drawn without it.`,
+    );
+    return;
+  }
   if (item?.type !== "armor" || !item.humanPart || wornPartOf(item)) return;
   const layer = layerForSlot(armorSlotOf(item));
   findings.error(

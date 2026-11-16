@@ -55,6 +55,8 @@ export type WeaponItem = {
   requirements?: Masteries;
   statuses?: WeaponStatus[];
   elements?: Element[];
+  /** The human part it is drawn as in a hand; see `heldPartOf`. */
+  humanPart?: string;
 };
 
 export type ConsumableItem = {
@@ -125,6 +127,7 @@ export type ShieldItem = {
   def: number;
   requirements?: Masteries;
   elements?: Element[];
+  humanPart?: string;
 };
 
 export type StoneEffect =
@@ -412,6 +415,7 @@ export const weaponSchema = v.object({
   requirements: v.optional(masteriesSchema),
   statuses: v.optional(v.array(weaponStatusSchema)),
   elements: v.optional(elementsSchema),
+  humanPart: v.optional(v.string()),
 });
 
 const consumableSchema = v.object({
@@ -478,6 +482,7 @@ const shieldSchema = v.object({
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   requirements: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
+  humanPart: v.optional(v.string()),
 });
 
 const EMPTY_BOLT_MESSAGE =
@@ -722,6 +727,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     ...requirementsForSave(weapon.requirements),
     ...(statuses ? { statuses } : {}),
     ...elementsForSave(weapon.elements),
+    ...(weapon.humanPart ? { humanPart: weapon.humanPart } : {}),
   };
 }
 
@@ -794,6 +800,7 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       def: item.def,
       ...requirementsForSave(item.requirements),
       ...elementsForSave(item.elements),
+      ...(item.humanPart ? { humanPart: item.humanPart } : {}),
     };
   }
   if (item.type === "stone") return stoneForSave(item);

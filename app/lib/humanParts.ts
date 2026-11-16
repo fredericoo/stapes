@@ -1,31 +1,84 @@
 import * as v from "valibot";
-import { armorSlotOf, type ArmorItem } from "./item";
+import { armorSlotOf, type ArmorItem, type ItemDef } from "./item";
 import type { EquipSlot } from "./kit";
 
 export type Recolouring = "skin" | "hair";
 
-/** The layers of a human, bottom to top, and the file each one's parts are drawn in. */
+/**
+ * The layers of a human, bottom to top, and the file each one's parts are
+ * drawn in. `parts` is the `layer` its parts are listed under in
+ * `HUMAN_PARTS`: the two hands hold the same things from the same file. A
+ * hand is not painted in this order: `composeSheet` lays its part behind or
+ * in front of the whole figure, as `HELD_PLACEMENT` says for the facing.
+ */
 export const LAYERS = [
-  { id: "base", label: "Body", file: "human_base.png", optional: false, recolour: ["skin"] },
-  { id: "shoes", label: "Shoes", file: "human_shoes.png", optional: true, recolour: [] },
-  { id: "clothes", label: "Clothes", file: "human_clothes.png", optional: true, recolour: [] },
+  {
+    id: "base",
+    parts: "base",
+    label: "Body",
+    file: "human_base.png",
+    optional: false,
+    recolour: ["skin"],
+  },
+  {
+    id: "shoes",
+    parts: "shoes",
+    label: "Shoes",
+    file: "human_shoes.png",
+    optional: true,
+    recolour: [],
+  },
+  {
+    id: "clothes",
+    parts: "clothes",
+    label: "Clothes",
+    file: "human_clothes.png",
+    optional: true,
+    recolour: [],
+  },
   {
     id: "head",
+    parts: "head",
     label: "Head",
     file: "human_heads.png",
     optional: false,
     recolour: ["skin", "hair"],
   },
-  { id: "hat", label: "Hat", file: "human_hats.png", optional: true, recolour: [] },
+  { id: "hat", parts: "hat", label: "Hat", file: "human_hats.png", optional: true, recolour: [] },
+  {
+    id: "weaponHand",
+    parts: "held",
+    label: "Weapon hand",
+    file: "human_held.png",
+    optional: true,
+    recolour: [],
+  },
+  {
+    id: "offHand",
+    parts: "held",
+    label: "Off hand",
+    file: "human_held.png",
+    optional: true,
+    recolour: [],
+  },
 ] as const satisfies readonly {
   id: string;
+  parts: string;
   label: string;
   file: string;
   optional: boolean;
   recolour: readonly Recolouring[];
 }[];
 
-export type LayerId = (typeof LAYERS)[number]["id"];
+type Layer = (typeof LAYERS)[number];
+
+export type LayerId = Layer["id"];
+export type PartGroup = Layer["parts"];
+type GroupOf<L extends LayerId> = Extract<Layer, { id: L }>["parts"];
+
+export function groupOf<L extends LayerId>(layer: L): GroupOf<L> {
+  return LAYERS.find((l) => l.id === layer)!.parts as GroupOf<L>;
+}
 
 /**
  * Every drawn part, by a name that tiles, items and characters can store.
@@ -36,6 +89,7 @@ export type LayerId = (typeof LAYERS)[number]["id"];
  */
 export const HUMAN_PARTS = [
   { id: "body", layer: "base", block: 0, label: "Body" },
+  { id: "bones", layer: "base", block: 1, label: "Bones" },
   { id: "dark-boots", layer: "shoes", block: 0, label: "Dark boots" },
   { id: "brown-boots", layer: "shoes", block: 1, label: "Brown boots" },
   { id: "red-boots", layer: "shoes", block: 2, label: "Red boots" },
@@ -64,23 +118,45 @@ export const HUMAN_PARTS = [
   { id: "long-hair", layer: "head", block: 2, label: "Long hair" },
   { id: "bald", layer: "head", block: 3, label: "Bald" },
   { id: "bald-beard", layer: "head", block: 4, label: "Bald with beard" },
+  { id: "skull", layer: "head", block: 5, label: "Skull" },
   { id: "leather-cap", layer: "hat", block: 0, label: "Leather cap" },
   { id: "iron-helmet", layer: "hat", block: 1, label: "Iron helmet" },
   { id: "robin-hood-hat", layer: "hat", block: 2, label: "Robin Hood hat" },
   { id: "wolfskin-hood", layer: "hat", block: 3, label: "Wolfskin hood" },
-] as const satisfies readonly { id: string; layer: LayerId; block: number; label: string }[];
+  { id: "sword", layer: "held", block: 0, label: "Sword" },
+  { id: "axe", layer: "held", block: 1, label: "Axe" },
+  { id: "mace", layer: "held", block: 2, label: "Mace" },
+  { id: "bow", layer: "held", block: 3, label: "Bow" },
+  { id: "staff", layer: "held", block: 4, label: "Staff" },
+  { id: "wooden-shield", layer: "held", block: 5, label: "Wooden shield" },
+  { id: "metal-shield", layer: "held", block: 6, label: "Metal shield" },
+] as const satisfies readonly { id: string; layer: PartGroup; block: number; label: string }[];
 
 type PartDef = (typeof HUMAN_PARTS)[number];
 
 export type HumanPartId = PartDef["id"];
-export type PartOn<L extends LayerId> = Extract<PartDef, { layer: L }>["id"];
+export type PartOn<L extends LayerId> = Extract<PartDef, { layer: GroupOf<L> }>["id"];
+export type HeldPartId = Extract<PartDef, { layer: "held" }>["id"];
 
-export function partsOn<L extends LayerId>(layer: L): Extract<PartDef, { layer: L }>[] {
-  return HUMAN_PARTS.filter((p): p is Extract<PartDef, { layer: L }> => p.layer === layer);
+export function partsOn<L extends LayerId>(layer: L): Extract<PartDef, { layer: GroupOf<L> }>[] {
+  const group: PartGroup = groupOf(layer);
+  return HUMAN_PARTS.filter((p): p is Extract<PartDef, { layer: GroupOf<L> }> => p.layer === group);
 }
 
 export function humanPart(id: HumanPartId): PartDef {
   return HUMAN_PARTS.find((p) => p.id === id)!;
+}
+
+const CREATURE_PARTS: ReadonlySet<HumanPartId> = new Set(["bones", "skull"]);
+
+/** A part only a creature tile is drawn with: never offered to a player making a character, and never in a random look. */
+export function isCreaturePart(id: HumanPartId): boolean {
+  return CREATURE_PARTS.has(id);
+}
+
+/** The heads a player may choose. */
+export function playerHeads(): PartOn<"head">[] {
+  return idsOn("head").filter((id) => !isCreaturePart(id));
 }
 
 /** TypeScript cannot narrow `Extract<…>["id"]` for a generic layer, so the cast lives here once. */
@@ -92,11 +168,13 @@ export function partOnSchema<L extends LayerId>(layer: L) {
   return v.picklist(idsOn(layer) as [PartOn<L>, ...PartOn<L>[]]);
 }
 
-/** The worn layer each equipment slot dresses; the other slots draw nothing on a human. */
+/** The layer each equipment slot dresses; the other slots draw nothing on a human. */
 export const LAYER_FOR_SLOT = {
   head: "hat",
   armor: "clothes",
   footwear: "shoes",
+  weapon: "weaponHand",
+  offhand: "offHand",
 } as const satisfies Partial<Record<EquipSlot, LayerId>>;
 
 export type WornLayer = (typeof LAYER_FOR_SLOT)[keyof typeof LAYER_FOR_SLOT];
@@ -116,6 +194,17 @@ export function wornPartOf(armor: ArmorItem): WornPart | null {
   if (!layer || !armor.humanPart) return null;
   const part = HUMAN_PARTS.find((p) => p.id === armor.humanPart && p.layer === layer);
   return part ? ({ layer, id: part.id } as WornPart) : null;
+}
+
+/**
+ * The part a weapon or shield is drawn as in the hand that
+ * holds it, or null when it names none or one that is not held. The same
+ * part is drawn in either hand, so the hand is not asked.
+ */
+export function heldPartOf(item: ItemDef): HeldPartId | null {
+  if (item.type !== "weapon" && item.type !== "shield") return null;
+  const part = HUMAN_PARTS.find((p) => p.id === item.humanPart && p.layer === "held");
+  return part ? (part.id as HeldPartId) : null;
 }
 
 /** A worn layer with a part from that layer; the cast in `wornPartOf` is checked by its `find`. */

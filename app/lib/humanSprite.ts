@@ -3,6 +3,8 @@ import {
   LAYERS,
   humanPart,
   idsOn,
+  isCreaturePart,
+  playerHeads,
   partOnSchema,
   type HumanPartId,
   type LayerId,
@@ -10,6 +12,7 @@ import {
   type Recolouring,
   type WornLayer,
 } from "./humanParts";
+import { HANDS, HELD_PLACEMENT } from "./heldPlacement";
 import { CELL_SIZE, type Direction, type TileDef, type TilesetDef } from "./types";
 
 export const SHEET_FACINGS: readonly Direction[] = ["s", "e", "w", "n"];
@@ -58,6 +61,8 @@ export const humanLookSchema = v.object({
     clothes: v.nullable(partOnSchema("clothes")),
     head: partOnSchema("head"),
     hat: v.nullable(partOnSchema("hat")),
+    weaponHand: v.optional(v.nullable(partOnSchema("weaponHand")), null),
+    offHand: v.optional(v.nullable(partOnSchema("offHand")), null),
   }),
   skin: v.picklist(SKIN_TONE_NAMES),
   hair: v.picklist(HAIR_COLOUR_NAMES),
@@ -72,6 +77,8 @@ export const DEFAULT_LOOK: HumanLook = {
     clothes: "white-tunic",
     head: "short-hair",
     hat: null,
+    weaponHand: null,
+    offHand: null,
   },
   skin: "default",
   hair: "red",
@@ -83,7 +90,13 @@ export type HumanAppearance = { skin: SkinTone; hair: HairColour; head: PartOn<"
 /** One part per worn layer; a layer left out is bare. */
 export type Outfit = { [L in WornLayer]?: PartOn<L> };
 
-const WORN_LAYERS = ["hat", "clothes", "shoes"] as const satisfies readonly WornLayer[];
+const WORN_LAYERS = [
+  "hat",
+  "clothes",
+  "shoes",
+  "weaponHand",
+  "offHand",
+] as const satisfies readonly WornLayer[];
 
 export const BARE: Outfit = {};
 
@@ -109,6 +122,10 @@ export function readOutfit(raw: Partial<Record<WornLayer, string>>): Outfit {
   if (clothes.success) outfit.clothes = clothes.output;
   const shoes = v.safeParse(partOnSchema("shoes"), raw.shoes);
   if (shoes.success) outfit.shoes = shoes.output;
+  const weaponHand = v.safeParse(partOnSchema("weaponHand"), raw.weaponHand);
+  if (weaponHand.success) outfit.weaponHand = weaponHand.output;
+  const offHand = v.safeParse(partOnSchema("offHand"), raw.offHand);
+  if (offHand.success) outfit.offHand = offHand.output;
   return isBare(outfit) ? BARE : outfit;
 }
 
@@ -128,16 +145,19 @@ export function resolveHumanLook(
       clothes: worn.clothes ?? fallback.clothes ?? null,
       head: appearance.head,
       hat: worn.hat ?? fallback.hat ?? null,
+      weaponHand: worn.weaponHand ?? fallback.weaponHand ?? null,
+      offHand: worn.offHand ?? fallback.offHand ?? null,
     },
     skin: appearance.skin,
     hair: appearance.hair,
   };
 }
 
+/** What a player may choose: a creature's head is refused. */
 export const humanAppearanceSchema = v.object({
   skin: v.picklist(SKIN_TONE_NAMES),
   hair: v.picklist(HAIR_COLOUR_NAMES),
-  head: partOnSchema("head"),
+  head: v.picklist(playerHeads()),
 });
 
 /** An appearance that loads, or null for anything else: a stored or sent look is never trusted. */
@@ -152,11 +172,15 @@ export function appearanceKey({ skin, hair, head }: HumanAppearance): string {
 
 export const tileHumanSchema = v.object({
   ...humanAppearanceSchema.entries,
+  head: partOnSchema("head"),
+  base: v.optional(partOnSchema("base")),
   outfit: v.optional(
     v.object({
       shoes: v.optional(partOnSchema("shoes")),
       clothes: v.optional(partOnSchema("clothes")),
       hat: v.optional(partOnSchema("hat")),
+      weaponHand: v.optional(partOnSchema("weaponHand")),
+      offHand: v.optional(partOnSchema("offHand")),
     }),
   ),
 });
@@ -192,21 +216,25 @@ export function tileHumanLook(def: TileDef): HumanLook | null {
 }
 
 /** A tile's human with nothing equipped. */
-export function lookOfTileHuman({ outfit, ...appearance }: TileHuman): HumanLook {
-  return resolveHumanLook(appearance, outfit);
+export function lookOfTileHuman({ outfit, base, ...appearance }: TileHuman): HumanLook {
+  const look = resolveHumanLook(appearance, outfit);
+  return base ? { ...look, parts: { ...look.parts, base } } : look;
 }
 
 /** The tile field that draws a look; empty layers are left out rather than saved as null. */
 export function tileHumanFromLook(look: HumanLook): TileHuman {
-  const { shoes, clothes, hat } = look.parts;
+  const { shoes, clothes, hat, weaponHand, offHand } = look.parts;
   return {
     skin: look.skin,
     hair: look.hair,
     head: look.parts.head,
+    ...(look.parts.base === DEFAULT_LOOK.parts.base ? {} : { base: look.parts.base }),
     outfit: {
       ...(shoes ? { shoes } : {}),
       ...(clothes ? { clothes } : {}),
       ...(hat ? { hat } : {}),
+      ...(weaponHand ? { weaponHand } : {}),
+      ...(offHand ? { offHand } : {}),
     },
   };
 }
@@ -295,15 +323,54 @@ function paint(sheet: Uint8ClampedArray, layer: Rgba, swaps: Map<number, number>
   }
 }
 
+/**
+ * Lays what each hand holds over every frame in which it is `behind` the
+ * figure, or every one in which it is in front. A held part is drawn once per facing, in the first frame of
+ * its row, and moved to the hand for each pose.
+ */
+function paintHeld(
+  sheet: Uint8ClampedArray,
+  blocks: LayerBlocks,
+  look: HumanLook,
+  behind: boolean,
+) {
+  for (const hand of HANDS) {
+    const id = look.parts[hand];
+    const block = id === null ? undefined : blocks[hand][humanPart(id).block];
+    if (!block) continue;
+    SHEET_FACINGS.forEach((facing, row) => {
+      HELD_PLACEMENT[hand][facing].forEach((placement, pose) => {
+        if (placement.behind !== behind) return;
+        const [dx, dy] = placement.at;
+        for (let y = 0; y < FRAME_PX; y++) {
+          for (let x = 0; x < FRAME_PX; x++) {
+            const tx = x + dx;
+            const ty = y + dy;
+            if (tx < 0 || ty < 0 || tx >= FRAME_PX || ty >= FRAME_PX) continue;
+            const from = ((row * FRAME_PX + y) * SHEET_WIDTH_PX + x) * RGBA_CHANNELS;
+            if (block.data[from + ALPHA_OFFSET] === 0) continue;
+            const to =
+              ((row * FRAME_PX + ty) * SHEET_WIDTH_PX + pose * FRAME_PX + tx) * RGBA_CHANNELS;
+            sheet.set(block.data.subarray(from, from + RGBA_CHANNELS), to);
+          }
+        }
+      });
+    });
+  }
+}
+
 export function composeSheet(blocks: LayerBlocks, look: HumanLook): Uint8ClampedArray<ArrayBuffer> {
   const sheet = new Uint8ClampedArray(SHEET_WIDTH_PX * SHEET_HEIGHT_PX * RGBA_CHANNELS);
+  paintHeld(sheet, blocks, look, true);
   for (const layer of LAYERS) {
+    if (layer.parts === "held") continue;
     const id: HumanPartId | null = look.parts[layer.id];
     if (id === null) continue;
     const block = blocks[layer.id][humanPart(id).block];
     if (!block) continue;
     paint(sheet, block, swapsFor(layer.recolour, look));
   }
+  paintHeld(sheet, blocks, look, false);
   return sheet;
 }
 
@@ -318,11 +385,16 @@ function maybe<T>(items: readonly T[], random: () => number): T | null {
 export function randomLook(random: () => number = Math.random): HumanLook {
   return {
     parts: {
-      base: pick(idsOn("base"), random),
+      base: pick(
+        idsOn("base").filter((id) => !isCreaturePart(id)),
+        random,
+      ),
       shoes: maybe(idsOn("shoes"), random),
       clothes: maybe(idsOn("clothes"), random),
-      head: pick(idsOn("head"), random),
+      head: pick(playerHeads(), random),
       hat: maybe(idsOn("hat"), random),
+      weaponHand: null,
+      offHand: null,
     },
     skin: pick(SKIN_TONE_NAMES, random),
     hair: pick(HAIR_COLOUR_NAMES, random),

@@ -63,10 +63,18 @@ describe("tileHumanLook", () => {
         clothes: "green-tunic",
         head: "beard",
         hat: null,
+        weaponHand: null,
+        offHand: null,
       },
       skin: "brown",
       hair: "black",
     });
+  });
+
+  it("draws a creature on the body and head its tile names", () => {
+    const skeleton = townsperson({ human: { ...HUMAN, base: "bones", head: "skull" } });
+
+    expect(tileHumanLook(skeleton)?.parts).toMatchObject({ base: "bones", head: "skull" });
   });
 
   it("draws from the anchor when the human does not parse", () => {

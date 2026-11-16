@@ -154,6 +154,7 @@ const tiles: TileDef[] = [
         variance: 0,
         spd: 100,
         mastery: "sharp",
+        humanPart: "sword",
       },
     },
   }),
@@ -1301,5 +1302,22 @@ describe("worn outfit", () => {
 
     session.drop({ kind: "head" }, { x: 1, y: 0, z: 0 });
     expect(outfitOf(session)).toEqual({});
+  });
+
+  it("draws a held thing in the hand that holds it, and the same thing in both hands at once", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "light-sword" },
+      { tileId: "light-sword" },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 2 });
+    session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 });
+
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "offhand" });
+    expect(outfitOf(session)).toEqual({ offHand: "sword" });
+
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
+    expect(outfitOf(session)).toEqual({ weaponHand: "sword", offHand: "sword" });
   });
 });

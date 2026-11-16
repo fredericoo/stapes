@@ -12,7 +12,7 @@ import type {
   WeaponItem,
 } from "../lib/item";
 import { WornPartField } from "./HumanLookFields";
-import { layerForSlot, wornPartOf, type HumanPartId } from "../lib/humanParts";
+import { heldPartOf, layerForSlot, wornPartOf, type HumanPartId } from "../lib/humanParts";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
@@ -84,6 +84,24 @@ function WornPart({
       layer={layer}
       value={wornPartOf(armor)?.id ?? null}
       onChange={(id) => onChange(id ?? undefined)}
+    />
+  );
+}
+
+function HeldPart({
+  item,
+  onChange,
+}: {
+  item: ItemDef;
+  onChange: (humanPart: HumanPartId | undefined) => void;
+}) {
+  return (
+    <WornPartField
+      layer="weaponHand"
+      value={heldPartOf(item)}
+      onChange={(id) => onChange(id ?? undefined)}
+      title="Held as"
+      info="How a human holding this is drawn. It is shown here in the weapon hand, and is drawn in whichever hand holds it."
     />
   );
 }
@@ -249,6 +267,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
               label="Two handed"
               info="Occupies both hands: nothing else can be held, and there is no second swing to alternate with."
             />
+
+            <HeldPart item={item} onChange={(humanPart) => patchWeapon({ humanPart })} />
           </div>
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">
@@ -446,6 +466,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
               onChange={(def) => patchShield({ def })}
               readout={describeDefence(item.def)}
             />
+            <HeldPart item={item} onChange={(humanPart) => patchShield({ humanPart })} />
             <WornRequirements
               requirements={item.requirements}
               onChange={(requirements) => patchShield({ requirements })}

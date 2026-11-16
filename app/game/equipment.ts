@@ -1,5 +1,5 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
-import { LAYER_FOR_SLOT, wornPartOf } from "../lib/humanParts";
+import { LAYER_FOR_SLOT, heldPartOf, wornPartOf } from "../lib/humanParts";
 import { BARE, isBare, type Outfit } from "../lib/humanSprite";
 import {
   bodyDefence,
@@ -198,13 +198,18 @@ export function carriedLightTileIds(
   return out;
 }
 
-/** The part each worn piece names, on the layer its slot dresses: what a human wearing this is drawn in. */
+/** The part each worn or held piece names, on the layer its slot dresses: what a human carrying this is drawn in. */
 export function wornOutfit(equipment: Equipment, tilesById: Record<string, TileDef>): Outfit {
   const outfit: Outfit = {};
   for (const slot of WORN_SLOTS) {
     const instance = equipment[slot];
     const def = instance && tilesById[instance.tileId];
     const item = def ? resolveItem(def) : null;
+    if (slot === "weapon" || slot === "offhand") {
+      const held = item ? heldPartOf(item) : null;
+      if (held) outfit[LAYER_FOR_SLOT[slot]] = held;
+      continue;
+    }
     const part = item?.type === "armor" ? wornPartOf(item) : null;
     if (part?.layer === "hat") outfit.hat = part.id;
     else if (part?.layer === "clothes") outfit.clothes = part.id;

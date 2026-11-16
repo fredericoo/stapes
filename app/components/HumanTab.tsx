@@ -17,7 +17,7 @@ const NEW_HUMAN: TileHuman = {
   outfit: { clothes: "white-tunic", shoes: "dark-boots" },
 };
 
-const TILE_LAYERS = ["head", "clothes", "shoes", "hat"] as const;
+const TILE_LAYERS = ["base", "head", "clothes", "shoes", "hat", "weaponHand", "offHand"] as const;
 
 export function HumanTab({
   draft,

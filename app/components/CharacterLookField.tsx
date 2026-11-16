@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchBootstrap, tilesetUrl } from "../lib/api";
-import { partsOn } from "../lib/humanParts";
+import { isCreaturePart, partsOn } from "../lib/humanParts";
 import {
   FRAME_PX,
   HAIR_COLOURS,
@@ -102,20 +102,22 @@ export function CharacterLookField({
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-xs font-bold uppercase text-muted">Hairstyle</legend>
           <div className="flex flex-wrap gap-1">
-            {partsOn("head").map((part) => (
-              <button
-                key={part.id}
-                type="button"
-                aria-pressed={part.id === value.head}
-                onClick={() => onChange({ ...value, head: part.id })}
-                className={[
-                  "border-2 px-2 py-1 text-xs",
-                  part.id === value.head ? "border-accent bg-accent/10" : "border-border",
-                ].join(" ")}
-              >
-                {part.label}
-              </button>
-            ))}
+            {partsOn("head")
+              .filter((part) => !isCreaturePart(part.id))
+              .map((part) => (
+                <button
+                  key={part.id}
+                  type="button"
+                  aria-pressed={part.id === value.head}
+                  onClick={() => onChange({ ...value, head: part.id })}
+                  className={[
+                    "border-2 px-2 py-1 text-xs",
+                    part.id === value.head ? "border-accent bg-accent/10" : "border-border",
+                  ].join(" ")}
+                >
+                  {part.label}
+                </button>
+              ))}
           </div>
         </fieldset>
         <button
