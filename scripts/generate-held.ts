@@ -41,10 +41,12 @@ const HAND_DROP = 0.3;
 const HAND_AHEAD = 0.6;
 
 const STEEL = ["#7f708a", "#9babb2", "#c7dcd0", "#ffffff"];
+/** A guard in a skin shade sits at the grip and reads as a hand that does not follow the skin tone. */
+const GUARD = ["#3e3546", "#7f708a"];
 const IRON = ["#3e3546", "#7f708a", "#9babb2", "#c7dcd0"];
-const WOOD = ["#6e2727", "#9e4539", "#cd683d"];
+/** Darker than any shade of the default skin, so a shaft crossing the hand is not read as part of it. */
+const WOOD = ["#45293f", "#6e2727", "#9e4539"];
 const PLANK = ["#9e4539", "#cd683d", "#e6904e"];
-const GOLD = ["#f79617", "#fbb954"];
 const STRING = ["#c7dcd0"];
 const ORB = ["#a884f3", "#ffffff"];
 
@@ -72,7 +74,7 @@ function shieldAxes(x: Axes): Axes {
 const HELD: Record<HeldPartId, HeldModel> = {
   sword: (g, x) => [
     { sdf: capsule(at(g, [x.up, 1.1]), at(g, [x.up, 5.8]), 0.32), ramp: STEEL, weight: THIN },
-    { sdf: sphere(at(g, [x.up, 0.5]), 0.55), ramp: GOLD, weight: 2 },
+    { sdf: sphere(at(g, [x.up, 0.5]), 0.55), ramp: GUARD, weight: 2 },
   ],
   axe: (g, x) => {
     const top = at(g, [x.up, 4.8]);
