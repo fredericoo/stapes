@@ -1,5 +1,10 @@
 import { damageBand, swingIntervalMs } from "../app/game/combat";
-import { carriedInstances, magicDormant, type Equipment } from "../app/game/equipment";
+import {
+  carriedInstances,
+  handHasRoomFor,
+  magicDormant,
+  type Equipment,
+} from "../app/game/equipment";
 import type { EquipSlot } from "../app/game/affordances";
 import { fightingStats, encumbrance, resolveBattler, type BattlerDef } from "../app/lib/battler";
 import {
@@ -243,13 +248,32 @@ export function bestUpgrade(
   let best: Upgrade | null = null;
   for (const slot of gearSlots(def, taste.style, stoneHands)) {
     if (slot === heldIn) continue;
-    let gain = worth(slot) - worthOf(equipment[slot]?.tileId, slot) - leaving;
+    const displaced = rehomedLight(equipment, tilesById, slot)
+      ? 0
+      : worthOf(equipment[slot]?.tileId, slot);
+    let gain = worth(slot) - displaced - leaving;
     if (slot === "weapon" && isTwoHanded(def)) {
       gain -= worthOf(equipment.offhand?.tileId, "offhand");
     }
     if (!best || gain > best.gain) best = { slot, gain };
   }
   return best;
+}
+
+/**
+ * Whether the light worn in `slot` would still light the bot after being
+ * pushed out, because the off hand is free to take it. `nextDressing` puts an
+ * unlit bot's light back on before anything else, so the swap costs no light.
+ */
+function rehomedLight(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  slot: EquipSlot,
+): boolean {
+  if (slot !== "charm" || equipment.offhand !== null) return false;
+  const worn = tilesById[equipment.charm?.tileId ?? ""];
+  if (!worn || resolveLight(worn, {}) === undefined) return false;
+  return handHasRoomFor(equipment, tilesById, "offhand", worn);
 }
 
 /**

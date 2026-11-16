@@ -13823,7 +13823,7 @@
             "chance": 100
           },
           {
-            "slot": "offhand",
+            "slot": "charm",
             "tileId": "hand-lantern",
             "chance": 100
           },

@@ -7129,6 +7129,14 @@ which costs a player nothing and saves them the gesture. The hand stays on the
 list because the square holds one thing: a second lamp, or one worn under an
 amulet, is still a lamp you can hold up.
 
+**The `player` kit starts the lantern there too.** It used to author the hand
+lantern in the off hand, so every new character's first look at the equipment
+panel showed a light held in a fist, which taught players that this was where
+a light goes. A bot treats a light pushed out of the accessory square as free
+when its off hand can take it (`rehomedLight` in `bots/gear.ts`), so a stone
+still goes into that square ahead of the starting lantern, and the lantern
+moves to the off hand, the way it did when the kit put it there.
+
 **What it buys is a hand.** The off hand exists because a lantern authored as a
 weapon meant fighting at a twentieth of your bare hands to see in the dark, and
 it solved that by making light cost the *other* fist instead — so "see in the
