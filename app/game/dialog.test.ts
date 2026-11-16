@@ -491,8 +491,8 @@ describe("the potion salesman, as authored", () => {
     trade(session, 1);
     expect(lastLine(session)).toBe(TRADE_REFUSED);
     session.talk({ kind: "cancel" });
-    press(session, 3);
-    expect(lastLine(session)).toContain("Mind the dark");
+    expect(press(session, 3)).toBeNull();
+    expect(session.drainSpeech().at(-1)?.text).toContain("Mind the dark");
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });
 });
@@ -527,8 +527,8 @@ describe("the blacksmith, as authored", () => {
     expect(lastLine(session)).toBe(TRADE_REFUSED);
     session.talk({ kind: "cancel" });
     press(session, 3);
-    press(session, 6);
-    expect(lastLine(session)).toContain("something to spend");
+    expect(press(session, 6)).toBeNull();
+    expect(session.drainSpeech().at(-1)?.text).toContain("something to spend");
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });
 
