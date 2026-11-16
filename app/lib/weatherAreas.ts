@@ -59,31 +59,44 @@ export function weatherReaches(
   return true;
 }
 
-/** Fog is asked for at a cell and at one and two of these steps to each side of it; see `fogReachAt`. */
-export const FOG_EDGE_STEP_CELLS = 2;
+/** Fog fades in over this many cells to each side of an area's edge; see `fogReachAt`. */
+export const FOG_EDGE_CELLS = 3;
 
-const FOG_EDGE_RINGS = 2;
+/** How far, in cells, the fog's edge wanders in and out of an area's straight side. */
+export const FOG_EDGE_WOBBLE_CELLS = 0.75;
+
+function smoothstep(from: number, to: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Two slow sine waves across the map, so an edge reads as a bank of fog rather than a ruled line. */
+function fogEdgeWobble(x: number, y: number): number {
+  return FOG_EDGE_WOBBLE_CELLS * (Math.sin(x * 0.53 + y * 0.21) + Math.sin(y * 0.47 - x * 0.19));
+}
 
 /**
- * How much of the fog reaches a cell, 0 to 1: the share of the cell and the
- * cells round it that fog reaches, so fog thickens over a few cells inside an
- * area's edge. The world shader's `fogReach` is the same sum.
+ * How much of the fog reaches a point in cell space, 0 to 1. Each area is laid
+ * over the ones before it with a soft edge, from none of it `FOG_EDGE_CELLS`
+ * outside its side to all of it as far inside, so overlapping areas still let
+ * the later one decide. The world shader's `fogReach` is the same sum.
  */
 export function fogReachAt(areas: readonly WeatherArea[], x: number, y: number): number {
   if (areas.length === 0) return 1;
-  let reached = weatherReaches(areas, "fog", x, y) ? 1 : 0;
-  for (let ring = 1; ring <= FOG_EDGE_RINGS; ring++) {
-    const d = ring * FOG_EDGE_STEP_CELLS;
-    for (const [dx, dy] of [
-      [d, 0],
-      [-d, 0],
-      [0, d],
-      [0, -d],
-    ] as const) {
-      if (weatherReaches(areas, "fog", x + dx, y + dy)) reached++;
-    }
+  const px = x + 0.5;
+  const py = y + 0.5;
+  const wobble = fogEdgeWobble(px, py);
+  let reach = 1;
+  for (const area of areas) {
+    const hx = (area.x1 + 1 - area.x0) / 2;
+    const hy = (area.y1 + 1 - area.y0) / 2;
+    const qx = Math.abs(px - (area.x0 + hx)) - hx;
+    const qy = Math.abs(py - (area.y0 + hy)) - hy;
+    const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+    const cover = smoothstep(-FOG_EDGE_CELLS, FOG_EDGE_CELLS, wobble - outside);
+    reach = reach * (1 - cover) + (area.fog ? cover : 0);
   }
-  return reached / (1 + FOG_EDGE_RINGS * 4);
+  return reach;
 }
 
 export type CellRect = { x0: number; y0: number; x1: number; y1: number };

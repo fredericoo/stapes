@@ -10182,11 +10182,13 @@ one, in `hello` and in a `weather` message whenever it changes.
 - **Rain falls down and to the right**, because the projection draws height up
   and to the left. A streak runs along one diagonal of art pixels and is
   placed in world pixels, so it does not slide when the camera moves.
-- **Fog is an opacity, and the palette pass does the rest.** Past
-  `FOG_CLEAR_CELLS` from the viewer the fog colour is mixed over the fragment,
-  more with distance, until `FOG_FADE_CELLS` further it is all there is. The
-  palette pass snaps the mix, so the edge is a few rings of palette colours;
-  the fade is seven cells wide so that there are several rings and not one.
+- **Fog is an opacity, dithered per art pixel.** Past `FOG_CLEAR_CELLS` from
+  the viewer the fog amount rises with distance, until `FOG_FADE_CELLS` further
+  it is all there is. Each art pixel is then either fog or not, by comparing
+  that amount with a 4×4 Bayer threshold (`fxBayer4`) at its world pixel. A
+  plain mix was snapped by the palette pass, and between grass and fog grey the
+  palette has nothing, so every fade (the clear ring, an area's edge, a lamp's
+  hole) showed as one hard line with a purple rim.
 - **A lamp burns a hole in fog.** The fog over a fragment is cut by the block
   light round it, none at `FOG_LIGHT_FROM` and all at `FOG_LIGHT_TO`. The
   cells round it are asked because a wall or a tree holds no light of its own
@@ -10220,9 +10222,9 @@ one, in `hello` and in a `weather` message whenever it changes.
   what the shader asks: the distance, the level, the lamp light and the
   shelter. `GameRenderer.isOutOfSight` uses it beside the pitch-black test, so
   a body in the fog has no name, no health bar and cannot be targeted. It
-  counts a cell as hidden from halfway through the fade (`FOG_HIDES_CELLS`),
-  because the palette pass has already snapped a half-fogged body to the fog's
-  colour by then, and a name left over it floats on nothing. The body is still
+  counts a cell as hidden from three quarters through the fade
+  (`FOG_HIDES_CELLS`), where three art pixels in four are fog and the body is
+  gone from the picture, and a name left over it floats on nothing. The body is still
   sent to the client: the fog is drawn, not enforced.
 - **Unlit quads and particles get no rain.** Rain is inside the lit branch of
   the shader; fog is outside it.
@@ -10281,11 +10283,16 @@ both off, and one over the swamp with both on, in that order.
   the camera's window, and the last ones when there are more, because a later
   area decides. `weatherReach` in the world shader walks them for the
   fragment's light cell. `fogHides` asks `weatherReaches` the same question.
-- **Rain stops on the cell line; fog thickens over a few cells.** The fog at
-  a cell is the share of nine cells — itself and two rings round it,
-  `FOG_EDGE_STEP_CELLS` apart — that fog reaches. `fogReach` in the shader and
-  `fogReachAt` are the same sum, and `fogHides` waits for all nine, so a body
-  loses its name only where the fog is whole.
+- **Rain stops on the cell line; fog fades across an area's edge.** Each area
+  is laid over the ones before it with a soft edge: none of it
+  `FOG_EDGE_CELLS` outside its side, all of it as far inside, by the
+  rectangle's signed distance, so a later area still decides where two overlap.
+  The edge is pushed in and out by up to `2 × FOG_EDGE_WOBBLE_CELLS` by two
+  slow sine waves, because a straight edge showed as a ruled line once the
+  palette pass banded the fade. It replaced a sum of nine on/off samples, which
+  climbed in hard steps. `fogReach` in the shader and `fogReachAt` are the same
+  sum (the wobble has no time term, so they agree), and `fogHides` waits for
+  all of it, so a body loses its name only where the fog is whole.
 - **Fog is as strong as it is deep round the viewer.** `uFog` eases toward
   `fogReachAt` of `view.viewerCell`, so somebody outside a fog area sees none
   of it, and walking in brings it on over the cells inside the edge and over

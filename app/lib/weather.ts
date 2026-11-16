@@ -85,11 +85,11 @@ export const FOG_LIGHT_FROM = 0.25;
 export const FOG_LIGHT_TO = 0.7;
 
 /**
- * How far through the fade a cell is taken as hidden. The palette pass snaps a
- * half-fogged pixel to the fog's colour, so a body is gone from the picture
- * well before the fog over it is whole, and its name has to go with it.
+ * How far through the fade a cell is taken as hidden. The fog is dithered, so
+ * at this point three art pixels in four are fog and a body is gone from the
+ * picture before the fog over it is whole, and its name has to go with it.
  */
-const FOG_HIDES_FROM = 0.5;
+const FOG_HIDES_FROM = 0.75;
 
 export const FOG_HIDES_CELLS = FOG_CLEAR_CELLS + FOG_FADE_CELLS * FOG_HIDES_FROM;
 
