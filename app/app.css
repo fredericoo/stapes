@@ -658,6 +658,15 @@ body {
   --fade-below: 2.4em;
 }
 
+/* `ConversationBubble` moves the cut-off from one height to the next. Stepped,
+   not eased, like the bubble's close: at this size an eased edge spends most
+   of the move between two pixels of the font's grid. */
+.talk-bubble__body[data-gliding] {
+  --fade-below: 0px;
+  overflow-y: hidden;
+  transition: max-height 120ms steps(4, end);
+}
+
 /* While the stage is still appearing the body is cut off under the line being
    typed, and what is below the cut is not yet there to scroll to. */
 .talk-bubble__body[data-growing] {

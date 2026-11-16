@@ -1471,7 +1471,10 @@ whole stage is laid out from the start and the body's `max-height` is cut
 off under the line being typed. The bubble's full height is therefore known
 before anything is typed (`data-settled-height`), and `placeTalkBubble`
 chooses the side of the NPC by it, so a bubble that will not fit over the NPC
-starts under it instead of moving there when the choices appear. A tap on the bubble, or a number key in the game, finishes the typing
+starts under it instead of moving there when the choices appear. A new
+stage and the choices opening move the cut-off from the old height to the
+new in four steps over 120ms (`data-gliding`); a line starting to type moves
+it at once, and reduced motion never glides. A tap on the bubble, or a number key in the game, finishes the typing
 at once, so a number key pressed early never picks a choice the player has
 not seen. `DialogText` writes its text nodes from `requestAnimationFrame`
 instead of re-rendering per character, and keeps the untyped rest in the

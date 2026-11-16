@@ -84,7 +84,8 @@ export function ConversationBubble({
   const title = speaker ?? def?.name ?? conversation.tileId;
   const waiting = dialog ? waitingOn(dialog, conversation) : null;
 
-  const { typingIndex, typing, onTyped, skip } = useTypingCursor(conversation, useReducedMotion());
+  const instant = useReducedMotion();
+  const { typingIndex, typing, onTyped, skip } = useTypingCursor(conversation, instant);
   const skipRef = useRef(skip);
   skipRef.current = skip;
   useEffect(() => {
@@ -102,22 +103,54 @@ export function ConversationBubble({
    * The whole stage is laid out from the start, and the body is cut off just
    * under the line being typed, so the bubble grows a line at a time. The
    * full height stays measurable under the cut, as `data-settled-height`,
-   * which is what the bubble's side of the NPC is chosen by.
+   * which is what the bubble's side of the NPC is chosen by. A new stage and
+   * the choices opening move the cut in a few quick steps from where it was;
+   * a line starting to type moves it at once.
    */
+  const shown = useRef<{ conversation: Conversation; typing: boolean; height: number } | null>(
+    null,
+  );
   useLayoutEffect(() => {
     const body = bodyRef.current;
     const bubble = body?.parentElement;
     if (!body || !bubble) return;
+    const before = shown.current;
+    body.style.transition = "none";
     body.style.maxHeight = "";
     bubble.dataset.settledHeight = String(bubble.offsetHeight);
+    let height = body.offsetHeight;
     const line = typing ? body.querySelector<HTMLElement>("[data-typing]") : null;
-    if (!line) return;
-    const top = body.getBoundingClientRect().top - body.scrollTop;
-    const reach = Math.ceil(line.getBoundingClientRect().bottom - top);
-    const padding = Number.parseFloat(getComputedStyle(body).paddingBottom) || 0;
-    body.style.maxHeight = `${reach + padding}px`;
-    body.scrollTop = Math.max(0, reach + padding - body.clientHeight);
-  }, [conversation, typing, typingIndex]);
+    if (line) {
+      const top = body.getBoundingClientRect().top - body.scrollTop;
+      const padding = Number.parseFloat(getComputedStyle(body).paddingBottom) || 0;
+      height = Math.ceil(line.getBoundingClientRect().bottom - top) + padding;
+    }
+    shown.current = { conversation, typing, height };
+
+    const glides =
+      !instant &&
+      before !== null &&
+      before.height !== height &&
+      (before.conversation !== conversation || before.typing !== typing);
+    if (glides) {
+      body.style.maxHeight = `${before.height}px`;
+      body.getBoundingClientRect();
+      body.style.transition = "";
+      body.dataset.gliding = "";
+    } else {
+      delete body.dataset.gliding;
+    }
+    if (line || glides) body.style.maxHeight = `${height}px`;
+    if (line) body.scrollTop = Math.max(0, height - body.clientHeight);
+    if (!glides || line) return;
+
+    const settle = () => {
+      delete body.dataset.gliding;
+      body.style.maxHeight = "";
+    };
+    body.addEventListener("transitionend", settle, { once: true });
+    return () => body.removeEventListener("transitionend", settle);
+  }, [conversation, typing, typingIndex, instant]);
 
   useLayoutEffect(() => {
     const body = bodyRef.current;
