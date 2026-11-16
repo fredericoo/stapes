@@ -1742,6 +1742,7 @@ const NUMBER_BOUNDS: Partial<Record<ParamKind, { min?: number; max?: number }>> 
   percent: { min: 0, max: 100 },
   hour: { min: 0, max: 23 },
   level: {},
+  rating: { min: 0 },
   steps: { min: 1 },
 };
 
@@ -1957,6 +1958,8 @@ function freshValue(kind: ParamKind, scope: ArgScope, vocab: Vocabulary): unknow
       return 12;
     case "level":
       return 0;
+    case "rating":
+      return 1;
     case "boolean":
       return false;
     case "text":

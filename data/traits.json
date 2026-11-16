@@ -226,7 +226,7 @@
   {
     "id": "hunts-the-weaker",
     "name": "Hunts the weaker",
-    "hint": "Hunts on sight, but only goes for the nearest of its prey when that one is rated below itself. Once it has started, it keeps after its target whatever the target's rating.",
+    "hint": "Hunts on sight, but only goes for the nearest of its prey when that one is rated below the rating given. Once it has started, it keeps after its target whatever the target's rating.",
     "params": {
       "prey": {
         "kind": "bodies",
@@ -235,6 +235,10 @@
       "within": {
         "kind": "cells",
         "label": "sees within"
+      },
+      "below": {
+        "kind": "rating",
+        "label": "rated below"
       },
       "fight": {
         "kind": "state",
@@ -284,7 +288,7 @@
                 "arg": "when"
               },
               {
-                "cond": "rated_below_self",
+                "cond": "rated_below",
                 "of": {
                   "type": "nearest",
                   "data": {
@@ -292,6 +296,9 @@
                       "arg": "prey"
                     }
                   }
+                },
+                "rating": {
+                  "arg": "below"
                 }
               }
             ]
@@ -1381,7 +1388,7 @@
   {
     "id": "flees-the-stronger",
     "name": "Flees the stronger",
-    "hint": "Runs from the nearest threat it can see when that one is rated at or above itself, and from anybody that rated who hits it, until they are safe cells away. Backed into a corner, it bites, then tries to run again. Call it before fights-back so it runs from a strong attacker instead of turning on them.",
+    "hint": "Runs from the nearest threat it can see when that one is rated at or above the rating given, and from anybody that rated who hits it, until they are safe cells away. Backed into a corner, it bites, then tries to run again. Call it before fights-back so it runs from a strong attacker instead of turning on them.",
     "params": {
       "threats": {
         "kind": "bodies",
@@ -1390,6 +1397,10 @@
       "sight": {
         "kind": "cells",
         "label": "sees within"
+      },
+      "below": {
+        "kind": "rating",
+        "label": "rated below"
       },
       "safe": {
         "kind": "cells",
@@ -1469,9 +1480,12 @@
               "not": true,
               "rules": [
                 {
-                  "cond": "rated_below_self",
+                  "cond": "rated_below",
                   "of": {
                     "type": "attacker"
+                  },
+                  "rating": {
+                    "arg": "below"
                   }
                 }
               ]
@@ -1509,7 +1523,7 @@
               "not": true,
               "rules": [
                 {
-                  "cond": "rated_below_self",
+                  "cond": "rated_below",
                   "of": {
                     "type": "nearest",
                     "data": {
@@ -1517,6 +1531,9 @@
                         "arg": "threats"
                       }
                     }
+                  },
+                  "rating": {
+                    "arg": "below"
                   }
                 }
               ]

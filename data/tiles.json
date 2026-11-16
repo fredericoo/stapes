@@ -30354,7 +30354,8 @@
                 "player"
               ],
               "sight": 7,
-              "cry": "eek!"
+              "cry": "eek!",
+              "below": 9
             }
           },
           {
@@ -30374,7 +30375,8 @@
               "within": 7,
               "fight": "gnawing",
               "target": "prey",
-              "calm": 10
+              "calm": 10,
+              "below": 9
             }
           },
           {

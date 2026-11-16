@@ -5540,8 +5540,7 @@ on the curve, and no exchange rate is tuned. It is the only rating
 number experience is weighed against, and the one `rated_below_self` compares.
 
 - **Fewer than a player's is not marked down.** A rat is born with 8 and is
-  rated 8, which is what the rat's `hunts-the-weaker` and `flees-the-stronger`
-  were written around. Only a body born with more moves.
+  rated 8. Only a body born with more moves.
 - **A body that cannot hurt anybody is rated on its masteries alone**
   (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
@@ -12657,7 +12656,7 @@ apart from rows that could never be the first to hold.
   reach, so the bear charged at somebody standing beside it.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
-  own rows. See *A creature can hunt only what it outrates, and scavenge*.
+  own rows. See *A creature can hunt only what is rated below a number, and scavenge*.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
 a state's own way out before the rows every other state shares — someone
@@ -12728,25 +12727,28 @@ slime held still in plain view of an archer it could not get to until it
 died. The state holds at `danger`, so a blow from somebody it could reach does
 not pull it back for those five seconds.
 
-## A creature can hunt only what it outrates, and scavenge
+## A creature can hunt only what is rated below a number, and scavenge
 
-**`rated_below_self`** holds when the body its selector names has a rating
-under the asking creature's own, both read through `rating` in
-`app/lib/mastery.ts`. `rated_below` compares against a fixed number, which is
-right for a dialog about newcomers and wrong for a creature: a number written
-into the brain does not follow the creature when its masteries are retuned.
+**`rated_below`** holds when the body its selector names has a rating under a
+fixed number; **`rated_below_self`** compares against the asking creature's own
+rating instead. Both read `GameSession.ratingOf`.
 
-**`hunts-the-weaker`** is `hunts-on-sight` with `rated_below_self` of the
-nearest prey added to its `when`. It asks about the *nearest* prey only, the
-same body `in_los` asks about, so a strong player standing nearer hides a weak
-one behind them. It only decides whether a hunt starts: once the creature is
-in its fight it keeps after the target whatever the target's rating, and a
-blow from anybody still starts a fight through `fights-back`. The rat rates 9
-(sharp 4, arcane 2, toughness 3, agility 24), so it goes for a fresh character
+**`hunts-the-weaker`** is `hunts-on-sight` with `rated_below` of the nearest
+prey added to its `when`, against the trait's `below` parameter. It asks about
+the *nearest* prey only, the same body `in_los` asks about, so a strong player
+standing nearer hides a weak one behind them. It only decides whether a hunt
+starts: once the creature is in its fight it keeps after the target whatever
+the target's rating, and a blow from anybody still starts a fight through
+`fights-back`. The rat passes 9, which is what it rates, so it goes for a fresh character
 (rating 2) and runs from anyone who has reached 9.
 
+**The threshold is a parameter and not the creature's own rating**, so that
+whom a creature dares to attack does not move when its rating does. A rat rated
+as low as a fresh character, compared against itself, would hunt nobody and run
+from everybody. `below` is a `rating` parameter, a whole number of at least 0.
+
 **`flees-the-stronger`** is the other half: it runs from the nearest threat it
-can see when that one is *not* `rated_below_self`, and from an attacker who is
+can see when that one is *not* rated below `below`, and from an attacker who is
 not. Both triggers hold at `danger`, as `fights-back`'s does, so a tie between
 "hit by a strong body" and "hit by anybody" goes to the order of the calls. The
 rat calls it before `fights-back` for that reason; called after, the rat turns
