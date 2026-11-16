@@ -1412,7 +1412,7 @@ only one of them on opens the door on one settle and closes it on the next.
 is how an NPC holds a conversation: an ordered list of commands, the way an
 RPG Maker event is — `say` a line, `anchor` a label, `goto` one, offer
 `choices`, `request_trade`, branch on an `if`, throw a `switch`,
-`teleport` the player, `add_status`, `remove_status`, `tag`. A choice
+`teleport` the player, `add_status`, `remove_status`, `tag`, `exit`. A choice
 holds the commands each button leads to; a trade holds what happens when it
 goes through and when it is cancelled. The interpreter runs one list at a
 time from a counter, descends into a branch on the player's press, continues
@@ -1428,24 +1428,60 @@ beyond choosing the branch itself. And before the tree there were typed keywords
 survive a phone: what an NPC can be asked is what is on the buttons, and chat
 is for people.
 
-**What the player sees is a transcript.** Every `say`, every button pressed
-(in the button's own words) and every trade that happened stays on the
-panel, and the only controls are the ones the command the script is waiting
-on needs. Running off the end, or a branch with no `goto` back, leaves the
-transcript up and the close button as the only thing left — the script
-stopped, and the panel says so by offering nothing.
+**What the player sees is the current stage, in a bubble over the NPC.**
+`Conversation.transcript` holds only what was said since the last press:
+`chooseOption`, `cancelTrade` and a trade that goes through each start it
+empty, so the server sends one stage and not the history. A refused trade is
+the exception: it adds its note under the offer still on screen.
+`ConversationBubble` draws the stage in the speech bubble's own CSS, with the
+controls the script is waiting on inside it, and has no close button. There
+are three ways out: walk out of reach, reach an `exit`, or press Leave, which
+the bubble offers by itself when the script has run out.
 
-**An NPC's lines type out.** `ConversationPanel` reveals each new `npc` line
-at 100 characters a second (`TypedText`), one line after another, and shows
-the choices or the trade only once the last has finished. A tap on the
-transcript, or a number key in the game, finishes them all at once, so a
-number key pressed early never picks a choice the player has not seen.
-`TypedText` writes the two text nodes from `requestAnimationFrame` instead of
-re-rendering per character, and keeps the untyped rest in the layout but
-invisible, so the line wraps where it ends up and nothing under it moves.
-Screen readers get the whole line in an `sr-only` span the moment it
-appears; reduced motion shows it whole. A panel that mounts mid-conversation
-types only the reply to the last press.
+**`exit` closes the conversation and says the parting lines aloud.** `run`
+returns the conversation marked `exited` with the NPC lines of the stage it
+ended in. `GameSession.settleConversation` records each as ordinary speech
+from the NPC and sets the conversation to null, so "Goodbye" leaves a line
+over the NPC's head for five seconds instead of a bubble to dismiss. Speech
+is cut to `MAX_CHAT_LENGTH` and to ASCII, so a parting line is short.
+
+**`{item:<tile id>}` in a line or a button label is drawn as the item.**
+`dialogTextParts` (`app/lib/dialogText.ts`) splits the text at render time;
+the server passes it through untouched, unlike `{partner}`, which it fills
+in. `ItemMention` draws the icon and the catalogue name and opens the
+item's card on hover, focus or a held touch, and the trade's two sides use
+the same component. `validateDialog` with a catalogue reports a mention of a
+tile nobody authored. `pixelFontText` swaps the em dash, ellipsis and curly
+quotes for ASCII before drawing, because NF Pixels has no other glyphs.
+
+**The bubble is placed by `placeTalkBubble`** (`app/render/talkBubble.ts`):
+over the NPC with the tail down when it fits there, under it with the tail
+flipped when it only fits there, and otherwise anywhere inside the margin
+with no tail. It is at most 75% of the canvas frame each way, and its body
+scrolls past that, fading at whichever edge has more beyond it (`data-more`,
+set from the scroll position). The renderer
+publishes the NPC's head and feet each frame through `TalkAnchorChannel`, and
+`AnchoredConversation` writes the transform itself, so following a walking
+NPC costs no React render. `MARGIN_BRICKS` in `ConversationBubble.tsx` and
+`--talk-margin` in `app.css` are the same 8 bricks, kept equal by hand.
+
+**An NPC's lines type out.** `DialogText` reveals each line at 100 characters
+a second, one line after another, and the bubble grows a line at a time. The
+whole stage is laid out from the start and the body's `max-height` is cut
+off under the line being typed. The bubble's full height is therefore known
+before anything is typed (`data-settled-height`), and `placeTalkBubble`
+chooses the side of the NPC by it, so a bubble that will not fit over the NPC
+starts under it instead of moving there when the choices appear. A new
+stage and the choices opening move the cut-off from the old height to the
+new in four steps over 120ms (`data-gliding`); a line starting to type moves
+it at once, and reduced motion never glides. A tap on the bubble, or a number key in the game, finishes the typing
+at once, so a number key pressed early never picks a choice the player has
+not seen. `DialogText` writes its text nodes from `requestAnimationFrame`
+instead of re-rendering per character, and keeps the untyped rest in the
+layout but invisible, so the line wraps where it ends up. Screen readers get
+the whole line in an `sr-only` span the moment it appears; reduced motion
+shows it whole. The Nearby list gives up its number keys while a
+conversation is open, since both would answer the same press.
 
 **A conversation is the player's, not the NPC's.** `ActorRuntime.conversation`
 — `{ npcId, tileId, pc, transcript }` — lives on whoever pressed Talk, so any
@@ -1760,7 +1796,7 @@ thing composable.
   offer a verb the interpreter lacks. `make` takes what a fresh entry has to
   point at, because unlike "the nearest player" there is no tile every world
   has; the editor hands over the first item and the first status it knows.
-- **Try it is the game's panel.** `DialogTryOut` renders `ConversationPanel`
+- **Try it is the game's bubble.** `DialogTryOut` renders `ConversationBubble`
   with the draft passed in over the catalogue's copy, driven by the same
   interpreter the server runs, against a pretend kit the author fills in — a
   real `Equipment` wearing the roomiest bag the catalogue has, so the trade
@@ -17626,8 +17662,10 @@ so bots do not share one.
 menu with the option whose branch holds the target trade, or one whose `goto`
 leads there. It cancels any other trade it is offered, and once at the target
 it sends `trade` with the amount. The bot closes the conversation when the
-transcript gains a line after the trade: `Traded` is a success, and a refusal
-fails the goal.
+script moves off the trade's counter, which is the trade going through, or
+when the transcript holds `TRADE_REFUSED`, which fails the goal. A script that
+exits right after the trade closes the conversation itself; the bot then goes
+idle without recording either.
 
 **Where an NPC stands is learned by seeing it, and shared.** The bot process
 never opens the world's database, which the server holds exclusively.

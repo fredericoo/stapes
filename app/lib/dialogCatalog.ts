@@ -11,12 +11,12 @@ type CatalogEntry = {
 export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
   say: {
     label: "say",
-    hint: "A line from the NPC. {partner} is the player's name.",
+    hint: "A line from the NPC. {partner} is the player's name; {item:tile-id} shows that item, with its icon and its card.",
     make: () => ({ kind: "say", text: "…" }),
   },
   choices: {
     label: "choices",
-    hint: "Buttons for the player, each leading to its own commands. Waits for a press.",
+    hint: "Buttons for the player, each leading to its own commands. Waits for a press. A label can hold {item:tile-id} too.",
     make: () => ({
       kind: "choices",
       options: [
@@ -77,6 +77,11 @@ export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
     label: "tag",
     hint: "Mark the player, so a later check can ask whether this already happened.",
     make: () => ({ kind: "tag", tag: "" }),
+  },
+  exit: {
+    label: "exit",
+    hint: "End the conversation. Lines said since the last press are spoken over the NPC's head as it closes.",
+    make: () => ({ kind: "exit" }),
   },
 };
 

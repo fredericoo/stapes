@@ -66,14 +66,14 @@ export function labelScreenPosition(
   };
 }
 
-const ANCHOR_CLEARANCE_EMS = 2.75;
+export const ANCHOR_CLEARANCE_EMS = 2.75;
 
 const BAR_CLASS = "world-label__bar";
 const HEALTH_BAR_CLASS = `${BAR_CLASS}--health`;
 const PROGRESS_BAR_CLASS = `${BAR_CLASS}--progress`;
 const RESERVED_BAR_CLASS = `${BAR_CLASS}--reserved`;
 
-const BRICKS_PER_EM = 10;
+export const BRICKS_PER_EM = 10;
 
 const MOUSE_CLASS = "world-label__mouse";
 const CROWN_CLASS = "world-label__crown";

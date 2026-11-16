@@ -396,6 +396,7 @@ import {
 } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog, type SwitchTo } from "../lib/dialog";
+import { dialogPlainText, pixelFontText } from "../lib/dialogText";
 import {
   acceptTrade,
   cancelTrade,
@@ -1915,7 +1916,23 @@ export class GameSession implements PlaySession {
           ? acceptTrade(dialog, current, action.amount, view)
           : chooseOption(dialog, current, action.index, view);
     if (!next) return false;
-    return this.setConversation(actor, next);
+    return this.settleConversation(actor, next);
+  }
+
+  /**
+   * A conversation that ran an `exit` is closed, and the lines the NPC said on
+   * the way out are spoken over its head, where everybody nearby reads them.
+   */
+  private settleConversation(actor: ActorRuntime, next: Conversation): boolean {
+    if (!next.exited) return this.setConversation(actor, next);
+    const npc = this.actors.get(next.npcId);
+    const loc = npc && this.tryLocate(npc);
+    if (npc && loc) {
+      for (const entry of next.transcript) {
+        this.recordSpeech(npc, loc, pixelFontText(dialogPlainText(entry.text, this.tilesById)));
+      }
+    }
+    return this.setConversation(actor, null) || next.transcript.length > 0;
   }
 
   private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {
@@ -1926,7 +1943,7 @@ export class GameSession implements PlaySession {
     if (!npc || !dialog || this.incapacitated(npc)) return false;
     const view = this.partnerViewFor(actor);
     const body = { id: npc.id, tileId: this.defFor(npc).id };
-    return this.setConversation(actor, openConversation(dialog, body, view));
+    return this.settleConversation(actor, openConversation(dialog, body, view));
   }
 
   private npcAt(ref: ObjectRef): ActorRuntime | null {

@@ -18,6 +18,7 @@ import {
   type NavWorld,
 } from "../app/game/navigation";
 import { resolveBattler, type BattlerDef, type FightingStats } from "../app/lib/battler";
+import { TRADE_REFUSED } from "../app/game/dialogRuntime";
 import { resolveDialog } from "../app/lib/dialog";
 import { resolveExtract } from "../app/lib/interactions";
 import {
@@ -346,8 +347,8 @@ type Course =
       readonly opened: boolean;
       /** The counter last answered, and when, so a choice is not sent every decision. */
       readonly answered: { readonly pc: string; readonly atMs: number } | null;
-      /** The transcript's length when the trade was sent; a longer one is the reply. */
-      readonly tradeSent: { readonly lines: number; readonly atMs: number } | null;
+      /** The counter the trade was sent at; the conversation moving off it is the trade going through. */
+      readonly tradeSent: { readonly pc: string; readonly atMs: number } | null;
     }
   | {
       readonly kind: "gather";
@@ -1725,6 +1726,11 @@ export class Bot {
     }
 
     if (!conversation || conversation.tileId !== npcTile) {
+      if (course.tradeSent && !conversation) {
+        this.happen(`${deal.offer.npcName} ended the talk`);
+        this.course = { kind: "idle" };
+        return;
+      }
       if (nowMs - course.sinceMs > TALK_GIVE_UP_MS) {
         this.happen(`${deal.offer.npcName} did not answer`);
         this.course = { kind: "idle" };
@@ -1733,10 +1739,10 @@ export class Bot {
     }
 
     if (course.tradeSent) {
-      const reply = conversation.transcript[course.tradeSent.lines];
-      if (!reply && nowMs - course.tradeSent.atMs < TALK_GIVE_UP_MS) return;
+      const traded = conversation.pc.join(".") !== course.tradeSent.pc;
+      const refused = conversation.transcript.some((entry) => entry.text === TRADE_REFUSED);
+      if (!traded && !refused && nowMs - course.tradeSent.atMs < TALK_GIVE_UP_MS) return;
       this.body.talk({ kind: "close" });
-      const traded = reply?.who === "note" && reply.text.startsWith("Traded");
       const what = deal.offer.give.map((side) => this.tilesById[side.tileId]?.name).join(", ");
       if (traded) {
         this.happen(`traded with ${deal.offer.npcName} for ${what} x${deal.amount}`);
@@ -1758,7 +1764,7 @@ export class Bot {
     if (!this.body.talk(action)) return;
     this.course =
       action.kind === "trade"
-        ? { ...course, tradeSent: { lines: conversation.transcript.length, atMs: nowMs } }
+        ? { ...course, tradeSent: { pc, atMs: nowMs } }
         : { ...course, answered: { pc, atMs: nowMs } };
   }
 

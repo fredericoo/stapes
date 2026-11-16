@@ -14372,7 +14372,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Two shards for every empty bottle. How many have you got?"
+                    "text": "Two shards for every {item:empty-bottle}. How many have you got?"
                   },
                   {
                     "kind": "request_trade",
@@ -14437,6 +14437,9 @@
                   {
                     "kind": "say",
                     "text": "Mind the dark, {partner}."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -15029,11 +15032,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Iron Sword — 20",
+                        "label": "{item:iron-sword} — 20",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Iron Sword. Straight, quick, asks Sharp 6 of you."
+                            "text": "{item:iron-sword}. Straight, quick, asks Sharp 6 of you."
                           },
                           {
                             "kind": "request_trade",
@@ -15076,11 +15079,11 @@
                         ]
                       },
                       {
-                        "label": "Knight's Sword — 50",
+                        "label": "{item:knights-sword} — 50",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Knight's Sword. Truer than the iron and slower with it — Sharp 20."
+                            "text": "{item:knights-sword}. Truer than the iron and slower with it — Sharp 20."
                           },
                           {
                             "kind": "request_trade",
@@ -15123,7 +15126,7 @@
                         ]
                       },
                       {
-                        "label": "Tempered Longsword — 95",
+                        "label": "{item:tempered-longsword} — 95",
                         "then": [
                           {
                             "kind": "say",
@@ -15201,7 +15204,7 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Simple Axe — 20",
+                        "label": "{item:simple-axe} — 20",
                         "then": [
                           {
                             "kind": "say",
@@ -15248,11 +15251,11 @@
                         ]
                       },
                       {
-                        "label": "Broad Axe — 50",
+                        "label": "{item:broad-axe} — 50",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Broad Axe — a hand's width of edge. Sharp 20 and Toughness 8 to hold it up."
+                            "text": "{item:broad-axe} — a hand's width of edge. Sharp 20 and Toughness 8 to hold it up."
                           },
                           {
                             "kind": "request_trade",
@@ -15295,7 +15298,7 @@
                         ]
                       },
                       {
-                        "label": "Battleaxe — 95",
+                        "label": "{item:battleaxe} — 95",
                         "then": [
                           {
                             "kind": "say",
@@ -15373,7 +15376,7 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Simple Hammer — 20",
+                        "label": "{item:simple-hammer} — 20",
                         "then": [
                           {
                             "kind": "say",
@@ -15420,7 +15423,7 @@
                         ]
                       },
                       {
-                        "label": "Iron Mace — 50",
+                        "label": "{item:iron-mace} — 50",
                         "then": [
                           {
                             "kind": "say",
@@ -15467,7 +15470,7 @@
                         ]
                       },
                       {
-                        "label": "War Maul — 95",
+                        "label": "{item:war-maul} — 95",
                         "then": [
                           {
                             "kind": "say",
@@ -15545,7 +15548,7 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Simple Bow — 20",
+                        "label": "{item:simple-bow} — 20",
                         "then": [
                           {
                             "kind": "say",
@@ -15592,7 +15595,7 @@
                         ]
                       },
                       {
-                        "label": "Hunting Bow — 50",
+                        "label": "{item:hunting-bow} — 50",
                         "then": [
                           {
                             "kind": "say",
@@ -15639,7 +15642,7 @@
                         ]
                       },
                       {
-                        "label": "War Bow — 95",
+                        "label": "{item:war-bow} — 95",
                         "then": [
                           {
                             "kind": "say",
@@ -15717,11 +15720,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Buckler — 20",
+                        "label": "{item:buckler} — 20",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "A buckler. One point of defence and it weighs nothing."
+                            "text": "A {item:buckler}. One point of defence and it weighs nothing."
                           },
                           {
                             "kind": "request_trade",
@@ -15764,7 +15767,7 @@
                         ]
                       },
                       {
-                        "label": "Wooden Shield — 50",
+                        "label": "{item:wooden-shield} — 50",
                         "then": [
                           {
                             "kind": "say",
@@ -15811,7 +15814,7 @@
                         ]
                       },
                       {
-                        "label": "Iron Shield — 95",
+                        "label": "{item:iron-shield} — 95",
                         "then": [
                           {
                             "kind": "say",
@@ -15897,6 +15900,9 @@
                   {
                     "kind": "say",
                     "text": "Come back when you've something to spend, {partner}."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -16546,11 +16552,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Cloth Tunic — 15",
+                        "label": "{item:cloth-tunic} — 15",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Cloth Tunic. One point, and it is better than a shirt."
+                            "text": "{item:cloth-tunic}. One point, and it is better than a shirt."
                           },
                           {
                             "kind": "request_trade",
@@ -16593,11 +16599,11 @@
                         ]
                       },
                       {
-                        "label": "Warded Robe — 45",
+                        "label": "{item:warded-robe} — 45",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Warded Robe. One point, and six against anything arcane."
+                            "text": "{item:warded-robe}. One point, and six against anything arcane."
                           },
                           {
                             "kind": "request_trade",
@@ -16640,11 +16646,11 @@
                         ]
                       },
                       {
-                        "label": "Padded Gambeson — 50",
+                        "label": "{item:padded-gambeson} — 50",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Padded Gambeson. Two points, and four more against blunt."
+                            "text": "{item:padded-gambeson}. Two points, and four more against blunt."
                           },
                           {
                             "kind": "request_trade",
@@ -16687,11 +16693,11 @@
                         ]
                       },
                       {
-                        "label": "Leather Jerkin — 50",
+                        "label": "{item:leather-jerkin} — 50",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Leather Jerkin. Two points, and two each against sharp blows and arrows."
+                            "text": "{item:leather-jerkin}. Two points, and two each against sharp blows and arrows."
                           },
                           {
                             "kind": "request_trade",
@@ -16734,11 +16740,11 @@
                         ]
                       },
                       {
-                        "label": "Tunic of Flames — 55",
+                        "label": "{item:tunic-of-flames} — 55",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Tunic of Flames. Two points, and it makes you a fire creature on the wheel."
+                            "text": "{item:tunic-of-flames}. Two points, and it makes you a fire creature on the wheel."
                           },
                           {
                             "kind": "request_trade",
@@ -16781,11 +16787,11 @@
                         ]
                       },
                       {
-                        "label": "Mantle of Brambles — 55",
+                        "label": "{item:mantle-of-brambles} — 55",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Mantle of Brambles. Two points, and it makes you nature on the wheel."
+                            "text": "{item:mantle-of-brambles}. Two points, and it makes you nature on the wheel."
                           },
                           {
                             "kind": "request_trade",
@@ -16828,11 +16834,11 @@
                         ]
                       },
                       {
-                        "label": "Chain Mail — 65",
+                        "label": "{item:chain-mail} — 65",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Chain Mail. Three points, and four more against sharp blows."
+                            "text": "{item:chain-mail}. Three points, and four more against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -16875,11 +16881,11 @@
                         ]
                       },
                       {
-                        "label": "Steel Plate — 95",
+                        "label": "{item:steel-plate} — 95",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Steel Plate. Five points, three each against sharp blows and arrows. The best I have."
+                            "text": "{item:steel-plate}. Five points, three each against sharp blows and arrows. The best I have."
                           },
                           {
                             "kind": "request_trade",
@@ -16953,11 +16959,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Copper Ring — 20",
+                        "label": "{item:copper-ring} — 20",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Copper Ring. One flat point, against anything at all."
+                            "text": "{item:copper-ring}. One flat point, against anything at all."
                           },
                           {
                             "kind": "request_trade",
@@ -17000,11 +17006,11 @@
                         ]
                       },
                       {
-                        "label": "Bone Charm — 25",
+                        "label": "{item:bone-charm} — 25",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Bone Charm. Four against a fist or a jaw, and nothing else."
+                            "text": "{item:bone-charm}. Four against a fist or a jaw, and nothing else."
                           },
                           {
                             "kind": "request_trade",
@@ -17047,11 +17053,11 @@
                         ]
                       },
                       {
-                        "label": "Jade Amulet — 35",
+                        "label": "{item:jade-amulet} — 35",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Jade Amulet. Five against the arcane."
+                            "text": "{item:jade-amulet}. Five against the arcane."
                           },
                           {
                             "kind": "request_trade",
@@ -17094,11 +17100,11 @@
                         ]
                       },
                       {
-                        "label": "Amulet of Tides — 40",
+                        "label": "{item:amulet-of-tides} — 40",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Amulet of Tides. No armour at all — it makes you water on the wheel."
+                            "text": "{item:amulet-of-tides}. No armour at all — it makes you water on the wheel."
                           },
                           {
                             "kind": "request_trade",
@@ -17180,6 +17186,9 @@
                   {
                     "kind": "say",
                     "text": "Come back before something bites you, {partner}, not after."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -17845,11 +17854,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Leather Cap — 5 skins",
+                        "label": "{item:leather-cap} — 5 skins",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Leather Cap. One point."
+                            "text": "{item:leather-cap}. One point."
                           },
                           {
                             "kind": "request_trade",
@@ -17892,11 +17901,11 @@
                         ]
                       },
                       {
-                        "label": "Iron Helm — 5 skins, 30 shards",
+                        "label": "{item:iron-helm} — 5 skins, 30 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Iron Helm. Two points, and two more against blunt."
+                            "text": "{item:iron-helm}. Two points, and two more against blunt."
                           },
                           {
                             "kind": "request_trade",
@@ -17943,11 +17952,11 @@
                         ]
                       },
                       {
-                        "label": "Knight's Helm — 5 skins, 50 shards",
+                        "label": "{item:knights-helm} — 5 skins, 50 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Knight's Helm. Three points, and three more against sharp blows."
+                            "text": "{item:knights-helm}. Three points, and three more against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -17994,11 +18003,11 @@
                         ]
                       },
                       {
-                        "label": "Wolfskin Hood — 3 wolf skins, 20 shards",
+                        "label": "{item:wolfskin-hood} — 3 wolf skins, 20 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Wolfskin Hood. One point, and three against sharp blows."
+                            "text": "{item:wolfskin-hood}. One point, and three against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -18076,11 +18085,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Wolfskin Coat — 5 wolf skins, 40 shards",
+                        "label": "{item:wolfskin-coat} — 5 wolf skins, 40 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Wolfskin Coat. Two points, and five against sharp blows."
+                            "text": "{item:wolfskin-coat}. Two points, and five against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -18158,11 +18167,11 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "Worn Boots — 5 skins",
+                        "label": "{item:worn-boots} — 5 skins",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Worn Boots. One point, and soft enough to walk in on the first day."
+                            "text": "{item:worn-boots}. One point, and soft enough to walk in on the first day."
                           },
                           {
                             "kind": "request_trade",
@@ -18205,11 +18214,11 @@
                         ]
                       },
                       {
-                        "label": "Hobnailed Boots — 5 skins, 20 shards",
+                        "label": "{item:hobnailed-boots} — 5 skins, 20 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Hobnailed Boots. One point, and three against blunt."
+                            "text": "{item:hobnailed-boots}. One point, and three against blunt."
                           },
                           {
                             "kind": "request_trade",
@@ -18256,11 +18265,11 @@
                         ]
                       },
                       {
-                        "label": "Steel Sabatons — 5 skins, 30 shards",
+                        "label": "{item:steel-sabatons} — 5 skins, 30 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Steel Sabatons. Two points, and two against sharp blows."
+                            "text": "{item:steel-sabatons}. Two points, and two against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -18307,11 +18316,11 @@
                         ]
                       },
                       {
-                        "label": "Wolfskin Boots — 3 wolf skins, 20 shards",
+                        "label": "{item:wolfskin-boots} — 3 wolf skins, 20 shards",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Wolfskin Boots. One point, and three against sharp blows."
+                            "text": "{item:wolfskin-boots}. One point, and three against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -18375,11 +18384,11 @@
                 ]
               },
               {
-                "label": "Leather Backpack — 15 skins",
+                "label": "{item:leather-backpack} — 15 skins",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Leather Backpack. Eight more things carried, on your back where your hands stay free."
+                    "text": "{item:leather-backpack}. Eight more things carried, on your back where your hands stay free."
                   },
                   {
                     "kind": "request_trade",
@@ -18440,6 +18449,9 @@
                   {
                     "kind": "say",
                     "text": "Bring me hides, {partner}. I'll make you something."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -40556,7 +40568,7 @@
             "kind": "choices",
             "options": [
               {
-                "label": "Buy apple pie slice",
+                "label": "Buy {item:apple-pie} slice",
                 "then": [
                   {
                     "kind": "say",
@@ -40603,11 +40615,11 @@
                 ]
               },
               {
-                "label": "Sell apple",
+                "label": "Sell {item:apple}",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I'll pay you 1 shard per apple you have."
+                    "text": "I'll pay you 1 shard per {item:apple} you have."
                   },
                   {
                     "kind": "request_trade",
@@ -40654,7 +40666,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I'll pay you 1 shard per berry you have. Not if they're stale!"
+                    "text": "I'll pay you 1 shard per {item:berry} you have. Not if they're stale!"
                   },
                   {
                     "kind": "request_trade",
@@ -40692,6 +40704,18 @@
                         "name": "main"
                       }
                     ]
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Come back when you're hungry!"
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -41265,7 +41289,7 @@
             "kind": "choices",
             "options": [
               {
-                "label": "Buy ale",
+                "label": "Buy {item:ale}",
                 "then": [
                   {
                     "kind": "say",
@@ -41382,6 +41406,9 @@
                   {
                     "kind": "say",
                     "text": "Mind how you go, {partner}."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -42266,6 +42293,9 @@
                           {
                             "kind": "say",
                             "text": "G'wan then. *hic* Keep quiet near that den."
+                          },
+                          {
+                            "kind": "exit"
                           }
                         ]
                       }
@@ -42279,6 +42309,9 @@
                   {
                     "kind": "say",
                     "text": "Shuit yourshelf. *hic*"
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -43077,6 +43110,9 @@
                           {
                             "kind": "say",
                             "text": "Shtay outta the bog after dark. *hic* 'M serious."
+                          },
+                          {
+                            "kind": "exit"
                           }
                         ]
                       }
@@ -43090,6 +43126,9 @@
                   {
                     "kind": "say",
                     "text": "Suit yerself. *hic*"
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -46157,7 +46196,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "You can't go around in the dark without a torch!"
+            "text": "You can't go around in the dark without a {item:hand-lantern}!"
           },
           {
             "kind": "request_trade",
@@ -46179,12 +46218,18 @@
               {
                 "kind": "say",
                 "text": "Thank you!"
+              },
+              {
+                "kind": "exit"
               }
             ],
             "cancel": [
               {
                 "kind": "say",
                 "text": "Okay, stay in the dark…"
+              },
+              {
+                "kind": "exit"
               }
             ]
           }
@@ -47386,6 +47431,9 @@
                   {
                     "kind": "say",
                     "text": "Keep the wall in sight."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -48459,6 +48507,9 @@
                   {
                     "kind": "say",
                     "text": "Mind the river."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -49670,6 +49721,9 @@
                   {
                     "kind": "say",
                     "text": "Don't wander too far, and keep some meat in your pack."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -50764,6 +50818,9 @@
                   {
                     "kind": "say",
                     "text": "Keep your ears open!"
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -52485,6 +52542,9 @@
                   {
                     "kind": "say",
                     "text": "Mind how you go."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -53178,7 +53238,7 @@
             "kind": "choices",
             "options": [
               {
-                "label": "Give an apple",
+                "label": "Give an {item:apple}",
                 "then": [
                   {
                     "kind": "request_trade",
@@ -53224,7 +53284,7 @@
                 ]
               },
               {
-                "label": "Give some bread",
+                "label": "Give some {item:bread}",
                 "then": [
                   {
                     "kind": "request_trade",
@@ -53270,7 +53330,7 @@
                 ]
               },
               {
-                "label": "Give some cheese",
+                "label": "Give some {item:cheese}",
                 "then": [
                   {
                     "kind": "request_trade",
@@ -53321,6 +53381,9 @@
                   {
                     "kind": "say",
                     "text": "Bless you anyway."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -54083,6 +54146,9 @@
                   {
                     "kind": "say",
                     "text": "Off you go. The lamps will be lit by dark."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -55596,6 +55662,9 @@
                   {
                     "kind": "say",
                     "text": "Close the door behind you."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }
@@ -56564,6 +56633,9 @@
                   {
                     "kind": "say",
                     "text": "Do come again. Quietly, mind. He hears everything."
+                  },
+                  {
+                    "kind": "exit"
                   }
                 ]
               }

@@ -238,6 +238,14 @@ describe("validating a dialog", () => {
     ]);
   });
 
+  it("warns about commands left after an exit in its list", () => {
+    const after = validateDialog({ script: [{ kind: "exit" }, say("Late.")] });
+    expect(after.map((i) => i.message)).toEqual([
+      expect.stringContaining("nothing after it in its list runs"),
+    ]);
+    expect(validateDialog({ script: [say("Bye."), { kind: "exit" }] })).toEqual([]);
+  });
+
   describe("with a catalogue in hand", () => {
     const potion = tileWith(undefined, "potion", { type: "consumable", hp: 0 });
     const bag = tileWith(undefined, "bag", { type: "container", size: 4, equippable: true });
@@ -254,6 +262,22 @@ describe("validating a dialog", () => {
       expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
         expect.stringContaining('tile "shard"'),
         expect.stringContaining('status "glowing"'),
+      ]);
+    });
+
+    it("names a mentioned item nobody authored, in a line or on a button", () => {
+      const dialog: DialogDef = {
+        script: [
+          { kind: "say", text: "A {item:potion} or a {item:elixir}?" },
+          {
+            kind: "choices",
+            options: [{ label: "The {item:tonic}", then: [{ kind: "exit" }] }],
+          },
+        ],
+      };
+      expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
+        expect.stringContaining('mentions a tile "elixir"'),
+        expect.stringContaining('mentions a tile "tonic"'),
       ]);
     });
 

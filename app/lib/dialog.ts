@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
+import { mentionedTileIds } from "./dialogText";
 import { resolveContainer } from "./item";
 import { MAX_LEVEL, MIN_LEVEL, type Coord, type TileDef } from "./types";
 
@@ -46,7 +47,8 @@ export type DialogCommand =
   | { kind: "teleport"; to: Coord }
   | { kind: "add_status"; statusId: string }
   | { kind: "remove_status"; statusId: string }
-  | { kind: "tag"; tag: string };
+  | { kind: "tag"; tag: string }
+  | { kind: "exit" };
 
 export type DialogCommandKind = DialogCommand["kind"];
 
@@ -132,6 +134,7 @@ const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind",
   v.object({ kind: v.literal("add_status"), statusId: tileId }),
   v.object({ kind: v.literal("remove_status"), statusId: tileId }),
   v.object({ kind: v.literal("tag"), tag: name }),
+  v.object({ kind: v.literal("exit") }),
 ]);
 
 const dialogSchema = v.object({ script: v.array(commandSchema) });
@@ -254,7 +257,7 @@ export function validateDialog(dialog: DialogDef, catalogue?: DialogCatalogue): 
   const warn = (message: string) => issues.push({ severity: "warn", message });
 
   if (dialog.script.length === 0)
-    warn("The script is empty: Talk opens a panel with nothing in it");
+    warn("The script is empty: Talk opens a bubble with nothing in it");
 
   const anchors = new Map<string, number>();
   const all = walkCommands(dialog);
@@ -274,6 +277,9 @@ export function validateDialog(dialog: DialogDef, catalogue?: DialogCatalogue): 
       );
     }
     checkCommand(command, where, anchors, error, catalogue);
+    if (command.kind === "exit" && listAt(dialog, path.slice(0, -1))!.length > path.at(-1)! + 1) {
+      warn(`${where} ends the conversation, so nothing after it in its list runs`);
+    }
   }
   return issues;
 }
@@ -285,7 +291,10 @@ function checkCommand(
   error: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if (command.kind === "say" && command.text.trim() === "") error(`${where} says nothing`);
+  if (command.kind === "say") {
+    if (command.text.trim() === "") error(`${where} says nothing`);
+    checkMentions(command.text, where, error, catalogue);
+  }
   if (command.kind === "anchor" && command.name.trim() === "") error(`${where} has no name`);
   if (command.kind === "goto" && !anchors.has(command.name)) {
     error(`${where} jumps to "${command.name}", and no anchor has that name`);
@@ -302,7 +311,7 @@ function checkCommand(
   if (command.kind === "switch" && command.channel.trim() === "") {
     error(`${where} names no channel`);
   }
-  if (command.kind === "choices") checkChoices(command.options, where, error);
+  if (command.kind === "choices") checkChoices(command.options, where, error, catalogue);
   if (command.kind === "request_trade") checkTrade(command, where, error, catalogue);
   if (!catalogue) return;
   if (command.kind === "add_status" || command.kind === "remove_status") {
@@ -316,6 +325,7 @@ function checkChoices(
   options: readonly DialogChoice[],
   where: string,
   error: (message: string) => void,
+  catalogue?: DialogCatalogue,
 ) {
   if (options.length === 0) error(`${where} offers nothing to press`);
   const seen = new Set<string>();
@@ -324,6 +334,21 @@ function checkChoices(
     if (label === "") error(`${where} has a button with no label`);
     if (seen.has(label)) error(`${where} has two buttons reading "${option.label}"`);
     seen.add(label);
+    checkMentions(option.label, where, error, catalogue);
+  }
+}
+
+function checkMentions(
+  text: string,
+  where: string,
+  error: (message: string) => void,
+  catalogue?: DialogCatalogue,
+) {
+  if (!catalogue) return;
+  for (const tileId of mentionedTileIds(text)) {
+    if (!catalogue.tilesById[tileId]) {
+      error(`${where} mentions a tile "${tileId}" the catalogue does not hold`);
+    }
   }
 }
 

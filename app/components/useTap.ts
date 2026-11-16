@@ -10,7 +10,7 @@ const SYNTHESISED_CLICK_WINDOW_MS = 500;
  * pointer handlers below would run the tap once and the synthesised click
  * would run it again.
  */
-function swallowSynthesisedClick() {
+export function swallowSynthesisedClick() {
   const swallow = (event: MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
