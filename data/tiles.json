@@ -30144,12 +30144,6 @@
             ]
           },
           "sniffing": {
-            "onEnter": [
-              {
-                "effect": "noise",
-                "text": "squeak?"
-              }
-            ],
             "do": [
               {
                 "action": "walk_n_steps",
