@@ -29,6 +29,7 @@ import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
 import type { Blame } from "../app/game/blame";
+import type { KitEntry } from "../app/lib/kit";
 import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
 
 const BAG_TILE_ID = "basic-bag";
@@ -3160,7 +3161,7 @@ describe("dying and coming back", () => {
 
     expect(hello.equipment).toMatchObject({
       weapon: { tileId: STARTER_SWORD },
-      offhand: { tileId: "hand-lantern" },
+      charm: { tileId: "hand-lantern" },
       armor: { tileId: "cloth-tunic" },
       bag: { tileId: BAG_TILE_ID, contents: [] },
     });
@@ -4009,7 +4010,7 @@ describe("saving authored content", () => {
               baseHp: 8,
               ...battler,
               kit: [
-                ...((battler.kit as unknown[]) ?? []),
+                ...((battler.kit as KitEntry[]) ?? []).filter((entry) => entry.slot !== "charm"),
                 { slot: "charm", tileId: STONE_TILE_ID, chance: 100 },
               ],
             },
@@ -4291,7 +4292,10 @@ describe("a cast somebody else is making", () => {
               ...(battler.masteries as Record<string, number>),
               ...stoneAsks(),
             },
-            kit: [...(battler.kit as unknown[]), { slot: "charm", tileId: STONE, chance: 100 }],
+            kit: [
+              ...(battler.kit as KitEntry[]).filter((entry) => entry.slot !== "charm"),
+              { slot: "charm", tileId: STONE, chance: 100 },
+            ],
           },
         },
       };
