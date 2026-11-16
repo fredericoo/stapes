@@ -97,6 +97,25 @@ export function ConversationBubble({
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [conversation.npcId, conversation.pc.join(".")]);
 
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const mark = () => {
+      const above = body.scrollTop > 1;
+      const below = body.scrollTop + body.clientHeight < body.scrollHeight - 1;
+      body.dataset.more = [above ? "above" : "", below ? "below" : ""].join(" ").trim();
+    };
+    mark();
+    body.addEventListener("scroll", mark, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(mark);
+    observer?.observe(body);
+    for (const child of body.children) observer?.observe(child);
+    return () => {
+      body.removeEventListener("scroll", mark);
+      observer?.disconnect();
+    };
+  }, [conversation]);
+
   const choices = waiting?.kind === "choices" ? waiting.options.length : waiting ? 0 : 1;
   const onTalkRef = useRef(onTalk);
   onTalkRef.current = onTalk;

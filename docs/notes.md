@@ -1457,8 +1457,9 @@ quotes for ASCII before drawing, because NF Pixels has no other glyphs.
 **The bubble is placed by `placeTalkBubble`** (`app/render/talkBubble.ts`):
 over the NPC with the tail down when it fits there, under it with the tail
 flipped when it only fits there, and otherwise anywhere inside the margin
-with no tail. Its `max-height` is the canvas frame less `--talk-margin` on
-both sides and the tail, and its body scrolls past that. The renderer
+with no tail. It is at most 75% of the canvas frame each way, and its body
+scrolls past that, fading at whichever edge has more beyond it (`data-more`,
+set from the scroll position). The renderer
 publishes the NPC's head and feet each frame through `TalkAnchorChannel`, and
 `AnchoredConversation` writes the transform itself, so following a walking
 NPC costs no React render. `MARGIN_BRICKS` in `ConversationBubble.tsx` and

@@ -590,10 +590,11 @@ body {
   flex-direction: column;
   box-sizing: border-box;
   width: max-content;
-  min-width: min(10em, calc(100% - var(--talk-margin) * 2));
-  max-width: min(24em, calc(100% - var(--talk-margin) * 2));
-  /* The tail hangs outside the box, so it comes off the height as well. */
-  max-height: calc(100% - var(--talk-margin) * 2 - var(--talk-tail));
+  min-width: min(10em, 75%);
+  /* Never more than three quarters of the canvas either way, so the world
+     stays in view around it; a longer stage scrolls. */
+  max-width: min(24em, 75%);
+  max-height: 75%;
   padding: var(--b1) var(--b1) var(--b1) var(--b4);
   font-family: "NF Pixels", monospace;
   font-size: var(--world-label-size);
@@ -636,6 +637,25 @@ body {
   scrollbar-color: color-mix(in srgb, var(--bubble-ink) 45%, transparent) transparent;
   scrollbar-gutter: stable;
   padding: var(--b1) var(--b1) var(--b1) 0;
+  /* `ConversationBubble` sets `data-more` while there is more of the stage
+     past either edge, and that edge fades out to say so. */
+  --fade-above: 0px;
+  --fade-below: 0px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--fade-above),
+    #000 calc(100% - var(--fade-below)),
+    transparent
+  );
+}
+
+.talk-bubble__body[data-more~="above"] {
+  --fade-above: 2.4em;
+}
+
+.talk-bubble__body[data-more~="below"] {
+  --fade-below: 2.4em;
 }
 
 .talk-bubble__speaker,
@@ -670,9 +690,9 @@ body {
 .talk-option {
   display: flex;
   align-items: baseline;
-  gap: var(--b4);
+  gap: var(--b3);
   width: 100%;
-  padding: 0 calc(var(--world-label-brick) * 2);
+  padding: 0 var(--b1);
   text-align: left;
   cursor: pointer;
 }
@@ -698,11 +718,18 @@ body {
   cursor: default;
 }
 
+/* A finger needs a 44px target and room between two of them; a mouse does
+   not, so there the options are one line each with nothing between. */
 @media (pointer: coarse) {
+  .talk-options {
+    gap: var(--b3);
+  }
+
   .talk-option,
   .talk-step {
     min-height: 44px;
     align-items: center;
+    padding: var(--b3) var(--b4);
   }
 }
 
