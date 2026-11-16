@@ -93,9 +93,31 @@ export function ConversationBubble({
   }, [hotkeys, typing]);
 
   const bodyRef = useRef<HTMLDivElement>(null);
+  const refused = conversation.transcript.at(-1)?.text === TRADE_REFUSED;
   useLayoutEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = 0;
-  }, [conversation.npcId, conversation.pc.join(".")]);
+    if (bodyRef.current && !refused) bodyRef.current.scrollTop = 0;
+  }, [conversation, refused]);
+
+  /**
+   * The whole stage is laid out from the start, and the body is cut off just
+   * under the line being typed, so the bubble grows a line at a time. The
+   * full height stays measurable under the cut, as `data-settled-height`,
+   * which is what the bubble's side of the NPC is chosen by.
+   */
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const bubble = body?.parentElement;
+    if (!body || !bubble) return;
+    body.style.maxHeight = "";
+    bubble.dataset.settledHeight = String(bubble.offsetHeight);
+    const line = typing ? body.querySelector<HTMLElement>("[data-typing]") : null;
+    if (!line) return;
+    const top = body.getBoundingClientRect().top - body.scrollTop;
+    const reach = Math.ceil(line.getBoundingClientRect().bottom - top);
+    const padding = Number.parseFloat(getComputedStyle(body).paddingBottom) || 0;
+    body.style.maxHeight = `${reach + padding}px`;
+    body.scrollTop = Math.max(0, reach + padding - body.clientHeight);
+  }, [conversation, typing, typingIndex]);
 
   useLayoutEffect(() => {
     const body = bodyRef.current;
@@ -132,7 +154,12 @@ export function ConversationBubble({
   return (
     <ItemCatalogueContext value={catalogue}>
       <section ref={ref} aria-label={`Talking to ${title}`} className="speech-bubble talk-bubble">
-        <div ref={bodyRef} onClick={typing ? skip : undefined} className="talk-bubble__body">
+        <div
+          ref={bodyRef}
+          onClick={typing ? skip : undefined}
+          data-growing={typing || undefined}
+          className="talk-bubble__body"
+        >
           <p className="talk-bubble__speaker">{title}</p>
           <ol role="log" aria-live="polite" className="talk-bubble__lines">
             {conversation.transcript.map((entry, index) => (
@@ -146,11 +173,6 @@ export function ConversationBubble({
               />
             ))}
           </ol>
-          {/**
-           * Laid out from the start and hidden until the lines are typed, so
-           * the bubble has its final size at once and does not jump to the
-           * other side of the NPC when the choices arrive.
-           */}
           <div className="talk-bubble__actions" inert={typing} data-pending={typing || undefined}>
             {waiting?.kind === "choices" ? (
               <div className="talk-options" key={stage}>
@@ -215,7 +237,7 @@ function StageLine({
     );
   }
   return (
-    <li>
+    <li data-typing={state === "typing" || undefined}>
       <span className="sr-only">
         {speaker}: {dialogPlainText(entry.text, tilesById)}
       </span>
@@ -471,6 +493,7 @@ export function AnchoredConversation({
     let anchor: TalkAnchor | null = null;
     let fontPx = 0;
     let size = { width: 0, height: 0 };
+    let settledHeight = 0;
     let view = { width: 0, height: 0 };
 
     const place = () => {
@@ -479,6 +502,7 @@ export function AnchoredConversation({
         anchor,
         view,
         size,
+        settledHeight,
         brickPx,
         marginPx: MARGIN_BRICKS * brickPx,
         liftPx: Math.round(fontPx * ANCHOR_CLEARANCE_EMS),
@@ -494,6 +518,7 @@ export function AnchoredConversation({
     const measure = () => {
       fontPx = Number.parseFloat(getComputedStyle(layer).fontSize) || 0;
       size = { width: element.offsetWidth, height: element.offsetHeight };
+      settledHeight = Number(element.dataset.settledHeight) || 0;
       view = { width: layer.clientWidth, height: layer.clientHeight };
       place();
     };

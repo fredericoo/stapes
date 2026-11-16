@@ -1466,10 +1466,12 @@ NPC costs no React render. `MARGIN_BRICKS` in `ConversationBubble.tsx` and
 `--talk-margin` in `app.css` are the same 8 bricks, kept equal by hand.
 
 **An NPC's lines type out.** `DialogText` reveals each line at 100 characters
-a second, one line after another. The choices or the trade are laid out from
-the start and hidden until the last line has finished, so the bubble has its
-final size at once and does not move to the other side of the NPC when they
-appear. A tap on the bubble, or a number key in the game, finishes the typing
+a second, one line after another, and the bubble grows a line at a time. The
+whole stage is laid out from the start and the body's `max-height` is cut
+off under the line being typed. The bubble's full height is therefore known
+before anything is typed (`data-settled-height`), and `placeTalkBubble`
+chooses the side of the NPC by it, so a bubble that will not fit over the NPC
+starts under it instead of moving there when the choices appear. A tap on the bubble, or a number key in the game, finishes the typing
 at once, so a number key pressed early never picks a choice the player has
 not seen. `DialogText` writes its text nodes from `requestAnimationFrame`
 instead of re-rendering per character, and keeps the untyped rest in the

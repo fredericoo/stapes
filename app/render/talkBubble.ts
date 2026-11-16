@@ -17,6 +17,12 @@ export type TalkBubbleRequest = {
   view: { width: number; height: number };
   /** The bubble's box, without its tail. */
   size: { width: number; height: number };
+  /**
+   * How tall the bubble will be once the stage has finished appearing. The
+   * side is chosen for this height, so a bubble that grows as its lines type
+   * does not start over the body and then move under it.
+   */
+  settledHeight?: number;
   brickPx: number;
   /** Kept clear between the bubble and every edge of the frame. */
   marginPx: number;
@@ -40,8 +46,9 @@ function clamp(value: number, lowest: number, highest: number): number {
  */
 export function placeTalkBubble(request: TalkBubbleRequest): TalkBubblePlacement {
   const { anchor, view, size, brickPx, marginPx, liftPx, tailPx } = request;
+  const settled = Math.max(size.height, request.settledHeight ?? 0);
   const highestLeft = view.width - marginPx - size.width;
-  const highestTop = view.height - marginPx - size.height;
+  const highestTop = view.height - marginPx - settled;
   if (!anchor) {
     return {
       left: snap(clamp((view.width - size.width) / 2, marginPx, highestLeft), brickPx),
@@ -57,8 +64,11 @@ export function placeTalkBubble(request: TalkBubbleRequest): TalkBubblePlacement
       ? tailPlacement(Math.round(size.width / brickPx), (anchor.x - left) / brickPx)
       : null;
 
-  const above = anchor.headY - liftPx - tailPx - size.height;
-  if (above >= marginPx) return { left, top: snap(above, brickPx), side: "above", tail };
+  const bottom = anchor.headY - liftPx - tailPx;
+  if (bottom - settled >= marginPx) {
+    return { left, top: snap(bottom - size.height, brickPx), side: "above", tail };
+  }
+  const above = bottom - settled;
 
   const below = anchor.feetY + tailPx;
   if (below <= highestTop) return { left, top: snap(below, brickPx), side: "below", tail };

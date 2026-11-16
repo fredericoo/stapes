@@ -30,6 +30,19 @@ describe("placing the talk bubble", () => {
     expect(at.tail).not.toBeNull();
   });
 
+  it("picks its side for the height it will grow to, and hangs at its present height", () => {
+    const growing = { ...base, size: { width: 200, height: 40 } };
+    expect(placeTalkBubble({ ...growing, settledHeight: 100 })).toMatchObject({
+      top: 302,
+      side: "above",
+    });
+    const higher = { ...growing, anchor: { x: 300, headY: 250, feetY: 290 } };
+    expect(placeTalkBubble({ ...higher, settledHeight: 250 })).toMatchObject({
+      top: 298,
+      side: "below",
+    });
+  });
+
   it("drops the tail and keeps to the margin when it fits on neither side", () => {
     const tall = { width: 200, height: 568 };
     const at = placeTalkBubble({ ...base, size: tall });

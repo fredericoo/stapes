@@ -658,6 +658,13 @@ body {
   --fade-below: 2.4em;
 }
 
+/* While the stage is still appearing the body is cut off under the line being
+   typed, and what is below the cut is not yet there to scroll to. */
+.talk-bubble__body[data-growing] {
+  --fade-below: 0px;
+  overflow-y: hidden;
+}
+
 .talk-bubble__speaker,
 .talk-bubble__note,
 .talk-trade__label {
@@ -702,14 +709,24 @@ body {
   color: color-mix(in srgb, currentColor 60%, transparent);
 }
 
-.talk-option:hover,
 .talk-option:focus-visible,
-.talk-step:hover,
 .talk-step:focus-visible {
   --talk-item: var(--bubble-fill);
   background: var(--bubble-ink);
   color: var(--bubble-fill);
   outline: none;
+}
+
+/* Only where a pointer can hover: after a tap, a touch screen keeps `:hover`
+   on whatever is under the finger, which lit the first option of the next
+   stage. */
+@media (hover: hover) {
+  .talk-option:hover,
+  .talk-step:hover {
+    --talk-item: var(--bubble-fill);
+    background: var(--bubble-ink);
+    color: var(--bubble-fill);
+  }
 }
 
 .talk-option[aria-disabled="true"],
