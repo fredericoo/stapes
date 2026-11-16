@@ -196,12 +196,25 @@ export function spellGuard(
     : arcaneResist(defender, masteries);
 }
 
+export const GUARD_WEIGHT = 2;
+
+/**
+ * A blow weighed against the guard it met:
+ * `potential² / (potential + GUARD_WEIGHT × guard)`. A guard half the size of
+ * the blow halves it, so the same armour takes most of a small blow and little
+ * of a heavy one, and only a blow that rounds to nothing is blocked.
+ */
+export function damageThroughGuard(potential: number, guard: number): number {
+  if (potential <= 0) return 0;
+  return Math.round((potential * potential) / (potential + GUARD_WEIGHT * Math.max(0, guard)));
+}
+
 export function damageAfterGuard(
   potentialDamage: number,
   guard: number,
   guardRoll: number,
 ): number {
-  return Math.max(0, potentialDamage - Math.round(guardFraction(guardRoll) * guard));
+  return damageThroughGuard(potentialDamage, Math.round(guardFraction(guardRoll) * guard));
 }
 
 export type Striking = Pick<FightingStats, "mastery">;
@@ -212,7 +225,7 @@ export function damageAfterDefence(
   attacker: Striking,
   guardRoll: number,
 ): number {
-  return Math.max(0, potentialDamage - guardRolled(defender, attacker, guardRoll));
+  return damageThroughGuard(potentialDamage, guardRolled(defender, attacker, guardRoll));
 }
 
 export type AttackOutcome = {

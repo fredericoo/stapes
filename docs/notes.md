@@ -5725,7 +5725,7 @@ It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
 all read the same figure. `weaponHandling` is applied separately inside
 `fightingStats`; the two multiply.
 
-### Armour is a draw, and immunity is a rung rather than a threshold
+### Armour is a draw, and a blow is weighed against it
 
 `defenceAgainst` says how deep a body's guard is; **what a blow actually meets is
 a draw from it** (`guardFraction`, `guardBand`, `guardRolled` in
@@ -5737,67 +5737,77 @@ a draw from it** (`guardFraction`, `guardBand`, `guardRolled` in
 Between them the draw is **triangular** — rare at both ends, common around the
 peak — sampled by the inverse of a triangular CDF, so one uniform draw comes out
 humped with nothing resampled or rejected. The mean is the average of the three
-corners, `(0.25 + 0.6 + 1) / 3`, so armour is worth about **62% of its face
-value** on average.
+corners, `(0.25 + 0.6 + 1) / 3`, so the guard a blow meets is about **62% of the
+defence** on average.
 
-**Armour used to be a flat subtraction, and flat made it an on-off switch.** A
-creature's blow lives in a bounded band: a wolf is authored at damage 12 and
-variance 35, so its bite is *always* worth between 8 and 12, and `MAX_ARMOR_DEF`
-is deliberately the same scale as `MAX_WEAPON_DAMAGE`. Put those together and a
-defence of 12 was not "very good against wolves" — it was total immunity,
-reachable in the starting kit plus a bone charm. Measured before the change, a
-fresh player in cap, jerkin, boots and charm took **0.96** per landed wolf bite
-against thirteen hit points; with a shield on top, **0.03**. A rat never got
-through a cloth tunic.
+**The blow is then weighed against that guard, not reduced by it.**
+`damageThroughGuard` lets through
+`potential² / (potential + GUARD_WEIGHT × guard)`, rounded, and `GUARD_WEIGHT`
+is 2:
 
-**Being untouchable is still reachable and costs four times what it used to.** A
-blow is blocked outright when the guard it drew is worth the whole of it, so
-*always* blocking something takes a defence whose `MIN_GUARD_SHARE` already
-outweighs the blow — four times the blow rather than equal to it. That is the
-whole rule about what a well-armoured body can shrug off, and it is deliberately
-a rung on the ladder rather than a threshold anybody crosses by accident: the
-starting kit is now immune to rats where a cloth tunic used to be, and a wolf
-needs fifty Toughness *and* the best sharp armour in the world before it stops
-mattering.
+- A guard half the size of the blow halves it. A guard equal to the blow takes
+  two thirds, and a guard a quarter of the blow takes a third.
+- The same guard takes a large share of a small blow and a small share of a
+  heavy one. A guard of 8 takes four fifths of a blow of 4 and under a third of
+  a blow of 40.
+- Each point of guard is worth less than the one before it, at every size of
+  blow, so no amount of armour makes a blow stop mattering at a threshold.
+
+**Armour was a subtraction before, and subtraction decided fights by itself.**
+Once the guard was close to the blow, each further point removed a large share
+of what was left: measured on a player rated 18 with 33 hit points, a
+skeleton's claws (6 to 12) did 7.2 a blow against a tunic and 0.1 against plate
+and a shield, and its sword went from 11.8 to 0.9. The same player could not be
+hurt by a creature rated twelve above it, or died in two blows, depending only
+on what it wore. Under the rule above those two figures are 6.4 to 2.2 and
+10.7 to 4.3.
+
+**`GUARD_WEIGHT` is 2 because 1 tripled how often new characters died.** With
+the guard counted once, the rule let through more than subtraction did at every
+defence, and most of all for small blows against light armour, which is every
+fight a new character has. `bun run bench:bots` over three seeds of half a
+game-hour measured 7.6 deaths an hour against 2.4 on the subtraction it
+replaced. Counted twice, the rule equals subtraction when the guard is half the
+blow, lets through less than subtraction below that and more above it, and the
+same bench measured 2.1 deaths an hour against 2.3.
 
 Three things worth knowing before touching this:
 
+- **A blow is blocked only when it rounds to nothing**, which takes a guard of
+  more than `potential² − potential / 2`: 3 against a blow of 2, 14 against a
+  blow of 4. A rat's bite is still blocked by ordinary armour and nothing much
+  heavier is. `SwingOdds.absorbed` is the rate of that. A `MIN_DAMAGE_THROUGH`
+  floor of one hit point was tried under the old rule and taken out, because it
+  deletes blocking; rounding keeps it for the blows it suits.
 - **The peak is above the middle on purpose.** Armour that usually performs a
-  little better than halfway is armour that mostly does what it says; the
-  interest is in the tail below it rather than in a symmetric wobble around a
-  number nobody chose. A *flat* draw was the first version and it was worse to
-  play against — a mail shirt that turned nothing aside was exactly as common as
-  one that turned aside everything, which reads as noise rather than as armour.
+  little better than halfway is armour that mostly does what it says. A *flat*
+  draw was the first version and it was worse to play against — a mail shirt
+  that turned nothing aside was exactly as common as one that turned aside
+  everything, which reads as noise rather than as armour.
 - **The guard is whole numbers, and that is load-bearing.** Hit points are whole,
   and a small enumerable band is what lets `app/game/combatMetrics.ts` stay exact
   rather than sampled. It finds each rung's odds by **bisecting `guardRolled`**
   for where one whole number of guard becomes the next; the draw is uniform, so
-  the width of that stretch *is* how often the rung comes up, and the file never
-  has to know what shape the curve is. Move the peak and the Arena's table
-  follows on the next render.
-- **A `MIN_DAMAGE_THROUGH` floor was tried and taken out.** Guaranteeing every
-  landed blow at least one hit point does close immunity for good, but it also
-  deletes `absorbed` as a concept, flattens the top of the armour curve into
-  "everything chips you for one", and makes a rat's damage-per-second independent
-  of what you are wearing. Blocking is worth keeping; what was wrong was how
-  cheap it was.
+  the width of that stretch *is* how often the rung comes up. `swingOdds` then
+  puts every damage rung against every guard rung through `damageThroughGuard`,
+  the same function `rollAttack` calls.
 
 **The draw costs the swing one more roll**, taken with the damage band and before
-the status draws — `rollAttack` is five draws plus one per authored status now,
-not four. It is taken whether or not the blow gets far enough to meet armour, for
-the reason every other draw there is: what has to be constant is the count, never
-the reading.
+the status draws — `rollAttack` is five draws plus one per authored status. It
+is taken whether or not the blow gets far enough to meet armour, for the reason
+every other draw there is: what has to be constant is the count, never the
+reading.
 
-`SwingOdds.absorbed` survived the change and changed meaning: it used to be a
-property of the two stat blocks — this armour stops this weapon, yes or no — and
-is now a **rate**, because the same armour blocks a blow it drew well against and
-misses one it did not.
+**A spell is weighed the same way.** `damageAfterGuard` weighs a bolt against
+the draw of `spellGuard`, and `meanThroughGuard` in `combatMetrics.ts` is the
+closed form bots price a bolt with: the same rule at the mean guard, unrounded.
 
-Two consequences for authoring. Physical mitigation is worth roughly a third less
-than its face value suggests, so armour authored against the old arithmetic is
-weaker than it reads. And a resistance keyed to a mastery *every* creature in the
-world strikes with is not a choice, it is a strictly better piece of armour — see
-the note on creature masteries below.
+Two consequences for authoring. Armour worth more than half the blows it meets
+protects less than it did under subtraction, so the heaviest armour authored
+against the old arithmetic is weaker against the creatures it used to shut out.
+And a resistance keyed to a mastery
+*every* creature in the world strikes with is not a choice, it is a strictly
+better piece of armour — see the note on creature masteries below.
 
 ### A creature strikes with the mastery its attack actually is
 
