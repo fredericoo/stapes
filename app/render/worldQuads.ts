@@ -22,7 +22,7 @@ import {
   FOG_SKY_FULL,
   OPEN_SKY_FACTOR,
 } from "../lib/weather";
-import { FOG_EDGE_STEP_CELLS } from "../lib/weatherAreas";
+import { FOG_EDGE_CELLS, FOG_EDGE_WOBBLE_CELLS } from "../lib/weatherAreas";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import {
   NO_REFLECTION_UNIFORMS,
@@ -593,18 +593,23 @@ vec2 weatherReach(vec2 cell) {
   }
   return reach;
 }
-// Fog thickens over a few cells inside an area's edge: the share of nine
-// cells, this one and two rings round it, that fog reaches.
+// The same sum as fogReachAt: each area laid over the ones before it with a
+// soft, wandering edge, using a rectangle's signed distance.
 float fogReach(vec2 cell) {
   if (uAreaCount == 0) return 1.0;
-  float sum = weatherReach(cell).y;
-  for (int ring = 1; ring <= 2; ring++) {
-    float d = float(ring) * ${glsl(FOG_EDGE_STEP_CELLS)};
-    sum +=
-      weatherReach(cell + vec2(d, 0.0)).y + weatherReach(cell - vec2(d, 0.0)).y +
-      weatherReach(cell + vec2(0.0, d)).y + weatherReach(cell - vec2(0.0, d)).y;
+  float wobble = ${glsl(FOG_EDGE_WOBBLE_CELLS)} *
+    (sin(cell.x * 0.53 + cell.y * 0.21) + sin(cell.y * 0.47 - cell.x * 0.19));
+  float reach = 1.0;
+  for (int i = 0; i < ${MAX_SHADER_WEATHER_AREAS}; i++) {
+    if (i >= uAreaCount) break;
+    vec4 rect = uAreaRects[i];
+    vec2 ext = (rect.zw - rect.xy) * 0.5;
+    vec2 q = abs(cell - rect.xy - ext) - ext;
+    float outside = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+    float cover = smoothstep(-${glsl(FOG_EDGE_CELLS)}, ${glsl(FOG_EDGE_CELLS)}, wobble - outside);
+    reach = mix(reach, uAreaReach[i].y, cover);
   }
-  return sum / 9.0;
+  return reach;
 }
 // A sun texel holds the arc span (start, end) from which the cell sees the
 // sun; filtering blends neighbouring spans, which is what slides a shadow

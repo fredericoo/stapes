@@ -10247,11 +10247,16 @@ both off, and one over the swamp with both on, in that order.
   the camera's window, and the last ones when there are more, because a later
   area decides. `weatherReach` in the world shader walks them for the
   fragment's light cell. `fogHides` asks `weatherReaches` the same question.
-- **Rain stops on the cell line; fog thickens over a few cells.** The fog at
-  a cell is the share of nine cells — itself and two rings round it,
-  `FOG_EDGE_STEP_CELLS` apart — that fog reaches. `fogReach` in the shader and
-  `fogReachAt` are the same sum, and `fogHides` waits for all nine, so a body
-  loses its name only where the fog is whole.
+- **Rain stops on the cell line; fog fades across an area's edge.** Each area
+  is laid over the ones before it with a soft edge: none of it
+  `FOG_EDGE_CELLS` outside its side, all of it as far inside, by the
+  rectangle's signed distance, so a later area still decides where two overlap.
+  The edge is pushed in and out by up to `2 × FOG_EDGE_WOBBLE_CELLS` by two
+  slow sine waves, because a straight edge showed as a ruled line once the
+  palette pass banded the fade. It replaced a sum of nine on/off samples, which
+  climbed in hard steps. `fogReach` in the shader and `fogReachAt` are the same
+  sum (the wobble has no time term, so they agree), and `fogHides` waits for
+  all of it, so a body loses its name only where the fog is whole.
 - **Fog is as strong as it is deep round the viewer.** `uFog` eases toward
   `fogReachAt` of `view.viewerCell`, so somebody outside a fog area sees none
   of it, and walking in brings it on over the cells inside the edge and over
