@@ -311,7 +311,12 @@ export class World {
     const notice = JSON.stringify({ type: "serverRestarting" });
     for (const socket of this.hub.all()) socket.send(notice);
 
+    /**
+     * `GameServer` writes actors and the board to the store every thirty
+     * seconds, so a flush alone commits a world up to that much out of date.
+     */
     try {
+      this.server.saveEveryActor();
       await this.store.flush();
     } catch (error) {
       console.error("[world] final checkpoint failed", error);

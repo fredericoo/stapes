@@ -1540,6 +1540,11 @@ export class GameServer {
       .catch(GameServer.reportWriteFailure("death clear"));
   }
 
+  saveEveryActor() {
+    const session = this.session;
+    if (session) this.saveActors(session.actorIds(), true);
+  }
+
   private saveActorsIfDue() {
     const session = this.session;
     if (!session) return;
