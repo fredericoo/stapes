@@ -461,7 +461,7 @@ export type ServerMessage =
       cost: DeathCost;
     }
   | { type: "keepalive" }
-  | { type: "serverRestarting" }
+  | { type: "serverRestarting"; inMs?: number }
   | { type: "outdated"; serverVersion: number };
 
 export type ClientMessage =
@@ -934,6 +934,7 @@ const serverMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("serverRestarting"),
+    inMs: v.optional(v.number()),
   }),
   v.object({
     type: v.literal("outdated"),
@@ -954,7 +955,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 40;
+export const PROTOCOL_VERSION = 41;
 
 export const MAX_STEPS_AHEAD = 5;
 

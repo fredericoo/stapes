@@ -33,18 +33,25 @@ const schema = v.object({
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),
     "2000",
   ),
+
+  RESTART_NOTICE_MS: v.optional(v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(0))),
 });
+
+const DEPLOYED_RESTART_NOTICE_MS = 5_000;
 
 export type Config = v.InferOutput<typeof schema> & {
   databasePath: string;
   deployed: boolean;
+  restartNoticeMs: number;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = v.parse(schema, env);
+  const deployed = env.NODE_ENV === "production";
   return {
     ...parsed,
     databasePath: `${parsed.DATA_DIR.replace(/\/+$/, "")}/stapes.db`,
-    deployed: env.NODE_ENV === "production",
+    deployed,
+    restartNoticeMs: parsed.RESTART_NOTICE_MS ?? (deployed ? DEPLOYED_RESTART_NOTICE_MS : 0),
   };
 }

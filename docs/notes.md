@@ -9066,7 +9066,7 @@ nobody, so it freezes with the rest of the world.
   every swing, and without the cap that body never leaves.
 - The close force-saves the actor before parking it, as an ordinary close
   saves before its despawn. A restart inside the minute reaps the body without
-  releasing it, and the drain saves no actors.
+  releasing it; the drain saves it with every other actor.
 - `releaseLingerers` runs every tick, **after `noteDeaths`**. A lingering body
   killed this tick has no runtime and so reads as out of combat; releasing it
   first would take it out of `lingering` before `noteDeaths` could see it there

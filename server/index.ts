@@ -109,7 +109,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     console.log(`[server] ${signal} — draining`);
     bots.stop();
     void world
-      .drain()
+      .drainAfterNotice()
       .catch((error: unknown) => console.error("[server] drain failed", error))
       .finally(() => {
         void server.stop();
