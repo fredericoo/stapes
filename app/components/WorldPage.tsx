@@ -16,6 +16,7 @@ import { OutdatedScreen } from "./OutdatedScreen";
 import { loadPadSide, type PadSide, savePadSide } from "./padSide";
 import { PadSideToggle } from "./PadSideToggle";
 import { ReplacedScreen } from "./ReplacedScreen";
+import { RestartNotice } from "./RestartNotice";
 import { WorldFullScreen } from "./WorldFullScreen";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { DeathCost } from "../game/deathCost";
@@ -72,6 +73,8 @@ type Status =
   | "replaced"
   | "maintenance"
   | "full";
+
+const RESTART_NOTICE_STATUSES: ReadonlySet<Status> = new Set(["live", "restarting"]);
 
 export function WorldPage({
   link,
@@ -143,6 +146,7 @@ export function WorldPage({
     if (typing) inputRef.current?.clear();
   }, []);
   const [status, setStatus] = useState<Status>("connecting");
+  const [restartAtMs, setRestartAtMs] = useState<number | null>(null);
   const [dead, setDead] = useState(false);
   const [death, setDeath] = useState<DeathCost | null>(null);
   const [diedAway, setDiedAway] = useState(false);
@@ -307,8 +311,9 @@ export function WorldPage({
       const remote = new RemoteSession(socket, tiles, statusDefsRef.current);
       restarting = false;
       refusedVersion = null;
-      remote.setOnRestarting(() => {
+      remote.setOnRestarting((inMs) => {
         restarting = true;
+        if (inMs !== null) setRestartAtMs(Date.now() + inMs);
       });
       remote.setOnOutdated((version) => {
         refusedVersion = version;
@@ -341,6 +346,7 @@ export function WorldPage({
         if (disposed || renderer) return;
         attempt = 0;
         setStatus("live");
+        setRestartAtMs(null);
         renderer = new GameRenderer(canvas, remote, tilesets, tiles, labelRef.current);
         renderer.setStatuses(statusDefsRef.current);
         renderer.setLightingEnabled(lightingRef.current);
@@ -588,6 +594,10 @@ export function WorldPage({
           </div>
         </AppShell>
       </div>
+
+      {restartAtMs !== null && RESTART_NOTICE_STATUSES.has(status) ? (
+        <RestartNotice atMs={restartAtMs} />
+      ) : null}
 
       {dead || rebirthing ? (
         <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} away={diedAway} />

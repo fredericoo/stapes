@@ -35,6 +35,7 @@ export class World {
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private realmTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
+  private restartAtMs: number | null = null;
   private realm: RealmState = { leaders: [] };
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
@@ -185,6 +186,7 @@ export class World {
     if (admin) this.adminSockets.add(socket);
     this.characterOf.set(socket, characterId);
     await this.server.join(socket, characterId, { admin, accountId });
+    if (this.restartAtMs !== null) socket.send(restartNotice(this.restartAtMs - Date.now()));
     if (!socket.closed) await this.characters.markSeen(characterId, Date.now());
   }
 
@@ -295,6 +297,21 @@ export class World {
     }
   }
 
+  /**
+   * The world keeps running through the notice, so what players do in those
+   * seconds is saved by the drain that follows.
+   */
+  async drainAfterNotice(): Promise<void> {
+    const noticeMs = this.config.restartNoticeMs;
+    if (noticeMs > 0 && this.hub.size > 0 && !this.draining && this.restartAtMs === null) {
+      this.restartAtMs = Date.now() + noticeMs;
+      const notice = restartNotice(noticeMs);
+      for (const socket of this.hub.all()) socket.send(notice);
+      await new Promise((resolve) => setTimeout(resolve, noticeMs));
+    }
+    await this.drain();
+  }
+
   async drain(): Promise<void> {
     if (this.draining) return;
     this.draining = true;
@@ -330,6 +347,10 @@ export class World {
 
     await this.db.close?.();
   }
+}
+
+function restartNotice(inMs: number): string {
+  return JSON.stringify({ type: "serverRestarting", inMs: Math.max(0, Math.round(inMs)) });
 }
 
 function stamp(): string {

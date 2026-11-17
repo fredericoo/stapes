@@ -7,7 +7,7 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import { readConfig, type Config } from "./config";
 import { openDatabase } from "./db";
 import { GameSocket } from "./sockets";
-import { World } from "./world";
+import { World, WEBSOCKET_SERVICE_RESTART } from "./world";
 
 let directory: string;
 let seed: string;
@@ -30,14 +30,17 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-function configWith(): Config {
-  return readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed } as never);
+function configWith(env: Record<string, string> = {}): Config {
+  return readConfig({ DATA_DIR: join(directory, "data"), SEED_DIR: seed, ...env } as never);
 }
 
 function socket() {
+  const sent: Record<string, unknown>[] = [];
   let code: number | null = null;
   const made = new GameSocket({
-    send: () => {},
+    send: (data) => {
+      sent.push(JSON.parse(data) as Record<string, unknown>);
+    },
     close: (closeCode) => {
       code = closeCode ?? null;
     },
@@ -45,7 +48,8 @@ function socket() {
       return code !== null;
     },
   });
-  return { socket: made, closedWith: () => code };
+  const restartNotices = () => sent.filter((message) => message.type === "serverRestarting");
+  return { socket: made, restartNotices, closedWith: () => code };
 }
 
 async function storedKeys(config: Config): Promise<string[]> {
@@ -67,5 +71,29 @@ describe("draining the world", () => {
     await world.drain();
 
     expect(await storedKeys(config)).toContain("pos:late-joiner");
+  });
+
+  it("tells players how long they have, then closes them only once it has passed", async () => {
+    const world = await World.open(configWith({ RESTART_NOTICE_MS: "80" }));
+    const player = socket();
+    await world.join(player.socket, "player-actor", { admin: false });
+
+    const drained = world.drainAfterNotice();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(player.restartNotices()).toEqual([{ type: "serverRestarting", inMs: 80 }]);
+    expect(player.closedWith()).toBeNull();
+
+    await drained;
+    expect(player.closedWith()).toBe(WEBSOCKET_SERVICE_RESTART);
+  });
+
+  it("does not wait when nobody is connected", async () => {
+    const world = await World.open(configWith({ RESTART_NOTICE_MS: "60000" }));
+    const startedAt = Date.now();
+
+    await world.drainAfterNotice();
+
+    expect(Date.now() - startedAt).toBeLessThan(5_000);
   });
 });

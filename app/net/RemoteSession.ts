@@ -236,7 +236,7 @@ export class RemoteSession implements PlaySession {
   private death: DeathCost | null = null;
   private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
-  private onRestarting: (() => void) | null = null;
+  private onRestarting: ((inMs: number | null) => void) | null = null;
   private onOutdated: ((serverVersion: number) => void) | null = null;
   private players: number | null = null;
   private onPlayers: ((count: number | null) => void) | null = null;
@@ -270,7 +270,7 @@ export class RemoteSession implements PlaySession {
     return this.ready;
   }
 
-  setOnRestarting(cb: (() => void) | null) {
+  setOnRestarting(cb: ((inMs: number | null) => void) | null) {
     this.onRestarting = cb;
   }
 
@@ -411,7 +411,7 @@ export class RemoteSession implements PlaySession {
     this.onServerMessage?.(message);
 
     if (message.type === "serverRestarting") {
-      this.onRestarting?.();
+      this.onRestarting?.(message.inMs ?? null);
       return;
     }
 
