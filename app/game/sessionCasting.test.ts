@@ -5,7 +5,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { masteriesFromXp, masteryLevel, xpForLevel } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
-import { naturalSlot, squareSlot } from "./casting";
+import { MIN_CAST_SHARE, naturalSlot, squareSlot } from "./casting";
 import { ARCANE_LEVELS_PER_RESIST, guardBand, MIN_GUARD_SHARE } from "./combat";
 import { BRAIN_ROUND_TICKS, BRAIN_TURNS_PER_TICK_MIN, TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
@@ -1812,6 +1812,32 @@ describe("a cast that takes time", () => {
     expect(hpOf(play)).toBe(HURT_HP + MEND_HP);
   });
 
+  it("throws no blow while the bar runs, and winds the swing up again once it has filled", () => {
+    const RAT_CELL = { x: 1, y: 0, z: 0 };
+    const attacking = () => {
+      const play = session({ charm: "steady-mend-stone" }, spawnRat(world(), RAT_CELL));
+      play.setTarget(ratAt(play, RAT_CELL));
+      play.setAttackMode(true);
+      return play;
+    };
+    const ticksToSwing = (play: GameSession, limit: number) => {
+      for (let tick = 1; tick <= limit; tick++) {
+        play.tick(TICK_MS);
+        if (play.drainSwings().includes("local")) return tick;
+      }
+      return null;
+    };
+    const windupTicks = ticksToSwing(attacking(), 60 * TICKS_PER_SECOND)!;
+
+    const play = attacking();
+    run(play, windupTicks - 2);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+
+    expect(ticksToSwing(play, CAST_TICKS - 1)).toBeNull();
+    expect(play.nextBlowOf("local")).toBeNull();
+    expect(ticksToSwing(play, windupTicks + 2)).toBeGreaterThanOrEqual(windupTicks);
+  });
+
   it("spends nothing when it is pressed, and everything when it lands", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
@@ -2193,14 +2219,18 @@ describe("a cast that takes time", () => {
     expect(casting(ADEPT_LEVEL + ADEPT_LEVEL / 2)).toBeGreaterThan(HURT_HP);
   });
 
-  it("lands on the press for a caster who has doubled it", () => {
+  it("still takes a fifth of its time for a caster who has doubled it", () => {
     const play = session({ charm: "apprentice-stone" });
     play.runCommand(`/mastery arcane ${ADEPT_LEVEL * 2}`);
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
+    const fastestTicks = Math.ceil((CAST_MS * MIN_CAST_SHARE) / TICK_MS);
 
     play.cast(squareSlot("charm"));
+    run(play, fastestTicks - 1);
+    expect(hpOf(play)).toBe(HURT_HP);
 
+    run(play, 1);
     expect(hpOf(play)).toBeGreaterThan(HURT_HP);
   });
 });

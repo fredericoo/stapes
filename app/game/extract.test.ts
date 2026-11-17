@@ -705,6 +705,45 @@ describe("making a pull", () => {
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsLeft).toBe(1);
   });
 
+  it("throws no blow while the pull runs, and winds the swing up again once it has landed", () => {
+    const rat = tile({
+      id: "rat",
+      height: 4,
+      kind: "battler",
+      actor: true,
+      interactions: {
+        battler: { baseHp: 8, masteries: { toughness: 40 }, naturalWeapon: DEFAULT_WEAPON },
+      },
+    });
+    const map = replaceStack(board(), 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "rat", owner: "npc:0,1,0" },
+    ]);
+    const attacking = () => {
+      const session = new GameSession(map, [...tiles, rat]);
+      session.setTarget("npc:0,1,0");
+      session.setAttackMode(true);
+      return session;
+    };
+    const ticksToSwing = (session: GameSession, limit: number) => {
+      for (let tick = 1; tick <= limit; tick++) {
+        session.tick(TICK_MS);
+        if (session.drainSwings().includes(LOCAL_ACTOR_ID)) return tick;
+      }
+      return null;
+    };
+    const pullTicks = Math.ceil(EXTRACT_MS / TICK_MS);
+    const windupTicks = ticksToSwing(attacking(), 60_000 / TICK_MS)!;
+
+    const session = attacking();
+    for (let tick = 0; tick < windupTicks - 2; tick++) session.tick(TICK_MS);
+    expect(session.interact(BUSH)).toBe(true);
+
+    expect(ticksToSwing(session, pullTicks - 1)).toBeNull();
+    expect(session.nextBlowOf(LOCAL_ACTOR_ID)).toBeNull();
+    expect(ticksToSwing(session, windupTicks + 2)).toBeGreaterThanOrEqual(windupTicks);
+  });
+
   it("is one shared vein: two people may work it and a third may not", () => {
     const session = new GameSession(board(), tiles, {
       actorIds: ["a", "b", "c"],

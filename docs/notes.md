@@ -1577,7 +1577,8 @@ cause of death.
 - **Lord Corvin fights with stones, and is meant to scare players off.** He
   is in the old alderman's hall, with rating 67, 35 of it from Arcane 70, between the
   smiths and the guards. His spells are Lance, Ember, Frost and Thorns. Arcane 70
-  is more than double what each of them asks, so every cast is instant. None of
+  is more than double what each of them asks, so every cast takes a fifth of its
+  authored time (`MIN_CAST_SHARE`). None of
   them hits an area: an area spell `affects: "others"` would hit his wife, and
   nothing brings her back. He calls `fights-back` with his own `dueling` state,
   because `townsfolk-fight` only swings.
@@ -7661,9 +7662,15 @@ far" below
 - **The scaling is a subtraction, not a curve.** `castDurationMs` reads
   `requirementCoverage` — `requirementShare` with the cap taken off — and takes
   the surplus straight off the clock: 110% of what the stone asks is 90% of the
-  time, 150% is half, and double is instant. One subtraction because a player has
+  time and 150% is half. One subtraction because a player has
   to be able to hold it in their head while looking at the requirements grid, and
   because the figure is on the button's tooltip where a level-up visibly moves it.
+- **It stops at `MIN_CAST_SHARE`, a fifth of the authored time.** A stone with a
+  cast time is never instant, however far past its requirements the caster is:
+  180% of what it asks is the fastest it gets. At zero the bar, the root and the
+  blow that breaks a cast would all stop applying to exactly the casters best
+  placed to pay them. Only a stone with no `castTimeMs` authored lands on the
+  press.
 - **Short of the requirements, the shortfall goes on the clock the same way.**
   Half of what a stone asks is one and a half times its time, and none of it is
   double. It reads `requirementShare` rather than `requirementCoverage` for that
@@ -7671,8 +7678,8 @@ far" below
   not faster: the surplus speeds up a stone you can fully cast and does nothing
   for one you cannot.
 - **That is what keeps a starter spell worth carrying.** Flame asks Arcane 10 and
-  Fire 1, so it is three seconds the day you can first hold one and instant by
-  Arcane 21. The spell does not get stronger, it gets quick. The stones at the
+  Fire 1, so it is three seconds the day you can first hold one and 0.6 of one by
+  Arcane 19. The spell does not get stronger, it gets quick. The stones at the
   top of the ladder ask thirty-odd points and stay slow for a long time, which is
   the whole shape of the trade — and it is why the cap belongs off this number
   and on `requirementShare`, where a weapon reads it.
@@ -7739,6 +7746,14 @@ far" below
   off you, which is what keeps `ActorSnapshot.casting` and
   `ActorSnapshot.extracting` from ever being set at once and lets one bar draw
   both.
+- **Neither throws a blow.** `tryAttack` refuses while `casting` or `extraction`
+  is set, and disengages, so `nextBlow` is null and the viewer's attack line is
+  gone for as long as the bar runs. The windup starts again from the top when the
+  bar ends: attack mode and the target are kept, the progress towards the blow is
+  not. The gate is on the blow and not on the cast, because attack mode is a
+  standing order and a cast is a press; a cast that attack mode refused could
+  never be started in a fight. A stone with no cast time sets neither field and
+  does not hold a blow back.
 - **It holds the world awake.** `isAtRest` returns false while anybody is
   casting — the same clause a pull and a cooling stone have, and sharper than
   either: the cooldown has not been spent yet, so there is nothing else on the
@@ -8102,8 +8117,8 @@ with a cast-time twin is strictly the better stone, and a cast a blow breaks is
 only worth starting from further away than a sword can close in the time it
 takes — so the cast time and the extra reach are one change, and neither ships
 without the other. The cast column is the time for a caster who meets the
-requirements exactly; `castDurationMs` takes it down from there, and a caster
-with double what the stone asks casts instantly. The reach stays inside a bow's:
+requirements exactly; `castDurationMs` takes it down from there, to a fifth of it
+for a caster with 180% of what the stone asks or more. The reach stays inside a bow's:
 a simple bow is 6, a war bow 10, and a bow has no bar to break.
 
 **There is a fourth ladder with no element on it, and it is the one everybody

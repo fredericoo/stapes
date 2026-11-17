@@ -2837,7 +2837,7 @@ export class GameSession implements PlaySession {
 
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
     if (targetId === attacker.id) return false;
-    if (this.incapacitated(attacker)) {
+    if (this.incapacitated(attacker) || attacker.casting || attacker.extraction) {
       this.disengage(attacker);
       return false;
     }
