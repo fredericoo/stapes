@@ -1812,6 +1812,32 @@ describe("a cast that takes time", () => {
     expect(hpOf(play)).toBe(HURT_HP + MEND_HP);
   });
 
+  it("throws no blow while the bar runs, and winds the swing up again once it has filled", () => {
+    const RAT_CELL = { x: 1, y: 0, z: 0 };
+    const attacking = () => {
+      const play = session({ charm: "steady-mend-stone" }, spawnRat(world(), RAT_CELL));
+      play.setTarget(ratAt(play, RAT_CELL));
+      play.setAttackMode(true);
+      return play;
+    };
+    const ticksToSwing = (play: GameSession, limit: number) => {
+      for (let tick = 1; tick <= limit; tick++) {
+        play.tick(TICK_MS);
+        if (play.drainSwings().includes("local")) return tick;
+      }
+      return null;
+    };
+    const windupTicks = ticksToSwing(attacking(), 60 * TICKS_PER_SECOND)!;
+
+    const play = attacking();
+    run(play, windupTicks - 2);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
+
+    expect(ticksToSwing(play, CAST_TICKS - 1)).toBeNull();
+    expect(play.nextBlowOf("local")).toBeNull();
+    expect(ticksToSwing(play, windupTicks + 2)).toBeGreaterThanOrEqual(windupTicks);
+  });
+
   it("spends nothing when it is pressed, and everything when it lands", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);

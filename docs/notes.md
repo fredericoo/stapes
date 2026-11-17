@@ -7722,6 +7722,14 @@ far" below
   off you, which is what keeps `ActorSnapshot.casting` and
   `ActorSnapshot.extracting` from ever being set at once and lets one bar draw
   both.
+- **Neither throws a blow.** `tryAttack` refuses while `casting` or `extraction`
+  is set, and disengages, so `nextBlow` is null and the viewer's attack line is
+  gone for as long as the bar runs. The windup starts again from the top when the
+  bar ends: attack mode and the target are kept, the progress towards the blow is
+  not. The gate is on the blow and not on the cast, because attack mode is a
+  standing order and a cast is a press; a cast that attack mode refused could
+  never be started in a fight. A stone with no cast time sets neither field and
+  does not hold a blow back.
 - **It holds the world awake.** `isAtRest` returns false while anybody is
   casting — the same clause a pull and a cooling stone have, and sharper than
   either: the cooldown has not been spent yet, so there is nothing else on the
