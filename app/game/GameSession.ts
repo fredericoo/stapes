@@ -572,7 +572,6 @@ export type ActorSnapshot = {
   casting: CastProgress | null;
   pvp: boolean;
   hidden: boolean;
-  king: boolean;
 };
 
 export type NoiseEmission = {
@@ -987,7 +986,6 @@ export class GameSession implements PlaySession {
   private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
   private readonly wiredCells = new Map<string, Coord>();
-  private kingId: string | null = null;
   private readonly looseGravityCells = new Map<string, Coord>();
   private readonly decay: DecayIndex;
   private readonly weathering: Weathering;
@@ -2005,7 +2003,6 @@ export class GameSession implements PlaySession {
   private partnerViewFor(partner: ActorRuntime): PartnerView {
     return {
       name: () => this.bodyName(partner.id),
-      isKing: () => partner.id === this.kingId,
       hasTag: (tag) => partner.tags.includes(tag),
       rating: () => this.ratingOf(partner) ?? MIN_RATING,
       channelOn: (channel) => this.channelOn(channel),
@@ -2064,10 +2061,6 @@ export class GameSession implements PlaySession {
       this.actorEmitters(),
     );
     return channelPowered(state, channel, "any");
-  }
-
-  setKing(actorId: string | null) {
-    this.kingId = actorId;
   }
 
   /**
@@ -6697,7 +6690,6 @@ export class GameSession implements PlaySession {
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
       hidden: actor.hidden,
-      king: actor.id === this.kingId,
     };
   }
 

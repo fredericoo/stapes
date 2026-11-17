@@ -210,7 +210,6 @@ describe("validating a dialog", () => {
           when: {
             combinator: "or",
             rules: [
-              { cond: "king" },
               { cond: "tagged", tag: "" },
               { cond: "switched", channel: "" },
             ],

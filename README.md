@@ -340,7 +340,7 @@ an agent drives", lists every call.
   `data/map.json`, one per checkpoint, and print what each checkpoint costs
   and how many bytes it writes
 - `bun run bench:realm` — fill a fresh database to production's size
-  (`--characters` 560, `--deaths` 1650) and time the three reads a realm
+  (`--characters` 560) and time the two reads a realm
   refresh makes, each `--rounds` (20) times
 - `bun run bench:idle` — load `data/map.json` into a real `GameServer`, seat
   one player and let them leave, then print how many ticks the empty world

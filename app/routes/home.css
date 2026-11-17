@@ -893,10 +893,6 @@
   background: var(--home-deep);
 }
 
-.home-realm-entry[data-king="true"] {
-  border-color: var(--color-label);
-}
-
 .home-realm-rank {
   width: 1ch;
   font-size: 20px;
@@ -904,31 +900,15 @@
   color: var(--home-text-faint);
 }
 
-.home-realm-who {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .home-realm-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   font-size: 20px;
   line-height: 30px;
   color: var(--color-paper);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.home-realm-entry[data-king="true"] .home-realm-name {
-  color: var(--color-label);
-}
-
-.home-realm-title {
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--home-text-quiet);
 }
 
 .home-realm-rating {

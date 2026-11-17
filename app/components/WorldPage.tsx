@@ -145,7 +145,6 @@ export function WorldPage({
   const [status, setStatus] = useState<Status>("connecting");
   const [dead, setDead] = useState(false);
   const [death, setDeath] = useState<DeathCost | null>(null);
-  const [rebornAs, setRebornAs] = useState<string | null>(null);
   const [diedAway, setDiedAway] = useState(false);
   const [rebirthing, setRebirthing] = useState(false);
   const rebirth = useCallback(() => {
@@ -297,7 +296,6 @@ export function WorldPage({
       setPainted(false);
       setDead(false);
       setDeath(null);
-      setRebornAs(null);
       setDiedAway(false);
       setRebirthing(false);
     };
@@ -324,7 +322,6 @@ export function WorldPage({
       remote.setOnDead((isDead) => {
         setDead(isDead);
         setDeath(remote.deathCost());
-        setRebornAs(remote.rebornAs());
         setDiedAway(remote.wasAwayForDeath());
         if (isDead) return;
         if (!rendererRef.current) {
@@ -593,13 +590,7 @@ export function WorldPage({
       </div>
 
       {dead || rebirthing ? (
-        <DeathScreen
-          onRebirth={rebirth}
-          pending={rebirthing}
-          cost={death}
-          rebornAs={rebornAs}
-          away={diedAway}
-        />
+        <DeathScreen onRebirth={rebirth} pending={rebirthing} cost={death} away={diedAway} />
       ) : null}
     </>
   );

@@ -18,7 +18,7 @@ import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { MIN_RATING } from "../lib/mastery";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, NumberInput, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, Select } from "../ui";
 import { ConversationBubble } from "./ConversationBubble";
 
 const PRETEND_NAME = "you";
@@ -35,7 +35,6 @@ type Pretend = {
   equipment: Equipment;
   tags: Set<string>;
   statuses: Set<string>;
-  king: boolean;
   channels: Set<string>;
   rating: number;
 };
@@ -61,7 +60,6 @@ function pretendPartner(
 ): PartnerView {
   return {
     name: () => PRETEND_NAME,
-    isKing: () => pretend.king,
     hasTag: (tag) => pretend.tags.has(tag),
     channelOn: (channel) => pretend.channels.has(channel),
     rating: () => pretend.rating,
@@ -70,7 +68,6 @@ function pretendPartner(
         equipment: pretend.equipment,
         tags: new Set(pretend.tags),
         statuses: new Set(pretend.statuses),
-        king: pretend.king,
         channels: new Set(pretend.channels),
         rating: pretend.rating,
       };
@@ -122,7 +119,6 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
       : emptyEquipment(),
     tags: new Set(),
     statuses: new Set(),
-    king: false,
     channels: new Set(),
     rating: MIN_RATING,
   }));
@@ -229,14 +225,6 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             aria-label="Pretend channels switched on, comma separated"
           />
         </div>
-        <label className="flex items-center gap-2 text-[10px] uppercase text-muted">
-          <Switch
-            checked={pretend.king}
-            onCheckedChange={(king) => setPretend({ ...pretend, king })}
-            ariaLabel="Pretend to be the king"
-          />
-          king
-        </label>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase text-muted">rating</span>
           <NumberInput

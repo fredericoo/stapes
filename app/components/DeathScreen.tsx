@@ -7,13 +7,11 @@ export function DeathScreen({
   onRebirth,
   pending,
   cost,
-  rebornAs,
   away,
 }: {
   onRebirth: () => void;
   pending: boolean;
   cost: DeathCost | null;
-  rebornAs: string | null;
   away: boolean;
 }) {
   if (pending) {
@@ -52,11 +50,6 @@ export function DeathScreen({
                 : "You kept everything you had."}
             </p>
             <p>Every mastery lost a tenth of its experience. You start again with a new bag.</p>
-            {rebornAs ? (
-              <p className="text-paper">
-                {away ? `You are now ${rebornAs}.` : `You will be reborn as ${rebornAs}.`}
-              </p>
-            ) : null}
           </div>
           {cost && cost.levelsLost.length > 0 ? <LevelsLost levels={cost.levelsLost} /> : null}
         </div>

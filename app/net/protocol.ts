@@ -372,10 +372,6 @@ export type ServerMessage =
       areas: WeatherArea[];
     }
   | {
-      type: "king";
-      actorId: string | null;
-    }
-  | {
       type: "hidden";
       on: boolean;
     }
@@ -389,7 +385,6 @@ export type ServerMessage =
       minutesOfDay: number;
       weather: WeatherKind;
       weatherAreas: WeatherArea[];
-      kingId: string | null;
       hps: HpPatch[];
       names: NamePatch[];
       appearances: AppearancePatch[];
@@ -464,7 +459,6 @@ export type ServerMessage =
       equipment: Equipment;
       masteryXp: MasteryXp | null;
       cost: DeathCost;
-      rebornAs?: string;
     }
   | { type: "keepalive" }
   | { type: "serverRestarting" }
@@ -663,7 +657,6 @@ const serverMessageSchema = v.variant("type", [
     minutesOfDay: v.number(),
     weather: v.optional(v.picklist(WEATHER_KINDS), "clear"),
     weatherAreas: v.optional(weatherAreasSchema, () => []),
-    kingId: v.optional(v.nullable(v.string()), () => null),
     hps: v.array(hpPatchSchema),
     names: v.optional(v.array(namePatchSchema), () => []),
     appearances: v.optional(v.array(appearancePatchSchema), () => []),
@@ -755,10 +748,6 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("players"),
     playerCount: v.number(),
-  }),
-  v.object({
-    type: v.literal("king"),
-    actorId: v.nullable(v.string()),
   }),
   v.object({
     type: v.literal("statuses"),
@@ -936,7 +925,6 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
     masteryXp: v.fallback(v.nullable(masteryXpBlockSchema), null),
     cost: v.fallback(deathCostSchema, NOTHING_LOST),
-    rebornAs: v.fallback(v.optional(v.string()), undefined),
   }),
   v.object({
     type: v.literal("keepalive"),

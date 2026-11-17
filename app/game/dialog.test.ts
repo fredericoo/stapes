@@ -79,15 +79,8 @@ const standsToServe: BrainDef = {
 
 const gatekeeper: DialogDef = {
   script: [
-    {
-      kind: "if",
-      when: { cond: "king" },
-      then: [
-        { kind: "switch", channel: "gate", to: "toggle" },
-        { kind: "say", text: "As you wish." },
-      ],
-      else: [{ kind: "say", text: "Only the king gives that order." }],
-    },
+    { kind: "switch", channel: "gate", to: "toggle" },
+    { kind: "say", text: "As you wish." },
   ],
 };
 
@@ -587,7 +580,7 @@ describe("the tanner, as authored", () => {
   });
 });
 
-describe("a gatekeeper who answers to the king", () => {
+describe("a gatekeeper who throws a lever", () => {
   function gateWorld(): GameSession {
     let map = fieldWith("gatekeeper");
     map = replaceStack(map, -4, -4, 0, [
@@ -600,9 +593,8 @@ describe("a gatekeeper who answers to the king", () => {
   const top = (session: GameSession, x: number, y: number) =>
     getStack(session.getMap(), x, y, 0).at(-1)?.tileId;
 
-  it("throws the lever on the gate's channel for the king, and the gate opens", () => {
+  it("throws the lever on the gate's channel, and the gate opens", () => {
     const session = gateWorld();
-    session.setKing(LOCAL_ACTOR_ID);
 
     talkTo(session, "gatekeeper");
     session.tick(TICK_MS);
@@ -610,16 +602,6 @@ describe("a gatekeeper who answers to the king", () => {
     expect(lastLine(session)).toBe("As you wish.");
     expect(top(session, -4, -4)).toBe("lever-on");
     expect(top(session, -4, 4)).toBe("gate-open");
-  });
-
-  it("leaves the gate shut for anybody else", () => {
-    const session = gateWorld();
-
-    talkTo(session, "gatekeeper");
-    session.tick(TICK_MS);
-
-    expect(lastLine(session)).toBe("Only the king gives that order.");
-    expect(top(session, -4, 4)).toBe("gate");
   });
 });
 

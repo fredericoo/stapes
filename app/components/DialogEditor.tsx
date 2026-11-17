@@ -486,7 +486,6 @@ function CommandBlocks({
 
 const CONDITIONS: Record<DialogCondition["cond"], { label: string; make: () => DialogCondition }> =
   {
-    king: { label: "the player is the king", make: () => ({ cond: "king" }) },
     tagged: { label: "the player has the tag", make: () => ({ cond: "tagged", tag: "" }) },
     switched: { label: "the channel is on", make: () => ({ cond: "switched", channel: "" }) },
     rated_below: {
@@ -565,7 +564,7 @@ function IfBlocks({
           onChange={(when) => onChange({ ...command, when })}
           leaf={{
             render: (leaf, set) => <ConditionFields leaf={leaf} onChange={set} />,
-            fresh: () => ({ cond: "king" }),
+            fresh: () => ({ cond: "tagged", tag: "" }),
           }}
         />
       </div>

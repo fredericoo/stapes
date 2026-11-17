@@ -14,8 +14,7 @@ import type { Config } from "./config";
 import type { Database } from "./db";
 import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
-import { Realm, type Contender, type RealmState } from "./realm";
-import { generationalName } from "../app/lib/characterName";
+import { leadersOf, type Contender, type RealmState } from "./realm";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -36,6 +35,7 @@ export class World {
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private realmTimer: ReturnType<typeof setInterval> | null = null;
   private draining = false;
+  private realm: RealmState = { leaders: [] };
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
 
@@ -49,7 +49,6 @@ export class World {
     readonly maintenance: Maintenance,
     readonly feedback: Feedback,
     readonly deaths: Deaths,
-    private readonly realm: Realm,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -80,7 +79,6 @@ export class World {
       dataStore: new DataStore(blobs),
       nameOf: (actorId) => characters.nameOf(actorId),
       appearanceOf: (actorId) => characters.appearanceOf(actorId),
-      deathsOf: (actorId) => deaths.countOf(actorId),
       weather: config.WEATHER,
     });
     const world = new World(
@@ -93,7 +91,6 @@ export class World {
       await Maintenance.load(db),
       new Feedback(db),
       deaths,
-      await Realm.load(db, store),
       blobs,
       db,
       config,
@@ -139,15 +136,11 @@ export class World {
   }
 
   get realmState(): RealmState {
-    return this.realm.state;
+    return this.realm;
   }
 
   async refreshRealm(): Promise<void> {
-    const [roster, ratings, { deaths }] = await Promise.all([
-      this.characters.roster(),
-      this.server.ratings(),
-      this.deaths.counts(),
-    ]);
+    const [roster, ratings] = await Promise.all([this.characters.roster(), this.server.ratings()]);
     const contenders: Contender[] = [];
     for (const { character } of roster) {
       if (!character) continue;
@@ -155,18 +148,16 @@ export class World {
       if (rating === undefined) continue;
       contenders.push({
         characterId: character.id,
-        name: generationalName(character.name, 1 + (deaths.get(character.id) ?? 0)),
+        name: character.name,
         rating,
         createdAt: character.createdAt,
       });
     }
-    this.realm.settle(contenders, Date.now());
-    this.server.crown(this.realm.kingId);
+    this.realm = { leaders: leadersOf(contenders) };
   }
 
   async resetWorld(): Promise<void> {
     await this.server.resetWorld();
-    this.realm.forget();
     await this.refreshRealm();
   }
 

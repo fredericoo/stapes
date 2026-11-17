@@ -8,7 +8,6 @@ import {
   type Death,
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
-import { generationalName } from "../app/lib/characterName";
 import {
   BodyGrid,
   INTEREST_REACH_CHUNKS,
@@ -406,8 +405,6 @@ const TICK_POLL_MS = 1;
 
 type SavedPosition = ActorPosition & { savedAt: number };
 
-type Life = { name: string; generation: number };
-
 type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type SavedTags = { tags: string[]; savedAt: number };
@@ -794,7 +791,6 @@ export class GameServer {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
       appearanceOf?: (actorId: string) => Promise<HumanAppearance | null>;
-      deathsOf?: (actorId: string) => Promise<number>;
       maxOnlinePlayers?: number;
       manualTicks?: { startAtMs: number };
       seed?: number;
@@ -806,12 +802,6 @@ export class GameServer {
   private session: GameSession | null = null;
   private readonly depots = new DepotLedger();
   private readonly accountOf = new Map<string, string>();
-  /**
-   * Each seated character's stored name and generation. The generation is
-   * counted from `death` once and then kept here, because a death's row is
-   * only committed with the next checkpoint and a rebirth can come first.
-   */
-  private readonly lives = new Map<string, Life>();
   private clockOffsetMinutes = 0;
   private weatherSetByHand: WeatherKind | null = null;
   private weatherSent: WeatherKind | null = null;
@@ -835,7 +825,6 @@ export class GameServer {
   private sentOutfits = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
-  private kingId: string | null = null;
   /**
    * These three are compared by identity: the runtime mutates one object in
    * place for a whole pull, wait or cast and replaces it only when one starts
@@ -930,7 +919,6 @@ export class GameServer {
           clock: () => this.minutesOfDay(),
           depots: this.depots,
         });
-    this.session.setKing(this.kingId);
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
     /**
@@ -1692,13 +1680,6 @@ export class GameServer {
     }
   }
 
-  crown(actorId: string | null) {
-    if (actorId === this.kingId) return;
-    this.kingId = actorId;
-    this.session?.setKing(actorId);
-    this.broadcast({ type: "king", actorId });
-  }
-
   private playerCount(excluding?: GameSocket): number {
     let count = 0;
     for (const [actorId, sockets] of this.socketsByActor) {
@@ -1754,7 +1735,6 @@ export class GameServer {
       minutesOfDay: this.minutesOfDay(),
       weather: this.weather(),
       weatherAreas: this.weatherAreas,
-      kingId: this.kingId,
       ...(diedAway ? { diedAway } : {}),
     };
     const map = mapOfInterestJson(session.getMap(), chunks, held);
@@ -2541,7 +2521,7 @@ export class GameServer {
       this.session.spawn(
         actorId,
         {
-          name: await this.displayNameOf(actorId),
+          name: (await this.env.nameOf?.(actorId)) ?? null,
           at: standing.get(actorId),
           carrying: kit ? restoredEquipment(kit, tilesById) : await this.lastEquipmentOf(actorId),
           tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
@@ -2590,7 +2570,6 @@ export class GameServer {
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
     this.ctx.storage.sql.exec("DELETE FROM death");
-    this.lives.clear();
     this.chatLogReady = false;
     await this.ctx.storage.deleteAlarm();
 
@@ -2869,8 +2848,6 @@ export class GameServer {
       const character = connected || this.lingering.has(actorId);
       if (!character) continue;
       this.logDeath(death);
-      const life = this.lives.get(actorId);
-      if (life) this.lives.set(actorId, { ...life, generation: life.generation + 1 });
       this.pendingDeathWrites.set(actorId, { death, told: connected });
       if (connected) this.justDied.push(death);
     }
@@ -2903,16 +2880,10 @@ export class GameServer {
         equipment: death.equipment,
         masteryXp: death.masteryXp,
         cost: death.cost ?? NOTHING_LOST,
-        ...this.rebornAs(death.id),
       });
       this.silenced.add(death.id);
     }
     this.justDied = [];
-  }
-
-  private rebornAs(actorId: string): { rebornAs: string } | null {
-    const life = this.lives.get(actorId);
-    return life ? { rebornAs: generationalName(life.name, life.generation) } : null;
   }
 
   private async seatActor(actorId: string) {
@@ -2926,7 +2897,7 @@ export class GameServer {
     });
     await this.seatDepots(actorId);
     this.session!.spawn(actorId, {
-      name: await this.displayNameOf(actorId),
+      name: (await this.env.nameOf?.(actorId)) ?? null,
       appearance: (await this.env.appearanceOf?.(actorId)) ?? null,
       ...restored,
     });
@@ -2942,21 +2913,6 @@ export class GameServer {
   private async lastDepotsOf(owner: string): Promise<Depots> {
     const saved = await this.ctx.storage.get<SavedDepots>(this.depotKey(owner));
     return restoredDepots(saved?.depots, tilesByIdFromList(this.tiles));
-  }
-
-  private async displayNameOf(actorId: string): Promise<string | null> {
-    const life = await this.lifeOf(actorId);
-    return life && generationalName(life.name, life.generation);
-  }
-
-  private async lifeOf(actorId: string): Promise<Life | null> {
-    const known = this.lives.get(actorId);
-    if (known) return known;
-    const name = await this.env.nameOf?.(actorId);
-    if (!name) return null;
-    const life = { name, generation: 1 + ((await this.env.deathsOf?.(actorId)) ?? 0) };
-    this.lives.set(actorId, life);
-    return life;
   }
 
   private async rebirth(actorId: string) {

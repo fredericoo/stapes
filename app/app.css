@@ -405,26 +405,11 @@ body {
 /* 7×9 in the font's own pixels, so each rect is one brick. `text-shadow` does
    not reach an SVG: the icon carries its own outline bricks one brick outside
    its viewBox, so the svg must overflow for them to show. The same goes for
-   the crown and the star below. */
+   the star below. */
 .world-label__mouse {
   flex-shrink: 0;
   width: calc(var(--world-label-brick) * 7);
   height: calc(var(--world-label-brick) * 9);
-  overflow: visible;
-}
-
-.world-label__line--crowned {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--world-label-brick) * 3);
-}
-
-.world-label__crown {
-  flex-shrink: 0;
-  width: calc(var(--world-label-brick) * 7);
-  height: calc(var(--world-label-brick) * 4);
-  color: var(--color-interact);
   overflow: visible;
 }
 

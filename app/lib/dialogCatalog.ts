@@ -41,7 +41,7 @@ export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
   if: {
     label: "if",
     hint: "Run one list when the conditions hold and the other when they do not.",
-    make: () => ({ kind: "if", when: { cond: "king" }, then: [], else: [] }),
+    make: () => ({ kind: "if", when: { cond: "tagged", tag: "" }, then: [], else: [] }),
   },
   switch: {
     label: "switch",

@@ -213,7 +213,6 @@ export class RemoteSession implements PlaySession {
   private readonly statusesById = new Map<string, StatusInstance[]>();
   private readonly extractionsById = new Map<string, ExtractionProgress>();
   private readonly pvpOn = new Set<string>();
-  private kingId: string | null = null;
   private readonly castingsById = new Map<string, CastProgress>();
   private equipment: Equipment = emptyEquipment();
   private depots: Depots = NO_DEPOTS;
@@ -235,7 +234,6 @@ export class RemoteSession implements PlaySession {
   private onReady: (() => void) | null = null;
   private dead = false;
   private death: DeathCost | null = null;
-  private rebornAsName: string | null = null;
   private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
@@ -293,11 +291,6 @@ export class RemoteSession implements PlaySession {
     return this.death;
   }
 
-  /** The name, generation included, the next life plays as. */
-  rebornAs(): string | null {
-    return this.rebornAsName;
-  }
-
   wasAwayForDeath(): boolean {
     return this.diedAway;
   }
@@ -343,7 +336,6 @@ export class RemoteSession implements PlaySession {
 
   private clearDeath() {
     this.death = null;
-    this.rebornAsName = null;
     this.diedAway = false;
     this.setDead(false);
   }
@@ -452,17 +444,11 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    if (message.type === "king") {
-      this.kingId = message.actorId;
-      return;
-    }
-
     if (message.type === "hello") {
       this.selfId = message.selfId;
       this.setClock(message.minutesOfDay);
       this.setWeather(message.weather);
       this.setWeatherAreas(message.weatherAreas);
-      this.kingId = message.kingId;
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.actorCells = ActorCells.of(this.serverMap);
       this.map = this.serverMap;
@@ -515,7 +501,6 @@ export class RemoteSession implements PlaySession {
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
       this.death = message.diedAway ?? null;
-      this.rebornAsName = message.diedAway ? (this.names.get(message.selfId) ?? null) : null;
       this.diedAway = message.diedAway !== undefined;
       this.setDead(this.diedAway);
       this.ready = true;
@@ -594,7 +579,6 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "died") {
       this.death = message.cost;
-      this.rebornAsName = message.rebornAs ?? null;
       this.diedAway = false;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;
@@ -1474,7 +1458,6 @@ export class RemoteSession implements PlaySession {
       casting: this.castingsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
       hidden: id === this.selfId && this.hidden,
-      king: id === this.kingId,
     };
   }
 
@@ -1868,6 +1851,5 @@ function offscreenActor(id: string): ActorSnapshot {
     casting: null,
     pvp: false,
     hidden: false,
-    king: false,
   };
 }
