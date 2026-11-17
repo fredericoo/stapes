@@ -12,7 +12,7 @@ import {
   type Recolouring,
   type WornLayer,
 } from "./humanParts";
-import { HANDS, HELD_PLACEMENT } from "./heldPlacement";
+import { HANDS, HELD_PLACEMENT, carryOf } from "./heldPlacement";
 import { CELL_SIZE, type Direction, type TileDef, type TilesetDef } from "./types";
 
 export const SHEET_FACINGS: readonly Direction[] = ["s", "e", "w", "n"];
@@ -325,8 +325,9 @@ function paint(sheet: Uint8ClampedArray, layer: Rgba, swaps: Map<number, number>
 
 /**
  * Lays what each hand holds over every frame in which it is `behind` the
- * figure, or every one in which it is in front. A held part is drawn once per facing, in the first frame of
- * its row, and moved to the hand for each pose.
+ * figure, or every one in which it is in front. A held part is drawn once
+ * per facing for each hand, in the column of its row that `HANDS` gives the
+ * hand, and moved to the hand for each pose.
  */
 function paintHeld(
   sheet: Uint8ClampedArray,
@@ -334,12 +335,13 @@ function paintHeld(
   look: HumanLook,
   behind: boolean,
 ) {
-  for (const hand of HANDS) {
+  HANDS.forEach((hand, column) => {
     const id = look.parts[hand];
     const block = id === null ? undefined : blocks[hand][humanPart(id).block];
-    if (!block) continue;
+    if (id === null || !block) return;
+    const placements = HELD_PLACEMENT[carryOf(id)][hand];
     SHEET_FACINGS.forEach((facing, row) => {
-      HELD_PLACEMENT[hand][facing].forEach((placement, pose) => {
+      placements[facing].forEach((placement, pose) => {
         if (placement.behind !== behind) return;
         const [dx, dy] = placement.at;
         for (let y = 0; y < FRAME_PX; y++) {
@@ -347,7 +349,8 @@ function paintHeld(
             const tx = x + dx;
             const ty = y + dy;
             if (tx < 0 || ty < 0 || tx >= FRAME_PX || ty >= FRAME_PX) continue;
-            const from = ((row * FRAME_PX + y) * SHEET_WIDTH_PX + x) * RGBA_CHANNELS;
+            const from =
+              ((row * FRAME_PX + y) * SHEET_WIDTH_PX + column * FRAME_PX + x) * RGBA_CHANNELS;
             if (block.data[from + ALPHA_OFFSET] === 0) continue;
             const to =
               ((row * FRAME_PX + ty) * SHEET_WIDTH_PX + pose * FRAME_PX + tx) * RGBA_CHANNELS;
@@ -356,7 +359,7 @@ function paintHeld(
         }
       });
     });
-  }
+  });
 }
 
 export function composeSheet(blocks: LayerBlocks, look: HumanLook): Uint8ClampedArray<ArrayBuffer> {

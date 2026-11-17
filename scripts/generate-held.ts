@@ -1,5 +1,5 @@
 import path from "node:path";
-import { HANDS } from "../app/lib/heldPlacement";
+import { HANDS, type Hand } from "../app/lib/heldPlacement";
 import { LAYERS, partsOn, type HeldPartId } from "../app/lib/humanParts";
 import {
   DEFAULT_LOOK,
@@ -51,8 +51,9 @@ const STRING = ["#c7dcd0"];
 const ORB = ["#a884f3", "#ffffff"];
 
 /**
- * A thing's solids around the `grip` a hand holds it by. Both hands draw the
- * same frames, so a model does not know which holds it. A shafted thing is
+ * A thing's solids around the `grip` a hand holds it by. `x.lat` points away
+ * from the body on the side of the hand that holds it, so a model built on
+ * it comes out mirrored in the other hand. A shafted thing is
  * held upright, which this projection draws as one straight diagonal.
  */
 type HeldModel = (grip: Vec, x: Axes) => Solid[];
@@ -60,13 +61,18 @@ type HeldModel = (grip: Vec, x: Axes) => Solid[];
 /** A one-pixel shaft covers less than half of most pixels it crosses, so it is weighted to take them. */
 const THIN = 3;
 
+/** How far a shield is turned away from the body when that shows more of its face, and when it shows less. */
+const SHIELD_TURN = 0.7;
+const SHIELD_TURN_AWAY = 0.25;
+
 /**
- * A shield held square to its bearer is edge-on in two facings, so it is
- * turned a little towards the viewer's side in all of them.
+ * A shield is turned away from the body, to the side of the hand that holds
+ * it. Only the south and east of anything is seen, so a turn to the north or
+ * west hides the face and is kept slight.
  */
 function shieldAxes(x: Axes): Axes {
-  const seen: Vec = x.fw[0] === 0 ? [1, 0, 0] : [0, 1, 0];
-  const fw = normalise(add(x.fw, scale(seen, 0.7)));
+  const seen = x.lat[0] + x.lat[1] > 0;
+  const fw = normalise(add(x.fw, scale(x.lat, seen ? SHIELD_TURN : SHIELD_TURN_AWAY)));
   return { fw, lat: cross(x.up, fw), up: x.up };
 }
 
@@ -137,8 +143,9 @@ const HELD: Record<HeldPartId, HeldModel> = {
  * at `GRIP`. `composeSheet` moves the frame to each hand, so nothing of the
  * figure is cut out of it and it is outlined all round.
  */
-function drawFacing(model: HeldModel, row: number): (string | null)[] {
-  const x = axesFor(SHEET_FACINGS[row]!);
+function drawFacing(model: HeldModel, hand: Hand, row: number): (string | null)[] {
+  const facing = axesFor(SHEET_FACINGS[row]!);
+  const x: Axes = { ...facing, lat: scale(facing.lat, hand === "weaponHand" ? 1 : -1) };
   const grip = at(GRIP, [x.up, -HAND_DROP], [x.fw, HAND_AHEAD]);
   const solids = model(grip, x);
   const cells = cast(
@@ -158,12 +165,14 @@ const parts = partsOn("weaponHand");
 const width = (Math.max(...parts.map((p) => p.block)) + 1) * BLOCK_W;
 const sheet: (string | null)[] = Array.from({ length: width * BLOCK_H }, () => null);
 for (const part of parts) {
-  SHEET_FACINGS.forEach((_, row) =>
-    drawFacing(HELD[part.id], row).forEach((c, i) => {
-      const x = part.block * BLOCK_W + (i % FRAME_PX);
-      const y = row * FRAME_PX + Math.floor(i / FRAME_PX);
-      sheet[y * width + x] = c;
-    }),
+  HANDS.forEach((hand, column) =>
+    SHEET_FACINGS.forEach((_, row) =>
+      drawFacing(HELD[part.id], hand, row).forEach((c, i) => {
+        const x = part.block * BLOCK_W + column * FRAME_PX + (i % FRAME_PX);
+        const y = row * FRAME_PX + Math.floor(i / FRAME_PX);
+        sheet[y * width + x] = c;
+      }),
+    ),
   );
   console.log(`drew ${part.id}`);
 }
