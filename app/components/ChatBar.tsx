@@ -186,12 +186,14 @@ export function ChatButton({
       <Popover.Portal>
         {/**
          * The popup is the screen width less the bar's own `px-3` gutter on
-         * each side, and starts at the trigger, which sits on that gutter.
+         * each side, and starts at the trigger, which sits on that gutter. On a
+         * tablet held sideways the trigger is in a side column, so it stops at
+         * a line's width rather than running across the board.
          */}
         <Popover.Positioner sideOffset={8} align="start">
           <Popover.Popup
             ref={popupRef}
-            className="hud-window bevel-raised z-50 flex w-[calc(100vw-1.5rem)] items-center gap-2 p-2 text-paper"
+            className="hud-window bevel-raised z-50 flex w-[calc(100vw-1.5rem)] max-w-md items-center gap-2 p-2 text-paper"
           >
             <ChatComposer onSay={onSay} onTypingChange={onTypingChange} onSent={close} autoFocus />
           </Popover.Popup>
