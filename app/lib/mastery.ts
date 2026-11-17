@@ -214,6 +214,7 @@ export function xpFromMasteries(masteries: Masteries): MasteryXp {
 }
 
 export const RATING_PER_BEST_WEAPON = 0.5;
+export const RATING_PER_ARCANE = 0.5;
 export const RATING_PER_TOUGHNESS = 0.3;
 export const RATING_PER_AGILITY = 0.2;
 
@@ -221,17 +222,25 @@ export const MIN_RATING = 1;
 
 export const RATING_GLYPH = "*";
 
+const HELD_WEAPON_MASTERIES: Mastery[] = WEAPON_MASTERIES.filter((mastery) => mastery !== "arcane");
+
 function bestWeaponLevel(masteries: Masteries): number {
   let best = 0;
-  for (const mastery of WEAPON_MASTERIES) {
+  for (const mastery of HELD_WEAPON_MASTERIES) {
     best = Math.max(best, masteryLevel(masteries, mastery));
   }
   return best;
 }
 
+/**
+ * Arcane is added to the best held weapon instead of competing with it: a
+ * stone is cast from the hand the weapon is not in, so a body uses both in one
+ * fight.
+ */
 export function rating(masteries: Masteries): number {
   const raw =
     RATING_PER_BEST_WEAPON * bestWeaponLevel(masteries) +
+    RATING_PER_ARCANE * masteryLevel(masteries, "arcane") +
     RATING_PER_TOUGHNESS * masteryLevel(masteries, "toughness") +
     RATING_PER_AGILITY * masteryLevel(masteries, "agility");
   return Math.max(MIN_RATING, Math.round(raw));
@@ -239,13 +248,14 @@ export function rating(masteries: Masteries): number {
 
 /**
  * How much of a level in this mastery `rating` counts, or 0 for one it ignores.
- * Every weapon tied for best gets the weapon share, because raising any of them
- * raises the rating.
+ * Every held weapon tied for best gets the weapon share, because raising any of
+ * them raises the rating.
  */
 export function ratingWeight(masteries: Masteries, mastery: Mastery): number {
   if (mastery === "toughness") return RATING_PER_TOUGHNESS;
   if (mastery === "agility") return RATING_PER_AGILITY;
-  if (!WEAPON_MASTERIES.includes(mastery as WeaponMastery)) return 0;
+  if (mastery === "arcane") return RATING_PER_ARCANE;
+  if (!HELD_WEAPON_MASTERIES.includes(mastery)) return 0;
   return masteryLevel(masteries, mastery) === bestWeaponLevel(masteries)
     ? RATING_PER_BEST_WEAPON
     : 0;

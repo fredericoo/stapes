@@ -17,6 +17,7 @@ import {
   NOTHING_BELOW_RATIO,
   rating,
   RATING_PER_AGILITY,
+  RATING_PER_ARCANE,
   RATING_PER_BEST_WEAPON,
   RATING_PER_TOUGHNESS,
   ratingWeight,
@@ -179,23 +180,30 @@ describe("the experience curve", () => {
 });
 
 describe("rating", () => {
-  it("rates a body that is 40 at everything at 40", () => {
+  it("rates a body that is 40 at everything but Arcane at 40", () => {
     const even = Object.fromEntries(
-      ["fist", "sharp", "blunt", "ranged", "arcane", "toughness", "agility"].map((mastery) => [
-        mastery,
-        40,
-      ]),
+      ["fist", "sharp", "blunt", "ranged", "toughness", "agility"].map((mastery) => [mastery, 40]),
     );
     expect(rating(even)).toBe(40);
   });
 
-  it("counts only the best weapon mastery, so a second one is free", () => {
+  it("counts only the best held weapon mastery, so a second one is free", () => {
     const swordsman = { sharp: 40, toughness: 10, agility: 10 };
     expect(rating({ ...swordsman, ranged: 30 })).toBe(rating(swordsman));
   });
 
-  it("takes whichever weapon mastery is highest", () => {
+  it("takes whichever held weapon mastery is highest", () => {
     expect(rating({ sharp: 10, blunt: 40 })).toBe(rating({ sharp: 40, blunt: 10 }));
+  });
+
+  it("adds Arcane to the best held weapon, whichever of the two is higher", () => {
+    const swordsman = { sharp: 40, toughness: 10, agility: 10 };
+    expect(rating({ ...swordsman, arcane: 20 })).toBe(rating(swordsman) + 10);
+    expect(rating({ ...swordsman, arcane: 60 })).toBe(rating(swordsman) + 30);
+  });
+
+  it("rates an arcanist who holds no weapon as it rates a swordsman of the same level", () => {
+    expect(rating({ arcane: 40 })).toBe(rating({ sharp: 40 }));
   });
 
   it("never rates anything below the floor", () => {
@@ -210,6 +218,7 @@ describe("ratingWeight", () => {
     expect(ratingWeight(swordsman, "ranged")).toBe(0);
     expect(ratingWeight(swordsman, "toughness")).toBe(RATING_PER_TOUGHNESS);
     expect(ratingWeight(swordsman, "agility")).toBe(RATING_PER_AGILITY);
+    expect(ratingWeight(swordsman, "arcane")).toBe(RATING_PER_ARCANE);
     expect(ratingWeight(swordsman, "fire")).toBe(0);
     expect(ratingWeight(swordsman, "mining")).toBe(0);
   });
