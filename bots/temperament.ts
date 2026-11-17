@@ -56,8 +56,9 @@ export type Temperament = {
   readonly glanceMinMs: number;
   readonly glanceMaxMs: number;
   /**
-   * A route is walked this many legs at a time; at the end of each stretch the
-   * bot stops, hesitates and decides again, which is when it may wander.
+   * A route is walked this many legs at a time. Past the end of a stretch the
+   * bot decides again the next time it is between two steps, without
+   * stopping, which is when it may wander.
    */
   readonly stretchMinLegs: number;
   readonly stretchMaxLegs: number;

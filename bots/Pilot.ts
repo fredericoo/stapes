@@ -39,7 +39,7 @@ export class Pilot {
 
     if (self.walk) {
       const leg = this.legs[this.next];
-      if (leg?.kind === "walk" && !leg.drop && sameCell(self.walk.to, leg.to)) {
+      if (leg?.kind === "walk" && sameCell(self.walk.to, leg.to)) {
         this.next++;
         body.setInput({ directions: this.chainable() });
       }

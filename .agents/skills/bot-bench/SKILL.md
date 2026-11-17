@@ -62,7 +62,7 @@ intervals beside it suggest.
 - **significant: no** is not "no effect", only "not shown at this many
   seeds". If the PR claims an effect that is not significant, run more seeds
   (`--seeds 16`) or longer (`--hours 2`) before claiming it.
-- Eight metrics are tested at once, so at 95% one of them comes up
+- Nine metrics are tested at once, so at 95% one of them comes up
   significant by chance about a third of the time. A lone significant row the
   change has no reason to move is weak evidence; rerun with more seeds.
 - Gold, gear worth and top mastery are where bots end, so they need hours to
@@ -78,6 +78,10 @@ intervals beside it suggest.
   by the checkout you run from, not by either version.
 - **top mastery** — its highest mastery level at the end.
 - **time recovering %** — share of time `Bot.recovering` was set.
+- **time standing %** — share of time a bot was alive and neither stepping
+  nor falling, on the cell it held the frame before. It is read from the
+  bot's body, not from what the bot thinks it is doing, so both versions are
+  measured the same way. Fighting, gathering and trading are standing too.
 - **bag walks made/h**, **abandoned/h** — `go_to` goals at the planner's
   `lostKitAt` that ended `done`, and ones that ended `failed`, in a death or
   under another goal.
