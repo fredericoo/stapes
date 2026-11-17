@@ -82,6 +82,7 @@ import {
   type SpellButton,
 } from "../game/casting";
 import { castRefusalNotice } from "../game/notices";
+import { NOTICE_LIFETIME_MS } from "../render/notifications";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
@@ -145,7 +146,20 @@ import {
 } from "./protocol";
 import { ActorCells } from "./actorCells";
 
-type LiveChat = ChatBubble & { elapsedMs: number };
+type LiveChat = ChatBubble & { elapsedMs: number; heardAtMs: number };
+
+type HeardNoise = NoiseEmission & { heardAtMs: number };
+
+type HeardNotice = { text: string; heardAtMs: number };
+
+/**
+ * The render loop stops while the tab is hidden, so frame time alone would start
+ * every line heard in the background at zero when the tab comes back. Taking the
+ * larger of frame time and time since arrival expires those lines on schedule.
+ */
+function ageSinceHeard(line: { elapsedMs: number; heardAtMs: number }, dtMs: number, atMs: number) {
+  line.elapsedMs = Math.max(line.elapsedMs + dtMs, atMs - line.heardAtMs);
+}
 
 /** A line already hung over our own head, waiting for the server's copy of it to swallow. */
 type Echo = { text: string; elapsedMs: number };
@@ -204,7 +218,7 @@ export class RemoteSession implements PlaySession {
   private nextChatId = 0;
   private echoes: Echo[] = [];
   private lastSaidAtMs: number | null = null;
-  private noises: NoiseEmission[] = [];
+  private noises: HeardNoise[] = [];
   private readonly hps = new Map<string, { hp: number; maxHp: number; rating: number }>();
   private readonly names = new Map<string, string>();
   private readonly carriedLights = new Map<string, string[]>();
@@ -217,7 +231,7 @@ export class RemoteSession implements PlaySession {
   private equipment: Equipment = emptyEquipment();
   private depots: Depots = NO_DEPOTS;
   private spellCooldowns: Readonly<Record<string, number>> = {};
-  private pendingNotices: string[] = [];
+  private pendingNotices: HeardNotice[] = [];
   private tags: readonly string[] = NO_TAGS;
   private conversation: Conversation | null = null;
   private extracting: Extraction | null = null;
@@ -524,6 +538,7 @@ export class RemoteSession implements PlaySession {
         z: message.z,
         stackIndex: message.stackIndex,
         elapsedMs: 0,
+        heardAtMs: this.now(),
       });
       return;
     }
@@ -554,7 +569,7 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "notice") {
-      this.pendingNotices.push(message.text);
+      this.pendingNotices.push({ text: message.text, heardAtMs: this.now() });
       return;
     }
 
@@ -1247,7 +1262,12 @@ export class RemoteSession implements PlaySession {
   }
 
   private hangChat(chat: Omit<ChatBubble, "id">) {
-    this.chats.push({ ...chat, id: `chat-${this.nextChatId++}`, elapsedMs: 0 });
+    this.chats.push({
+      ...chat,
+      id: `chat-${this.nextChatId++}`,
+      elapsedMs: 0,
+      heardAtMs: this.now(),
+    });
     this.evictOldestAtCell(chat);
   }
 
@@ -1274,9 +1294,10 @@ export class RemoteSession implements PlaySession {
   private expireChats(dtMs: number) {
     this.expireEchoes(dtMs);
     if (this.chats.length === 0) return;
+    const atMs = this.now();
     let expired = false;
     for (const chat of this.chats) {
-      chat.elapsedMs += dtMs;
+      ageSinceHeard(chat, dtMs, atMs);
       if (chat.elapsedMs >= CHAT_LIFETIME_MS) expired = true;
     }
     if (expired) {
@@ -1293,9 +1314,10 @@ export class RemoteSession implements PlaySession {
 
   private expireNoises(dtMs: number) {
     if (this.noises.length === 0) return;
+    const atMs = this.now();
     let expired = false;
     for (const noise of this.noises) {
-      noise.elapsedMs += dtMs;
+      ageSinceHeard(noise, dtMs, atMs);
       if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
     }
     if (expired) {
@@ -1505,7 +1527,10 @@ export class RemoteSession implements PlaySession {
 
   drainNotices(): string[] {
     if (this.pendingNotices.length === 0) return [];
-    const said = this.pendingNotices;
+    const atMs = this.now();
+    const said = this.pendingNotices
+      .filter((notice) => atMs - notice.heardAtMs < NOTICE_LIFETIME_MS)
+      .map((notice) => notice.text);
     this.pendingNotices = [];
     return said;
   }
@@ -1544,7 +1569,7 @@ export class RemoteSession implements PlaySession {
     const verdict = castability(context, slot);
     if (!verdict.ok) {
       const notice = castRefusalNotice(verdict.reason);
-      if (notice) this.pendingNotices.push(notice);
+      if (notice) this.pendingNotices.push({ text: notice, heardAtMs: this.now() });
       return false;
     }
 
