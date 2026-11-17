@@ -1,5 +1,18 @@
 # the-last-stones
 
+## 0.24.0
+
+### Minor Changes
+
+- On a computer, your spells now sit in their own bar beside the board instead of in the sidebar. On a tablet or a phone turned sideways, the board takes the full height of the screen with the joystick on one side and your toolbar and nearby list on the other.
+
+### Patch Changes
+
+- Your Arcane now adds to your rating on top of your best weapon, instead of counting only when it was the higher of the two. Creatures are rated the same way, so most of them show a few more stars, and the skeleton, cave troll, yeti and cyclops show a lot more.
+- A shield now looks right in either hand. It is turned to the side of the hand holding it and carried in front of the body, where before a shield in the weapon hand sat where a sword would.
+- A spell with a cast time is never instant any more. Mastering it brings it down to a fifth of its time and no further.
+- You now do one thing at a time: while you cast a spell or harvest, you throw no blows, and your swing winds up again afterwards.
+
 ## 0.23.0
 
 ### Minor Changes
