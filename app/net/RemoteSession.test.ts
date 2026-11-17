@@ -2,6 +2,7 @@ import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import {
   FALL_MS_PER_HEIGHT,
+  NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
   STRIKE_DURATION_MS,
   WALK_DURATION_MS,
@@ -12,6 +13,7 @@ import { xpForLevel } from "../lib/mastery";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_ARRIVAL_JITTER_MS, CHAT_LIFETIME_MS, CHAT_MIN_INTERVAL_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
+import { NOTICE_LIFETIME_MS } from "../render/notifications";
 import { MAX_STEPS_AHEAD, type CellPatch, type HpPatch, type MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
 import { resolveStatus, type StatusDef } from "../lib/status";
@@ -650,6 +652,103 @@ const strikeStarted: MotionEvent = {
   dy: 0,
   dElev: 0,
 };
+
+describe("RemoteSession lines heard while the tab is hidden", () => {
+  const said = {
+    type: "chat",
+    actorId: "guard",
+    tileId: PLAYER_TILE_ID,
+    text: "All quiet.",
+    x: 2,
+    y: 0,
+    z: 0,
+    stackIndex: 1,
+  };
+  const noise = {
+    type: "noise",
+    id: "noise-1",
+    text: "Clang!",
+    x: 2,
+    y: 0,
+    z: 0,
+    stackIndex: 0,
+  };
+
+  function hiddenTab() {
+    let clockMs = 0;
+    const { socket, session } = connected(() => clockMs);
+    return {
+      socket,
+      session,
+      background(ms: number) {
+        clockMs += ms;
+      },
+    };
+  }
+
+  it("does not show a line whose lifetime ran out before the tab came back", () => {
+    const { socket, session, background } = hiddenTab();
+    socket.deliver(said);
+    socket.deliver(noise);
+    background(Math.max(CHAT_LIFETIME_MS, NOISE_LIFETIME_MS));
+
+    session.update(16);
+
+    expect(session.getSnapshot().chats).toHaveLength(0);
+    expect(session.getSnapshot().noises).toHaveLength(0);
+  });
+
+  it("shows a line heard shortly before the tab came back for the rest of its lifetime", () => {
+    const { socket, session, background } = hiddenTab();
+    background(60_000);
+    socket.deliver(said);
+    background(1_000);
+
+    background(CHAT_LIFETIME_MS - 1_001);
+    session.update(16);
+    expect(session.getSnapshot().chats).toHaveLength(1);
+
+    background(1);
+    session.update(16);
+    expect(session.getSnapshot().chats).toHaveLength(0);
+  });
+
+  it("drops a notice that would already have faded", () => {
+    const { socket, session, background } = hiddenTab();
+    socket.deliver({ type: "notice", text: "You are too far away." });
+    background(NOTICE_LIFETIME_MS);
+    socket.deliver({ type: "notice", text: "You feel rested." });
+
+    expect(session.drainNotices()).toEqual(["You feel rested."]);
+  });
+
+  it("still shows the damage taken while the tab was hidden", () => {
+    const { socket, session, background } = hiddenTab();
+    socket.deliver(
+      patch(
+        [],
+        [
+          {
+            kind: "damage",
+            id: "hit-1",
+            targetId: SELF,
+            outcome: "hit",
+            amount: 4,
+            x: 0,
+            y: 0,
+            z: 0,
+            stackIndex: 1,
+          },
+        ],
+      ),
+    );
+    background(60_000);
+
+    session.update(16);
+
+    expect(session.getSnapshot().damage.map((hit) => hit.amount)).toEqual([4]);
+  });
+});
 
 describe("RemoteSession strikes", () => {
   it("leans on the event and recovers on its own clock", () => {
