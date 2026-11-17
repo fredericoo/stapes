@@ -20,7 +20,6 @@ export type DialogTrade = {
 export type DialogChoice = { label: string; then: DialogCommand[] };
 
 export type DialogCondition =
-  | { cond: "king" }
   | { cond: "tagged"; tag: string }
   | { cond: "switched"; channel: string }
   | { cond: "rated_below"; rating: number };
@@ -71,7 +70,6 @@ const tradeSideSchema = v.object({ tileId, count });
 
 const whenSchema = conditionSchema<DialogCondition>(
   v.variant("cond", [
-    v.object({ cond: v.literal("king") }),
     v.object({ cond: v.literal("tagged"), tag: name }),
     v.object({ cond: v.literal("switched"), channel: name }),
     v.object({

@@ -1910,7 +1910,6 @@ export class GameRenderer {
             id: actor.id,
             text: name,
             ...(actor.rating === null ? {} : { rating: actor.rating }),
-            ...(actor.king ? { crown: true } : {}),
           },
         ],
         order: drawOrder(

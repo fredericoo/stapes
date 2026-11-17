@@ -30,7 +30,6 @@ export type LabelLine =
       id: string;
       text: string;
       rating?: number;
-      crown?: boolean;
       /** Typed out one character at a time, this long after it was said. */
       typedMs?: number;
       noise?: { style: NoiseStyle; elapsedMs: number };
@@ -76,9 +75,7 @@ const RESERVED_BAR_CLASS = `${BAR_CLASS}--reserved`;
 export const BRICKS_PER_EM = 10;
 
 const MOUSE_CLASS = "world-label__mouse";
-const CROWN_CLASS = "world-label__crown";
 const STAR_CLASS = "world-label__star";
-const CROWNED_LINE_CLASS = "world-label__line--crowned";
 const HINTS_LINE_CLASS = "world-label__line--hints";
 const HINT_CLASS = "world-label__hint";
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -113,8 +110,6 @@ const MOUSE_PIXELS = [
   "#.....#",
   ".#####.",
 ];
-
-const CROWN_PIXELS = ["#..#..#", "##.#.##", "#######", "#######"];
 
 /** As tall as the font's digits, so it reads as part of the number after it. */
 const STAR_PIXELS = ["...#...", "..###..", "#######", ".#####.", "..###..", ".##.##.", ".#...#."];
@@ -220,11 +215,6 @@ function lineRow(line: LabelLine): HTMLElement {
   if ("text" in line && line.noise) return noiseRow(line.text, line.noise);
   if ("text" in line && line.typedMs !== undefined) return typedRow(line.text, line.typedMs);
   const row = document.createElement("div");
-  if ("text" in line && line.crown) {
-    row.className = CROWNED_LINE_CLASS;
-    row.append(pixelIcon(CROWN_CLASS, CROWN_PIXELS), ratedText(line.text, line.rating));
-    return row;
-  }
   if ("text" in line) {
     row.append(ratedText(line.text, line.rating));
     return row;
@@ -239,7 +229,7 @@ function lineSignature(line: LabelLine): string {
   if ("text" in line && line.typedMs !== undefined) {
     return `${typedText(line.text, line.typedMs)}\u0007${line.text.length}`;
   }
-  if ("text" in line) return `${line.crown ? "\u0004" : ""}${line.text}\u0005${line.rating ?? ""}`;
+  if ("text" in line) return `${line.text}\u0005${line.rating ?? ""}`;
   return line.hints
     .map(
       (hint) =>

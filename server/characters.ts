@@ -164,7 +164,7 @@ export class Characters {
   /**
    * `AUTOINCREMENT` never hands a number out twice, even after the row is gone,
    * so a character deleted with its guest account does not free its id for the
-   * next one while the deaths and reigns that name it remain.
+   * next one while the deaths that name it remain.
    */
   private async nextId(): Promise<string> {
     const insert = await this.db.prepare("INSERT INTO character_serial (serial) VALUES (NULL)");

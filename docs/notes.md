@@ -552,39 +552,19 @@ rather than add a query of its own.
   masteries back to nothing, and a death history from the old timeline beside a
   rating from the new one would describe two different characters.
 
-### The king is the highest-rated character alive, and every reign is a row
+### The realm lists the three highest-rated characters
 
 `World.refreshRealm` ranks every character with a rating, at open and every
-`REALM_REFRESH_MS`, and `Realm.settle` crowns the first. `GET /api/realm` is
+`REALM_REFRESH_MS`, and keeps the first `REALM_LEADERS`. `GET /api/realm` is
 public and returns the last ranking from memory, so a home page polled by
 many visitors never reads the database.
 
 - **A death costs rating, not the place in the table.** A death writes the
   character's `mast:` row with a tenth of every mastery's experience taken
-  off, so `GameServer.ratings()` still ranks it, lower. The crown changes
-  hands on a death only when that drop puts somebody else ahead.
-- **A tie keeps the crown with its holder**, so two characters level on
-  rating do not trade it on every refresh. Between two who do not hold it,
-  the older character ranks first.
-- **A reign row is written through `ctx.storage.sql`, like a death**, so a
-  crown changes hands in the same checkpoint as the ratings that decided it.
-  The reign in progress is also kept on `Realm`, because the table does not
-  show it until that checkpoint. A process that dies before the checkpoint
-  loses the change of crown along with the ratings, and the next refresh
-  decides it again.
-- **`name` is a snapshot** of the generational name on the day of the
-  coronation, counted from `death`, so it can be a life behind for a death not
-  yet checkpointed. Neither id is a foreign key, for the same reason as in
-  `death`.
-- **`/api/reset` empties the table** through `World.resetWorld`, for the same
-  reason it empties `death`. `GameServer.resetWorld` does not, because the
-  in-tab world under `/admin/play` has no `reign` table.
-- **Bots are characters**, so a bot can be king.
-- **The game draws a crown before the king's name tag.** `World.refreshRealm`
-  hands the holder to `GameServer.crown`, which broadcasts `king` when it
-  changes, and every `hello` carries `kingId`. So a new king's crown appears
-  up to `REALM_REFRESH_MS` after their rating passes the old king's. The world
-  in the tab has no realm and never crowns anybody.
+  off, so `GameServer.ratings()` still ranks it, lower.
+- **On a tie the older character ranks first**, so two characters level on
+  rating do not swap places between refreshes.
+- **Bots are characters**, so a bot can be listed.
 
 ## A name is typed once and never again
 
@@ -1779,11 +1759,7 @@ battler, which is the same exposure.
 
 - **`if` holds a condition tree** (`app/lib/conditions`, the brain's own
   `and`/`or`/`not` groups) over dialog leaves, and runs `then` (branch 0) or
-  `else` (branch 1) without waiting for a press. There are four leaves.
-  `{ cond: "king" }` is read through `PartnerView.isKing`: on the server it
-  is `GameSession.kingId`, which `GameServer.crown` sets alongside the `king`
-  broadcast and `load` sets on every new session. The world in a tab has no
-  realm, so there nobody is king; Try it has a switch to pretend.
+  `else` (branch 1) without waiting for a press. There are three leaves.
   `{ cond: "tagged", tag }` asks whether the player carries a tag, which is
   how a script remembers that something already happened: the `tag` command
   writes it, and a death clears it with every other tag.
@@ -4904,7 +4880,7 @@ JSON string).
   is the rowid of a row inserted into `character_serial`, whose
   `AUTOINCREMENT` never hands a number out twice: a guest account's characters
   are deleted with it, and a count of the `character` table would give the next
-  character the id that old deaths and reigns still name.
+  character the id that old deaths still name.
 - **A resident is `n` and a count** (`ResidentIds`), minted at adoption, for a
   summon, and nowhere else. The count starts again with every session, so it
   skips ids a resumed board already holds. Where a resident belongs is not in
@@ -13182,7 +13158,7 @@ NF Pixels, subset to printable ASCII, so a ⚔ falls back to a colour emoji at t
 wrong metrics. The rating's star after every battler's name is not a character
 for the same reason; it is a 7×7 pixel icon (`STAR_PIXELS` in `textLabels.ts`)
 on the font's brick grid, as tall as its digits. The outline on it, and on the mouse
-and crown icons, is bricks drawn behind the icon in its own svg rather than a
+icon, is bricks drawn behind the icon in its own svg rather than a
 `drop-shadow` filter: a filter offsets a bitmap, and on coarse pointers the brick
 is 1.6px, which the filter pipeline rounds, so the star's outline came out
 thinner than the `text-shadow` on the name beside it. Both are always on — a mark you

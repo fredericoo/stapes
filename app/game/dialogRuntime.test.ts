@@ -59,7 +59,6 @@ const npc = { id: "npc:1", tileId: "seller" };
 
 function partner(
   attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
-  king = false,
   tags: readonly string[] = [],
   channels: readonly string[] = [],
   rating = MIN_RATING,
@@ -67,7 +66,6 @@ function partner(
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
-    isKing: () => king,
     hasTag: (tag) => tags.includes(tag),
     channelOn: (channel) => channels.includes(channel),
     rating: () => rating,
@@ -258,24 +256,21 @@ describe("an if", () => {
     script: [
       {
         kind: "if",
-        when: { cond: "king" },
-        then: [say("Your Majesty."), { kind: "switch", channel: "gate", to: "on" }],
+        when: { cond: "tagged", tag: "warden" },
+        then: [say("Warden."), { kind: "switch", channel: "gate", to: "on" }],
         else: [say("Move along.")],
       },
       say("Good day."),
     ],
   };
 
-  it("runs the first list for the king, and carries on after the block", () => {
-    const view = partner(undefined, true);
-    expect(lines(openConversation(gate, npc, view))).toEqual([
-      "npc: Your Majesty.",
-      "npc: Good day.",
-    ]);
+  it("runs the first list when the condition holds, and carries on after the block", () => {
+    const view = partner(undefined, ["warden"]);
+    expect(lines(openConversation(gate, npc, view))).toEqual(["npc: Warden.", "npc: Good day."]);
     expect(view.attempts).toEqual([[{ effect: "switch", channel: "gate", to: "on" }]]);
   });
 
-  it("runs the other list for anybody else", () => {
+  it("runs the other list when it does not", () => {
     const view = partner();
     expect(lines(openConversation(gate, npc, view))).toEqual([
       "npc: Move along.",
@@ -295,7 +290,7 @@ describe("an if", () => {
         },
       ],
     };
-    expect(lines(openConversation(greeter, npc, partner(undefined, false, ["met"])))).toEqual([
+    expect(lines(openConversation(greeter, npc, partner(undefined, ["met"])))).toEqual([
       "npc: Back again.",
     ]);
     expect(lines(openConversation(greeter, npc, partner()))).toEqual(["npc: A new face."]);
@@ -312,7 +307,7 @@ describe("an if", () => {
         },
       ],
     };
-    const open = partner(undefined, false, [], ["gate"]);
+    const open = partner(undefined, [], ["gate"]);
     expect(lines(openConversation(porter, npc, open))).toEqual(["npc: The gate stands open."]);
     expect(lines(openConversation(porter, npc, partner()))).toEqual(["npc: The gate is shut."]);
   });
@@ -328,22 +323,24 @@ describe("an if", () => {
         },
       ],
     };
-    const at = (rating: number) => partner(undefined, false, [], [], rating);
+    const at = (rating: number) => partner(undefined, [], [], rating);
     expect(lines(openConversation(warden, npc, at(14)))).toEqual(["npc: Not yet."]);
     expect(lines(openConversation(warden, npc, at(15)))).toEqual(["npc: Go on."]);
   });
 
   it("reads a negated group the other way round", () => {
-    const notKing: DialogDef = {
+    const stranger: DialogDef = {
       script: [
         {
           kind: "if",
-          when: { combinator: "and", not: true, rules: [{ cond: "king" }] },
-          then: [say("Commoner.")],
-          else: [say("Sire.")],
+          when: { combinator: "and", not: true, rules: [{ cond: "tagged", tag: "met" }] },
+          then: [say("A new face.")],
+          else: [say("Back again.")],
         },
       ],
     };
-    expect(lines(openConversation(notKing, npc, partner(undefined, true)))).toEqual(["npc: Sire."]);
+    expect(lines(openConversation(stranger, npc, partner(undefined, ["met"])))).toEqual([
+      "npc: Back again.",
+    ]);
   });
 });

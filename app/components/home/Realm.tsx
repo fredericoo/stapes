@@ -5,8 +5,6 @@ import type { RealmState } from "../../../server/realm";
 
 const REFRESH_MS = 30_000;
 
-const CROWNED_ON = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
-
 /**
  * The page is prerendered, so the standings are fetched once it is in a tab,
  * and again while the tab is visible. Until they arrive, and if they never do,
@@ -39,33 +37,23 @@ export function Realm() {
   return (
     <section id="realm" className="home-realm" aria-labelledby="realm-title">
       <h2 id="realm-title" className="home-pixel home-section-title">
-        Who rules
+        Highest rated
       </h2>
       <p className="home-realm-lede">
-        The highest-rated character is king. Dying costs experience, and that can be enough to pass
-        the crown to the next in line.
+        The three highest-rated characters. Dying costs experience, and that can be enough to lose a
+        place here.
       </p>
       <ol className="home-realm-list" role="list">
-        {realm.leaders.map((leader, index) => {
-          const king = index === 0 && realm.king;
-          return (
-            <li key={leader.name} className="home-realm-entry" data-king={Boolean(king)}>
-              <span className="home-pixel home-realm-rank">{index + 1}</span>
-              <span className="home-realm-who">
-                <span className="home-pixel home-realm-name">{leader.name}</span>
-                {king && (
-                  <span className="home-realm-title">
-                    King since {CROWNED_ON.format(king.since)}
-                  </span>
-                )}
-              </span>
-              <span className="home-realm-rating" aria-label={`Rating ${leader.rating}`}>
-                <IconStar size={12} aria-hidden="true" />
-                {leader.rating}
-              </span>
-            </li>
-          );
-        })}
+        {realm.leaders.map((leader, index) => (
+          <li key={leader.name} className="home-realm-entry">
+            <span className="home-pixel home-realm-rank">{index + 1}</span>
+            <span className="home-pixel home-realm-name">{leader.name}</span>
+            <span className="home-realm-rating" aria-label={`Rating ${leader.rating}`}>
+              <IconStar size={12} aria-hidden="true" />
+              {leader.rating}
+            </span>
+          </li>
+        ))}
       </ol>
     </section>
   );

@@ -45,7 +45,9 @@ describe("the dialog catalog", () => {
           ? { ...made, tag: "told" }
           : made.kind === "switch"
             ? { ...made, channel: "gate" }
-            : made;
+            : made.kind === "if"
+              ? { ...made, when: { cond: "tagged", tag: "told" } }
+              : made;
       const dialog = resolveDialog(tileWith({ script: [command] }));
       expect(dialog?.script[0], kind).toEqual(command);
     }

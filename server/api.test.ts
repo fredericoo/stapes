@@ -12,7 +12,6 @@ import type { Blame } from "../app/game/blame";
 import type { DeathRecord } from "./deaths";
 import { FEEDBACK_PER_WINDOW } from "./feedback";
 import { xpForLevel } from "../app/lib/mastery";
-import type { Database } from "./db";
 import type { RealmState } from "./realm";
 import { SEEDED_ADMIN_USERNAME } from "./auth";
 import { ClientBundle } from "./clientBundle";
@@ -20,7 +19,6 @@ import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
 import type { CharacterSheet } from "./GameServer";
-import type { GameSession } from "../app/game/GameSession";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
@@ -531,24 +529,13 @@ describe("the realm", () => {
     return (await response.json()) as RealmState;
   }
 
-  async function reigns() {
-    await world.store.flush();
-    const db = (world as unknown as { db: Database }).db;
-    const select = await db.prepare("SELECT character_id, name, ended_at FROM reign ORDER BY id");
-    return (await select.all()) as {
-      character_id: string;
-      name: string;
-      ended_at: number | null;
-    }[];
-  }
-
-  it("lists the three highest-rated characters to anybody, and crowns the first", async () => {
+  it("lists the three highest-rated characters to anybody", async () => {
     await character("Maren Ormstead", 30);
     await character("Tobin Reed", 20);
     await character("Wren Hollis", 40);
     await character("Ada Finch", 10);
 
-    const { king, leaders } = await realm();
+    const { leaders } = await realm();
 
     expect(leaders.map((leader) => leader.name)).toEqual([
       "Wren Hollis",
@@ -556,41 +543,19 @@ describe("the realm", () => {
       "Tobin Reed",
     ]);
     expect(leaders[0]!.rating).toBeGreaterThan(leaders[1]!.rating);
-    expect(king).toEqual({ ...leaders[0], since: expect.any(Number) });
   });
 
-  it("tells everybody in the world who the king is", async () => {
-    const maren = await character("Maren Ormstead", 30);
-    const tobin = await character("Tobin Reed", 20);
-    const heard: unknown[] = [];
-    const socket = new GameSocket({
-      send: (data: string) => heard.push(JSON.parse(data)),
-      close: () => {},
-      closed: false,
-    });
-    await world.join(socket, tobin, { admin: false });
-
-    await realm();
-
-    expect(heard).toContainEqual({ type: "king", actorId: maren });
-  });
-
-  it("passes the crown on when a death drops the king below the next in line, and keeps the old reign", async () => {
+  it("ranks a character lower once a death has cost it enough rating", async () => {
     const maren = await character("Maren Ormstead", 41);
     const tobin = await character("Tobin Reed", 40);
     await world.join(openSocket(), maren, { admin: false });
-    expect((await realm()).king?.name).toBe("Maren Ormstead");
-    const session = (world.server as unknown as { session: GameSession }).session;
-    expect(session.actorSnapshots().find((actor) => actor.id === maren)?.king).toBe(true);
+    expect((await realm()).leaders[0]!.name).toBe("Maren Ormstead");
 
     await killInWorld(maren, { source: "Rusty sword", by: "Tobin Reed", byId: tobin });
-    const after = await realm();
 
-    expect(after.king?.name).toBe("Tobin Reed");
-    expect(after.leaders.map((leader) => leader.name)).toEqual(["Tobin Reed", "Maren Ormstead"]);
-    expect(await reigns()).toEqual([
-      { character_id: maren, name: "Maren Ormstead", ended_at: expect.any(Number) },
-      { character_id: tobin, name: "Tobin Reed", ended_at: null },
+    expect((await realm()).leaders.map((leader) => leader.name)).toEqual([
+      "Tobin Reed",
+      "Maren Ormstead",
     ]);
   });
 });

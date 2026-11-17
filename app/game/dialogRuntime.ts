@@ -47,7 +47,6 @@ export type DialogEffectDef =
 
 export type PartnerView = {
   name(): string | null;
-  isKing(): boolean;
   hasTag(tag: string): boolean;
   channelOn(channel: string): boolean;
   rating(): number;
@@ -177,7 +176,6 @@ function advance(pc: CommandPath): number[] {
 
 function holds(when: ConditionNode<DialogCondition>, view: PartnerView): boolean {
   return evaluateCondition(when, (leaf) => {
-    if (leaf.cond === "king") return view.isKing();
     if (leaf.cond === "tagged") return view.hasTag(leaf.tag);
     if (leaf.cond === "rated_below") return view.rating() < leaf.rating;
     return view.channelOn(leaf.channel);
