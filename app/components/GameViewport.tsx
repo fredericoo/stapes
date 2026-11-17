@@ -12,7 +12,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import { NO_VITALS, type Vitals } from "../game/GameSession";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
-import { useCoarsePointer } from "../lib/useMediaQuery";
+import { useCoarsePointer, useMediaQuery } from "../lib/useMediaQuery";
 import { TalkAnchorChannel } from "../render/talkBubble";
 import { tilesByIdFromList } from "../lib/validation";
 import { AppMenuButton } from "./AppShell";
@@ -49,6 +49,18 @@ const NO_SPELLS: SpellButton[] = [];
 const INTERACTION_PANEL_WIDTH_PX = 240;
 
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
+
+const SPELL_RAIL_WIDTH_PX = 80;
+
+const TOUCH_TOOLBAR_CELL_PX = 44;
+
+/**
+ * A touch screen at least this much wider than tall has more room beside a
+ * full-height board than under it. 4:3 rather than any landscape, so a
+ * portrait tablet whose viewport shrinks for the on-screen keyboard does not
+ * flip layouts, and remount the chat field, while the player is typing.
+ */
+const WIDE_TOUCH = "(pointer: coarse) and (min-aspect-ratio: 4/3)";
 
 export function GameViewport({
   canvasRef,
@@ -124,6 +136,7 @@ export function GameViewport({
   padSide?: PadSide;
 }) {
   const coarse = useCoarsePointer();
+  const wideTouch = useMediaQuery(WIDE_TOUCH);
   useNoZoom(coarse);
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
@@ -296,7 +309,7 @@ export function GameViewport({
     />
   );
 
-  const panelButtons = (size: ActionButtonSize) => (
+  const panelButtons = (size: ActionButtonSize, divided = true) => (
     <>
       {onPvp ? (
         <>
@@ -306,7 +319,7 @@ export function GameViewport({
             onChange={onPvp}
             size={size}
           />
-          <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+          {divided ? <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" /> : null}
         </>
       ) : null}
       <StatsToggle open={showStats} onChange={openStats} notice={statsNotice} size={size} />
@@ -404,6 +417,138 @@ export function GameViewport({
     />
   ) : null;
 
+  const stage = (
+    <div
+      className="flex h-full aspect-square min-w-0 shrink items-center justify-center overflow-hidden"
+      style={{ containerType: "size" }}
+    >
+      <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
+        <canvas
+          ref={canvasRef}
+          className="block h-full w-full touch-none"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div ref={labelRef} className="world-label-layer" />
+        {conversation ? (
+          <AnchoredConversation
+            key={conversation.npcId}
+            channel={talkAnchor ?? unanchored}
+            conversation={conversation}
+            tiles={tiles}
+            tilesets={tilesets}
+            equipment={equipment}
+            masteryXp={masteryXp}
+            statusDefs={statusDefs}
+            onTalk={(action) => onTalk?.(action)}
+            hotkeys
+          />
+        ) : null}
+        <RatingUpBanner rating={vitals.rating} live={live} />
+      </div>
+    </div>
+  );
+
+  const toolbarDivider = <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />;
+  const touchToolbar = (
+    <>
+      {onSay ? (
+        <>
+          <ChatButton onSay={onSay} onTypingChange={noteTyping} />
+          {wideTouch ? null : toolbarDivider}
+        </>
+      ) : null}
+      {panelButtons("touch", !wideTouch)}
+    </>
+  );
+
+  const listColumn =
+    replacesList ??
+    (panelCoversList ? (
+      <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+        {statsWindow}
+        {equipmentWindow}
+        {bagWindow}
+        {handWindow}
+        {containerWindow}
+      </div>
+    ) : (
+      list
+    ));
+
+  const padColumn = (
+    <div
+      className={[
+        "flex min-w-0 shrink-0 flex-col items-center pb-3",
+        wideTouch ? "h-full pt-3" : "",
+      ].join(" ")}
+      style={{ flexBasis: PAD_SIZE_PX, width: wideTouch ? PAD_SIZE_PX : undefined }}
+    >
+      <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
+      <div className="flex w-full min-h-0 flex-1 flex-col">
+        {/**
+         * `mt-auto` rather than `justify-end` on the column: when the spells and
+         * the pad do not fit, an auto margin collapses to nothing and the column
+         * overflows downward, where `justify-end` would push the spells up over
+         * the effects strip.
+         */}
+        <div className="mt-auto flex w-full flex-col gap-2">
+          <SpellBar
+            spells={spells}
+            onCast={cast}
+            onStopCast={stopCast}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            className="justify-center"
+          />
+          <div className="flex w-full justify-center">
+            <DirectionPad onPress={press} onRelease={release} />
+          </div>
+        </div>
+      </div>
+      {readouts ? (
+        <div
+          className={[
+            "flex w-full shrink-0 items-center gap-2 pt-1",
+            padSide === "left" ? "justify-start" : "justify-end",
+          ].join(" ")}
+        >
+          {readouts}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (wideTouch) {
+    return (
+      <div
+        className={[
+          "hud-surface clears-toolbar flex h-full w-full gap-3 px-3 select-none",
+          padSide === "left" ? "flex-row-reverse" : "flex-row",
+        ].join(" ")}
+        style={{ WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent" }}
+      >
+        <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
+        <div
+          className="flex h-full min-w-0 flex-1 flex-col gap-2 py-3"
+          style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
+        >
+          <HealthGauge vitals={vitals} />
+          <div
+            className="grid shrink-0 justify-items-center gap-2"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${TOUCH_TOOLBAR_CELL_PX}px, 1fr))`,
+            }}
+          >
+            {touchToolbar}
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col items-start gap-2">{listColumn}</div>
+        </div>
+        {stage}
+        {padColumn}
+      </div>
+    );
+  }
+
   return (
     <div className="hud-surface flex h-full w-full">
       <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
@@ -414,47 +559,33 @@ export function GameViewport({
           WebkitTapHighlightColor: "transparent",
         }}
       >
-        <div
-          className="flex w-full min-h-0 shrink aspect-square items-center justify-center overflow-hidden"
-          style={{ containerType: "size" }}
-        >
-          <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
-            <canvas
-              ref={canvasRef}
-              className="block h-full w-full touch-none"
-              style={{ imageRendering: "pixelated" }}
-            />
-            <div ref={labelRef} className="world-label-layer" />
-            {conversation ? (
-              <AnchoredConversation
-                key={conversation.npcId}
-                channel={talkAnchor ?? unanchored}
-                conversation={conversation}
-                tiles={tiles}
-                tilesets={tilesets}
-                equipment={equipment}
-                masteryXp={masteryXp}
-                statusDefs={statusDefs}
-                onTalk={(action) => onTalk?.(action)}
-                hotkeys
-              />
-            ) : null}
-            <RatingUpBanner rating={vitals.rating} live={live} />
+        {coarse ? (
+          <div className="flex w-full min-h-0 shrink aspect-square items-center justify-center">
+            {stage}
           </div>
-        </div>
+        ) : (
+          <div className="flex w-full min-h-0 flex-1 items-stretch justify-center">
+            <div
+              className="flex shrink-0 flex-col items-center justify-end pb-3"
+              style={{ width: SPELL_RAIL_WIDTH_PX }}
+            >
+              <SpellBar
+                spells={spells}
+                onCast={cast}
+                onStopCast={stopCast}
+                tilesById={tilesById}
+                tilesets={tilesets}
+                layout="column"
+              />
+            </div>
+            {stage}
+          </div>
+        )}
 
         {coarse ? <HealthGauge vitals={vitals} /> : null}
 
         {coarse ? (
-          <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
-            {onSay ? (
-              <>
-                <ChatButton onSay={onSay} onTypingChange={noteTyping} />
-                <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
-              </>
-            ) : null}
-            {panelButtons("touch")}
-          </div>
+          <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">{touchToolbar}</div>
         ) : onSay ? (
           <ChatBar onSay={onSay} onTypingChange={noteTyping} />
         ) : null}
@@ -470,48 +601,9 @@ export function GameViewport({
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
             >
-              {replacesList ??
-                (panelCoversList ? (
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
-                    {statsWindow}
-                    {equipmentWindow}
-                    {bagWindow}
-                    {handWindow}
-                    {containerWindow}
-                  </div>
-                ) : (
-                  list
-                ))}
+              {listColumn}
             </div>
-            <div
-              className="flex min-w-0 shrink flex-col items-center pb-3"
-              style={{ flexBasis: PAD_SIZE_PX }}
-            >
-              <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
-              <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
-                <SpellBar
-                  spells={spells}
-                  onCast={cast}
-                  onStopCast={stopCast}
-                  tilesById={tilesById}
-                  tilesets={tilesets}
-                  className="justify-center"
-                />
-                <div className="mt-auto flex w-full justify-center">
-                  <DirectionPad onPress={press} onRelease={release} />
-                </div>
-              </div>
-              {readouts ? (
-                <div
-                  className={[
-                    "flex w-full shrink-0 items-center gap-2 pt-1",
-                    padSide === "left" ? "justify-start" : "justify-end",
-                  ].join(" ")}
-                >
-                  {readouts}
-                </div>
-              ) : null}
-            </div>
+            {padColumn}
           </div>
         ) : null}
       </div>
@@ -537,18 +629,6 @@ export function GameViewport({
               bag: bagWindow,
               hand: handWindow,
               container: containerWindow,
-              spells:
-                spells.length > 0 ? (
-                  <HudWindow label="Spells" title="Spells">
-                    <SpellBar
-                      spells={spells}
-                      onCast={cast}
-                      onStopCast={stopCast}
-                      tilesById={tilesById}
-                      tilesets={tilesets}
-                    />
-                  </HudWindow>
-                ) : null,
               nearby: replacesList ?? (
                 <HudWindow label="Nearby" title="Nearby" grows flush>
                   {list}

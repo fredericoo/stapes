@@ -60,12 +60,25 @@ export function castTimeNote(castTimeMs: number): string {
   return `${seconds}s to cast`;
 }
 
+export type SpellBarLayout = "row" | "column";
+
+const LAYOUT_CLASSES: Record<SpellBarLayout, string> = {
+  row: "flex w-full items-stretch gap-1",
+  column: "flex flex-col items-center gap-3",
+};
+
+const SQUARE_CLASSES: Record<SpellBarLayout, string> = {
+  row: "min-w-0 flex-1",
+  column: "w-12 shrink-0",
+};
+
 export function SpellBar({
   spells,
   onCast,
   onStopCast,
   tilesById,
   tilesets,
+  layout = "row",
   className = "",
 }: {
   spells: SpellButton[];
@@ -73,6 +86,7 @@ export function SpellBar({
   onStopCast: () => void;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
+  layout?: SpellBarLayout;
   className?: string;
 }) {
   if (spells.length === 0) return null;
@@ -81,13 +95,14 @@ export function SpellBar({
     <div
       role="list"
       aria-label="Spells"
-      className={["flex w-full items-stretch gap-1", className].filter(Boolean).join(" ")}
+      className={[LAYOUT_CLASSES[layout], className].filter(Boolean).join(" ")}
     >
       {spells.map((spell, index) => (
         <SpellSquare
           key={spell.key}
           spell={spell}
           index={index}
+          layout={layout}
           onCast={onCast}
           onStopCast={onStopCast}
           tile={spell.tileId ? tilesById[spell.tileId] : undefined}
@@ -101,6 +116,7 @@ export function SpellBar({
 function SpellSquare({
   spell,
   index,
+  layout,
   onCast,
   onStopCast,
   tile,
@@ -108,6 +124,7 @@ function SpellSquare({
 }: {
   spell: SpellButton;
   index: number;
+  layout: SpellBarLayout;
   onCast: (slot: CastSlot) => void;
   onStopCast: () => void;
   tile: TileDef | undefined;
@@ -142,11 +159,12 @@ function SpellSquare({
         aria-disabled={press === null}
         {...tap}
         className={[
-          "spell-disc relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center border-2",
+          "spell-disc relative flex aspect-square flex-col items-center justify-center border-2",
+          SQUARE_CLASSES[layout],
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           APPEARANCE_CLASSES[appearance],
         ].join(" ")}
-        style={{ maxWidth: `calc(100% / ${BUTTONS_PER_ROW})` }}
+        style={layout === "row" ? { maxWidth: `calc(100% / ${BUTTONS_PER_ROW})` } : undefined}
       >
         {tile ? (
           <TilePreview

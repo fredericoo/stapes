@@ -1035,8 +1035,8 @@ it to read.
 
 On a desktop the column beside the world is a vitals frame (health, effects,
 the panel toggles) and under it a `WindowStack` of `HudWindow`s, in a fixed
-order: stats, equipment, bag, an opened hand or ground container, spells and
-the reach list. Each window's minimise button folds it to its title. Which
+order: stats, equipment, bag, an opened hand or ground container and the reach
+list. Each window's minimise button folds it to its title. Which
 windows are minimised is kept per browser under `stapes:collapsed-windows`
 (`app/components/windowLayout.ts`); nothing is sent to the server.
 
@@ -1052,6 +1052,48 @@ frame. The scroller carries the padding inside itself instead.
 
 On a phone the same panels render as `HudWindow`s outside a stack, with no
 minimise button, because only one shows at a time.
+
+## The spells sit beside the board, not in the sidebar
+
+On a desktop the spell bar is a column on the left of the board, at the bottom,
+in its own slot the width of `SPELL_RAIL_WIDTH_PX` in `GameViewport`. The
+board and the slot are centred together, so on a screen wider than it is tall
+the slot takes width the board was not using, and the board keeps its size.
+The slot is there with no spells in it, so equipping the first stone does not
+move the board sideways.
+
+The spells are drawn as bare circles with no window around them, which keeps
+the slot narrow.
+
+It was a window in the sidebar before, where it sat under equipment and bag
+and moved down whenever one of them grew. A cast is pressed in the middle of
+a fight, so it has a fixed place next to what it is aimed at, as the phone's
+spells have above the pad.
+
+## A touch screen held sideways puts the controls beside the board
+
+A coarse pointer on a screen at least 4:3 wide (`WIDE_TOUCH` in
+`GameViewport`) gets three columns: health, the toolbar and the reach list;
+the board at the full height of the screen; and the pad column. On the phone
+layout, a tablet or phone held sideways spent its whole height on the board
+and had no room left under it for the pad. Everything else about the phone
+layout stays — one panel at a time, the pad side swap, the chat popup.
+
+**The spells sit directly on top of the pad** in both touch layouts, with any
+spare height above them rather than between them. The thumb that steers is the
+one that casts, so the shorter the reach between the two the better.
+
+**4:3 rather than `orientation: landscape`.** Chrome on Android shrinks the
+viewport for the on-screen keyboard, so a portrait tablet with the keyboard up
+measures as landscape. Switching layouts there would remount the chat field
+while the player types into it.
+
+**The board shrinks before the columns do.** It is `aspect-square` at the
+full height with `min-w-0`, and the list column has a minimum width, so on a
+4:3 screen the board gives up the width the two columns need.
+
+**The toolbar wraps in a grid of 44px cells.** The list column is about 200px
+on an iPad, too narrow for six buttons in a row at a size a thumb can hit.
 
 ## The phone's joystick can sit on either side, and the browser remembers which
 
@@ -1078,9 +1120,8 @@ browser that refuses `localStorage` still gets the swap for as long as the page
 is open, and only loses it on reload. A hook that read the side back out of
 storage would make the setting do nothing in that browser.
 
-**The row is only in the menu on a coarse pointer.** The desktop layout puts
-everything in one side column and has no pad, so the row would change nothing
-there.
+**The row is only in the menu on a coarse pointer.** The desktop layout has
+no pad, so the row would change nothing there.
 
 ## The wire has a version on it
 

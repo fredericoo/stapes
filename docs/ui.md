@@ -8,4 +8,4 @@
 ## Touch
 
 - `useMediaQuery` and `useCoarsePointer` return `false` on the server and before hydration. `AppShell`, `ArenaStage` and `GameViewport` account for it; `GameViewport` seeds panel-open state as `null`.
-- `GameViewport` swaps the phone's two columns with `flex-row-reverse` when `padSide` is `left`. Anything in the pad column aligned to the screen edge has to flip with `padSide`, as the readouts row's `justify-end` does; an unconditional one ends up against the list.
+- `GameViewport` swaps the pad column to the other side with `flex-row-reverse` when `padSide` is `left`, in both the phone layout and the sideways one, where the board sits between the columns. Anything in the pad column aligned to the screen edge has to flip with `padSide`, as the readouts row's `justify-end` does; an unconditional one ends up against the list.

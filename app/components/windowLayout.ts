@@ -1,12 +1,4 @@
-export const WINDOW_IDS = [
-  "stats",
-  "equipment",
-  "bag",
-  "hand",
-  "container",
-  "spells",
-  "nearby",
-] as const;
+export const WINDOW_IDS = ["stats", "equipment", "bag", "hand", "container", "nearby"] as const;
 
 export type WindowId = (typeof WINDOW_IDS)[number];
 
