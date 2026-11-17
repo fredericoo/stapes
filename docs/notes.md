@@ -7075,20 +7075,28 @@ slot decides the layer (`weapon` dresses `weaponHand`, `offhand` dresses
 same thing in both. An arcane stone has no held part and draws nothing,
 in a hand or in the accessory slot.
 
-**A held part is one frame per facing, placed per hand.** Only the first
-frame of each row of its block is drawn: the part alone, outlined all round,
+**A held part is one frame per facing for each hand, placed per hand.** In
+each row of its block the first frame is the part as the weapon hand holds it
+and the second as the off hand does, in the order of `HANDS`; the third is
+empty. The two are mirror images across the bearer, which only shows on a
+part that is not symmetric: a shield is turned away from the body, to the side
+of the hand that holds it, and only slightly when that turn is to the north or
+west, which would hide its face. Each frame is the part alone, outlined all round,
 with nothing of the figure cut out of it, because what the figure wears
 changes its silhouette. `composeSheet` does not paint a hand in layer order.
 `HELD_PLACEMENT` in `app/lib/heldPlacement.ts` says, for each hand, facing
 and pose, whether the part is behind the figure or in front of it and how far
 its frame is moved; the parts held behind are laid down before the body
-and the ones in front after the hat. The table is the same for every part,
-because every model is built around the same grip, so aligning the sword
-aligned them all. A frame moved past the edge of its 16×16 frame is clipped.
+and the ones in front after the hat. There is one table for weapons and one for shields
+(`carryOf`), because a shield is carried in front of the body where a weapon
+is carried at its side. Every part of a kind shares its table, because every
+model is built around the same grip, so aligning the sword aligned every
+weapon. A frame moved past the edge of its 16×16 frame is clipped.
 
 `bun run generate:held` casts the file and rewrites it whole, the way the
 hats are cast: each part is solids around the grip, on the true world axes
-for the facing. The grip is at a fixed pixel centre, so `HELD_PLACEMENT` can
+for the facing, with the sideways axis pointing away from the body for the
+hand being drawn. The grip is at a fixed pixel centre, so `HELD_PLACEMENT` can
 move a part by whole pixels without redrawing it; changing `HAND_DROP` or
 `HAND_AHEAD` redraws every part on other pixels and invalidates the table.
 

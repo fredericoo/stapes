@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { HANDS, HELD_PLACEMENT } from "./heldPlacement";
+import { HANDS, HELD_PLACEMENT, carryOf } from "./heldPlacement";
+import { partsOn } from "./humanParts";
 import {
   DEFAULT_LOOK,
   FRAME_PX,
@@ -128,35 +129,42 @@ describe("composeSheet", () => {
     expect(pixelAt(hatted, 0)).toEqual(rgb("#222222"));
   });
 
-  it("moves a held part to its hand in every pose, behind the figure or over it as that frame says", () => {
+  it("moves each hand's own drawing of a weapon or a shield to that hand in every pose, behind the figure or over it as that frame says", () => {
     const everywhere = Object.fromEntries(
       Array.from({ length: SHEET_WIDTH_PX * SHEET_HEIGHT_PX }, (_, at) => [at, "#111111"]),
     );
     const gripAt = FRAME_PX / 2;
+    const drawnFor = { weaponHand: "#222222", offHand: "#333333" };
     const held = block(
       Object.fromEntries(
-        SHEET_FACINGS.map((_, row) => [
-          (row * FRAME_PX + gripAt) * SHEET_WIDTH_PX + gripAt,
-          "#222222",
-        ]),
+        HANDS.flatMap((hand, column) =>
+          SHEET_FACINGS.map((_, row) => [
+            (row * FRAME_PX + gripAt) * SHEET_WIDTH_PX + column * FRAME_PX + gripAt,
+            drawnFor[hand],
+          ]),
+        ),
       ),
     );
 
-    for (const hand of HANDS) {
-      const sheet = composeSheet(
-        partsWith({ base: [block(everywhere)], weaponHand: [held], offHand: [held] }),
-        { ...DEFAULT_LOOK, parts: { ...DEFAULT_LOOK.parts, clothes: null, [hand]: "sword" } },
-      );
+    const everyBlock = Array.from({ length: partsOn("weaponHand").length }, () => held);
 
-      SHEET_FACINGS.forEach((facing, row) => {
-        HELD_PLACEMENT[hand][facing].forEach(({ behind, at: [dx, dy] }, pose) => {
-          const x = pose * FRAME_PX + gripAt + dx;
-          const y = row * FRAME_PX + gripAt + dy;
-          expect(pixelAt(sheet, y * SHEET_WIDTH_PX + x)).toEqual(
-            rgb(behind ? "#111111" : "#222222"),
-          );
+    for (const part of ["sword", "wooden-shield"] as const) {
+      for (const hand of HANDS) {
+        const sheet = composeSheet(
+          partsWith({ base: [block(everywhere)], weaponHand: everyBlock, offHand: everyBlock }),
+          { ...DEFAULT_LOOK, parts: { ...DEFAULT_LOOK.parts, clothes: null, [hand]: part } },
+        );
+
+        SHEET_FACINGS.forEach((facing, row) => {
+          HELD_PLACEMENT[carryOf(part)][hand][facing].forEach(({ behind, at: [dx, dy] }, pose) => {
+            const x = pose * FRAME_PX + gripAt + dx;
+            const y = row * FRAME_PX + gripAt + dy;
+            expect(pixelAt(sheet, y * SHEET_WIDTH_PX + x)).toEqual(
+              rgb(behind ? "#111111" : drawnFor[hand]),
+            );
+          });
         });
-      });
+      }
     }
   });
 });
