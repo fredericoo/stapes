@@ -346,7 +346,7 @@ export function StoneFields({
         />
         <StatField
           label="Cast (s)"
-          info="How long the caster stands there before anything happens, at exactly the requirements below. Every point past them is time off — 110% of what it asks casts in 90% of this, and double casts instantly. Zero is instant. A blow breaks a cast; nothing is spent until it lands."
+          info="How long the caster stands there before anything happens, at exactly the requirements below. Every point past them is time off — 110% of what it asks casts in 90% of this, down to a fifth of it and never less. Zero is instant. A blow breaks a cast; nothing is spent until it lands."
           value={Math.round((stone.castTimeMs ?? 0) / HALF_SECOND_MS) / 2}
           min={0}
           max={MAX_CAST_TIME_MS / MS_PER_SECOND}

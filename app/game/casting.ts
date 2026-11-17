@@ -344,6 +344,9 @@ export function needsTarget(stone: Pick<ArcaneStoneItem, "effect">): boolean {
   return stone.effect.on === "target";
 }
 
+/** The share of its authored time a cast keeps however far past the requirements its caster is. */
+export const MIN_CAST_SHARE = 0.2;
+
 export function castDurationMs(stone: ArcaneStoneItem, masteries: Masteries): number {
   const authored = stone.castTimeMs ?? 0;
   if (authored <= 0) return 0;
@@ -351,13 +354,13 @@ export function castDurationMs(stone: ArcaneStoneItem, masteries: Masteries): nu
   const coverage = requirementCoverage(masteries, stone.requirements);
   /**
    * Short of what the stone asks, every share missing adds the same share of the
-   * authored time; past it, every share over takes one off, down to instant.
+   * authored time; past it, every share over takes one off, down to `MIN_CAST_SHARE`.
    */
   const share =
     met < REQUIREMENTS_MET
       ? REQUIREMENTS_MET + (REQUIREMENTS_MET - met)
       : Math.min(REQUIREMENTS_MET, REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET));
-  return Math.max(0, Math.round(authored * share));
+  return Math.max(1, Math.round(authored * Math.max(MIN_CAST_SHARE, share)));
 }
 
 function stoneInSquare(context: CastContext, square: CastSquare): ArcaneStoneItem | null {

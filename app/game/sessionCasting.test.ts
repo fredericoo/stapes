@@ -5,7 +5,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { masteriesFromXp, masteryLevel, xpForLevel } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
-import { naturalSlot, squareSlot } from "./casting";
+import { MIN_CAST_SHARE, naturalSlot, squareSlot } from "./casting";
 import { ARCANE_LEVELS_PER_RESIST, guardBand, MIN_GUARD_SHARE } from "./combat";
 import { BRAIN_ROUND_TICKS, BRAIN_TURNS_PER_TICK_MIN, TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
@@ -2193,14 +2193,18 @@ describe("a cast that takes time", () => {
     expect(casting(ADEPT_LEVEL + ADEPT_LEVEL / 2)).toBeGreaterThan(HURT_HP);
   });
 
-  it("lands on the press for a caster who has doubled it", () => {
+  it("still takes a fifth of its time for a caster who has doubled it", () => {
     const play = session({ charm: "apprentice-stone" });
     play.runCommand(`/mastery arcane ${ADEPT_LEVEL * 2}`);
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
+    const fastestTicks = Math.ceil((CAST_MS * MIN_CAST_SHARE) / TICK_MS);
 
     play.cast(squareSlot("charm"));
+    run(play, fastestTicks - 1);
+    expect(hpOf(play)).toBe(HURT_HP);
 
+    run(play, 1);
     expect(hpOf(play)).toBeGreaterThan(HURT_HP);
   });
 });

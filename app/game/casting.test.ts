@@ -27,6 +27,7 @@ import {
   naturalSlot,
   squareSlot,
   castDurationMs,
+  MIN_CAST_SHARE,
   type CastContext,
   type CasterPoint,
   type CastPoint,
@@ -846,7 +847,9 @@ describe("the stones we ship", () => {
 
     expect(castDurationMs(flame, asks)).toBe(3_000);
     expect(castDurationMs(flame, { ...asks, arcane: 16 })).toBeLessThan(2_000);
-    expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(0);
+    expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(
+      3_000 * MIN_CAST_SHARE,
+    );
   });
 
   it("names a status and a tile the world actually has", () => {
@@ -1179,9 +1182,11 @@ describe("how long a cast takes", () => {
     expect(castDurationMs(stone(AUTHORED_MS), { arcane: 13, fire: 2 })).toBe(AUTHORED_MS / 2);
   });
 
-  it("is instant for a caster who has doubled it, and never negative", () => {
-    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 16, fire: 4 })).toBe(0);
-    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 100, fire: 100 })).toBe(0);
+  it("stops coming down at a fifth of the authored time, and is never instant", () => {
+    const fastest = AUTHORED_MS * MIN_CAST_SHARE;
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 16, fire: 4 })).toBe(fastest);
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 100, fire: 100 })).toBe(fastest);
+    expect(castDurationMs(stone(1), { arcane: 100, fire: 100 })).toBe(1);
   });
 
   it("counts every requirement", () => {
