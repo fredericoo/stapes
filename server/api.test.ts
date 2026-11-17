@@ -576,8 +576,8 @@ describe("the realm", () => {
   });
 
   it("passes the crown on when a death drops the king below the next in line, and keeps the old reign", async () => {
-    const maren = await character("Maren Ormstead", 21);
-    const tobin = await character("Tobin Reed", 20);
+    const maren = await character("Maren Ormstead", 41);
+    const tobin = await character("Tobin Reed", 40);
     await world.join(openSocket(), maren, { admin: false });
     expect((await realm()).king?.name).toBe("Maren Ormstead I");
     const session = (world.server as unknown as { session: GameSession }).session;

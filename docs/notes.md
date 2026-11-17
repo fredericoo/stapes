@@ -1575,7 +1575,7 @@ cause of death.
   doors, so the guardhouse door at 5,8 is a `switch` in its own state each
   way, and his home is the cell inside it.
 - **Lord Corvin fights with stones, and is meant to scare players off.** He
-  is in the old alderman's hall, with rating 56 from Arcane 70, between the
+  is in the old alderman's hall, with rating 67, 35 of it from Arcane 70, between the
   smiths and the guards. His spells are Lance, Ember, Frost and Thorns. Arcane 70
   is more than double what each of them asks, so every cast is instant. None of
   them hits an area: an area spell `affects: "others"` would hit his wife, and
@@ -5529,7 +5529,7 @@ number experience is weighed against, and the one `rated_below_self` compares.
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
   experience against it would pay double to every player in the game.
 - **Above a player's ceiling, it keeps climbing.** The cyclops's 2,000 hit
-  points rate it 150, past the 100 no player reaches, because the curve is not
+  points rate it 165, past the 150 no player reaches, because the curve is not
   clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
   long before that, so the number only says how far out of reach it is.
 
@@ -5551,6 +5551,30 @@ rather than 10: 47 hit points rather than 121, rated 30, with an even level of
 three times in four, but a won fight takes 6.2s rather than 16.0s, and a
 player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
 a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
+
+#### Arcane is added to the best held weapon
+
+`rating` is `RATING_PER_BEST_WEAPON` times the best of Fist, Sharp, Blunt and
+Ranged, plus `RATING_PER_ARCANE` times Arcane, plus the Toughness and Agility
+shares. Arcane used to be one of the weapons the best was taken from, so a body
+with Sharp 50 and Arcane 45 was rated as though it had no Arcane at all. A
+stone is cast from the hand the weapon is not in, so a body uses both in one
+fight, and both are counted.
+
+- **The two shares are equal**, so a caster who holds no weapon is rated what
+  a swordsman of the same level is, as before. A smaller Arcane share would
+  have marked that caster down.
+- **A player's ceiling is 150, not 100.** `RATING_PER_BEST_WEAPON`,
+  `RATING_PER_ARCANE`, `RATING_PER_TOUGHNESS` and `RATING_PER_AGILITY` sum
+  to 1.5.
+- **A fresh character is rated 2**, from one point each of Fist and Arcane.
+- **Every creature with an authored Arcane moved up by half of it**, whether or
+  not it has a spell to cast. The figures in the section above were measured
+  before this: the skeleton is rated 46, the cave troll 73, the wolf 31 and a
+  slime 22. The even levels were not measured again, and they were for a
+  player with no Arcane.
+- **Authored rating thresholds were not moved**: `rewardRequires.rating` on
+  placements in `data/map.json` and `rated_below` in dialogs and brains.
 
 ### Armour is worn, and it may care what hit it
 
@@ -7906,7 +7930,7 @@ because three is the smallest number where every element beats one and loses to
 one, so none is the best and none is the worst.
 
 **They are deliberately not weapon masteries**, and that exclusion is
-load-bearing in exactly one place: `rating` counts a body's *best* weapon
+load-bearing in exactly one place: `rating` counts a body's *best* held weapon
 mastery, so an element in that list would make a fire specialist read as a better
 fighter than the identical caster who spread the same practice over three. Arcane
 already measures how good a body is at magic and is already what every cast
@@ -12667,9 +12691,9 @@ nearest prey added to its `when`. It asks about the *nearest* prey only, the
 same body `in_los` asks about, so a strong player standing nearer hides a weak
 one behind them. It only decides whether a hunt starts: once the creature is
 in its fight it keeps after the target whatever the target's rating, and a
-blow from anybody still starts a fight through `fights-back`. The rat rates 8
-(sharp 4, toughness 3, agility 24), so it goes for a fresh character (rating
-1) and runs from anyone who has reached 8.
+blow from anybody still starts a fight through `fights-back`. The rat rates 9
+(sharp 4, arcane 2, toughness 3, agility 24), so it goes for a fresh character
+(rating 2) and runs from anyone who has reached 9.
 
 **`flees-the-stronger`** is the other half: it runs from the nearest threat it
 can see when that one is *not* `rated_below_self`, and from an attacker who is
