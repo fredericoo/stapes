@@ -15,7 +15,6 @@ import type { Database } from "./db";
 import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
 import { Realm, type Contender, type RealmState } from "./realm";
-import { generationalName } from "../app/lib/characterName";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -80,7 +79,6 @@ export class World {
       dataStore: new DataStore(blobs),
       nameOf: (actorId) => characters.nameOf(actorId),
       appearanceOf: (actorId) => characters.appearanceOf(actorId),
-      deathsOf: (actorId) => deaths.countOf(actorId),
       weather: config.WEATHER,
     });
     const world = new World(
@@ -143,11 +141,7 @@ export class World {
   }
 
   async refreshRealm(): Promise<void> {
-    const [roster, ratings, { deaths }] = await Promise.all([
-      this.characters.roster(),
-      this.server.ratings(),
-      this.deaths.counts(),
-    ]);
+    const [roster, ratings] = await Promise.all([this.characters.roster(), this.server.ratings()]);
     const contenders: Contender[] = [];
     for (const { character } of roster) {
       if (!character) continue;
@@ -155,7 +149,7 @@ export class World {
       if (rating === undefined) continue;
       contenders.push({
         characterId: character.id,
-        name: generationalName(character.name, 1 + (deaths.get(character.id) ?? 0)),
+        name: character.name,
         rating,
         createdAt: character.createdAt,
       });

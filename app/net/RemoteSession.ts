@@ -235,7 +235,6 @@ export class RemoteSession implements PlaySession {
   private onReady: (() => void) | null = null;
   private dead = false;
   private death: DeathCost | null = null;
-  private rebornAsName: string | null = null;
   private diedAway = false;
   private onDead: ((dead: boolean) => void) | null = null;
   private onRestarting: (() => void) | null = null;
@@ -293,11 +292,6 @@ export class RemoteSession implements PlaySession {
     return this.death;
   }
 
-  /** The name, generation included, the next life plays as. */
-  rebornAs(): string | null {
-    return this.rebornAsName;
-  }
-
   wasAwayForDeath(): boolean {
     return this.diedAway;
   }
@@ -343,7 +337,6 @@ export class RemoteSession implements PlaySession {
 
   private clearDeath() {
     this.death = null;
-    this.rebornAsName = null;
     this.diedAway = false;
     this.setDead(false);
   }
@@ -515,7 +508,6 @@ export class RemoteSession implements PlaySession {
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
       this.death = message.diedAway ?? null;
-      this.rebornAsName = message.diedAway ? (this.names.get(message.selfId) ?? null) : null;
       this.diedAway = message.diedAway !== undefined;
       this.setDead(this.diedAway);
       this.ready = true;
@@ -594,7 +586,6 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "died") {
       this.death = message.cost;
-      this.rebornAsName = message.rebornAs ?? null;
       this.diedAway = false;
       this.equipment = message.equipment;
       if (message.masteryXp) this.masteryXp = message.masteryXp;

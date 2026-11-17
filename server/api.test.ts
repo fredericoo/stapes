@@ -507,7 +507,7 @@ describe("a player's deaths and kills", () => {
     ]);
     expect((await page(maren)).kills).toEqual([
       expect.objectContaining({
-        victim: { id: tobin, name: "Tobin Reed I", character: true },
+        victim: { id: tobin, name: "Tobin Reed", character: true },
       }),
     ]);
   });
@@ -551,9 +551,9 @@ describe("the realm", () => {
     const { king, leaders } = await realm();
 
     expect(leaders.map((leader) => leader.name)).toEqual([
-      "Wren Hollis I",
-      "Maren Ormstead I",
-      "Tobin Reed I",
+      "Wren Hollis",
+      "Maren Ormstead",
+      "Tobin Reed",
     ]);
     expect(leaders[0]!.rating).toBeGreaterThan(leaders[1]!.rating);
     expect(king).toEqual({ ...leaders[0], since: expect.any(Number) });
@@ -579,21 +579,18 @@ describe("the realm", () => {
     const maren = await character("Maren Ormstead", 41);
     const tobin = await character("Tobin Reed", 40);
     await world.join(openSocket(), maren, { admin: false });
-    expect((await realm()).king?.name).toBe("Maren Ormstead I");
+    expect((await realm()).king?.name).toBe("Maren Ormstead");
     const session = (world.server as unknown as { session: GameSession }).session;
     expect(session.actorSnapshots().find((actor) => actor.id === maren)?.king).toBe(true);
 
     await killInWorld(maren, { source: "Rusty sword", by: "Tobin Reed", byId: tobin });
     const after = await realm();
 
-    expect(after.king?.name).toBe("Tobin Reed I");
-    expect(after.leaders.map((leader) => leader.name)).toEqual([
-      "Tobin Reed I",
-      "Maren Ormstead II",
-    ]);
+    expect(after.king?.name).toBe("Tobin Reed");
+    expect(after.leaders.map((leader) => leader.name)).toEqual(["Tobin Reed", "Maren Ormstead"]);
     expect(await reigns()).toEqual([
-      { character_id: maren, name: "Maren Ormstead I", ended_at: expect.any(Number) },
-      { character_id: tobin, name: "Tobin Reed I", ended_at: null },
+      { character_id: maren, name: "Maren Ormstead", ended_at: expect.any(Number) },
+      { character_id: tobin, name: "Tobin Reed", ended_at: null },
     ]);
   });
 });

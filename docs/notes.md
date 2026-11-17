@@ -13396,31 +13396,6 @@ Death was permanent for a while: a player dropped everything and started again
 in the tutorial at the `player` tile's masteries, with no tags. Hardly anybody
 played under it, and it was taken back to this.
 
-### A character's generation is its deaths plus one
-
-Every life of a character plays under the same stored name with a Roman
-numeral after it: Maren I until the first death, then Maren II. The numeral is
-never in `character.name`. `GameServer.displayNameOf` builds it with
-`generationalName` (`app/lib/characterName.ts`) when it seats the body, and the
-session carries the result as the body's name, so everything that already
-shows a name shows the generation: name tags, chat, a look, the skull's
-engraving and `victim_name` in `death`, which records which life died.
-
-The generation is counted from `death` (`Deaths.countOf`), the rows already
-written for the admin pages, and then kept per seated character in
-`GameServer.lives`, because a death row is committed with the next checkpoint
-and a Rebirth press can arrive before it. `noteDeaths` adds one there when it
-logs the death; `resetWorld` empties `death` and the cache together, so a
-reset sends every character back to I.
-
-`died` carries `rebornAs`, the next life's name, for the death screen. A death
-told on a `hello` needs no field: the player is already seated as the next
-life, and the screen reads their own entry in `names`.
-
-A name is at most `MAX_CHARACTER_NAME_LENGTH` characters, and the numeral adds
-a space and a few letters more: LXXXVIII, the 88th life, is eight. Name tags
-have not been measured against the longest.
-
 ## A depot is a stash per account, opened from a placement
 
 A tile with `interactions.depot = { size }` is a container whose contents

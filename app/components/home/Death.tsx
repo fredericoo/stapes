@@ -9,7 +9,7 @@ export function Death() {
       <div className="home-death-body">
         <figure className="home-death-art">
           <img src={sprite("death-skull")} alt="" className="pixelated" />
-          <figcaption>Wren I's skull</figcaption>
+          <figcaption>Wren's skull</figcaption>
         </figure>
         <div className="home-death-text">
           <p>
