@@ -228,7 +228,9 @@ function Equipped({ sheet, catalogue }: { sheet: CharacterSheet; catalogue: Cata
 
 function Item({ instance, catalogue }: { instance: ItemInstance; catalogue: Catalogue }) {
   const tile = catalogue.tilesById[instance.tileId];
-  const card = tile ? itemCard(tile, instance, catalogue.masteryXp, catalogue.statusDefs) : null;
+  const card = tile
+    ? itemCard(tile, instance, catalogue.masteryXp, catalogue.statusDefs, catalogue.tilesById)
+    : null;
   const name = engravedName(tile?.name ?? instance.tileId, instance.engraved);
   const tally = pileTally(instance);
 

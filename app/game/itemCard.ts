@@ -15,6 +15,7 @@ import {
   reachOf,
   resolveItem,
   type ArcaneStoneItem,
+  type Reagent,
   type ArmorItem,
   type ArmorSlot,
   type CharmItem,
@@ -417,18 +418,23 @@ function statsFor(
   instance: ItemInstance | null,
   masteries: BattlerDef["masteries"],
   statusDefs: Record<string, StatusDef>,
+  tilesById: Record<string, TileDef>,
 ): ItemCardStat[] {
   if (item.type === "weapon") return weaponStats(item, masteries);
   if (item.type === "armor") return armorStats(item, masteries);
   if (item.type === "shield") return armorStats(item, masteries);
-  if (item.type === "stone") return stoneStats(item, statusDefs);
+  if (item.type === "stone") return stoneStats(item, statusDefs, tilesById);
   if (item.type === "consumable") return consumableStats(item);
   if (item.type === "charm") return charmStats(item, masteries);
   if (item.type === "container") return containerStats(item, instance);
   return [];
 }
 
-function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef>): ItemCardStat[] {
+function stoneStats(
+  stone: ArcaneStoneItem,
+  statusDefs: Record<string, StatusDef>,
+  tilesById: Record<string, TileDef>,
+): ItemCardStat[] {
   const stats: ItemCardStat[] = [];
 
   if (stone.effect.kind === "bolt") {
@@ -475,6 +481,10 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
     }
   }
 
+  if (stone.reagents?.length) {
+    stats.push({ term: "costs", value: reagentLine(stone.reagents, tilesById), tone: "bad" });
+  }
+
   stats.push({
     term: "cooldown",
     value: formatDuration(stone.cooldownMs),
@@ -486,6 +496,12 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
     tone: "plain",
   });
   return stats;
+}
+
+function reagentLine(reagents: readonly Reagent[], tilesById: Record<string, TileDef>): string {
+  return reagents
+    .map(({ tileId, count }) => `${count} ${tilesById[tileId]?.name || tileId}`)
+    .join(", ");
 }
 
 function conjuredLine(effect: ConjureEffect): string {
@@ -537,6 +553,7 @@ export function itemCard(
   instance: ItemInstance | null,
   masteryXp: MasteryXp,
   statusDefs: Record<string, StatusDef> = {},
+  tilesById: Record<string, TileDef> = {},
 ): ItemCard | null {
   const item = resolveItem(def);
   if (!item) return null;
@@ -552,7 +569,7 @@ export function itemCard(
     kind: kindOf(item),
     inscription: instance?.inscription?.trim() || null,
     description: instance?.description?.trim() || null,
-    stats: statsFor(item, instance, masteries, statusDefs),
+    stats: statsFor(item, instance, masteries, statusDefs, tilesById),
     requirements: requirementsFrom(demandsOf(item), masteries),
     dormant: dormancyOf(item, masteries),
     effects: effectsFrom(grantsOn(item), statusDefs),
@@ -573,10 +590,12 @@ export function itemCard(
 export function catalogueCard(
   def: TileDef,
   statusDefs: Record<string, StatusDef> = {},
+  tilesById: Record<string, TileDef> = {},
 ): ItemCard | null {
   const item = resolveItem(def);
   if (!item) return null;
-  const card = itemCard(def, null, xpFromMasteries(asEarned(demandsOf(item) ?? {})), statusDefs);
+  const xp = xpFromMasteries(asEarned(demandsOf(item) ?? {}));
+  const card = itemCard(def, null, xp, statusDefs, tilesById);
   if (!card) return null;
   const anonymous: ItemCard = {
     ...card,

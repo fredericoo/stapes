@@ -7177,8 +7177,9 @@ recoloured, and `#6e2727` and `#ae2334` appear in the clothes for that reason.
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
-decided by which **arcane stones** they are carrying, how recently each was used
-and how far past or short of what one asks the caster has got. The whole of a loadout is two hands and a charm, which is why the desktop
+decided by which **arcane stones** they are carrying, how recently each was used,
+how far past or short of what one asks the caster has got, and whether they
+carry what a stone spends (see "A stone can spend what you carry"). The whole of a loadout is two hands and a charm, which is why the desktop
 binding is `Q`, `E`, `F` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
@@ -7642,6 +7643,29 @@ facing, and each is a way the server's idea of the caster lagged the browser's:
   landed that step already, so the turn it sends arrives mid-walk on the
   server. `faceActor` now writes the turn onto the walk too — in place, since a
   new walk object is announced as a new step.
+
+### A stone can spend what you carry
+
+`reagents` on a stone is a list of `{ tileId, count }`, and a cast spends them
+from the caster's kit when it lands. It is the one exception to "there is
+nothing else to it", and it is a price rather than a resource: no mana,
+nothing that refills, and a stone without reagents behaves exactly as it did.
+
+- **Counted the way a trade counts a price** (`carriedCount`), across every
+  pile in the hands, the worn squares and the bag, and taken with
+  `planTrade` with nothing given back.
+- **Refused before anything starts**, as `reagents`, after the cooldown and the
+  mastery and before reach, so the bar dims a stone you cannot pay for and
+  says "missing what it spends".
+- **Spent on landing, in `resolveCast`, beside the cooldown.** A cast that is
+  broken spends nothing. A cast whose reagents leave the kit while it winds up
+  does not land, because `finishCasting` asks `castability` again when the bar
+  fills; it is the same second question that stops a flame cast into a crate
+  dropped mid-cast.
+- **The card says what it costs** ("Costs: 1 Green Potion"), which is why
+  `itemCard` and `catalogueCard` take the tile catalogue as an optional last
+  argument: a reagent is named by its tile's name, and without the catalogue
+  the line falls back to the id.
 
 ### The cooldown is per stone, durable, and locks the square
 

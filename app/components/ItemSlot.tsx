@@ -196,9 +196,9 @@ export function ItemSlot({
   const asking = dwelling || (!coarse && pointedAt);
   const inspected = useMemo(() => {
     if (!asking || !tile) return null;
-    const card = itemCard(tile, instance, masteryXp, statusDefs);
+    const card = itemCard(tile, instance, masteryXp, statusDefs, tilesById);
     return card ? { card, tile } : null;
-  }, [asking, tile, instance, masteryXp, statusDefs]);
+  }, [asking, tile, instance, masteryXp, statusDefs, tilesById]);
 
   const held = drag.held;
   const isSource = held != null && slotKey(held.from) === key;

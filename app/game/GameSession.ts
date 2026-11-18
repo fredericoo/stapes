@@ -286,6 +286,7 @@ import {
 import {
   CAST_SQUARES,
   castability,
+  spendReagents,
   castableSpells,
   castDurationMs,
   COOLDOWN_STEP_MS,
@@ -3848,6 +3849,7 @@ export class GameSession implements PlaySession {
     const elements = spellElements(stone.requirements);
 
     this.spendCooldown(actor, slot, stone);
+    this.spendReagents(actor, stone);
     this.grantExperience(actor, practiceEarnings(elements));
     this.dressCaster(actor, stone.casterEffect);
 
@@ -3875,6 +3877,12 @@ export class GameSession implements PlaySession {
     if (!actor.casting) return;
     actor.casting = null;
     if (notice) this.say(actor.id, notice);
+  }
+
+  private spendReagents(actor: ActorRuntime, stone: ArcaneStoneItem) {
+    if (!stone.reagents?.length) return;
+    const next = spendReagents(this.tilesById, actor.equipment, stone);
+    if (next) this.setEquipment(actor, next);
   }
 
   private spendCooldown(actor: ActorRuntime, slot: CastSlot, stone: ArcaneStoneItem) {

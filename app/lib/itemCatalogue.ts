@@ -67,11 +67,12 @@ export function catalogueEntries(
   playerTileId: string,
 ): CatalogueEntry[] {
   const names = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
+  const tilesById = Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
   const sources = itemSources(tiles, playerTileId);
   const entries: CatalogueEntry[] = [];
   for (const tile of tiles) {
     const item = resolveItem(tile);
-    const card = catalogueCard(tile, statusDefs);
+    const card = catalogueCard(tile, statusDefs, tilesById);
     const found = sources.get(tile.id);
     if (!item || !card || !found) continue;
     const related = [

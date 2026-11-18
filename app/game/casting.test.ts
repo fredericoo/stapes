@@ -9,6 +9,7 @@ import {
   resolveStone,
 } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { countOf } from "../lib/piles";
 import { spellElements } from "../lib/mastery";
 import { resolveCraft } from "../lib/interactions";
 import { resolveProjectile } from "../lib/projectile";
@@ -27,7 +28,9 @@ import {
   naturalSlot,
   squareSlot,
   castDurationMs,
+  carriesReagents,
   MIN_CAST_SHARE,
+  spendReagents,
   type CastContext,
   type CasterPoint,
   type CastPoint,
@@ -115,6 +118,18 @@ const tiles: TileDef[] = [
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
+  stoneTile("venom-stone", {
+    effect: { kind: "conjure", tileId: "fire", area: { shape: "cross", radius: 1, on: "target" } },
+    cooldownMs: 20_000,
+    reach: NEAR_REACH,
+    reagents: [{ tileId: "potion", count: 2 }],
+  }),
+  tile({ id: "potion", kind: "item", interactions: { item: { type: "artifact", pile: 4 } } }),
+  tile({
+    id: "pouch",
+    kind: "item",
+    interactions: { item: { type: "container", size: 4, equippable: true } },
+  }),
   charmTile("life-charm", { everyMs: 10_000, hp: 5 }),
   charmTile("balm-charm", {
     everyMs: 10_000,
@@ -164,6 +179,10 @@ const tiles: TileDef[] = [
 const tilesById = tilesByIdFromList(tiles);
 
 let nextId = 0;
+function pile(tileId: string, count: number): ItemInstance {
+  return { id: `itm_${++nextId}`, tileId, count };
+}
+
 function instance(tileId: string, cooldownMs?: number): ItemInstance {
   return {
     id: `itm_${++nextId}`,
@@ -545,6 +564,31 @@ describe("a conjure that fills a shape around its caster", () => {
   it("is refused only when not one cell will hold it", () => {
     const alone = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
     expect(conjureLandings(context({}, { map: alone }), RAT_RING)).toBeNull();
+  });
+});
+
+describe("a stone that spends reagents", () => {
+  const venom = { weapon: instance("venom-stone") };
+
+  it("is refused while the kit holds fewer than it spends", () => {
+    const short = context({ ...venom, offhand: pile("potion", 1) }, { target: point(2) });
+    expect(castability(short, squareSlot("weapon"))).toEqual({ ok: false, reason: "reagents" });
+  });
+
+  it("counts every pile it can find, a hand and the bag alike", () => {
+    const bag = { ...instance("pouch"), contents: [pile("potion", 1)] };
+    const equipment = { ...emptyEquipment(), ...venom, offhand: pile("potion", 1), bag };
+    expect(
+      carriesReagents({ tilesById, equipment }, { reagents: [{ tileId: "potion", count: 2 }] }),
+    ).toBe(true);
+  });
+
+  it("takes exactly what it spends and leaves the rest", () => {
+    const equipment = { ...emptyEquipment(), ...venom, offhand: pile("potion", 3) };
+    const spent = spendReagents(tilesById, equipment, resolveStone(tilesById["venom-stone"]!)!);
+    expect(spent?.offhand?.tileId).toBe("potion");
+    expect(countOf(spent!.offhand!)).toBe(1);
+    expect(spent?.weapon).toEqual(equipment.weapon);
   });
 });
 

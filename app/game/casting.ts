@@ -27,6 +27,7 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
 import { isSupported } from "./gravity";
 import { canWalk, DIR_DELTA } from "./movement";
 import type { Progress } from "./progress";
+import { carriedCount, planTrade } from "./trade";
 
 export const CAST_SQUARES = ["weapon", "offhand", "charm"] as const;
 
@@ -60,6 +61,7 @@ export type CastRefusal =
   | "casting"
   | "cooling"
   | "mastery"
+  | "reagents"
   | "noTarget"
   | "outOfRange"
   | "blocked"
@@ -144,12 +146,38 @@ export function castability(context: CastContext, slot: CastSlot): Castability {
     return refused("mastery");
   }
 
+  if (!carriesReagents(context, stone)) return refused("reagents");
+
   return reachability(context, stone);
 }
 
 export function spellIn(context: CastContext, slot: CastSlot): ArcaneStoneItem | null {
   if (slot.from === "square") return stoneInSquare(context, slot.square);
   return context.spells.find((spell) => spell.name === slot.name) ?? null;
+}
+
+export function carriesReagents(
+  { tilesById, equipment }: Pick<CastContext, "tilesById" | "equipment">,
+  stone: Pick<ArcaneStoneItem, "reagents">,
+): boolean {
+  return (stone.reagents ?? []).every(
+    ({ tileId, count }) => carriedCount(tilesById, equipment, tileId) >= count,
+  );
+}
+
+/** The kit with the stone's reagents taken out of it, or null when it does not hold them all. */
+export function spendReagents(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  stone: Pick<ArcaneStoneItem, "reagents">,
+): Equipment | null {
+  const reagents = stone.reagents ?? [];
+  if (reagents.length === 0) return equipment;
+  return planTrade(tilesById, equipment, reagents, [], unminted);
+}
+
+function unminted(): never {
+  throw new Error("spending reagents gives nothing back");
 }
 
 function cooldownOf(context: CastContext, slot: CastSlot): number {
@@ -489,6 +517,7 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   casting: "already casting",
   cooling: "still cooling",
   mastery: "not learnt yet",
+  reagents: "missing what it spends",
   noTarget: "nothing targeted",
   outOfRange: "out of range",
   blocked: "nowhere for it to land",

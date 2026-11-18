@@ -195,11 +195,19 @@ export const STONE_EFFECT_KINDS = ["bolt", "conjure"] as const;
 
 export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
 
+/** Something a cast spends from its caster's kit, counted across piles as a trade counts a price. */
+export type Reagent = { tileId: string; count: number };
+
+export const MAX_STONE_REAGENTS = 3;
+
+export const MAX_REAGENT_COUNT = 32;
+
 export type ArcaneStoneItem = {
   type: "stone";
   effect: StoneEffect;
   cooldownMs: number;
   castTimeMs?: number;
+  reagents?: Reagent[];
   uninterruptible?: boolean;
   /** Absent is a magical spell, weighed against arcane resist rather than defence. */
   physical?: PhysicalBlow;
@@ -577,9 +585,15 @@ const stoneEffectSchema = v.variant("kind", [
   }),
 ]);
 
+const reagentSchema = v.object({
+  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  count: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_REAGENT_COUNT)),
+});
+
 export const stoneSchema = v.object({
   type: v.literal("stone"),
   effect: stoneEffectSchema,
+  reagents: v.optional(v.pipe(v.array(reagentSchema), v.maxLength(MAX_STONE_REAGENTS))),
   cooldownMs: v.pipe(
     v.number(),
     v.integer(),
@@ -850,6 +864,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     effect: stoneEffectForSave(stone.effect),
     cooldownMs: Math.round(stone.cooldownMs),
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
+    ...reagentsForSave(stone.reagents),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
     ...(stone.physical ? { physical: stone.physical } : {}),
     ...(stone.physical && stone.accuracy !== undefined ? { accuracy: stone.accuracy } : {}),
@@ -860,6 +875,18 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...elementsForSave(stone.elements),
     ...(stone.casterEffect ? { casterEffect: stone.casterEffect } : {}),
   };
+}
+
+/** Blank rows are dropped and a tile named twice is summed, so the cost reads as one line per item. */
+function reagentsForSave(reagents: Reagent[] | undefined): { reagents?: Reagent[] } {
+  const counts = new Map<string, number>();
+  for (const { tileId, count } of reagents ?? []) {
+    const id = tileId.trim();
+    if (!id || count < 1) continue;
+    counts.set(id, Math.min(MAX_REAGENT_COUNT, (counts.get(id) ?? 0) + Math.round(count)));
+  }
+  if (counts.size === 0) return {};
+  return { reagents: [...counts].map(([tileId, count]) => ({ tileId, count })) };
 }
 
 function stoneEffectForSave(effect: StoneEffect): StoneEffect {
