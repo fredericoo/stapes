@@ -1,5 +1,15 @@
 # the-last-stones
 
+## 0.24.1
+
+### Patch Changes
+
+- Coming back to the game from another tab no longer replays every line, sound and notice from while you were away. Only the ones that would still be showing appear. Damage numbers still show.
+- The East Gate Guard is now drawn holding his sword and shield and wearing his armour, like the guards at the other gates.
+- Names no longer carry a numeral that counts your deaths, and there is no king any more: no crown over a name tag, and the home page lists the three highest-rated characters without crowning the first.
+- Turning your phone sideways, or back upright, no longer leaves the map blank. Held sideways in Safari, the map and the joystick now fit below the tab bar instead of running off the bottom of the screen.
+- When the server is about to restart for an update, a banner now counts down the last five seconds. The restart also keeps everything up to that moment: before, it could put you and the map back by up to thirty seconds.
+
 ## 0.24.0
 
 ### Minor Changes
