@@ -765,7 +765,7 @@ export class GameRenderer {
       return;
     }
 
-    const key = `${ref.x},${ref.y},${ref.z},${ref.stackIndex}:${offered.recipes.map((r) => r.index).join(",")}`;
+    const key = `${ref.x},${ref.y},${ref.z},${ref.stackIndex}:${offered.recipes.map((r) => `${r.index}${r.block ?? ""}`).join(",")}`;
     if (key === this.craftingSent) return;
     this.craftingSent = key;
     this.onCrafting({ ref, tileId, craft: offered.craft, recipes: offered.recipes });

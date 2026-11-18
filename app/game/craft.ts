@@ -32,6 +32,19 @@ export function affordsRecipe(
   );
 }
 
+/**
+ * Ingredients are checked on their own first, so a full bag reads as "no room"
+ * only when the inputs are all there.
+ */
+export function recipeBlock(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  recipe: CraftRecipe,
+): RecipeBlock | null {
+  if (planTrade(tilesById, equipment, recipe.inputs, [], checkId) === null) return "missing";
+  return affordsRecipe(tilesById, equipment, recipe) ? null : "noRoom";
+}
+
 export function craftableRecipe(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -57,7 +70,9 @@ export function canCraftFrom(
   return craftableRecipe(map, tilesById, actor, equipment, ref, index) != null;
 }
 
-export type OfferedRecipe = { index: number; recipe: CraftRecipe };
+export type RecipeBlock = "missing" | "noRoom";
+
+export type OfferedRecipe = { index: number; recipe: CraftRecipe; block: RecipeBlock | null };
 
 export type CraftingWindow = {
   ref: ObjectRef;
@@ -75,10 +90,11 @@ export function offeredRecipes(
 ): { craft: CraftInteraction; recipes: OfferedRecipe[] } | null {
   const craft = reachableCraftAt(map, tilesById, actor, ref);
   if (!craft) return null;
-  const recipes: OfferedRecipe[] = [];
-  craft.recipes.forEach((recipe, index) => {
-    if (affordsRecipe(tilesById, equipment, recipe)) recipes.push({ index, recipe });
-  });
+  const recipes = craft.recipes.map((recipe, index) => ({
+    index,
+    recipe,
+    block: recipeBlock(tilesById, equipment, recipe),
+  }));
   return { craft, recipes };
 }
 
