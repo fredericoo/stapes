@@ -321,9 +321,12 @@ function areaLanding(context: CastContext, def: TileDef, at: Coord): ConjureLand
   const under = lowestBodyIn(stack, tilesById);
   if (under !== undefined && resolveActor(def)) return null;
   if (!isSupported(map, at.x, at.y, at.z, stack.length, tilesById)) return null;
-  const groundAbs = absoluteStandingElevation(at.z, stack, tilesById);
+  /** The ground is what the body stands on, so neither its height nor its own footing counts. */
+  const ground = under === undefined ? stack : stack.slice(0, under);
+  const groundAbs = absoluteStandingElevation(at.z, ground, tilesById);
   if (Math.abs(groundAbs - caster.elevAbs) > MAX_CLIMB_HEIGHT) return null;
-  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById)) return null;
+  const body = under === undefined ? undefined : { z: at.z, stackIndex: under };
+  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById, body)) return null;
   if (!canPlace(map, at.x, at.y, at.z, def, tilesById).ok) return null;
   return under === undefined ? { at } : { at, under };
 }

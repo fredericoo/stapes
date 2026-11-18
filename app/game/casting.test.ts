@@ -144,6 +144,7 @@ const tiles: TileDef[] = [
   tile({ id: "fire", intangible: true, lightPassing: true }),
   tile({ id: "body", height: 2 }),
   tile({ id: "rat", height: 2, interactions: { brain: { kind: "wander" } } }),
+  tile({ id: "ogre", height: 4, walkable: false, interactions: { brain: { kind: "wander" } } }),
   tile({ id: "water", walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
   tile({
@@ -527,6 +528,14 @@ describe("a conjure that fills a shape around its caster", () => {
 
   it("lays a thing beneath whoever stands in the ring", () => {
     const map = replaceStack(floored(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "rat" }]);
+    expect(conjureLandings(context({}, { map }), FIRE_RING)).toContainEqual({
+      at: { x: 1, y: 0, z: 0 },
+      under: 1,
+    });
+  });
+
+  it("lays a thing beneath a body taller than a climb, which is not ground", () => {
+    const map = replaceStack(floored(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "ogre" }]);
     expect(conjureLandings(context({}, { map }), FIRE_RING)).toContainEqual({
       at: { x: 1, y: 0, z: 0 },
       under: 1,

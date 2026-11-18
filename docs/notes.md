@@ -7581,6 +7581,13 @@ is 1). It melts on its own through its brain: `after 9–12 s`, then `fade`.
 Because the timer is a brain's, it runs only while somebody is online: a ring
 standing when the last player leaves stays up until somebody connects.
 
+**A body standing in a cell is not the ground.** `areaLanding` measures the
+ground from the stack beneath the lowest body and asks for footing with that
+body left out, the way `exclude` lets a walker ignore itself. Before that, a
+cell holding a body taller than a climb was skipped: the body's own height put
+the "ground" out of reach and its `walkable: false` refused the footing, so a
+shape laid round a crowd had a hole wherever somebody tall stood.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
