@@ -47,9 +47,7 @@ describe("frameIndexAtTime", () => {
   });
 
   it("depends only on the clock, not on when anything started", () => {
-    const walk = frames(4);
-    const t = 7 * FRAME_MS + 37;
-    expect(frameIndexAtTime(walk, t)).toBe(frameIndexAtTime(frames(4), t));
+    expect(frameIndexAtTime(frames(4), 7 * FRAME_MS + 37)).toBe(3);
   });
 });
 

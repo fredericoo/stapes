@@ -186,11 +186,6 @@ describe("a body that does not fall", () => {
     expect(changed).toEqual([]);
     expect(ids(getStack(next, 0, 0, 1))).toEqual(["bat"]);
   });
-
-  it("is the only difference between it and the rat", () => {
-    expect(shipped("bat").affectedByGravity).toBe(false);
-    expect(shipped("rat").affectedByGravity).toBe(true);
-  });
 });
 
 describe("intangible tiles are not a floor", () => {

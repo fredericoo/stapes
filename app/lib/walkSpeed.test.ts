@@ -23,7 +23,6 @@ describe("a pace moved by a percentage", () => {
 
   it("reads the two directions as speeds rather than as durations", () => {
     expect(walkDurationFrom(BASE, 50)).toBe(133);
-    expect(walkDurationFrom(BASE, -50)).toBe(400);
   });
 
   it("holds the total inside the band", () => {

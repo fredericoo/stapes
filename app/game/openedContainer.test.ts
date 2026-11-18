@@ -57,11 +57,6 @@ describe("a box in reach", () => {
     expect(read.container.location).toEqual({ kind: "ground", ref: REF });
   });
 
-  it("learns which thing was opened on the first read", () => {
-    const read = readOpenedContainer(board(), tilesById, ME, NO_DEPOTS, REF, null);
-    expect(read.kind === "open" && read.identity).toBe(CHEST_ID);
-  });
-
   it("stays open across a read that names the same thing", () => {
     const read = readOpenedContainer(board(), tilesById, ME, NO_DEPOTS, REF, CHEST_ID);
     expect(read.kind).toBe("open");

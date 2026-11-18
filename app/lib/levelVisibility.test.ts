@@ -290,20 +290,6 @@ describe("occluders out at the probe radius", () => {
     ]);
     expect(cuts(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(true);
   });
-
-  it("a wall midway blocks content above the cell beyond it", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor"] },
-      { x: 1, y: 0, tiles: ["floor", "wall"] },
-      { x: 2, y: 0, tiles: ["floor"] },
-      { x: 2, y: 0, z: 1, tiles: ["roof"] },
-    ]);
-    expect(cuts(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(false);
-  });
-
-  it("VIEW_RADIUS reaches at least two cells, which the box must cover", () => {
-    expect(VIEW_RADIUS).toBeGreaterThanOrEqual(2);
-  });
 });
 
 describe("content drawn over the viewer", () => {

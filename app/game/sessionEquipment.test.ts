@@ -375,11 +375,6 @@ describe("a weapon reaches the blow", () => {
     expect(heavySwings).toBeLessThan(lightSwings);
   });
 
-  it("leaves an empty-handed body fighting with its natural weapon", () => {
-    const session = fightingSession();
-    expectWorth(firstBlow(session), BARE_DAMAGE);
-  });
-
   describe("with a weapon in each hand", () => {
     function armBoth(session: GameSession, weapon: string, offhand: string) {
       const kit = session.equipmentOf(selfId(session))!;

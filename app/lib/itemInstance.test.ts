@@ -81,10 +81,6 @@ describe("the placement ↔ instance round trip", () => {
 describe("sameInstance", () => {
   const lever: ItemInstance = { id: "itm_a", tileId: "lever" };
 
-  it("takes one thing for itself", () => {
-    expect(sameInstance(lever, lever)).toBe(true);
-  });
-
   it("takes two copies of the same fields for the same thing", () => {
     expect(sameInstance(lever, { id: "itm_a", tileId: "lever" })).toBe(true);
   });

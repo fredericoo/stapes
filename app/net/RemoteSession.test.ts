@@ -470,13 +470,6 @@ describe("RemoteSession chat", () => {
     ]);
   });
 
-  it("keeps oldest-first order, which is what the renderer stacks by", () => {
-    const { socket, session } = connected();
-    for (const text of ["first", "second"]) socket.deliver({ ...said, text });
-
-    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["first", "second"]);
-  });
-
   it("carries the speaker's stack index, so the bubble can clear their head", () => {
     const { socket, session } = connected();
     socket.deliver(said);

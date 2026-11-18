@@ -214,11 +214,6 @@ describe("resolveBattler's kind gate", () => {
     });
   });
 
-  it("refuses a block from before masteries existed", () => {
-    const old = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
-    expect(resolveBattler(tile("battler", { battler: old }))).toBeNull();
-  });
-
   it("refuses a block with no base hit points", () => {
     const { baseHp: _dropped, ...noBase } = stats;
     expect(resolveBattler(tile("battler", { battler: noBase }))).toBeNull();

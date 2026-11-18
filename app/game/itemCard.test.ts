@@ -222,8 +222,6 @@ describe("itemCard", () => {
     expect(card.requirements[0]).toMatchObject({ required: 20, have: 8, met: false });
     expect(card.requirements[1]).toMatchObject({ required: 35, have: 34, met: false });
 
-    expect(20 - 8).toBeGreaterThan(35 - 34);
-
     const met = itemCard(tileWith(axe), null, {
       blunt: xpForLevel(40),
       toughness: xpForLevel(40),

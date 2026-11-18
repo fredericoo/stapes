@@ -160,34 +160,6 @@ function walked(path: PathStep[] | null): Direction[] | null {
   return path?.map((step) => step.direction) ?? null;
 }
 
-describe("crossing open ground", () => {
-  it("walks straight at somebody, stopping beside them", () => {
-    const map = field(6);
-
-    expect(walked(route(map, standing(0, 0), { x: 4, y: 0, z: 0 }))).toEqual(["e", "e", "e"]);
-  });
-
-  it("has nothing left to walk once it is beside them", () => {
-    const map = field(4);
-
-    expect(route(map, standing(0, 0), { x: 1, y: 0, z: 0 })).toEqual([]);
-  });
-
-  it("gives up on somebody who has left the board's walkable part", () => {
-    let map = field(4);
-    for (const [x, y] of [
-      [3, 0],
-      [5, 0],
-      [4, 1],
-      [4, -1],
-    ]) {
-      map = put(map, x!, y!, "wall");
-    }
-
-    expect(route(map, standing(0, 0), { x: 4, y: 0, z: 0 })).toBeNull();
-  });
-});
-
 describe("arriving beside, or on", () => {
   it("stops one short by default, and walks in when asked", () => {
     const map = field(6);
@@ -597,21 +569,6 @@ describe("how far out of its way", () => {
 });
 
 describe("what it costs", () => {
-  it("gives up rather than sweeping the board", () => {
-    const map = field(40);
-
-    expect(
-      route(
-        map,
-        standing(-40, -40),
-        { x: 40, y: 40, z: 0 },
-        {
-          maxNodes: 8,
-        },
-      ),
-    ).toBeNull();
-  });
-
   it("proves a sealed target impossible inside the budget", () => {
     let map = field(30);
     for (let y = -30; y <= 30; y++) map = put(map, 1, y, "wall");

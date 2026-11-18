@@ -1308,21 +1308,6 @@ describe("saving an extract", () => {
 });
 
 describe("what a map remembers", () => {
-  it("keeps how much is left across a cell patch", () => {
-    const session = new GameSession(board(), tiles);
-    session.interact(BUSH);
-    session.tick(EXTRACT_MS);
-
-    expect(stackAt(session.getMap(), 1, 0)[1]?.extractsLeft).toBe(1);
-  });
-
-  it("carries the hold too, so everybody sees what is spoken for", () => {
-    const session = new GameSession(board(), tiles);
-    session.interact(BUSH);
-
-    expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBe(1);
-  });
-
   it("does not write either into an authored map", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);

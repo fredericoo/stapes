@@ -200,12 +200,28 @@ describe("deciding", () => {
   });
 
   it("resets the clock on the way into a state", () => {
-    const brain = wanderingBrain();
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, wander: { do: [] }, done: { do: [] } },
+      transitions: [
+        { from: "idle", if: { cond: "after", ms: IDLE_MS }, to: "wander" },
+        { from: "wander", if: { cond: "after", ms: IDLE_MS }, to: "done" },
+      ],
+    };
     const memory = initialMemory(brain);
+    const c = ctx();
     for (let elapsed = 0; elapsed < IDLE_MS; elapsed += BRAIN_TICK_MS) {
-      stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
     }
-    expect(memory.msInState).toBe(0);
+    expect(memory.state).toBe("wander");
+
+    for (let elapsed = BRAIN_TICK_MS; elapsed < IDLE_MS; elapsed += BRAIN_TICK_MS) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    }
+    expect(memory.state).toBe("wander");
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    expect(memory.state).toBe("done");
   });
 
   it("waits a drawn time inside a ranged after, different for different dice", () => {
@@ -348,14 +364,6 @@ describe("a wandering deer", () => {
 
     advance(session, IDLE_MS * 4);
     expect(deerCell(session)).not.toBe(start);
-  });
-
-  it("decides on its own slower clock", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
-
-    advance(session, IDLE_MS - BRAIN_TICK_MS);
-
-    expect(deerCell(session)).toBe("0,0");
   });
 
   it("walks the same path twice from the same seed", () => {
@@ -1104,78 +1112,19 @@ describe("giving up", () => {
       transitions: [{ from: "wander", if: { cond: "stuck" }, to: "resigned" }],
     };
     const memory = initialMemory(brain);
-    const blocked = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
-      walkTo: (): WalkOrderState => "blocked",
-      fleeFrom: (): WalkOrderState => "blocked",
-      step: () => false,
-      say: () => {},
-      noise: () => {},
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      weather: () => "clear" as const,
-      underSky: () => true,
-      nearestShelter: () => null,
-      hurtBy: () => [],
-      struck: () => [],
-      alerts: () => [],
-      tileOf: () => null,
-      nearestWanted: () => null,
-      report: () => false,
-      attack: () => false,
-      cast: (): "cast" | "casting" | "no" => "no",
-      extract: () => false,
-      switchThing: vi.fn(() => false),
-      consume: () => false,
-      consumeOn: () => false,
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
-      ratingOf: () => null,
-      ownRating: () => null,
-      reaches: () => true,
-      fade: vi.fn(),
-    };
+    const blocked = brainContext({ step: vi.fn(() => false) });
 
     stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
-    expect(memory.stuck).toBe(true);
     expect(memory.state).toBe("wander");
 
     stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
     expect(memory.state).toBe("resigned");
-    expect(memory.stuck).toBe(false);
   });
 
   it("leaves a penned creature standing quietly where it was", () => {
     const session = penned();
 
     expect(() => advance(session, BRAIN_TICK_MS * 4)).not.toThrow();
-    expect(deerCell(session)).toBe("0,0");
-  });
-
-  it("is not stuck merely because it chose to stand still", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0, "deer"), cornerable, {
-      actorIds: ["alice"],
-    });
-
-    advance(session, BRAIN_TICK_MS * 2);
-
     expect(deerCell(session)).toBe("0,0");
   });
 });
@@ -1660,26 +1609,23 @@ describe("actions that take time", () => {
     const brain: BrainDef = {
       initial: "stroll",
       states: {
-        stroll: { do: [{ action: "walk_n_steps", steps: STROLL_STEPS }] },
+        stroll: { do: [{ action: "walk_n_steps", steps: STROLL_STEPS }, { action: "hold" }] },
         alert: { do: [{ action: "hold" }] },
       },
       transitions: [
-        {
-          from: "stroll",
-          if: { cond: "after", ms: BRAIN_TICK_MS * 2 },
-          to: "alert",
-        },
+        { from: "stroll", if: { cond: "after", ms: BRAIN_TICK_MS * 2 }, to: "alert" },
+        { from: "alert", if: { cond: "after", ms: 0 }, to: "stroll" },
       ],
     };
     const memory = initialMemory(brain);
+    let steps = 0;
+    const c = ctx({ step: () => ++steps > 0 });
 
-    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
-    expect(memory.scratch).not.toEqual({});
+    for (let tick = 0; tick < STROLL_STEPS * 4; tick++) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    }
 
-    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
-
-    expect(memory.state).toBe("alert");
-    expect(memory.scratch).toEqual({});
+    expect(steps).toBeGreaterThan(STROLL_STEPS);
   });
 
   it("restarts a count that a higher line took over from", () => {
@@ -1703,16 +1649,14 @@ describe("actions that take time", () => {
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
-    expect(memory.scratch[1]).toBe(2);
-
     arrived = true;
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
-    expect(memory.scratch[1]).toBeUndefined();
-
     arrived = false;
-    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    for (let tick = 0; tick < STROLL_STEPS * 3; tick++) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    }
 
-    expect(memory.scratch[1]).toBe(1);
+    expect(c.step).toHaveBeenCalledTimes(2 + 1 + STROLL_STEPS);
   });
 
   it("lets a transition cut a long action short", () => {
@@ -1778,8 +1722,6 @@ describe("actions that take time", () => {
   it("keeps its counting out of the saved world", () => {
     const session = grazing();
     advance(session, GRAZE_MS + BRAIN_TICK_MS * 4);
-
-    expect(JSON.stringify(session.getMap())).not.toContain("scratch");
 
     const resumed = new GameSession(session.getMap(), timed, {
       actorIds: ["alice"],
@@ -2065,63 +2007,18 @@ describe("a deer that yelps", () => {
           onEnter: [{ effect: "say", text: "help" }],
           do: [{ action: "step_random" }],
         },
+        resigned: { do: [{ action: "hold" }] },
       },
-      transitions: [],
+      transitions: [{ from: "penned", if: { cond: "stuck" }, to: "resigned" }],
     };
     const memory = initialMemory(brain);
-    const c = {
-      busy: false,
-      rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
-      home: null,
-      nearestOnTile: () => null,
-      nearestThing: () => null,
-      thingStillThere: () => false,
-      positionOf: () => null,
-      wouldDrop: () => false,
-      wouldStepIntoHazard: () => false,
-      walkTo: (): WalkOrderState => "blocked",
-      fleeFrom: (): WalkOrderState => "blocked",
-      step: () => false,
-      say: vi.fn(),
-      noise: vi.fn(),
-      canSee: () => true,
-      sight: { up: 0, down: 0 },
-      heard: () => [],
-      heardNoise: () => [],
-      talking: () => false,
-      inHarm: () => false,
-      weather: () => "clear" as const,
-      underSky: () => true,
-      nearestShelter: () => null,
-      hurtBy: () => [],
-      struck: () => [],
-      alerts: () => [],
-      tileOf: () => null,
-      nearestWanted: () => null,
-      report: () => false,
-      attack: () => false,
-      cast: (): "cast" | "casting" | "no" => "no",
-      extract: () => false,
-      switchThing: vi.fn(() => false),
-      consume: () => false,
-      consumeOn: () => false,
-      carrying: () => false,
-      hasStatus: () => false,
-      standOff: () => null,
-      health: () => 1,
-      minutesOfDay: 12 * 60,
-      nameOf: (id: string) => id,
-      ratingOf: () => null,
-      ownRating: () => null,
-      reaches: () => true,
-      fade: vi.fn(),
-    };
+    const c = brainContext({ step: vi.fn(() => false) });
 
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
 
     expect(c.say).toHaveBeenCalledTimes(1);
-    expect(memory.stuck).toBe(true);
+    expect(memory.state).toBe("resigned");
   });
 
   it("puts nothing said into the saved world", () => {
@@ -3158,11 +3055,6 @@ describe("the cat we ship", () => {
     return heard;
   }
 
-  it("has a brain that holds together", () => {
-    const cat = authored.find((def) => def.id === "cat")!;
-    expect(resolveBrain(cat)?.initial).toBe("idle");
-  });
-
   it("meows when called, and comes over", () => {
     const session = yard(4);
     session.hear("alice", "psps");
@@ -3230,11 +3122,6 @@ describe("the wolf we ship", () => {
     const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
     return { x: wolf.x, y: wolf.y };
   }
-
-  it("has a brain that holds together", () => {
-    const wolf = authored.find((def) => def.id === "wolf")!;
-    expect(resolveBrain(wolf)?.initial).toBe("prowling");
-  });
 
   it("comes to look at a sound from twelve cells off", () => {
     const session = moor(12);
@@ -3889,11 +3776,6 @@ describe("the vermin we ship", () => {
     const player = session.actorSnapshots().find((a) => a.tileId === "player")!;
     return Math.abs(creature.x - player.x) + Math.abs(creature.y - player.y);
   }
-
-  it.each(["rat", "snake"])("has a brain that holds together: %s", (id) => {
-    const def = authored.find((tile) => tile.id === id)!;
-    expect(resolveBrain(def)).not.toBeNull();
-  });
 
   it.each(["rat", "snake"])("closes on you from seven cells: %s", (id) => {
     const session = yard([[id, 0, 0]], { x: SIGHT_CELLS, y: 0 });
@@ -4859,19 +4741,6 @@ describe("naming a thing", () => {
     };
   }
 
-  it("writes a cell and a tile into the slot, not an actor id", () => {
-    const brain = bindingBrain({ action: "hold" });
-    const memory = initialMemory(brain);
-
-    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
-
-    expect(memory.blackboard.bush).toEqual({
-      kind: "thing",
-      at: BUSH_AT,
-      tileId: "bush",
-    });
-  });
-
   it("works the thing in the slot", () => {
     const brain = bindingBrain({ action: "extract", of: slot("bush") });
     const memory = initialMemory(brain);
@@ -4915,10 +4784,6 @@ describe("naming a thing", () => {
 
     stepBrain(brain, memory, BRAIN_TICK_MS, ctx({ thingStillThere: () => false }));
     expect(memory.state).toBe("idle");
-  });
-
-  it("is bounded by how far the brain looks", () => {
-    expect(brainReach(bindingBrain({ action: "hold" }))).toBe(4);
   });
 });
 

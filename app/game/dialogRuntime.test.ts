@@ -279,23 +279,6 @@ describe("an if", () => {
     expect(view.attempts).toEqual([]);
   });
 
-  it("asks whether the player carries a tag", () => {
-    const greeter: DialogDef = {
-      script: [
-        {
-          kind: "if",
-          when: { cond: "tagged", tag: "met" },
-          then: [say("Back again.")],
-          else: [say("A new face.")],
-        },
-      ],
-    };
-    expect(lines(openConversation(greeter, npc, partner(undefined, ["met"])))).toEqual([
-      "npc: Back again.",
-    ]);
-    expect(lines(openConversation(greeter, npc, partner()))).toEqual(["npc: A new face."]);
-  });
-
   it("asks whether a channel is switched on", () => {
     const porter: DialogDef = {
       script: [

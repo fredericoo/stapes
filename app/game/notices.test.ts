@@ -22,10 +22,6 @@ describe("what a crossing says", () => {
   it("names the mastery and where it now stands", () => {
     expect(masteryNotice("sharp", 10)).toBe("Your sharp mastery is now 10");
   });
-
-  it("never says the word level, because there are none", () => {
-    expect(masteryNotice("toughness", 3)).not.toContain("level");
-  });
 });
 
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {

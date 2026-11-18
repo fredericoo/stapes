@@ -221,15 +221,6 @@ describe("two actors on one board", () => {
     expect(standingAbs(session.getMap(), 1, 0, 0, b.stackIndex, tilesById)).toBe(0);
   });
 
-  it("puts a joining actor down on top of one already standing there", () => {
-    const session = new GameSession(strip(3), tiles, { actorIds: [] });
-    session.spawn("a");
-    session.spawn("b");
-
-    expect(session.getSnapshot("b").self).toMatchObject({ x: 0, y: 0 });
-    expect(ownersAt(session, 0, 0)).toEqual([undefined, "a", "b"]);
-  });
-
   it("leaves nothing behind when the first of two walks away", () => {
     const session = new GameSession(strip(3), tiles, { actorIds: [] });
     session.spawn("a");

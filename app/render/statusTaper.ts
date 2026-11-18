@@ -34,10 +34,6 @@ export class SmoothedRemaining {
     }
   }
 
-  get size(): number {
-    return this.clocks.size;
-  }
-
   clear() {
     this.clocks.clear();
   }

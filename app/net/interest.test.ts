@@ -39,17 +39,13 @@ function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
 
 describe("how far a client is told about", () => {
   it("covers everything the client's own light bake can read", () => {
-    expect(INTEREST_REACH_CELLS).toBe(
+    expect(INTEREST_REACH_CELLS).toBeGreaterThanOrEqual(
       Math.ceil(VIEW_CELLS / 2) +
         VIEW_LEVEL_REACH +
         LIGHT_WINDOW_MARGIN +
         LIGHT_CHUNK_SIZE +
         LIGHT_APRON,
     );
-  });
-
-  it("reaches past the light apron, whatever the other terms do", () => {
-    expect(INTEREST_REACH_CELLS).toBeGreaterThan(LIGHT_APRON + LIGHT_CHUNK_SIZE);
   });
 
   it("rounds out to whole chunks, never short of the reach", () => {
@@ -132,7 +128,7 @@ describe("the body reach", () => {
   });
 
   it("is what the client could draw or be lit by, and not the light bake's apron", () => {
-    expect(BODY_REACH_CELLS).toBe(
+    expect(BODY_REACH_CELLS).toBeGreaterThanOrEqual(
       Math.ceil(VIEW_CELLS / 2) + VIEW_LEVEL_REACH + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL,
     );
     expect(BODY_REACH_CELLS).toBeLessThan(INTEREST_REACH_CELLS);

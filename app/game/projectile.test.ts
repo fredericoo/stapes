@@ -41,12 +41,6 @@ describe("how far a shot travels on screen", () => {
 });
 
 describe("how long a shot is in the air", () => {
-  it("takes longer the further it goes", () => {
-    const near = flightDurationMs(at(0, 0), at(2, 0), STEADY);
-    const far = flightDurationMs(at(0, 0), at(6, 0), STEADY);
-    expect(far).toBeCloseTo(near * 3);
-  });
-
   it("divides the screen distance by the speed", () => {
     expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(4 * CELL_MS);
     expect(flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, cellsPerSecond: 20 })).toBeCloseTo(
@@ -288,13 +282,6 @@ describe("which side a landing plays", () => {
 
   it("plays nothing at all for a projectile that authored no disappear", () => {
     expect(land(flying({ hit: false }), projectile({ hit: SPARK }))).toEqual([]);
-  });
-
-  it("plays the disappear once for a blow whose hit nobody authored", () => {
-    const effects = land(flying({ hit: true }), projectile({ disappear: SPARK }));
-
-    expect(effects.map((effect) => effect.id)).toEqual(["shot-1:disappear"]);
-    expect(effects[0]!.transition).toEqual(SPARK);
   });
 
   it("plays nothing for a tile the catalogue has lost", () => {

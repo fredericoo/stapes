@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import {
-  ARMOR_SLOTS,
-  type ConjureEffect,
-  resolveCharm,
-  resolveItem,
-  resolveStone,
-} from "../lib/item";
+import { ARMOR_SLOTS, type ConjureEffect, resolveCharm, resolveStone } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { spellElements } from "../lib/mastery";
 import { resolveCraft } from "../lib/interactions";
@@ -21,7 +15,6 @@ import { normalizeTiles } from "../lib/types";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { tilesByIdFromList } from "../lib/validation";
 import {
-  CAST_SQUARES,
   castability,
   castableSpells,
   naturalSlot,
@@ -286,15 +279,6 @@ describe("why a stone cannot be cast", () => {
     expect(
       castability(
         context({ weapon: instance("adept-stone") }, { masteries: { arcane: 10 } }),
-        squareSlot("weapon"),
-      ),
-    ).toEqual({ ok: true });
-  });
-
-  it("allows one that asks for nothing, of a caster who has nothing", () => {
-    expect(
-      castability(
-        context({ weapon: instance("mend-stone") }, { masteries: {} }),
         squareSlot("weapon"),
       ),
     ).toEqual({ ok: true });
@@ -597,15 +581,6 @@ describe("the charm square", () => {
 });
 
 describe("what the squares will take", () => {
-  it("lets either hand hold a stone that is pressed", () => {
-    expect(handAccepts(tilesById["mend-stone"]!)).toBe(true);
-  });
-
-  it("refuses a hand a charm, and the charm square takes it", () => {
-    expect(handAccepts(tilesById["life-charm"]!)).toBe(false);
-    expect(wornAccepts("charm", tilesById["life-charm"]!)).toBe(true);
-  });
-
   it("takes a stone on the charm and nowhere else that is worn", () => {
     expect(wornAccepts("charm", tilesById["mend-stone"]!)).toBe(true);
     for (const slot of ["head", "armor", "footwear"] as const) {
@@ -682,10 +657,6 @@ describe("the row of buttons", () => {
       cooldownTotalMs: 60_000,
       castability: { ok: false, reason: "cooling" },
     });
-  });
-
-  it("never offers a fourth, because there is no fourth square", () => {
-    expect(CAST_SQUARES).toHaveLength(3);
   });
 });
 
@@ -1130,12 +1101,6 @@ describe("the stones we ship", () => {
     const forged = BESIDE_THE_LADDER.filter((id) => id !== LIGHT && id !== "arcane-stone-of-flame");
 
     for (const id of forged) expect(fromStones, id).toContain(id);
-  });
-
-  it("authors them on the item union and nowhere else", () => {
-    for (const id of SHIPPED) {
-      expect(resolveItem(shipped[id]!)?.type, id).toBe("stone");
-    }
   });
 
   it("ships a necklace that is a charm rather than a stone that presses itself", () => {

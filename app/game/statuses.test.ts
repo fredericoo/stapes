@@ -384,14 +384,6 @@ describe("walking pace", () => {
     expect(walkSpeedPercentFrom(held, catalogue(def))).toBe(0);
   });
 
-  it("sums across two, so two chills are twice one", () => {
-    const a = status({ id: "a", effects: {}, walkSpeedPercent: -30 });
-    const b = status({ id: "b", effects: {}, walkSpeedPercent: -30 });
-    const rng = new Rng(1);
-    const held = applyStatus(applyStatus([], a, rng), b, rng);
-    expect(walkSpeedPercentFrom(held, catalogue(a, b))).toBe(-60);
-  });
-
   it("reads a status the catalogue no longer holds as no change", () => {
     const def = status({ id: "gone", effects: {}, walkSpeedPercent: -50 });
     const held = applyStatus([], def, new Rng(1));

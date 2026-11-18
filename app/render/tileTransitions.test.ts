@@ -166,10 +166,9 @@ describe("transitionUniforms", () => {
   it("starts a sweep a cell from the sprite's middle, and spans to its far corner", () => {
     const u = transitionUniforms({ note: note("a"), transition: sweep, startMs: 0 }, sprite);
     expect(u.uFxEnabled.value).toBe(1);
-    expect(u.uFxOriginPx.value.x).toBe(100 - CELL_SIZE);
-    expect(u.uFxOriginPx.value.y).toBe(200 - CELL_SIZE);
-    const reach = CELL_SIZE + sprite.w / 2;
-    expect(u.uFxSpanPx.value).toBeCloseTo(Math.hypot(reach, reach), 6);
+    expect(u.uFxOriginPx.value.x).toBe(92);
+    expect(u.uFxOriginPx.value.y).toBe(192);
+    expect(u.uFxSpanPx.value).toBeCloseTo(22.627417, 6);
     expect(u.uFxSweepAppear.value).toBe(1);
   });
 
@@ -550,10 +549,7 @@ describe("pixelSnappedQuad's travel", () => {
 
   it("moves the quad by whole pixels and reports how far it drew it", () => {
     const at = pixelSnappedQuad(quad, { scale: 1, dropLevels: 0, travel: { x: -1.3, y: 0.6 } });
-    expect(at.travelPx).toEqual({
-      x: Math.round(-1.3 * CELL_SIZE),
-      y: Math.round(0.6 * CELL_SIZE),
-    });
+    expect(at.travelPx).toEqual({ x: -10, y: 5 });
     expect(at.x - quad.centreX).toBe(at.travelPx.x);
     expect(at.y - quad.centreY).toBe(at.travelPx.y);
   });

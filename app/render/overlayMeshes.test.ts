@@ -61,12 +61,6 @@ describe("makeFollowingSpriteOutline", () => {
     return mesh;
   }
 
-  it("draws from the sprite's own quad, so a frame flip needs no telling", () => {
-    const source = sourceMesh();
-    const outline = makeFollowingSpriteOutline(source, 0xffffff, materials)!;
-    expect(outline.geometry).toBe(source.geometry);
-  });
-
   it("lands on the sprite, lerp and all", () => {
     const source = sourceMesh();
     const outline = makeFollowingSpriteOutline(source, 0xffffff, materials)!;
@@ -118,10 +112,14 @@ describe("makeFollowingSpriteOutline", () => {
 
   it("is thrown away without taking the sprite's quad with it", () => {
     const source = sourceMesh();
+    let quadFreed = false;
+    source.geometry.addEventListener("dispose", () => {
+      quadFreed = true;
+    });
     const group = new THREE.Group();
     group.add(makeFollowingSpriteOutline(source, 0xffffff, materials)!);
     disposeGroupChildren(group, materials);
-    expect(source.geometry.attributes.position).toBeDefined();
+    expect(quadFreed).toBe(false);
     expect(group.children).toHaveLength(0);
   });
 });

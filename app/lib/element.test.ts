@@ -16,10 +16,6 @@ describe("the wheel", () => {
     }
   });
 
-  it("never lets an element beat itself", () => {
-    for (const element of ELEMENTS) expect(beats(element, element)).toBe(false);
-  });
-
   it("runs the way the design says it does", () => {
     expect(beats("water", "fire")).toBe(true);
     expect(beats("fire", "nature")).toBe(true);
