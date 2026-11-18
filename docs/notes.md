@@ -1731,6 +1731,20 @@ shoulders and facing north or west it shows the pelt. Both are cast by
 the front: the hood is the same model, and the coat is coloured into the
 leather jerkin's icon by a trunk fitted to it.
 
+**The bone pieces are paid in `bone`, at the armourer, and they answer arrows.**
+Shards alone buy every other piece the armourer racks, so a richer player
+was simply a better-armoured one. The helm and cuirass cost 6 and 12 bones
+and 5 and 15 shards, on the tanner's terms: the bones stand in for most of
+the price, and they come only from skeletons, about two a kill. Each is light
+(1 and 2 defence, Toughness 5 and 10 to wear) and carries more resistance to
+`ranged` than anything else in its slot (3 and 5), and the cuirass one
+against sharp blows. Skeletons carry a hunting bow half the time, so the
+pieces protect you best against the creatures they are made from. There are
+no bone boots on purpose: worn, they looked silly. Both are drawn in the
+skeleton's own colours. The helm is the skull item drawn by hand for each
+facing (`generate:hats`, `drawn`), and the cuirass is bone ribs over dark
+straps (`generate:clothes`).
+
 **A cast coat keeps a drawn coat's silhouette.** The body in the art runs
 steeper down the screen than the 45° this projection draws a vertical line
 at, and its arms and legs move between poses, so a modelled body would not

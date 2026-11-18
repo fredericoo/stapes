@@ -17164,6 +17164,139 @@
                 ]
               },
               {
+                "label": "Bone",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Bring me bones and I lash them into armour. An arrow that hits bone stops in it."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "bone"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "{item:bone-helm} — 6 bones, 5 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "{item:bone-helm}. One point, and three against arrows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "bone",
+                                "count": 6
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 5
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "bone-helm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Wear it near the archers. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bone"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "The bones keep. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bone"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:bone-cuirass} — 12 bones, 15 shards",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "{item:bone-cuirass}. Two points, five against arrows and one against sharp blows."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "bone",
+                                "count": 12
+                              },
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 15
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "bone-cuirass",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Wear it near the archers. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bone"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "The bones keep. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bone"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Right. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
                 "label": "Which is best?",
                 "then": [
                   {
@@ -27459,6 +27592,104 @@
           "agility": 8
         },
         "humanPart": "wolfskin-boots"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bone-helm",
+    "name": "Bone Helm",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "equipment",
+      "x": 27,
+      "y": 3
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "slot": "head",
+        "def": 1,
+        "resist": {
+          "ranged": 3
+        },
+        "requirements": {
+          "toughness": 5
+        },
+        "humanPart": "bone-helm"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bone-cuirass",
+    "name": "Bone Cuirass",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "equipment",
+      "x": 14,
+      "y": 4
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "def": 2,
+        "resist": {
+          "ranged": 5,
+          "sharp": 1
+        },
+        "requirements": {
+          "toughness": 10
+        },
+        "humanPart": "bone-cuirass"
       }
     },
     "sprite": {
