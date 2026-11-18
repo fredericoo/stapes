@@ -7667,6 +7667,23 @@ nothing that refills, and a stone without reagents behaves exactly as it did.
   argument: a reagent is named by its tile's name, and without the catalogue
   the line falls back to the id.
 
+Venom spends a Green Potion and Spores three Blue Mushrooms, which is what
+those two are for; drunk or eaten, both still poison you.
+
+Venom's cloud is `poison-cloud`, a conjured prop with a `step` `addStatus` of
+`poison`, laid in a circle of radius 1 round the target. It decays in 6 to 8
+seconds and blows away in rain. Standing in it grants poison every second
+(`STANDING_STATUS_EVERY_MS`) and poison stacks, so how long somebody stays is
+how badly they are poisoned; the caster is spared by `sparesStander`. The
+sprite (`scripts/generate-poison-cloud.ts`) is a checker of opaque pixels
+rather than a translucent wash, because the renderer snaps a blended colour
+back to the palette, and a light green over grass came out as one more green.
+
+Spores lands `stupor`: it stops the bearer acting and any damage ends it, like
+`sleep`, but it does not mend them. Sleep heals about one hit point in a
+hundred every fifth of a second, so an enemy put to sleep came back at full
+health. The cyclops is immune to it, as it is to every status a stone leaves.
+
 ### The cooldown is per stone, durable, and locks the square
 
 `ItemInstance.cooldownMs`, so two identical stones in two hands cool
@@ -10720,8 +10737,10 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 | 2 Lance                 | Stomp, 75%                                                    |
 | Pyre / Rime + Lance     | Berserk / Crystallise, 75%                                    |
 | Bramble + Bloom         | Blossom, 75%                                                  |
+| Thorns + 2 Green Potion | Venom, 100%                                                   |
+| Frost + 6 Blue Mushroom | Spores, 100%                                                  |
 
-The forge holds 18 recipes, which is why `MAX_CRAFT_RECIPES` is 24.
+The forge holds 20 recipes, which is why `MAX_CRAFT_RECIPES` is 24.
 
 Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to

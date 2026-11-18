@@ -29843,6 +29843,140 @@
     }
   },
   {
+    "id": "arcane-stone-of-venom",
+    "name": "Venom",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 4,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "conjure",
+          "tileId": "poison-cloud",
+          "area": {
+            "shape": "circle",
+            "radius": 1,
+            "on": "target"
+          }
+        },
+        "cooldownMs": 30000,
+        "castTimeMs": 2000,
+        "reagents": [
+          {
+            "tileId": "green-potion",
+            "count": 1
+          }
+        ],
+        "requirements": {
+          "arcane": 25,
+          "nature": 10
+        },
+        "reach": {
+          "cells": 6.5,
+          "height": 2
+        },
+        "sound": "hsss"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-spores",
+    "name": "Spores",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 6,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "target",
+          "projectile": "sleet-flake",
+          "statuses": [
+            {
+              "id": "stupor",
+              "chance": 100
+            }
+          ]
+        },
+        "cooldownMs": 30000,
+        "castTimeMs": 1500,
+        "reagents": [
+          {
+            "tileId": "blue-mushroom",
+            "count": 3
+          }
+        ],
+        "requirements": {
+          "arcane": 25,
+          "water": 10
+        },
+        "reach": {
+          "cells": 5.5,
+          "height": 2
+        },
+        "sound": "pff"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "buckler",
     "name": "Buckler",
     "height": 0,
@@ -40197,6 +40331,50 @@
                 {
                   "tileId": "arcane-stone-of-blossom",
                   "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Venom",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-thorns",
+                "count": 1
+              },
+              {
+                "tileId": "green-potion",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-venom",
+                  "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Spores",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-frost",
+                "count": 1
+              },
+              {
+                "tileId": "blue-mushroom",
+                "count": 6
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-spores",
+                  "chance": 100
                 }
               ]
             }
@@ -59258,7 +59436,8 @@
           "chilled",
           "poison",
           "paralysed",
-          "food-poisoning"
+          "food-poisoning",
+          "stupor"
         ],
         "spells": [
           {
@@ -116583,6 +116762,218 @@
         "phase": {
           "x": 1,
           "y": 1
+        }
+      }
+    }
+  },
+  {
+    "id": "poison-cloud",
+    "name": "Poison Cloud",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "poison-cloud",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 160
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 3,
+      "ttlFromMs": 900,
+      "ttlToMs": 1600,
+      "spawnRadiusCells": 0.45,
+      "spawnElevFrom": 0,
+      "spawnElevTo": 1,
+      "riseFrom": 2,
+      "riseTo": 4,
+      "driftCellsPerSecond": 0.15,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": -0.8,
+      "offsetX": "",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 5,
+      "sizeToPx": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 1,
+      "alphaFrom": 0.8,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#d5e04b"
+        },
+        {
+          "at": 1,
+          "color": "#239063"
+        }
+      ]
+    },
+    "interactions": {
+      "addStatus": {
+        "trigger": "step",
+        "statusId": "poison"
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 6000,
+        "toMs": 8000
+      },
+      "weather": [
+        {
+          "in": "rain",
+          "tileId": "",
+          "fromMs": 1000,
+          "toMs": 2000
+        }
+      ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#d5e04b",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#1ebc73",
+          "edgeWidth": 0.15
         }
       }
     }

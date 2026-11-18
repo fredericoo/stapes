@@ -219,6 +219,10 @@ an agent drives", lists every call.
   out in opacity. The sheet is marked `translucent`. It writes the sprite and
   its light, and leaves the battler, brain, respawn and particles authored on
   the tile alone
+- `bun run generate:poison-cloud` — redraw `data/tilesets/poison-cloud.png`
+  and the sprite of `poison-cloud`, the gas Venom conjures: eight frames of
+  puffs that drift and swell, drawn as a checker of opaque pixels with a solid
+  lit rim. It leaves the tile's particles, interactions and transitions alone.
 - `bun run generate:desert` — redraw `data/tilesets/desert.png`,
   `data/tilesets/desert-dunes.png` and their tiles. `sand-dunes` is a scatter
   tile that is plain sand in all but about one cell in nine, where it wears one
