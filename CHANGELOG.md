@@ -1,5 +1,15 @@
 # the-last-stones
 
+## 0.25.0
+
+### Minor Changes
+
+- A crafting station now lists every recipe it knows, even the ones you cannot make yet, so you can see what to gather. A recipe you have the ingredients for but no space to hold says "No room".
+
+### Patch Changes
+
+- There are fewer bushes in the wild, now that apple trees and mushrooms give you something else to eat. The town's bushes are where they were.
+
 ## 0.24.1
 
 ### Patch Changes
