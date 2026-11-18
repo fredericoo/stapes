@@ -490,7 +490,8 @@ function stoneStats(stone: ArcaneStoneItem, statusDefs: Record<string, StatusDef
 
 function conjuredLine(effect: ConjureEffect): string {
   if (effect.area) {
-    return `${AREA_SHAPE_LABELS[effect.area.shape]} of ${effect.area.radius} around you`;
+    const around = effect.area.on === "target" ? "your target" : "you";
+    return `${AREA_SHAPE_LABELS[effect.area.shape]} of ${effect.area.radius} around ${around}`;
   }
   const count = effect.count ?? 1;
   return count > 1 ? `${count} tiles` : "A tile";

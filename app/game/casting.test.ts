@@ -548,6 +548,40 @@ describe("a conjure that fills a shape around its caster", () => {
   });
 });
 
+describe("a conjured shape centred on the target", () => {
+  const CROSS: ConjureEffect = {
+    kind: "conjure",
+    tileId: "fire",
+    area: { shape: "cross", radius: 1, on: "target" },
+  };
+
+  function field(): MapFile {
+    let map = emptyMap();
+    for (let y = -1; y <= 1; y++) {
+      for (let x = -1; x <= 4; x++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    return map;
+  }
+
+  const cellsOf = (landings: ConjureLanding[] | null) =>
+    (landings ?? []).map(({ at }) => `${at.x},${at.y}`).sort();
+
+  it("fills the shape around whoever is targeted, not around the caster", () => {
+    const state = context({}, { map: field(), target: point(3) });
+    expect(cellsOf(conjureLandings(state, CROSS))).toEqual(["2,0", "3,-1", "3,0", "3,1", "4,0"]);
+  });
+
+  it("is centred on the cell the caster faces with nobody targeted", () => {
+    const state = context({}, { map: field() });
+    expect(cellsOf(conjureLandings(state, CROSS))).toEqual(["0,0", "1,-1", "1,0", "1,1", "2,0"]);
+  });
+
+  it("is refused with nobody targeted and nowhere in front to stand", () => {
+    const walled = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    expect(conjureLandings(context({}, { map: walled }), CROSS)).toBeNull();
+  });
+});
+
 function waterInFront(): MapFile {
   return replaceStack(open(6), 1, 0, 0, [{ tileId: "water" }]);
 }

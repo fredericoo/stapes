@@ -157,9 +157,11 @@ export type ConjureEffect = {
   area?: ConjureArea;
 };
 
+/** Absent `on` centres the shape on the caster. */
 export type ConjureArea = {
   shape: AreaShape;
   radius: number;
+  on?: StoneSubject;
 };
 
 /** The caster's own cell and the cells a step away. */
@@ -540,6 +542,7 @@ const spellAreaSchema = v.pipe(
 const conjureAreaSchema = v.object({
   shape: v.picklist(AREA_SHAPES),
   radius: v.pipe(v.number(), v.integer(), v.minValue(MIN_AREA_RADIUS), v.maxValue(MAX_AREA_RADIUS)),
+  on: v.optional(v.picklist(STONE_SUBJECTS)),
 });
 
 const stoneEffectSchema = v.variant("kind", [
@@ -868,7 +871,7 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
         ? { count: Math.round(effect.count) }
         : {}),
       ...(effect.consumesCaster ? { consumesCaster: true } : {}),
-      ...(effect.area ? { area: { shape: effect.area.shape, radius: effect.area.radius } } : {}),
+      ...(effect.area ? { area: conjureAreaForSave(effect.area) } : {}),
     };
   }
   const statuses = statusGrantsForSave(effect.statuses);
@@ -883,6 +886,10 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     ...(cures ? { cures } : {}),
     ...(effect.area ? { area: areaForSave(effect.area) } : {}),
   };
+}
+
+function conjureAreaForSave({ shape, radius, on }: ConjureArea): ConjureArea {
+  return { shape, radius, ...(on === "target" ? { on } : {}) };
 }
 
 function curesForSave(cures: string[] | undefined): string[] | undefined {

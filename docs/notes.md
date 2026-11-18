@@ -7581,6 +7581,15 @@ is 1). It melts on its own through its brain: `after 9–12 s`, then `fade`.
 Because the timer is a brain's, it runs only while somebody is online: a ring
 standing when the last player leaves stays up until somebody connects.
 
+**`on: "target"` centres the shape on the target instead.** With nobody
+targeted the centre is the cell a single conjure would take, the step in
+front; with no such step the cast is refused as `blocked`. Every cell is
+judged against the centre's feet rather than the caster's, so a shape cast
+down a slope still fills the ground round the target. Only a shape on the
+target shows its cells while the cast winds up (`castAreaOf`): a shape round
+the caster is the yeti's cage, and the cage works because nobody sees it
+coming.
+
 **A body standing in a cell is not the ground.** `areaLanding` measures the
 ground from the stack beneath the lowest body and asks for footing with that
 body left out, the way `exclude` lets a walker ignore itself. Before that, a
