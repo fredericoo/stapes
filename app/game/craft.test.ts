@@ -278,9 +278,12 @@ describe("saving a crafter", () => {
 });
 
 describe("what a crafter offers", () => {
-  it("offers only the recipes the kit can pay for", () => {
+  it("lists every recipe, blocking the ones the kit cannot pay for", () => {
     const offered = offeredRecipes(board(), tilesById, ACTOR, carrying("cinder", "cinder"), FORGE);
-    expect(offered?.recipes.map((r) => r.index)).toEqual([RECIPE.ember]);
+    expect(offered?.recipes).toHaveLength(FORGE_RECIPES.recipes.length);
+    const open = offered?.recipes.filter((r) => r.block === null).map((r) => r.index);
+    expect(open).toEqual([RECIPE.ember]);
+    expect(offered?.recipes[RECIPE.blank]?.block).toBe("missing");
   });
 
   it("counts an input across a pile and loose squares alike", () => {
@@ -304,9 +307,11 @@ describe("what a crafter offers", () => {
     ).toBe(true);
   });
 
-  it("still offers the crafter, with no recipes, to somebody with nothing to spend", () => {
+  it("still offers the crafter, every recipe blocked, to somebody with nothing to spend", () => {
     const offered = offeredRecipes(board(), tilesById, ACTOR, carrying("raw-meat"), FORGE);
-    expect(offered?.recipes).toEqual([]);
+    expect(offered?.recipes.map((r) => r.block)).toEqual(
+      FORGE_RECIPES.recipes.map(() => "missing"),
+    );
   });
 
   it("is nothing from too far away", () => {
@@ -320,6 +325,9 @@ describe("what a crafter offers", () => {
       offhand: { id: "itm_o", tileId: "spark" },
     };
     expect(canCraftFrom(board("butcher"), tilesById, ACTOR, tight, FORGE, 0)).toBe(false);
+    expect(
+      offeredRecipes(board("butcher"), tilesById, ACTOR, tight, FORGE)?.recipes[0]?.block,
+    ).toBe("noRoom");
     expect(canCraftFrom(board("butcher"), tilesById, ACTOR, carrying("raw-meat"), FORGE, 0)).toBe(
       true,
     );

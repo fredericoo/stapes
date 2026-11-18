@@ -17,7 +17,8 @@ const CERTAIN_CHANCE = 100;
 
 const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 0 });
 
-const NO_RECIPES_TEXT = "No recipes available";
+const NO_RECIPES_TEXT = "No recipes";
+const NO_ROOM_TEXT = "No room";
 
 type Props = {
   crafting: CraftingWindow;
@@ -49,7 +50,7 @@ export function CraftPanel({
     if (!hotkeys) return;
     return bindNumberKeys((position) => {
       const offered = recipes[position];
-      if (offered) onCraftRef.current(offered.index);
+      if (offered && !offered.block) onCraftRef.current(offered.index);
     });
   }, [hotkeys, recipes]);
 
@@ -80,12 +81,21 @@ export function CraftPanel({
         {recipes.length === 0 ? (
           <p className="px-1 py-2 text-center text-detail text-paper/60">{NO_RECIPES_TEXT}</p>
         ) : null}
-        {recipes.map(({ index, recipe }, position) => (
-          <PanelButton key={index} onPress={() => onCraft(index)}>
+        {recipes.map(({ index, recipe, block }, position) => (
+          <PanelButton
+            key={index}
+            disabled={block != null}
+            onPress={() => {
+              if (!block) onCraft(index);
+            }}
+          >
             {hotkeys ? <KeyHint label={numberKeyLabel(position)} /> : null}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex items-center gap-1">
                 <span className={LABEL_CLASS}>{craftRecipeName(crafting.craft, recipe)}</span>
+                {block === "noRoom" ? (
+                  <span className="shrink-0 text-2xs text-paper/70">{NO_ROOM_TEXT}</span>
+                ) : null}
                 <span className="ml-auto flex shrink-0 items-center gap-1">
                   {recipe.inputs.map((input, i) => (
                     <RecipeInput
