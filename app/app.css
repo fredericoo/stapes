@@ -160,14 +160,16 @@
     }
   }
 
-  /* Safari 26's tab bar floats over the page, and the home-indicator inset
-     alone is far shorter than it. `100lvh - 100dvh` is the height of whatever
-     browser chrome is showing at the bottom, and zero once it has collapsed.
-     Margin on the row that holds the scrollers, not padding inside each one:
-     padding at the end of the reach list's scroller still left its last row
-     under the bar on an iPhone. */
+  /* On iOS Safari a `height: 100%` page is as tall as the whole screen, and
+     `100lvh - 100dvh` is the height of the browser chrome showing: the
+     floating tab bar at the bottom in portrait, the tab bar at the top in
+     landscape, which pushes the page down by that much. Either way the page
+     has to end that far above the screen's bottom edge. Padding on the row
+     that holds the scrollers, not inside each scroller (padding at the end of
+     the reach list's scroller still left its last row under the bar), and not
+     margin, which cannot shrink the sideways layout's `h-full` row. */
   .clears-toolbar {
-    margin-bottom: max(env(safe-area-inset-bottom), calc(100lvh - 100dvh));
+    padding-bottom: max(env(safe-area-inset-bottom), calc(100lvh - 100dvh));
   }
 
   /* Naming a `scrollbar-color` is what opts a Chromium scroller out of

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
@@ -187,6 +188,7 @@ export function GameViewport({
     if (crafting) onCloseCrafting?.();
   };
   const unanchored = useMemo(() => new TalkAnchorChannel(), []);
+  const [boardNode] = useState(createBoardNode);
 
   const openEquipment = (pressed: boolean) => {
     const open = pressed || panelsHidden;
@@ -417,36 +419,34 @@ export function GameViewport({
     />
   ) : null;
 
-  const stage = (
-    <div
-      className="flex h-full aspect-square min-w-0 shrink items-center justify-center overflow-hidden"
-      style={{ containerType: "size" }}
-    >
-      <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
-        <canvas
-          ref={canvasRef}
-          className="block h-full w-full touch-none"
-          style={{ imageRendering: "pixelated" }}
+  const board = createPortal(
+    <>
+      <canvas
+        ref={canvasRef}
+        className="block h-full w-full touch-none"
+        style={{ imageRendering: "pixelated" }}
+      />
+      <div ref={labelRef} className="world-label-layer" />
+      {conversation ? (
+        <AnchoredConversation
+          key={conversation.npcId}
+          channel={talkAnchor ?? unanchored}
+          conversation={conversation}
+          tiles={tiles}
+          tilesets={tilesets}
+          equipment={equipment}
+          masteryXp={masteryXp}
+          statusDefs={statusDefs}
+          onTalk={(action) => onTalk?.(action)}
+          hotkeys
         />
-        <div ref={labelRef} className="world-label-layer" />
-        {conversation ? (
-          <AnchoredConversation
-            key={conversation.npcId}
-            channel={talkAnchor ?? unanchored}
-            conversation={conversation}
-            tiles={tiles}
-            tilesets={tilesets}
-            equipment={equipment}
-            masteryXp={masteryXp}
-            statusDefs={statusDefs}
-            onTalk={(action) => onTalk?.(action)}
-            hotkeys
-          />
-        ) : null}
-        <RatingUpBanner rating={vitals.rating} live={live} />
-      </div>
-    </div>
+      ) : null}
+      <RatingUpBanner rating={vitals.rating} live={live} />
+    </>,
+    boardNode,
   );
+
+  const stage = <StageSlot node={boardNode} />;
 
   const toolbarDivider = <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />;
   const touchToolbar = (
@@ -520,124 +520,163 @@ export function GameViewport({
 
   if (wideTouch) {
     return (
-      <div
-        className={[
-          "hud-surface clears-toolbar flex h-full w-full gap-3 px-3 select-none",
-          padSide === "left" ? "flex-row-reverse" : "flex-row",
-        ].join(" ")}
-        style={{ WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent" }}
-      >
-        <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
+      <>
+        {board}
         <div
-          className="flex h-full min-w-0 flex-1 flex-col gap-2 py-3"
-          style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
+          className={[
+            "hud-surface clears-toolbar flex h-full w-full gap-3 px-3 select-none",
+            padSide === "left" ? "flex-row-reverse" : "flex-row",
+          ].join(" ")}
+          style={{ WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent" }}
         >
-          <HealthGauge vitals={vitals} />
+          <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
           <div
-            className="grid shrink-0 justify-items-center gap-2"
-            style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${TOUCH_TOOLBAR_CELL_PX}px, 1fr))`,
-            }}
+            className="flex h-full min-w-0 flex-1 flex-col gap-2 py-3"
+            style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
           >
-            {touchToolbar}
+            <HealthGauge vitals={vitals} />
+            <div
+              className="grid shrink-0 justify-items-center gap-2"
+              style={{
+                gridTemplateColumns: `repeat(auto-fill, minmax(${TOUCH_TOOLBAR_CELL_PX}px, 1fr))`,
+              }}
+            >
+              {touchToolbar}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col items-start gap-2">{listColumn}</div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col items-start gap-2">{listColumn}</div>
+          {stage}
+          {padColumn}
         </div>
-        {stage}
-        {padColumn}
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="hud-surface flex h-full w-full">
-      <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
-      <div
-        className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
-        style={{
-          WebkitTouchCallout: "none",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        {coarse ? (
-          <div className="flex w-full min-h-0 shrink aspect-square items-center justify-center">
-            {stage}
-          </div>
-        ) : (
-          <div className="flex w-full min-h-0 flex-1 items-stretch justify-center">
-            <div
-              className="flex shrink-0 flex-col items-center justify-end pb-3"
-              style={{ width: SPELL_RAIL_WIDTH_PX }}
-            >
-              <SpellBar
-                spells={spells}
-                onCast={cast}
-                onStopCast={stopCast}
-                tilesById={tilesById}
-                tilesets={tilesets}
-                layout="column"
-              />
-            </div>
-            {stage}
-          </div>
-        )}
-
-        {coarse ? <HealthGauge vitals={vitals} /> : null}
-
-        {coarse ? (
-          <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">{touchToolbar}</div>
-        ) : onSay ? (
-          <ChatBar onSay={onSay} onTypingChange={noteTyping} />
-        ) : null}
-
-        {coarse ? (
-          <div
-            className={[
-              "clears-toolbar flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
-              padSide === "left" ? "flex-row-reverse" : "flex-row",
-            ].join(" ")}
-          >
-            <div
-              className="flex min-h-0 flex-1 flex-col items-start gap-2"
-              style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
-            >
-              {listColumn}
-            </div>
-            {padColumn}
-          </div>
-        ) : null}
-      </div>
-
-      {coarse ? null : (
-        <aside
-          className="hud-surface flex h-full shrink-0 flex-col gap-1 border-l-2 border-frame-lo p-1"
-          style={{ width: INTERACTION_PANEL_WIDTH_PX }}
+    <>
+      {board}
+      <div className="hud-surface flex h-full w-full">
+        <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
+        <div
+          className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
+          style={{
+            WebkitTouchCallout: "none",
+            WebkitTapHighlightColor: "transparent",
+          }}
         >
-          <div className="hud-window bevel-raised flex shrink-0 flex-col gap-1 p-1">
-            <HealthGauge vitals={vitals} />
-            {readouts ? (
-              <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
-            ) : null}
-            <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
-            <div className="flex items-center gap-1">{panelButtons("compact")}</div>
-          </div>
-          <WindowStack
-            className="scrolls-in-chrome flex-1 overflow-y-auto overscroll-contain"
-            windows={{
-              stats: statsWindow,
-              equipment: equipmentWindow,
-              bag: bagWindow,
-              hand: handWindow,
-              container: containerWindow,
-              nearby: replacesList ?? (
-                <HudWindow label="Nearby" title="Nearby" grows flush>
-                  {list}
-                </HudWindow>
-              ),
-            }}
-          />
-        </aside>
-      )}
-    </div>
+          {coarse ? (
+            <div className="flex w-full min-h-0 shrink aspect-square items-center justify-center">
+              {stage}
+            </div>
+          ) : (
+            <div className="flex w-full min-h-0 flex-1 items-stretch justify-center">
+              <div
+                className="flex shrink-0 flex-col items-center justify-end pb-3"
+                style={{ width: SPELL_RAIL_WIDTH_PX }}
+              >
+                <SpellBar
+                  spells={spells}
+                  onCast={cast}
+                  onStopCast={stopCast}
+                  tilesById={tilesById}
+                  tilesets={tilesets}
+                  layout="column"
+                />
+              </div>
+              {stage}
+            </div>
+          )}
+
+          {coarse ? <HealthGauge vitals={vitals} /> : null}
+
+          {coarse ? (
+            <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">{touchToolbar}</div>
+          ) : onSay ? (
+            <ChatBar onSay={onSay} onTypingChange={noteTyping} />
+          ) : null}
+
+          {coarse ? (
+            <div
+              className={[
+                "clears-toolbar flex w-full min-h-0 flex-1 items-stretch gap-3 px-3",
+                padSide === "left" ? "flex-row-reverse" : "flex-row",
+              ].join(" ")}
+            >
+              <div
+                className="flex min-h-0 flex-1 flex-col items-start gap-2"
+                style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
+              >
+                {listColumn}
+              </div>
+              {padColumn}
+            </div>
+          ) : null}
+        </div>
+
+        {coarse ? null : (
+          <aside
+            className="hud-surface flex h-full shrink-0 flex-col gap-1 border-l-2 border-frame-lo p-1"
+            style={{ width: INTERACTION_PANEL_WIDTH_PX }}
+          >
+            <div className="hud-window bevel-raised flex shrink-0 flex-col gap-1 p-1">
+              <HealthGauge vitals={vitals} />
+              {readouts ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
+              ) : null}
+              <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
+              <div className="flex items-center gap-1">{panelButtons("compact")}</div>
+            </div>
+            <WindowStack
+              className="scrolls-in-chrome flex-1 overflow-y-auto overscroll-contain"
+              windows={{
+                stats: statsWindow,
+                equipment: equipmentWindow,
+                bag: bagWindow,
+                hand: handWindow,
+                container: containerWindow,
+                nearby: replacesList ?? (
+                  <HudWindow label="Nearby" title="Nearby" grows flush>
+                    {list}
+                  </HudWindow>
+                ),
+              }}
+            />
+          </aside>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * The board's canvas lives in one element for the whole life of the viewport,
+ * portalled into from a fixed place in the tree, because the renderer holds the
+ * canvas it was built with. Each layout puts this slot somewhere else, and a
+ * canvas rendered inline would be a new, blank one after every rotation.
+ */
+function createBoardNode(): HTMLDivElement {
+  const node = document.createElement("div");
+  node.className = "relative";
+  node.style.width = "100cqmin";
+  node.style.height = "100cqmin";
+  return node;
+}
+
+function StageSlot({ node }: { node: HTMLDivElement }) {
+  const slotRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    if (!slot) return;
+    slot.appendChild(node);
+    return () => {
+      if (node.parentNode === slot) slot.removeChild(node);
+    };
+  }, [node]);
+  return (
+    <div
+      ref={slotRef}
+      className="flex h-full aspect-square min-w-0 shrink items-center justify-center overflow-hidden"
+      style={{ containerType: "size" }}
+    />
   );
 }
