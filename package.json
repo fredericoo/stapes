@@ -42,6 +42,7 @@
     "carve:hill-caves": "bun scripts/carve-hill-caves.ts",
     "grow:mushrooms": "bun scripts/grow-mushrooms.ts",
     "thin:forests": "bun scripts/thin-forests.ts",
+    "thin:bushes": "bun scripts/thin-bushes.ts",
     "ramp:hills": "bun scripts/ramp-hills.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "bench:crowd": "bun scripts/bench-crowd.ts",
