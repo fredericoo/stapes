@@ -73,13 +73,31 @@ type HatModel = {
   icon?: readonly [number, number];
 };
 
+/**
+ * A hat drawn by hand, one picture per facing: `rows` are its pixels from
+ * (`left`, `top`) of the frame, one letter of `INK` each and `.` for none. The
+ * head sits in the same place in every pose, so one picture serves all three.
+ * It is for a hat that has to read as a particular thing at five pixels, which
+ * a cast model blurs.
+ */
+type DrawnHat = {
+  drawn: Record<Direction, { left: number; top: number; rows: readonly string[] }>;
+};
+
+const INK: Record<string, string> = {
+  W: "#ffffff",
+  L: "#c7dcd0",
+  G: "#9babb2",
+  S: "#3e3546",
+};
+
 function faceCut(head: Vec, axes: Axes): Sdf {
   const big = 6;
   return box(at(head, [axes.fw, big - FACE_BACK], [axes.up, BROW - big]), [big, big, big], axes);
 }
 
 /** Every part of `HUMAN_PARTS` on the hat layer needs a model here, so a new hat cannot be left undrawn. */
-const HATS: Record<PartOn<"hat">, HatModel> = {
+const HATS: Record<PartOn<"hat">, HatModel | DrawnHat> = {
   "leather-cap": {
     opensToFace: true,
     solids: (c, x) => [
@@ -168,6 +186,22 @@ const HATS: Record<PartOn<"hat">, HatModel> = {
       ]),
     ],
   },
+  /**
+   * The skull item (`skull-player`) cut down to sit a pixel past the head: the
+   * shaded crown, the sockets, and the jaw a step down and to the right, as
+   * everything lower is in this projection. Facing south it is five pixels
+   * wide so that both sockets sit inside the edge, where the outline would
+   * swallow one. East keeps the one socket at the front, west is east
+   * mirrored, and north is the back of the skull.
+   */
+  "bone-helm": {
+    drawn: {
+      s: { left: 4, top: 3, rows: ["LLLLS", "LWWWL", "LWWWL", "LSWSL", ".GWWG"] },
+      e: { left: 3, top: 3, rows: ["LLLL", "LWWW", "LWWW", "LWSW", ".GWW"] },
+      w: { left: 4, top: 3, rows: ["LLLL", "WWWL", "WWWL", "WSWL", "WWG."] },
+      n: { left: 4, top: 3, rows: ["LLLS", "LWWL", "LWWL", "LWWL", ".GG."] },
+    },
+  },
 };
 
 const WITH_HAIR = (["short-hair", "beard", "long-hair"] as const).map((id) => humanPart(id).block);
@@ -217,7 +251,23 @@ function drawFrame(
   return outline(colours, FRAME_PX, OUTLINE, openAt(pose, row));
 }
 
-function drawHat(model: HatModel): (string | null)[][][] {
+function drawDrawn(hat: DrawnHat, pose: number, row: number, facing: Direction) {
+  const { left, top, rows } = hat.drawn[facing];
+  const colours: (string | null)[] = Array.from({ length: FRAME_PX * FRAME_PX }, () => null);
+  rows.forEach((line, dy) =>
+    [...line].forEach((letter, dx) => {
+      if (letter !== ".") colours[(top + dy) * FRAME_PX + left + dx] = INK[letter]!;
+    }),
+  );
+  return outline(colours, FRAME_PX, OUTLINE, openAt(pose, row));
+}
+
+function drawHat(model: HatModel | DrawnHat): (string | null)[][][] {
+  if ("drawn" in model) {
+    return SHEET_FACINGS.map((facing, row) =>
+      SHEET_POSES.map((_, pose) => drawDrawn(model, pose, row, facing)),
+    );
+  }
   const frames = SHEET_FACINGS.map((facing, row) =>
     SHEET_POSES.map((_, pose) => drawFrame(model, pose, row, facing)),
   );
@@ -251,7 +301,7 @@ for (const part of blocks) {
       }),
     ),
   );
-  if (model.icon) writeIcon(model.icon, drawIcon(model));
+  if ("icon" in model && model.icon) writeIcon(model.icon, drawIcon(model));
   console.log(`drew ${part.id}`);
 }
 writeIndexed("human_hats.png", width, BLOCK_H, sheet);
@@ -269,6 +319,9 @@ if (PREVIEW) {
   );
   writeIconPreview(
     path.join(PREVIEW, "hat-icons.png"),
-    blocks.flatMap((p) => (HATS[p.id].icon ? [HATS[p.id].icon!] : [])),
+    blocks.flatMap((p) => {
+      const hat = HATS[p.id];
+      return "icon" in hat && hat.icon ? [hat.icon] : [];
+    }),
   );
 }

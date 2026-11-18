@@ -41,6 +41,12 @@ const UNLIT = 0.5;
 
 const PELT = ["#3e3546", "#694f62", "#7f708a", "#9babb2"];
 const LEATHER = ["#6e2727", "#9e4539", "#e6904e"];
+/** The skeleton's own colours in `human_base.png`. */
+const BONE = ["#3e3546", "#9babb2", "#c7dcd0", "#ffffff"];
+const STRAPS = ["#2e222f", "#3e3546", "#694f62"];
+/** Rib spacing and half-thickness along the trunk, in model pixels. */
+const RIB_PITCH = 1.6;
+const RIB_HALF = 0.45;
 
 /** `sdf` cut to the trunk, from `overTop` above its top down to `downTo` of the way to its bottom: a pelt hangs from the shoulders and stops above the knees. */
 function between(sdf: Sdf, t: Torso, x: Axes, overTop: number, downTo: number): Sdf {
@@ -117,6 +123,25 @@ const CLOTHES: Partial<Record<PartOn<"clothes">, ClothesModel>> = {
           ramp: PELT,
           spills: true,
         },
+      ];
+    },
+  },
+  "bone-cuirass": {
+    template: "steel-mail",
+    cloth: STRAPS,
+    icon: { cell: [14, 4], template: [13, 3], rise: 0.9, sleeves: STRAPS },
+    solids: (t, x) => {
+      const ribs: Sdf = (p) => {
+        const along = dot([p[0] - t.top[0], p[1] - t.top[1], p[2] - t.top[2]], x.up);
+        const phase = ((along % RIB_PITCH) + RIB_PITCH) % RIB_PITCH;
+        return Math.max(
+          capsule(t.top, t.bottom, t.r + 0.25)(p),
+          Math.abs(phase - RIB_PITCH / 2) - RIB_HALF,
+        );
+      };
+      return [
+        { sdf: between(ribs, t, x, 0.2, 0.7), ramp: BONE },
+        { sdf: capsule(t.top, t.bottom, t.r), ramp: STRAPS },
       ];
     },
   },
@@ -256,12 +281,20 @@ function drawIcon(model: ClothesModel, icon: NonNullable<ClothesModel["icon"]>):
 
 const FILE = "human_clothes.png";
 const templateSheet = read(FILE);
-const { width, colours: sheet } = readColours(FILE);
+const read0 = readColours(FILE);
+const lastBlock = Math.max(
+  ...(Object.keys(CLOTHES) as PartOn<"clothes">[]).map((id) => humanPart(id).block),
+);
+const width = Math.max(read0.width, (lastBlock + 1) * BLOCK_W);
+const sheet: (string | null)[] = Array.from({ length: width * BLOCK_H }, (_, i) =>
+  i % width < read0.width
+    ? (read0.colours[Math.floor(i / width) * read0.width + (i % width)] ?? null)
+    : null,
+);
 const drawn: PartOn<"clothes">[] = [];
 for (const [id, model] of Object.entries(CLOTHES) as [PartOn<"clothes">, ClothesModel][]) {
   const block = humanPart(id).block;
   const source = humanPart(model.template).block;
-  if ((block + 1) * BLOCK_W > width) throw new Error(`${id}'s block is past the end of ${FILE}`);
   const frames = SHEET_FACINGS.map((facing, row) =>
     SHEET_POSES.map((_, pose) => {
       const template: (string | null)[] = [];

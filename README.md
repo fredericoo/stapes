@@ -140,7 +140,9 @@ an agent drives", lists every call.
   in `HUMAN_PARTS`, each modelled as solids around the head and cast through
   the game's own projection in every frame. A new hat is an entry in
   `HUMAN_PARTS` plus a model in the script's `HATS`, which the typecheck
-  requires. A hat whose model names an `icon` also redraws that cell of
+  requires, or a picture drawn by hand for each facing (`drawn`) when the hat
+  has to read as one particular thing at five pixels, as the bone helm's skull
+  does. A hat whose model names an `icon` also redraws that cell of
   `data/tilesets/equipment.png` from the same model, seen from the front.
   `PREVIEW=<dir>` also writes `hats.png` there, every hat on a head at 12×,
   and `hat-icons.png`
@@ -155,7 +157,8 @@ an agent drives", lists every call.
   keeps that part's silhouette and arms: a trunk fitted to the template's
   pixels in every frame, and anything worn on it, is cast through the game's
   projection, and each pixel takes the colour of the solid it lands on.
-  Clothes not listed are drawn by hand and left alone. `PREVIEW=<dir>`
+  Clothes not listed are drawn by hand and left alone, and the sheet is
+  widened when a listed part's block is past its end. `PREVIEW=<dir>`
   writes `clothes.png` and `clothes-icons.png` there
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
