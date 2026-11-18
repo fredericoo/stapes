@@ -34,6 +34,26 @@ test.describe("the game on a phone", () => {
     await expect(liveWorld(page)).toBeAttached({ timeout: BOOT_TIMEOUT_MS });
     await expect.poll(joystickSide, { timeout: 60_000 }).toBe("left");
   });
+
+  test("keeps drawing the board after the phone turns sideways and back", async ({ page }) => {
+    test.setTimeout(BOOT_TIMEOUT_MS + 60_000);
+    const board = page.locator("canvas:has(+ .world-label-layer)");
+    const buffer = () => board.evaluate((c: HTMLCanvasElement) => `${c.width}x${c.height}`);
+
+    await signInAsAdmin(page);
+    await page.goto("/admin/play", { waitUntil: "networkidle" });
+    await expect(liveWorld(page)).toBeAttached({ timeout: BOOT_TIMEOUT_MS });
+    await board.evaluate((c) => c.setAttribute("data-first-board", ""));
+    const drawn = await buffer();
+
+    await page.setViewportSize({ width: 839, height: 412 });
+    await expect(page.locator("canvas[data-first-board]")).toBeAttached();
+    await expect.poll(buffer).toBe(drawn);
+
+    await page.setViewportSize({ width: 412, height: 839 });
+    await expect(page.locator("canvas[data-first-board]")).toBeAttached();
+    await expect.poll(buffer).toBe(drawn);
+  });
 });
 
 async function centerX(locator: Locator): Promise<number | null> {
