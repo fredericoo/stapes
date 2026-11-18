@@ -290,6 +290,9 @@ an agent drives", lists every call.
   walk the map with the game's own movement rules and refuse to write it if it
   strands anybody. It prints reachable cells, dead ends and detour before and
   after. It runs once; `--dry-run` reports without writing
+- `bun run thin:bushes` — remove 60% of the bushes outside the town, crowded
+  ones first, and refuse to write the map if it strands anybody. It runs once;
+  `--dry-run` reports without writing
 - `bun run ramp:hills` — lay ramps up the sloped hills: onto hilltops nobody
   can walk onto, and as shortcuts where the walk round from the foot of a
   cliff to its top is long. It walks the map with the game's own movement

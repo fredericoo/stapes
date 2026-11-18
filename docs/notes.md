@@ -18207,6 +18207,34 @@ edge again. To thin differently, start from the map before the thinning.
 afterwards; see "Ramps onto the hills nobody could climb, and shortcuts up
 the long ones".
 
+## Bushes are thinned, now that apples and mushrooms feed people too
+
+`bun run thin:bushes` (`../scripts/thin-bushes.ts`) removes 60% of the bushes
+outside the town. Berry bushes were the food on the map before apple trees and
+mushroom patches; with those added, the 629 bushes the generator's 4%
+`small-bush` scatter and the berry bushes had left were too many.
+
+- **Every kind counts.** `bush`, `picked-bush`, `small-bush` and `bush-3` are
+  thinned together, so the share left of each is about what it was. A
+  `picked-bush` is a berry bush that grows back, and the saved map has most
+  berry bushes in that state.
+- **Crowded bushes go first.** A bush with more bushes within two cells is
+  removed before a lone one, and ties go by `randomAt`, so the bushes left are
+  spread out rather than in the clumps the scatter made.
+- **The town keeps its bushes**, the same box `thin:forests` keeps its trees in:
+  the hedges and gardens there were placed by hand.
+- **Only the bush is taken out of a cell**; the grass, dirt or brink under it
+  stays. A bush blocks the walk, so removing one only opens ground. The script
+  still runs `findStranded` before and after, because open ground on a hilltop
+  can lead to a ledge, and refuses to write a map that strands more cells.
+
+**What the run did.** 345 of 575 bushes outside the town removed: 629 bushes
+became 284 (108 berry bushes, 166 small bushes, 9 `bush-3`, and one `bush`
+unpicked), with nobody stranded before or after.
+
+**It runs once.** Nothing marks a thinned map, and a second run removes 60% of
+what is left.
+
 ## Ramps onto the hills nobody could climb, and shortcuts up the long ones
 
 `bun run ramp:hills` (`../scripts/ramp-hills.ts`) lays ramps on the sloped
