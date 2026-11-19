@@ -235,6 +235,18 @@ an agent drives", lists every call.
   `scripts/limb-caster.ts`, the caster the swamp trees use. `PREVIEW=<dir>`
   also writes `sand-dunes.png` there, a field of the sand faces picked the way
   the renderer picks them
+- `bun run generate:lava` — redraw `data/tilesets/lava.png` and its tiles. All
+  three are autotiles with `dirt`'s rounded outline, read from `floors.png` as
+  `generate:water` does, and are meant to be stacked: sand, `basalt`,
+  `lava-crust`, `lava`, each with its own edge over the layer beneath.
+  `lava` is 16 frames of a sum of waves, each with a spatial frequency chosen
+  so that the per-cell frame offset (`phase`) carries it across the cell border
+  unbroken; its edge is a black rim. It emits light, slows a body to half speed
+  and sets it `burned` on step, as a campfire does. `lava-crust` is black with
+  24 seeded crack layouts held as still frames, one per cell by its `phase`,
+  each meeting its neighbours' cracks at the cell edges (see `docs/notes.md`);
+  its edge frays into whatever lies under it. `basalt` is a dark floor whose
+  column joints vary from cell to cell the same way
 - `bun run generate:ice` — redraw `data/tilesets/ice.png` and its tiles. `snow` is a scatter tile
   that is plain in most cells and wears a white drift mark in the rest, each
   face with a plain border as the sand has; it walks 15% slow. `ice` is an

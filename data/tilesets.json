@@ -290,5 +290,12 @@
     "width": 64,
     "height": 24,
     "translucent": true
+  },
+  {
+    "id": "lava",
+    "name": "Lava",
+    "file": "lava.png",
+    "width": 512,
+    "height": 376
   }
 ]
