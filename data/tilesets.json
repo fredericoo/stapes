@@ -304,5 +304,12 @@
     "file": "rune-temple.png",
     "width": 144,
     "height": 64
+  },
+  {
+    "id": "spoils",
+    "name": "Spoils",
+    "file": "spoils.png",
+    "width": 64,
+    "height": 16
   }
 ]
