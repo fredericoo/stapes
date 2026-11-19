@@ -1558,22 +1558,24 @@ terms: a conversation is a state of play.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the script is `./dialog`'s to know.
 
-### Townsfolk are battlers, and nothing brings them back
+### Townsfolk are battlers, and they wake again
 
 Every town NPC with a dialog is `kind: "battler"`, so a player can kill any of
-them, and a dead one stays dead. None has `interactions.respawn`. That is
-deliberate: the whole world is meant to reset once a day, and a per-NPC timer
-would come back before that. Killing one drops its kit through `dropKit` and a
+them. Each carries `interactions.respawn` of 30 to 60 minutes, so a killed
+townsperson wakes again where they stood, as `docs/lore.md` says everybody on
+the island does. Killing one drops its kit through `dropKit` and a
 `skull-player` engraved with its tile name (`remains`), with the killer in the
-cause of death.
+cause of death. The cast itself is written in `docs/npcs.md`; each NPC there
+is one tile, with the character's name in kebab case as its id.
 
-- **Fighters and civilians differ only in their brain.** Both guards, the
-  blacksmith, the armourer and the bartender go to `fighting` on `attacked`,
+- **Fighters and civilians differ only in their brain.** The guards,
+  the smiths, the armourer, the innkeeper and the fighters of the warriors'
+  town go to `fighting` on `attacked`,
   and break off at their leash or when the foe is out of chase range.
   Everyone else goes to `panicking`: one plea on entry, then
   `step_away_from` the attacker. These rules sit at the top of each
   brain's transition list, with a rule that keeps the brain in its current
-  state. Without that, a lower `any` rule (the crier's home leash or
+  state. Without that, a lower `any` rule (the pedlar's home leash or
   his night rest) would pull a fleeing body straight back to its attacker.
   Most of them call the traits `townsfolk-flee` and `townsfolk-fight` for
   these rules rather than writing them out; see *What the shipped creatures
@@ -1592,30 +1594,39 @@ cause of death.
   do not hurt each other until both have asked to*.
 - **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
   a bot would hunt the weakest shopkeepers and flee from the rest.
-- **The night guard crosses his door by hand.** Brain routing does not open
-  doors, so the guardhouse door at 5,8 is a `switch` in its own state each
-  way, and his home is the cell inside it.
-- **Lord Corvin fights with stones, and is meant to scare players off.** He
-  is in the old alderman's hall, with rating 67, 35 of it from Arcane 70, between the
-  smiths and the guards. His spells are Lance, Ember, Frost and Thorns. Arcane 70
-  is more than double what each of them asks, so every cast takes a fifth of its
-  authored time (`MIN_CAST_SHARE`). None of
-  them hits an area: an area spell `affects: "others"` would hit his wife, and
-  nothing brings her back. He calls `fights-back` with his own `dueling` state,
-  because `townsfolk-fight` only swings.
-- **Corvin turns on whoever hits his wife.** His first row is
-  `other_attacked` of `nearest(lady-ysolde)` within 12 cells, which binds the
-  attacker as his `threat` and enters `dueling`, from every state but a fight.
-  See *`other_attacked` is a blow at somebody else*.
+- **Taavi Kask crosses his door by hand.** Brain routing does not open
+  doors, so on the current map the guardhouse door at 5,8 is a `switch` in
+  his own state each way, and his home is the cell inside it. He keeps the
+  south gate guard's brain, which this was written for.
+- **Iolanthe Sarno fights with runes, and is meant to scare players off.**
+  She has rating 67, 35 of it from Arcane 70, between the smiths and the
+  guards. Her spells are Lance, Ember, Frost and Thorns. Arcane 70 is more than
+  double what each of them asks, so every cast takes a fifth of its authored
+  time (`MIN_CAST_SHARE`). None of them hits an area: an area spell
+  `affects: "others"` would hit the townsfolk round her. She calls
+  `fights-back` with her own `dueling` state, because `townsfolk-fight` only
+  swings.
+- **Iolanthe turns on whoever hits Rosalind Peake.** Her first row is
+  `other_attacked` of `nearest(rosalind-peake)` within 12 cells, which binds
+  the attacker as her `threat` and enters `dueling`, from every state but a
+  fight. See *`other_attacked` is a blow at somebody else*.
+- **The druid wardens cast before they swing.** Taavi Kask and Nadia Ferreira
+  carry the guards' two spells first and Ember and Thorns after them, so
+  `cast 1` and `cast 2` still mean Second wind and the snack, and their
+  `fighting` and `hunting` states try `cast 3` and `cast 4` before `attack`.
+
+On the current map, Iolanthe and Rosalind stand in the old alderman's hall and
+keep the brains written for it:
+
 - **At night both walk up to the double bed in two legs, and the second leg
   only works because of the first.** `climbing` steps toward
-  `thing(stone-stairs)` until it is within a cell; `retiring` (Corvin) and
-  `resting` (Ysolde) then step toward `thing(bed)`. A single leg is refused
+  `thing(stone-stairs)` until it is within a cell; `retiring` (Iolanthe) and
+  `resting` (Rosalind) then step toward `thing(bed)`. A single leg is refused
   from the west end of the hall: a route may be at most `PATH_DETOUR_SLACK`
   (16) steps longer than the plan distance, and the trip east to the stairs
-  and back west upstairs is longer than that from where Ysolde spends her day.
-  Both have `sight.up` 1, because `nearestThing` searches only the levels a
-  body can see. The cellar stairs and Corvin's cellar bed are below them, so
+  and back west upstairs is longer than that from where Rosalind spends her
+  day. Both have `sight.up` 1, because `nearestThing` searches only the levels
+  a body can see. The cellar stairs and the cellar bed are below them, so
   neither is picked.
 - **The double bed stands out from the wall, at (0..1, -30..-29) on L1.** A
   `thing` goal arrives on a square one step from the bed square the search
@@ -1624,10 +1635,10 @@ cause of death.
   gives up. Away from the wall every bed square has free floor beside it, and
   none of that floor is (3, -31) or (3, -30), the way off the stair landing,
   so a body standing by the bed never blocks the stairs.
-- **Corvin and Ysolde have leashes of three cells.** A wandering brain steps
-  into a stairwell, because a stair two units down is inside the climb band
-  and `stepLeavesGround` does not count it as a drop. Their homes, (1, -27)
-  and (-1, -27), are more than three steps from the square in front of either
+- **Both have leashes of three cells.** A wandering brain steps into a
+  stairwell, because a stair two units down is inside the climb band and
+  `stepLeavesGround` does not count it as a drop. Their homes, (1, -27) and
+  (-1, -27), are more than three steps from the square in front of either
   staircase. A body off its home level still routes home, but `in_range home`
   never holds there, since `within` checks sight levels first.
 
@@ -1645,7 +1656,7 @@ container is never *taken* — it would take its contents with it — and the
 schema and the runtime both refuse it. A container may be *given*, minted
 empty: nothing nests, so it goes on the back if the bag slot is free, else
 into an empty hand, else the trade is refused for want of room. That is what
-lets the tanner sell the leather backpack.
+lets Idris Kaya sell the leather backpack.
 
 ### Cash is a field on a trade, paid in any tile with a worth
 
@@ -1653,8 +1664,8 @@ A `request_trade` has `takeCash` and `giveCash` beside its `take` and `give`
 lists: an amount of money per unit, not a tile. Money is any item whose
 `interactions.item.worth` is set: `gold` is worth 1 and `gold-bar` 100, both
 piling to 100, and a coin worth 1000 is one more tile with `worth: 1000` and
-nothing else. `arcane-shard` has no worth; it is an item the blacksmith buys
-for one gold.
+nothing else. `bone` has no worth; it is an item Brannoc Hale buys for one
+gold.
 
 - **Cash is not a tile anywhere.** No trade side names it, and nothing looks
   for it by id. `planTrade` moves tiles only, which is all a craft needs;
@@ -1685,9 +1696,9 @@ for one gold.
 against their equipment alone; the NPC is never asked, and its id is not even
 passed in. So what a trade takes is destroyed and what it gives is minted on
 the spot with a fresh `mintItemId`. A shop has infinite stock and infinite
-money, and **a shopkeeper needs no kit at all** — the blacksmith and the
-armourer are props with no `battler` block, so they have nowhere to keep one,
-and they sell every rung of every rack regardless.
+money, and **a shopkeeper's kit is not its stock**: what Brannoc Hale
+carries is what he fights with and drops, and he sells every rung of every
+rack regardless.
 
 That is worth writing down because the opposite is the obvious guess, and it is
 the guess an author would act on: authoring a shopkeeper carrying one of
@@ -1696,12 +1707,14 @@ is ever wanted, it is a feature to build and not a field to fill in.
 
 ### A shop with a catalogue is a menu of menus, and two limits shape it
 
-Three shops are authored this way: the blacksmith (`blacksmith`), who sells
-three rungs of each of four weapon families plus a rack of shields; the
-armourer (`armourer`), who sells body armour and charms; and the tanner
-(`tanner`), who sells head and foot pieces and the leather backpack. The shape
-they settled on is worth knowing before authoring the next one, because two
-authored ceilings decide it.
+Most shops are authored this way. The largest are Brannoc Hale
+(`brannoc-hale`), who sells three rungs each of swords, axes and maces plus a
+rack of shields; Selin Arslan (`selin-arslan`), who sells the bows; Halina
+Brzeska (`halina-brzeska`), who sells body armour and charms that hold off
+blows and magic; Amaru Quispe (`amaru-quispe`), who sells the caster's robes
+and charms; and Idris Kaya (`idris-kaya`), who sells head and foot pieces and
+the leather backpack. The shape they settled on is worth knowing before
+authoring the next one, because two authored ceilings decide it.
 
 - **A side in one tile cannot exceed `MAX_DIALOG_AMOUNT`, which is
   ninety-nine; a cash side can go to `MAX_DIALOG_CASH`.** The ladder of 20 /
@@ -1719,8 +1732,8 @@ authored ceilings decide it.
   want the next sword than the bow list. Each rack carries a last button,
   Back, whose only job is the `goto main` the branches deliberately do not do.
 - **A rack is only limited in depth, never in width.** `choices` takes as many
-  options as an author writes, which is what lets the armourer put all eight
-  body armours on one menu rather than inventing a sub-menu they do not need.
+  options as an author writes, which is what lets Halina put all five of
+  her body armours on one menu rather than inventing a sub-menu they do not need.
 
 The weapons are ordinary `item` blocks — see `app/lib/item.ts` — and the
 ladder is a requirement ladder rather than a damage one: roughly 6, 20 and 34
@@ -1734,23 +1747,23 @@ not being a ladder.** Defence is a flat subtraction and a resistance answers
 one mastery, so steel plate is not simply better than a warded robe — see
 *Armour is worn, and it may care what hit it* above. What a rack has to do is
 therefore put the pieces that compete for one square next to each other, so
-the armourer's menus are Body and Charms and the tanner's are Head and Feet,
+Halina's and Amaru's menus are Body and Charms and Idris's are Head and Feet,
 priced off what each piece actually does rather than off a rung.
 
-**The tanner is paid in animal skins, not only gold.** Every head and foot
+**Idris Kaya is paid in animal skins, not only gold.** Every head and foot
 piece costs five `skin`; the basic cap and boots cost nothing else, and the
 upper rungs add 20 to 50 cash, about ten short of what the piece's defence
 would cost in cash alone, so the hide stands in for part of the price. The
 backpack is fifteen skins alone. Skins come only from what deer and rabbits drop, so the price is
 a reason to hunt. `skin` piles to 25 so a hunting trip fits in one square.
 
-**The wolfskin set is the tanner's one body piece, and it is paid in `wolf-skin`.**
+**The wolfskin set is Idris's one body piece, and it is paid in `wolf-skin`.**
 Every wolf carries one in its bag, so the hood, coat and boots cost a fight
 rather than a deer hunt. They are the light answer to sharp blows: low defence,
 at least as much sharp resistance as anything else in its slot (3, 5, 3), and Agility rather than
 Toughness to wear, so a fast character has an option chain mail and the
-knight's helm do not give them. The coat sits on the tanner's own Body rack
-rather than the armourer's because the armourer does not take hides.
+knight's helm do not give them. The coat sits on Idris's own Body rack
+rather than Halina's because Halina does not take hides.
 All three are drawn when worn (`wolfskin-hood`, `wolfskin-coat`,
 `wolfskin-boots` in `HUMAN_PARTS`), in the wolf's own colours from
 `animals.png`. The hood is a wolf's head sitting on the wearer's: ears up,
@@ -1810,20 +1823,20 @@ sell.
 
 | creature | spoil | chance | buyer | gold each |
 | --- | --- | --- | --- | --- |
-| rat | `rat-tail` | 75% | tanner | 1 |
-| bat | `bat-wing` | 70% | tanner | 1 |
-| rabbit | `rabbit-foot` | 60% | tanner | 1 |
-| snake | `snake-fang` | 70% | tanner | 2 |
-| bog imp | `imp-horn` | 60% | tanner | 3 |
-| bear | `bear-claw` | 75% | tanner | 5 |
-| cave troll | `troll-tusk` | 60% | tanner | 6 |
-| yeti | `yeti-fur` | 80% | tanner | 20 |
-| cyclops | `cyclops-eye` | 80% | tanner | 25 |
-| the three slimes | `*-slime-jelly` | 75% | potion salesman | 1 |
-| the three wisps | `wisp-ash`, `wisp-dew`, `wisp-spore` | 70% | potion salesman | 3 |
-| deer, rabbit, bear | `skin` | 80%, 25%, 80% | tanner | 2 |
-| wolf, snow wolf | `wolf-skin` | 100% | tanner | 3 |
-| skeleton | `bone` | 100% | tanner | 1 |
+| rat | `rat-tail` | 75% | Idris Kaya | 1 |
+| bat | `bat-wing` | 70% | Idris Kaya | 1 |
+| rabbit | `rabbit-foot` | 60% | Idris Kaya | 1 |
+| snake | `snake-fang` | 70% | Idris Kaya | 2 |
+| bog imp | `imp-horn` | 60% | Idris Kaya | 3 |
+| bear | `bear-claw` | 75% | Idris Kaya | 5 |
+| cave troll | `troll-tusk` | 60% | Idris Kaya | 6 |
+| yeti | `yeti-fur` | 80% | Idris Kaya | 20 |
+| cyclops | `cyclops-eye` | 80% | Idris Kaya | 25 |
+| the three slimes | `*-slime-jelly` | 75% | Noor Halabi | 1 |
+| the three wisps | `wisp-ash`, `wisp-dew`, `wisp-spore` | 70% | Noor Halabi | 3 |
+| deer, rabbit, bear | `skin` | 80%, 25%, 80% | Idris Kaya | 2 |
+| wolf, snow wolf | `wolf-skin` | 100% | Idris Kaya | 3 |
+| skeleton | `bone` | 100% | Idris Kaya | 1 |
 
 Prices follow what the creature costs to kill and how often it comes back:
 an apple sells for one gold, so a rat's tail does too. The yeti (1400 hp)
@@ -1831,17 +1844,16 @@ and the cyclops (1800 hp) have more hit points than any other monster and
 come back only every 30 to 45 minutes, so theirs are the only spoils worth a
 trip on their own. Each shop's Sell menu is one
 `request_trade` per spoil that takes one and pays its price as `giveCash`,
-1 to 99 at a time, like the pie maker's apples. Selling `skin` and `wolf-skin` for cash
-does not undercut the tanner's leather prices: five skins sell for ten
+1 to 99 at a time, like Pell Marrow's apples. Selling `skin` and `wolf-skin` for cash
+does not undercut Idris's leather prices: five skins sell for ten
 gold, and a leather cap costs those five skins.
 
-**A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
-`resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
-adopted, driven and reachable exactly like one that fights. Being a battler
-would give it hit points, and hit points are killable: a world where somebody
-has punched the blacksmith to death is a world with no way to buy a weapon,
-and nothing respawns him. The potion salesman predates this and is still a
-battler, which is the same exposure.
+**A shopkeeper is a `battler`, and that is load-bearing.** `resolveActor` is
+satisfied by a `dialog` alone, so a body that only talks would be adopted,
+driven and reachable exactly like one that fights. Every shopkeeper is a
+battler with a `respawn` instead, so a player can kill one, and a world where
+somebody has punched Brannoc Hale to death has its weapons back within the
+hour.
 
 ### An `if` asks about the player, a `switch` throws levers by channel, and a `teleport` moves them
 
@@ -6897,7 +6909,7 @@ air.
   than by the block. No wall or crate grows a field it can never use, which is
   the whole reason this is not a block on every tile.
 - **Exclusive with `item`, and the arcane shard is why.** The shard is an
-  item — an artifact that piles to 99 and that the blacksmith buys — so it
+  item — an artifact that piles to 99 — so it
   cannot also be ammunition. What a stone throws is `arcane-bolt`, which looks like a shard
   and is not one. That is `TileDef.kind`'s mutual exclusivity doing its job
   rather than something to work around.
@@ -12276,12 +12288,14 @@ witness becomes wanted, and the guards hunt it, which is what a town would do.
 
 ### What the town does about it
 
-Three traits use those pieces, each handed the same `town` list: the eighteen
-human residents, guards included. The training dummy is not on it, so hitting
+Three traits use those pieces, each handed the same `town` list: every human
+NPC in `docs/npcs.md`, guards included. The guards' list (`guards` on
+`raises-the-alarm`) is Edda Kell, Gideon Okafor, Liv Sandvik, Taavi Kask and
+Nadia Ferreira. The training dummy is not on it, so hitting
 it is not a crime.
 
 - **`raises-the-alarm`** is called by every townsperson who does not fight:
-  the eight `townsfolk-flee` callers, the torch salesman and the town crier.
+  the `townsfolk-flee` callers and Hamid Sarraf.
   On `witnessed` it cries out ("Guards! Guards!") and walks toward the nearest
   body on `guards`, and away from the culprit when there is no route. Within
   three cells of a guard it names the culprit and runs `report`, then goes back
@@ -12293,7 +12307,7 @@ it is not a crime.
   earlier call. Called second, the victim fled and nobody reported.
 - **`townsfolk-fight`** turns on whoever it sees strike the town and on anyone
   wanted it can see, in its own `fighting`, on its own leash.
-- **`keeps-the-peace`** is called by the four guards. An `alerted` guard hunts
+- **`keeps-the-peace`** is called by the guards. An `alerted` guard hunts
   the culprit in the guard's `hunting` state. A guard that sees the blow
   itself reports first (`calling`), so the culprit is wanted and the guards
   within earshot join in. A guard hunts anyone wanted it can see, and walks
@@ -12309,8 +12323,8 @@ it is not a crime.
 - **A hunt reaches further than a guard can see.** The leash is 40 cells, so
   `brainReach` keeps a guard attentive with a player within 40 cells. That is
   four bodies.
-- **Lord Corvin and the cat call neither trait.** Corvin already turns on
-  whoever hits Ysolde. Neither is a witness the guards hear from.
+- **Iolanthe Sarno and the cats call neither trait.** Iolanthe already turns
+  on whoever hits Rosalind Peake. None is a witness the guards hear from.
 
 ## A respawn can keep to hours
 
@@ -12590,8 +12604,8 @@ area within 3.2 cells, and trees and bushes from the ring itself, so the ring
 does not blend into the scattered flowers around it. Each ring is red or
 yellow, whichever is rarer near that spot. Nothing generates the rings: a wisp
 moved or added in the editor needs its ring painted by hand, or the lore stops
-being true there. Lord Corvin's book (`book`, in the chest in
-his cellar) is where a player reads this.
+being true there. The book (`book`, in the chest in the
+alderman's hall cellar) is where a player reads this.
 
 **The art is a glow on a translucent sheet.** `bun run generate:wisps` draws a
 near-white core that darkens through the element's palette ramp and loses
@@ -12666,8 +12680,8 @@ are respawned. `appear` and `disappear` are noise dissolves edged in the
 element's light colour.
 
 **`/admin/scene` cannot show a wisp's light.** A body's own light is painted
-by `GameRenderer.emitterOverridesFor`, which the scene page does not run; the
-torch salesman is dark there too. Use `/admin/play` at night for that. The map
+by `GameRenderer.emitterOverridesFor`, which the scene page does not run; a
+lamplighter's lantern is dark there too. Use `/admin/play` at night for that. The map
 editor draws its own materials and still cuts sprites at half alpha, so it
 shows a wisp as its core only.
 
@@ -12800,13 +12814,13 @@ were first written out by hand each expand to a table that runs exactly as the
 hand-written one it replaced: every state asks the same rows in the same order,
 apart from rows that could never be the first to hold.
 
-- **The townsfolk who run** — the potion salesman, tanner, pie maker, miner,
-  peat cutter, beggar and lamplighter — are one call to `townsfolk-flee` each,
-  after a call to `raises-the-alarm`.
-  The miner, peat cutter, beggar and lamplighter hand it the state they listen
-  in as `talk`; the shopkeepers serve only from their idle state, so they do
-  not.
-- **The blacksmith, armourer and bartender** are one call to `townsfolk-fight`.
+- **The townsfolk who run** — most of the cast that does not fight — are one
+  call to `townsfolk-flee` each, after a call to `raises-the-alarm`. Those whose
+  brain has a state for listening (Rodrigo Vela, Peregrine Voss, Jory
+  Thistlewood, Casimir Wren and Tobiah Marsh) hand it as `talk`; the
+  shopkeepers serve only from their idle state, so they do not.
+- **The fighters** (Brannoc Hale, Halina Brzeska, Margit Oslund and the
+  warriors' town's other fighters) are one call to `townsfolk-fight`.
 - **The cat** calls `fights-back`, **the snake** and **the bat** `predator`,
   **the rabbit** `skittish`, and the bat and the rabbit `unsticks`. The bat's
   `unsticks` fires at `roam`, so being stuck comes after its walk home and only
@@ -12845,11 +12859,10 @@ always comes first. So the snack and the talk are triggers from the brain's
 own states, and rows after the walk home's own exits for the trait's states.
 
 The rest are still written out, and the training dummy has nothing to share.
-The town guard, the patrolling guard, the town crier, the torch salesman and
-the deer each ask a shared row after a state's own rows where the bands cannot
-put it: the guards' sight of a monster comes between being hit and the snack,
-the crier and the torch salesman ask a walk home (and the crier a bedtime)
-after the talk, and the deer asks being stuck last from states a trigger
+The guards, Liv Sandvik's patrol, Hamid Sarraf's round and the deer each ask
+a shared row after a state's own rows where the bands cannot put it: the
+guards' sight of a monster comes between being hit and the snack, Hamid asks
+a walk home and a bedtime after the talk, and the deer asks being stuck last from states a trigger
 cannot reach in that position. The wolf, the troll, the bog
 imp and the cyclops would each change what they do; see *A wounded wolf breaks
 off* and *The wolf we ship sleeps through the day on the surface* for what
@@ -13261,10 +13274,10 @@ people has no business refusing it.
 
 **A townsperson is the one resident in it.** A battler authored with `pvp: true`
 (every town NPC with a dialog) may be harmed by a player only while that
-player's own switch is on. It exists so a misclick on the blacksmith cannot start
+player's own switch is on. It exists so a misclick on Brannoc Hale cannot start
 a fight: killing a civilian means being open to other players first. It binds
 only the player who swings. A resident's own harm is still never refused, so a
-wolf still bites the beggar and the guard still answers whoever struck him. The
+wolf still bites Jory Thistlewood and the guard still answers whoever struck him. The
 flag is on the tile, not on `ActorRuntime.pvp`. That keeps the `[PvP]` mark off
 NPC names, and it means `combatantOf` on both ends reads it from the tile
 catalogue they already hold.
@@ -16573,7 +16586,7 @@ edit that invalidates the full `LIGHT_APRON` instead of nothing at all.
 Leaving an actor out of the bake is only sound because
 `GameRenderer.emitterOverridesFor` paints an override for it every frame. That
 pass used to ask the *player* tile whether a body emits, for every actor, so
-the first NPC authored with a light on its frames — the torch salesman — was
+the first NPC authored with a light on its frames was
 omitted from the bake and never painted back. It asks `actor.tileId` now, and
 places the emitter at that tile's height. Anything that decides what the bake
 omits has to be answered per body by whatever paints it back.
@@ -17372,11 +17385,10 @@ otherwise `hunt`. After
 `HUNT_SPELL_MS` (four minutes) of hunting it goes to `gather` for
 `GATHER_PULLS` pulls when it knows of a resource worth working, because
 hunting grows mastery and pays in skins but the shops want cash. On the
-shipped content, cash comes from selling mined shards to the blacksmith,
-berries and apples to the pie maker, and what creatures drop to the tanner
-and the potion salesman (see *Every wild creature drops a spoil*). A spoil
-is worth 1 to 25 gold and a large crystal yields 2 to 4 shards a pull, so
-mining is still the steady income. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
+shipped content, cash comes from selling berries and apples to Pell Marrow,
+bones to Brannoc Hale, and what creatures drop to Idris Kaya, Noor Halabi,
+Jory Thistlewood and Magda Fenwick (see *Every wild creature drops a spoil*).
+A spoil is worth 1 to 25 gold. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
 does not spend its life looking for a seller nobody has found. It does not
 interrupt a `shop`, `sell` or `gather` on the timer.
 
@@ -17686,8 +17698,8 @@ the nearest bush it then finds is the one nearest safe ground.
 
 The haven leaves out the fleet's danger zones (`dangerZones`), and counts
 creatures itself: `fearedTiles` judges every tile that can hurt, townsfolk
-among them, so a bot that would lose to the pie maker keeps routes and
-explores clear of the pie maker's stall as it would of a wolf's den.
+among them, so a bot that would lose to Pell Marrow keeps routes and
+explores clear of his bakehouse as it would of a wolf's den.
 
 In a bench of six bots for half a game-hour over four seeds
 (`bun run bench:bots --hours 0.5 --seeds 4`), deaths an hour went from 8.2
@@ -17838,13 +17850,13 @@ sent):
 - **Armour and shields are worth their defence**, with a quarter of their
   resistances, reduced by twice the encumbrance their physical shortfall
   causes. Magic gear the bot cannot wake is worth nothing.
-- **A bag is worth a point a square.** The tanner's leather backpack is
+- **A bag is worth a point a square.** Idris Kaya's leather backpack is
   usually the first thing a bot saves for.
 - **A stone is worth what it does a second** (`stoneWorth`), on the same
   scale as a weapon, a point healed counting as a point dealt; see below.
 - **The charm square holds a light or a stone.** A light there is worth
   `LIGHT_WORTH`, so a stone that out-damages it takes the square and the
-  torch goes to the bag. Charms and the armourer's amulets are never bought.
+  torch goes to the bag. Charms and amulets are never bought.
 
 **Each bot has a style: sword, club, bow or stones.** `Temperament.style` is
 drawn with the rest of the temperament, so about a quarter of the bots are
@@ -17949,7 +17961,7 @@ other unit it takes, so nothing in the bots names a coin. `Economy`
   then food when the bag has none that heals, up to `FOOD_RESERVE`. The
   upgrade comes first because of the depot (below).
 - `savingFor`: the upgrade with the best gain for its price, whose inputs
-  (skins, for the tanner) are kept and picked up.
+  (skins, for Idris Kaya) are kept and picked up.
 - `sales`: anything carried beyond the food reserve that an NPC pays money
   for, unless it is being saved.
 - `wanted`: what is worth picking up off the floor.
@@ -17967,7 +17979,7 @@ what a bot would do at a depot as it is now:
   upgrade it could then pay for, from one stash, when the bag has room for
   them. Whole piles move, so what is left after the purchase goes back in.
 - With none of those, it puts in the money and the upgrade inputs it carries
-  (the tiles any offer in `upgrades` asks for, such as skins for the tanner).
+  (the tiles any offer in `upgrades` asks for, such as skins for Idris Kaya).
 
 Only offers whose NPC the bot knows the place of count for the first two.
 Money taken out for a seller nobody has found cannot be spent, and would go
@@ -18015,7 +18027,7 @@ seen, as are resources worth working. Entries are keyed by tile id and cell, nev
 id, because those are minted afresh whenever the world loads. Two sightings
 of one tile within `SAME_PLACE_CELLS` are one thing that moved, so a strolling
 salesman is one entry. Each worker thread opens the same file and reads it
-again every `RELOAD_MS`, so one bot finding the blacksmith tells the rest, and
+again every `RELOAD_MS`, so one bot finding Brannoc Hale tells the rest, and
 the next run starts already knowing. A bot that reaches a remembered place
 and finds nothing there deletes the entry. A seller nobody knows the place of
 is looked for by exploring.

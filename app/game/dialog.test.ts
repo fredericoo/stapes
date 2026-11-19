@@ -210,17 +210,17 @@ const tiles: TileDef[] = [
   }),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
     [
-      "potion-salesman",
-      "arcane-shard",
+      "noor-halabi",
+      "bone",
       "gold",
       "gold-bar",
       "luminous-potion",
       "empty-bottle",
-      "blacksmith",
+      "brannoc-hale",
       "iron-sword",
-      "war-bow",
+      "war-maul",
       "buckler",
-      "tanner",
+      "idris-kaya",
       "skin",
       "leather-cap",
       "iron-helm",
@@ -460,19 +460,19 @@ describe("trading through the panel", () => {
   });
 });
 
-describe("the potion salesman, as authored", () => {
+describe("Noor Halabi's apothecary, as authored", () => {
   it("sells two potions, buys three bottles, and refuses when short", () => {
-    let map = fieldWith("potion-salesman");
+    let map = fieldWith("noor-halabi");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 28 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle", count: 3 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "potion-salesman");
-    expect(lastLine(session)).toContain("Potions, or a recipe");
+    talkTo(session, "noor-halabi");
+    expect(lastLine(session)).toContain("Potions to buy");
     press(session, 0);
-    expect(lastLine(session)).toContain("how many");
+    expect(lastLine(session)).toContain("How many");
     trade(session, 2);
     expect(lastLine(session)).toContain("Drink them somewhere dark");
     expect(bagOf(session)).toEqual(["empty-bottlex3", "luminous-potionx2"]);
@@ -487,48 +487,48 @@ describe("the potion salesman, as authored", () => {
     expect(lastLine(session)).toBe(TRADE_REFUSED);
     session.talk({ kind: "cancel" });
     expect(press(session, 4)).toBeNull();
-    expect(session.drainSpeech().at(-1)?.text).toContain("Mind the dark");
+    expect(session.drainSpeech().at(-1)?.text).toContain("Write down what you learn");
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });
 });
 
 describe("paying an authored shop in cash", () => {
   it("breaks a gold bar for a potion and gives the change in gold", () => {
-    let map = fieldWith("potion-salesman");
+    let map = fieldWith("noor-halabi");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold-bar", count: 1 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "potion-salesman");
+    talkTo(session, "noor-halabi");
     press(session, 0);
     trade(session, 1);
     expect(bagOf(session)).toEqual(["goldx86", "luminous-potion"]);
   });
 
-  it("buys arcane shards at the blacksmith for gold", () => {
-    let map = fieldWith("blacksmith");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 12 }]);
+  it("buys bones at the smithy for gold", () => {
+    let map = fieldWith("brannoc-hale");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "bone", count: 12 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "blacksmith");
-    press(session, 5);
+    talkTo(session, "brannoc-hale");
+    press(session, 4);
     trade(session, 12);
     expect(bagOf(session)).toEqual(["goldx12"]);
   });
 });
 
-describe("the blacksmith, as authored", () => {
+describe("Brannoc Hale's smithy, as authored", () => {
   it("sells off one rack, comes back to it, and refuses when short", () => {
-    let map = fieldWith("blacksmith");
+    let map = fieldWith("brannoc-hale");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 95 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 20 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "blacksmith");
-    expect(lastLine(session)).toContain("Mind the sparks");
+    talkTo(session, "brannoc-hale");
+    expect(lastLine(session)).toContain("Don't touch the hot ones");
 
     press(session, 0);
     expect(lastLine(session)).toContain("Blades.");
@@ -537,11 +537,11 @@ describe("the blacksmith, as authored", () => {
     expect(bagOf(session)).toEqual(["goldx95", "iron-sword"]);
 
     press(session, 3);
-    press(session, 3);
-    expect(lastLine(session)).toContain("Reach is what you're paying for");
+    press(session, 2);
+    expect(lastLine(session)).toContain("Blunt work");
     press(session, 2);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["iron-sword", "war-bow"]);
+    expect(bagOf(session)).toEqual(["iron-sword", "war-maul"]);
 
     press(session, 0);
     trade(session, 1);
@@ -553,14 +553,14 @@ describe("the blacksmith, as authored", () => {
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });
 
-  it("sells a shield off the fifth rack", () => {
-    let map = fieldWith("blacksmith");
+  it("sells a shield off the fourth rack", () => {
+    let map = fieldWith("brannoc-hale");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 20 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "blacksmith");
-    press(session, 4);
+    talkTo(session, "brannoc-hale");
+    press(session, 3);
     expect(lastLine(session)).toContain("it costs you a hand");
     press(session, 0);
     trade(session, 1);
@@ -568,17 +568,17 @@ describe("the blacksmith, as authored", () => {
   });
 });
 
-describe("the tanner, as authored", () => {
+describe("Idris Kaya's leather, as authored", () => {
   it("sells a helm for skins and gold off the head rack and comes back to it", () => {
-    let map = fieldWith("tanner");
+    let map = fieldWith("idris-kaya");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "skin", count: 12 }]);
     map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 35 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "tanner");
-    expect(lastLine(session)).toContain("leather for leather");
+    talkTo(session, "idris-kaya");
+    expect(lastLine(session)).toContain("Leather for leather");
 
     press(session, 0);
     expect(lastLine(session)).toContain("Caps and helms.");
@@ -592,14 +592,14 @@ describe("the tanner, as authored", () => {
   });
 
   it("sells the wolfskin coat for wolf skins and gold off the body rack", () => {
-    let map = fieldWith("tanner");
+    let map = fieldWith("idris-kaya");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "wolf-skin", count: 7 }]);
     map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 45 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
 
-    talkTo(session, "tanner");
+    talkTo(session, "idris-kaya");
     press(session, 1);
     expect(lastLine(session)).toContain("Only one coat");
     press(session, 0);

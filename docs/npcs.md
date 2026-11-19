@@ -1147,10 +1147,9 @@ lighthouse. Each walks a fixed route.
 What the profiles above ask for that the game does not support today, and what
 each would need.
 
-- **Townsfolk do not wake.** A killed townsperson stays dead until the daily
-  reset and drops their whole kit and a skull. The canon says they wake after a
-  while in the same place, remember it, and drop only their skull. This needs a
-  `respawn` on townsfolk and a death that drops the skull alone.
+- **Townsfolk drop their kit.** A killed townsperson wakes again after 30 to 60
+  minutes (`respawn`), but drops their whole kit as well as their skull. The
+  canon says they drop only the skull.
 - **An NPC's dialog cannot change by time of day.** The dialog `if` asks only
   about the player (a tag, a channel, a rating). A different line at night, or
   "come back in the morning", needs a `time_of_day` leaf in dialog conditions.
@@ -1165,10 +1164,9 @@ each would need.
 - **The runemaster's carve is random.** A dialog trade gives fixed items. A
   `craft` with a `one` output rolls by weight; whether an NPC battler tile can
   also carry a craft needs checking.
-- **Cats.** The cat in `data/tiles.json` follows a player who calls it and fights
-  back; it does not hunt. Each named cat here is its own tile (Biscuit, Soot,
-  Ghee, Captain, Nettle) with the `hunts-on-sight` trait naming the rat and a
-  leash to its owner's building, which the brain already supports.
+- **Cats.** Each named cat is its own tile, copied from the shared cat and drawn
+  in one of the coats from `bun run generate:cats`: Biscuit in the shared cat's
+  ginger, Soot black, Ghee cream, Captain grey and Nettle tuxedo.
 - **Travellers.** A brain finds a goal only as far as its furthest distance
   (`brainReach`), and the towns are about 1,650 cells apart. A traveller needs a
   chain of waypoint markers along the road, each a distinct tile, with a brain
