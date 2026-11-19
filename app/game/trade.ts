@@ -1,5 +1,6 @@
-import type { DialogTrade, TradeSide } from "../lib/dialog";
-import { resolveContainer } from "../lib/item";
+import { denominations, splitCash } from "../lib/cash";
+import type { DialogTrade, TradeSide, TradeTerms } from "../lib/dialog";
+import { resolveContainer, resolveWorth } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf, fuses, stow, withCount } from "../lib/piles";
 import type { TileDef } from "../lib/types";
@@ -33,6 +34,17 @@ export function carriedCount(
   return total;
 }
 
+/** The worth of everything carried that has one. */
+export function carriedCash(tilesById: Record<string, TileDef>, equipment: Equipment): number {
+  let total = 0;
+  for (const instance of carriedInstances(equipment)) {
+    const def = tilesById[instance.tileId];
+    if (!def || isContainer(tilesById, instance.tileId)) continue;
+    total += countOf(instance) * resolveWorth(def);
+  }
+  return total;
+}
+
 export function planTrade(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
@@ -45,6 +57,40 @@ export function planTrade(
     kit = takeUnits(tilesById, kit, side);
     if (!kit) return null;
   }
+  return giveSides(tilesById, kit, give, mintId);
+}
+
+/** `planTrade` with the cash a trade takes paid first and the cash it gives handed over last. */
+export function planDeal(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  terms: TradeTerms,
+  mintId: () => string,
+): Equipment | null {
+  const paid = terms.takeCash ? payCash(tilesById, equipment, terms.takeCash, mintId) : equipment;
+  if (!paid) return null;
+  const traded = planTrade(tilesById, paid, terms.take, terms.give, mintId);
+  if (!traded || !terms.giveCash) return traded;
+  return giveSides(tilesById, traded, splitCash(tilesById, terms.giveCash), mintId);
+}
+
+export function scaleTerms(terms: TradeTerms, amount: number): TradeTerms {
+  const times = (side: TradeSide) => ({ tileId: side.tileId, count: side.count * amount });
+  return {
+    take: terms.take.map(times),
+    give: terms.give.map(times),
+    ...(terms.takeCash ? { takeCash: terms.takeCash * amount } : {}),
+    ...(terms.giveCash ? { giveCash: terms.giveCash * amount } : {}),
+  };
+}
+
+function giveSides(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  give: readonly TradeSide[],
+  mintId: () => string,
+): Equipment | null {
+  let kit: Equipment | null = equipment;
   for (const side of give) {
     for (let i = 0; i < side.count; i++) {
       kit = giveUnit(tilesById, kit, { id: mintId(), tileId: side.tileId });
@@ -55,13 +101,46 @@ export function planTrade(
 }
 
 /**
+ * Pays with the largest coins that do not overshoot, then, if that falls
+ * short, breaks the smallest coin worth more than what is still owed and
+ * gives the difference back. Whatever is left unpaid after the first pass is
+ * less than every coin still carried, so one coin always settles it.
+ */
+function payCash(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  amount: number,
+  mintId: () => string,
+): Equipment | null {
+  let kit = equipment;
+  let owed = amount;
+  for (const { tileId, worth } of denominations(tilesById)) {
+    const units = Math.min(Math.floor(owed / worth), carriedCount(tilesById, kit, tileId));
+    if (units === 0) continue;
+    const paid = takeUnits(tilesById, kit, { tileId, count: units });
+    if (!paid) return null;
+    kit = paid;
+    owed -= units * worth;
+  }
+  if (owed === 0) return kit;
+  const carried = kit;
+  const broken = [...denominations(tilesById)]
+    .reverse()
+    .find(({ tileId, worth }) => worth > owed && carriedCount(tilesById, carried, tileId) > 0);
+  if (!broken) return null;
+  const paid = takeUnits(tilesById, kit, { tileId: broken.tileId, count: 1 });
+  if (!paid) return null;
+  return giveSides(tilesById, paid, splitCash(tilesById, broken.worth - owed), mintId);
+}
+
+/**
  * The price caps the scan, then each amount below it is planned in full, since
  * room for what is given is not monotone: paying can empty a square.
  */
 export function largestTradeAmount(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
-  trade: Pick<DialogTrade, "take" | "give" | "min" | "max">,
+  trade: TradeTerms & Pick<DialogTrade, "min" | "max">,
   mintId: () => string,
 ): number | null {
   let ceiling = trade.max;
@@ -69,14 +148,11 @@ export function largestTradeAmount(
     const affordable = Math.floor(carriedCount(tilesById, equipment, side.tileId) / side.count);
     ceiling = Math.min(ceiling, affordable);
   }
-  const times = (amount: number) => (side: TradeSide) => ({
-    tileId: side.tileId,
-    count: side.count * amount,
-  });
+  if (trade.takeCash) {
+    ceiling = Math.min(ceiling, Math.floor(carriedCash(tilesById, equipment) / trade.takeCash));
+  }
   for (let amount = ceiling; amount >= trade.min; amount--) {
-    const take = trade.take.map(times(amount));
-    const give = trade.give.map(times(amount));
-    if (planTrade(tilesById, equipment, take, give, mintId)) return amount;
+    if (planDeal(tilesById, equipment, scaleTerms(trade, amount), mintId)) return amount;
   }
   return null;
 }

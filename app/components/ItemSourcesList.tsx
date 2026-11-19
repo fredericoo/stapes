@@ -128,20 +128,36 @@ function ExchangeRow({ exchange, context }: { exchange: Exchange; context: ItemS
     <li className="flex flex-col gap-0.5 text-detail leading-tight">
       <span className="text-2xs text-ink/60">{where}</span>
       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <Sides sides={exchange.take} context={context} />
+        <Sides sides={exchange.take} cash={exchange.takeCash} context={context} />
         <span aria-label="for" className="text-ink/50">
           →
         </span>
-        <Sides sides={exchange.give} context={context} />
+        <Sides sides={exchange.give} cash={exchange.giveCash} context={context} />
       </span>
     </li>
   );
 }
 
-function Sides({ sides, context }: { sides: ExchangeSide[]; context: ItemSourcesContext }) {
-  return sides.map((side, index) => (
+function Sides({
+  sides,
+  cash,
+  context,
+}: {
+  sides: ExchangeSide[];
+  cash: number | undefined;
+  context: ItemSourcesContext;
+}) {
+  const priced = cash ? (
+    <span className="inline-flex items-center gap-1">
+      <span className="font-bold tabular-nums">{cash}</span>
+      cash
+    </span>
+  ) : null;
+  const items = sides.map((side, index) => (
     <Fragment key={`${side.tileId}:${index}`}>
-      {index > 0 ? <span className="text-ink/50">{side.chance === null ? "+" : "or"}</span> : null}
+      {index > 0 || priced ? (
+        <span className="text-ink/50">{side.chance === null ? "+" : "or"}</span>
+      ) : null}
       <span className="inline-flex items-center gap-1">
         {side.count > 1 ? <span className="font-bold tabular-nums">{side.count}</span> : null}
         <TileName tileId={side.tileId} context={context} />
@@ -151,6 +167,12 @@ function Sides({ sides, context }: { sides: ExchangeSide[]; context: ItemSources
       </span>
     </Fragment>
   ));
+  return (
+    <>
+      {priced}
+      {items}
+    </>
+  );
 }
 
 function TileName({ tileId, context }: { tileId: string; context: ItemSourcesContext }) {

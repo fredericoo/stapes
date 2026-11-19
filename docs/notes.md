@@ -1647,6 +1647,39 @@ empty: nothing nests, so it goes on the back if the bag slot is free, else
 into an empty hand, else the trade is refused for want of room. That is what
 lets the tanner sell the leather backpack.
 
+### Cash is a field on a trade, paid in any tile with a worth
+
+A `request_trade` has `takeCash` and `giveCash` beside its `take` and `give`
+lists: an amount of money per unit, not a tile. Money is any item whose
+`interactions.item.worth` is set: `gold` is worth 1 and `gold-bar` 100, both
+piling to 100, and a coin worth 1000 is one more tile with `worth: 1000` and
+nothing else. `arcane-shard` has no worth; it is an item the blacksmith buys
+for one gold.
+
+- **Cash is not a tile anywhere.** No trade side names it, and nothing looks
+  for it by id. `planTrade` moves tiles only, which is all a craft needs;
+  `planDeal` pays the cash first, runs `planTrade`, then hands over the cash
+  given. `scaleTerms` multiplies all four by the quantity and leaves out a
+  cash field that is zero.
+- **`worth` is read beside the item, not through it.** Every item type may
+  carry one, and `itemSchema` strips any key its variant does not name, so
+  `resolveWorth` reads the raw block once `resolveItem` has accepted it and
+  `itemForSave` puts it back.
+- **Paying takes the largest coins that do not overshoot, then breaks one.**
+  `payCash` takes, from the highest worth down, as many of each coin as fit in
+  what is still owed. What is left is smaller than every coin still carried,
+  so the smallest of those settles it, and the difference comes back as
+  change.
+- **Giving cash is the fewest coins** (`splitCash`), largest first. Without a
+  coin of worth 1 some amounts cannot be made, and the remainder is dropped.
+- **`carriedCash` is the worth of everything carried.** The preview compares
+  it with the price for "You need 14 in cash, and have 3", and draws a cash
+  amount as the coins `splitCash` would give for it, so 250 reads as two bars
+  and fifty gold.
+- **A cash amount may go to `MAX_DIALOG_CASH`**, while a side in one tile keeps
+  `MAX_DIALOG_AMOUNT`. `validateDialog` reports a trade with cash in a
+  catalogue where nothing has a worth.
+
 **A trade has one side that is a kit, and the other side is nowhere.**
 `GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
 against their equipment alone; the NPC is never asked, and its id is not even

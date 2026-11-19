@@ -3,7 +3,14 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { emptyEquipment, type Equipment } from "./equipment";
-import { carriedCount, hasRoomFor, largestTradeAmount, planTrade } from "./trade";
+import {
+  carriedCash,
+  carriedCount,
+  hasRoomFor,
+  largestTradeAmount,
+  planDeal,
+  planTrade,
+} from "./trade";
 import { tile as baseTile } from "../lib/testTile";
 
 function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
@@ -217,5 +224,58 @@ describe("the largest amount a player can trade", () => {
   it("answers nothing when even the floor is out of reach", () => {
     const kit = wearing([pile("shard", 2)]);
     expect(largestTradeAmount(tilesById, kit, swordForShards, mint)).toBeNull();
+  });
+});
+
+describe("paying and being paid in cash", () => {
+  const coin = tile({
+    id: "coin",
+    interactions: { item: { type: "artifact", pile: 100, worth: 1 } },
+  });
+  const bar = tile({
+    id: "bar",
+    interactions: { item: { type: "artifact", pile: 100, worth: 100 } },
+  });
+  const gem = tile({
+    id: "gem",
+    interactions: { item: { type: "artifact", pile: 10, worth: 1000 } },
+  });
+  const purse = tile({ id: "bag", interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } } });
+  const catalogue: Record<string, TileDef> = Object.fromEntries(
+    [coin, bar, gem, purse, sword, shard].map((def) => [def.id, def]),
+  );
+  const paying = (takeCash: number) => ({ take: [], give: [], takeCash });
+
+  it("counts cash as the worth of every coin carried, and nothing else", () => {
+    const kit = wearing([pile("coin", 20), pile("bar", 3), pile("shard", 50)]);
+    expect(carriedCash(catalogue, kit)).toBe(320);
+  });
+
+  it("pays with the largest coins that do not overshoot", () => {
+    const kit = wearing([pile("coin", 50), pile("bar", 3)]);
+    const paid = planDeal(catalogue, kit, paying(230), mint)!;
+    expect(tally(paid).bag).toEqual(["coinx20", "bar"]);
+  });
+
+  it("breaks a larger coin and gives the change back in the fewest coins", () => {
+    const kit = wearing([pile("gem")]);
+    const paid = planDeal(catalogue, kit, paying(14), mint)!;
+    expect(tally(paid).bag).toEqual(["barx9", "coinx86"]);
+  });
+
+  it("refuses a price above everything carried is worth", () => {
+    const kit = wearing([pile("coin", 99), pile("bar", 2)]);
+    expect(planDeal(catalogue, kit, paying(300), mint)).toBeNull();
+  });
+
+  it("gives cash in the fewest coins", () => {
+    const paid = planDeal(catalogue, wearing([]), { take: [], give: [], giveCash: 2_150 }, mint)!;
+    expect(tally(paid).bag).toEqual(["gemx2", "bar", "coinx50"]);
+  });
+
+  it("finds the largest amount a cash price allows", () => {
+    const kit = wearing([pile("bar"), pile("coin", 20)]);
+    const trade = { ...paying(30), min: 1, max: 10 };
+    expect(largestTradeAmount(catalogue, kit, trade, mint)).toBe(4);
   });
 });
