@@ -120693,9 +120693,9 @@
     },
     "type": "simple",
     "anchor": {
-      "tilesetId": "runes",
+      "tilesetId": "essences",
       "x": 0,
-      "y": 5
+      "y": 0
     },
     "sprite": {
       "frames": [
@@ -120712,7 +120712,82 @@
               "y": 0
             }
           },
-          "durationMs": 200
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
         }
       ]
     }
@@ -120734,9 +120809,9 @@
     },
     "type": "simple",
     "anchor": {
-      "tilesetId": "runes",
-      "x": 1,
-      "y": 5
+      "tilesetId": "essences",
+      "x": 0,
+      "y": 1
     },
     "sprite": {
       "frames": [
@@ -120753,7 +120828,82 @@
               "y": 0
             }
           },
-          "durationMs": 200
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
         }
       ]
     }
@@ -120775,9 +120925,9 @@
     },
     "type": "simple",
     "anchor": {
-      "tilesetId": "runes",
-      "x": 2,
-      "y": 5
+      "tilesetId": "essences",
+      "x": 0,
+      "y": 2
     },
     "sprite": {
       "frames": [
@@ -120794,7 +120944,82 @@
               "y": 0
             }
           },
-          "durationMs": 200
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 160
         }
       ]
     }

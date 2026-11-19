@@ -306,57 +306,39 @@ const BLANKS: { id: string; name: string; material: Material }[] = [
   { id: "rune-blank-obsidian", name: "Obsidian Blank", material: "obsidian" },
 ];
 
-/** Rows of palette indices; `.` is empty. Essences are lumps of a creature, so they are drawn, not built from a base. */
-const ESSENCES: {
-  id: string;
-  name: string;
-  pixels: readonly string[];
-  key: Record<string, number>;
-}[] = [
+const ESSENCE_FRAMES = 6;
+const ESSENCE_FRAME_MS = 160;
+/** The star's bright centre. It sits up and left of the cell's middle, so its arms fit inside the cell. */
+const STAR = 3;
+/** Alpha is snapped to these, as the wisps' glow is, so the fade steps rather than blurs. */
+const ALPHA_STEPS = [1, 0.7, 0.45, 0.25];
+/** Each spark's place and how far its twinkle runs behind the star's, as a share of a cycle. */
+const SPARKS: readonly { x: number; y: number; lag: number }[] = [
+  { x: 6, y: 1, lag: 0.35 },
+  { x: 1, y: 6, lag: 0.7 },
+];
+
+/**
+ * Essence is a rare drop from a creature of its element, so it is drawn as a
+ * glint of that creature's light rather than as something carved. The ramps
+ * are the wisps' colours a step deeper, brightest first, so fire reads red
+ * rather than orange and water and nature do not share a mint core.
+ */
+const ESSENCES: { id: string; name: string; ramp: readonly string[] }[] = [
   {
     id: "essence-fire",
     name: "Fire Essence",
-    pixels: [
-      "...a....",
-      "..ab....",
-      "..abb...",
-      ".abccb..",
-      ".bcwcb..",
-      ".bccbd..",
-      "..bbdd..",
-      "........",
-    ],
-    key: { a: 17, b: 12, c: 19, w: 28, d: 9 },
+    ramp: ["#ffffff", "#fb6b1d", "#e83b3b", "#ae2334", "#6e2727"],
   },
   {
     id: "essence-water",
     name: "Water Essence",
-    pixels: [
-      "........",
-      "...a....",
-      "..aba...",
-      ".abwba..",
-      ".abbbd..",
-      ".acbdd..",
-      "..ddd...",
-      "........",
-    ],
-    key: { a: 30, b: 24, w: 28, c: 29, d: 31 },
+    ramp: ["#ffffff", "#53d5cf", "#4d9be6", "#225ac0", "#362281"],
   },
   {
     id: "essence-nature",
     name: "Nature Essence",
-    pixels: [
-      "....ll..",
-      "...lk...",
-      "..aab...",
-      ".abwbb..",
-      ".abbbd..",
-      ".abbdd..",
-      "..ddd...",
-      "........",
-    ],
-    key: { a: 20, b: 16, w: 29, d: 15, l: 21, k: 6 },
+    ramp: ["#ffffff", "#91db69", "#1ebc73", "#239063", "#165a4c"],
   },
 ];
 
@@ -375,7 +357,7 @@ const FIELD_STONE = {
   key: { a: 27, b: 25, c: 22 },
 };
 
-const ROWS = RUNES.length + 2;
+const ROWS = RUNES.length + 1;
 const sheet = new PNG({ width: COLUMNS * CELL, height: ROWS * CELL });
 
 let bones = 0;
@@ -477,10 +459,87 @@ BLANKS.forEach((blank, cx) => {
 drawPixels(BLANKS.length, blankRow, FIELD_STONE.pixels, FIELD_STONE.key);
 tiles.push({ id: "arcane-stone", ...cellSprite(BLANKS.length, blankRow) } as TileDef);
 
-const essenceRow = RUNES.length + 1;
-ESSENCES.forEach((essence, cx) => {
-  drawPixels(cx, essenceRow, essence.pixels, essence.key);
-  tiles.push(newItem(essence.id, essence.name, cx, essenceRow));
+const essences = new PNG({ width: ESSENCE_FRAMES * CELL, height: ESSENCES.length * CELL });
+
+function glow(
+  ramp: readonly string[],
+  left: number,
+  top: number,
+  x: number,
+  y: number,
+  shade: number,
+  alpha: number,
+) {
+  if (x < 0 || y < 0 || x >= CELL || y >= CELL) return;
+  const i = (essences.width * (top + y) + left + x) << 2;
+  if (essences.data[i + 3]! >= alpha * 255) return;
+  const n = Number.parseInt(ramp[shade]!.slice(1), 16);
+  essences.data[i] = (n >> 16) & 0xff;
+  essences.data[i + 1] = (n >> 8) & 0xff;
+  essences.data[i + 2] = n & 0xff;
+  essences.data[i + 3] = Math.round(alpha * 255);
+}
+
+/**
+ * One frame of an essence: a four-pointed star whose arms grow and shrink
+ * with the cycle, and two single-pixel sparks that flare out of step with it.
+ * Frame 0 is the star at its fullest, since that is the frame a still slot shows.
+ */
+function drawEssence(ramp: readonly string[], frame: number, row: number) {
+  const left = frame * CELL;
+  const top = row * CELL;
+  const phase = (frame / ESSENCE_FRAMES) * Math.PI * 2;
+  const reach = Math.round(2 + Math.cos(phase));
+  glow(ramp, left, top, STAR, STAR, 0, 1);
+  for (let k = 1; k <= reach; k++) {
+    const alpha = ALPHA_STEPS[k - 1]!;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      glow(ramp, left, top, STAR + dx * k, STAR + dy * k, k, alpha);
+    }
+  }
+  const diagonal = reach >= 2 ? ALPHA_STEPS[2]! : ALPHA_STEPS[3]!;
+  for (const [dx, dy] of [
+    [1, 1],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+  ] as const) {
+    glow(ramp, left, top, STAR + dx, STAR + dy, 3, diagonal);
+  }
+  for (const spark of SPARKS) {
+    const flare = Math.cos(phase - spark.lag * Math.PI * 2);
+    if (flare < 0) continue;
+    glow(ramp, left, top, spark.x, spark.y, 1, flare > 0.7 ? 1 : ALPHA_STEPS[1]!);
+    if (flare <= 0.7) continue;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      glow(ramp, left, top, spark.x + dx, spark.y + dy, 3, ALPHA_STEPS[3]!);
+    }
+  }
+}
+
+const essenceTiles: TileDef[] = ESSENCES.map((essence, row) => {
+  for (let frame = 0; frame < ESSENCE_FRAMES; frame++) drawEssence(essence.ramp, frame, row);
+  return {
+    ...newItem(essence.id, essence.name, 0, row),
+    anchor: { tilesetId: "essences", x: 0, y: row },
+    sprite: {
+      frames: Array.from({ length: ESSENCE_FRAMES }, (_, frame) => ({
+        sprite: { rect: { x: frame, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+        durationMs: ESSENCE_FRAME_MS,
+      })),
+    },
+  } as TileDef;
 });
 
 await writeTileset("runes", "Runes", sheet, tiles);
+await writeTileset("essences", "Essences", essences, essenceTiles, { translucent: true });
