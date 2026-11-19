@@ -351,6 +351,13 @@ an agent drives", lists every call.
   element; an essence is a twinkling, floating star in its element's colours,
   faded with stepped opacity like the wisps, and lit in that colour. The
   glyphs, materials and colours are tables at the top of the script
+- `bun run generate:rune-temple` — draw `data/tilesets/rune-temple.png` and
+  write the rune temple's props: `bone-forge`, `crystal-forge` and
+  `obsidian-forge`, which are `stone-forge` recoloured for each material (the
+  bone forge with its basin filled flat and a shimmer sweeping across it); two
+  mineable `obsidian-vein` faces; and the `obsidian-shard` item they drop. The veins
+  and the item are cast by `scripts/model-caster.ts`; `PREVIEW=<dir>` also
+  writes each cast four times larger
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this

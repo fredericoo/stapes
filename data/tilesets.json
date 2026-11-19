@@ -297,5 +297,12 @@
     "file": "lava.png",
     "width": 512,
     "height": 376
+  },
+  {
+    "id": "rune-temple",
+    "name": "Rune Temple",
+    "file": "rune-temple.png",
+    "width": 144,
+    "height": 64
   }
 ]

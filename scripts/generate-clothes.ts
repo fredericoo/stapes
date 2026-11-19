@@ -123,6 +123,19 @@ const CLOTHES: Partial<Record<PartOn<"clothes">, ClothesModel>> = {
 };
 
 /**
+ * Parts drawn as another part with its colours swapped. The druid robe is the
+ * hand-drawn brown robe in moss green, with its darkest shadow kept.
+ */
+const RECOLOURED: Partial<
+  Record<PartOn<"clothes">, { from: PartOn<"clothes">; swaps: Record<string, string> }>
+> = {
+  "druid-robe": {
+    from: "brown-robe",
+    swaps: { "#45293f": "#165a4c", "#6e2727": "#239063", "#9e4539": "#1ebc73" },
+  },
+};
+
+/**
  * The body in the art runs steeper down the screen than a vertical line,
  * which this projection draws at 45°, so the trunk is modelled leaning by the
  * least horizontal amount that projects onto the template's main axis.
@@ -256,8 +269,34 @@ function drawIcon(model: ClothesModel, icon: NonNullable<ClothesModel["icon"]>):
 
 const FILE = "human_clothes.png";
 const templateSheet = read(FILE);
-const { width, colours: sheet } = readColours(FILE);
+const existing = readColours(FILE);
+const lastBlock = Math.max(
+  ...[...Object.keys(CLOTHES), ...Object.keys(RECOLOURED)].map(
+    (id) => humanPart(id as PartOn<"clothes">).block,
+  ),
+);
+const width = Math.max(existing.width, (lastBlock + 1) * BLOCK_W);
+const sheet: (string | null)[] = Array.from({ length: width * BLOCK_H }, (_, i) =>
+  i % width < existing.width
+    ? existing.colours[Math.floor(i / width) * existing.width + (i % width)]!
+    : null,
+);
 const drawn: PartOn<"clothes">[] = [];
+for (const [id, recolour] of Object.entries(RECOLOURED) as [
+  PartOn<"clothes">,
+  NonNullable<(typeof RECOLOURED)[PartOn<"clothes">]>,
+][]) {
+  const block = humanPart(id).block;
+  const source = humanPart(recolour.from).block;
+  for (let y = 0; y < BLOCK_H; y++) {
+    for (let x = 0; x < BLOCK_W; x++) {
+      const c = sheet[y * width + source * BLOCK_W + x] ?? null;
+      sheet[y * width + block * BLOCK_W + x] = c ? (recolour.swaps[c] ?? c) : null;
+    }
+  }
+  drawn.push(id);
+  console.log(`recoloured ${id}`);
+}
 for (const [id, model] of Object.entries(CLOTHES) as [PartOn<"clothes">, ClothesModel][]) {
   const block = humanPart(id).block;
   const source = humanPart(model.template).block;

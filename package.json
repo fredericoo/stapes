@@ -36,6 +36,7 @@
     "generate:stalagmites": "bun scripts/generate-stalagmites.ts",
     "generate:mushrooms": "bun scripts/generate-mushrooms.ts",
     "generate:runes": "bun scripts/generate-runes.ts",
+    "generate:rune-temple": "bun scripts/generate-rune-temple.ts",
     "generate:bear": "bun scripts/generate-bear.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
