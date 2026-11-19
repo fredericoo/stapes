@@ -123886,5 +123886,474 @@
         }
       ]
     }
+  },
+  {
+    "id": "bone-forge",
+    "name": "Bone Forge",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 1800,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 16,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 60,
+          "light": {
+            "radius": 5,
+            "intensity": 0.6,
+            "color": "#c7dcd0"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "crystal-forge",
+    "name": "Crystal Forge",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#43d1f4"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#43d1f4"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "obsidian-forge",
+    "name": "Obsidian Forge",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 4,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 4,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "obsidian-vein-1",
+    "name": "Obsidian Vein",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 5,
+        "tileId": "",
+        "durationMs": 20000,
+        "slots": [
+          {
+            "tileId": "obsidian-shard",
+            "chance": 100
+          },
+          {
+            "tileId": "obsidian-shard",
+            "chance": 35
+          }
+        ],
+        "mastery": "mining",
+        "xp": 24
+      },
+      "respawn": {
+        "fromMs": 600000,
+        "toMs": 1200000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 6,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "obsidian-vein-2",
+    "name": "Obsidian Vein",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 5,
+        "tileId": "",
+        "durationMs": 20000,
+        "slots": [
+          {
+            "tileId": "obsidian-shard",
+            "chance": 100
+          },
+          {
+            "tileId": "obsidian-shard",
+            "chance": 35
+          }
+        ],
+        "mastery": "mining",
+        "xp": 24
+      },
+      "respawn": {
+        "fromMs": 600000,
+        "toMs": 1200000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 6,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "obsidian-shard",
+    "name": "Obsidian Shard",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "rune-temple",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 6,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

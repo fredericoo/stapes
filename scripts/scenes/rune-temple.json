@@ -1,0 +1,19 @@
+{
+  "time": "22:00",
+  "zoom": 6,
+  "look": [5, 4],
+  "cells": [
+    { "from": [-3, -3], "to": [13, 11], "tiles": ["slate-floor"] },
+    { "at": [1, 1], "tiles": ["slate-floor", "marble-pillar-bottom", "marble-pillar-middle"] },
+    { "at": [9, 1], "tiles": ["slate-floor", "marble-pillar-bottom", "marble-pillar-middle"] },
+    { "at": [1, 7], "tiles": ["slate-floor", "marble-pillar-bottom", "marble-pillar-middle"] },
+    { "at": [9, 7], "tiles": ["slate-floor", "marble-pillar-bottom", "marble-pillar-middle"] },
+    { "at": [3, 3], "tiles": ["slate-floor", "bone-forge"] },
+    { "at": [5, 3], "tiles": ["slate-floor", "crystal-forge"] },
+    { "at": [7, 3], "tiles": ["slate-floor", "obsidian-forge"] },
+    { "at": [5, 5], "tiles": ["slate-floor", { "tile": "runemaster", "facing": "s" }] },
+    { "at": [3, 6], "tiles": ["slate-floor", "obsidian-vein-1"] },
+    { "at": [7, 6], "tiles": ["slate-floor", "obsidian-vein-2"] },
+    { "at": [5, 7], "tiles": ["slate-floor", "obsidian-shard"] }
+  ]
+}

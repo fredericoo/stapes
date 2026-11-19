@@ -290,5 +290,12 @@
     "width": 64,
     "height": 24,
     "translucent": true
+  },
+  {
+    "id": "rune-temple",
+    "name": "Rune Temple",
+    "file": "rune-temple.png",
+    "width": 144,
+    "height": 64
   }
 ]
