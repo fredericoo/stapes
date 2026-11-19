@@ -120712,7 +120712,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         },
         {
           "sprite": {
@@ -120727,7 +120732,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         },
         {
           "sprite": {
@@ -120742,7 +120752,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         },
         {
           "sprite": {
@@ -120757,7 +120772,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         },
         {
           "sprite": {
@@ -120772,7 +120792,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         },
         {
           "sprite": {
@@ -120787,7 +120812,52 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
         }
       ]
     }
@@ -120828,7 +120898,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         },
         {
           "sprite": {
@@ -120843,7 +120918,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         },
         {
           "sprite": {
@@ -120858,7 +120938,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         },
         {
           "sprite": {
@@ -120873,7 +120958,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         },
         {
           "sprite": {
@@ -120888,7 +120978,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         },
         {
           "sprite": {
@@ -120903,7 +120998,52 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
         }
       ]
     }
@@ -120944,7 +121084,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         },
         {
           "sprite": {
@@ -120959,7 +121104,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         },
         {
           "sprite": {
@@ -120974,7 +121124,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         },
         {
           "sprite": {
@@ -120989,7 +121144,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         },
         {
           "sprite": {
@@ -121004,7 +121164,12 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         },
         {
           "sprite": {
@@ -121019,7 +121184,52 @@
               "y": 0
             }
           },
-          "durationMs": 160
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
         }
       ]
     }

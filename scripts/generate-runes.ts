@@ -306,10 +306,19 @@ const BLANKS: { id: string; name: string; material: Material }[] = [
   { id: "rune-blank-obsidian", name: "Obsidian Blank", material: "obsidian" },
 ];
 
-const ESSENCE_FRAMES = 6;
-const ESSENCE_FRAME_MS = 160;
-/** The star's bright centre. It sits up and left of the cell's middle, so its arms fit inside the cell. */
-const STAR = 3;
+const ESSENCE_FRAMES = 8;
+const ESSENCE_FRAME_MS = 140;
+/**
+ * The star's bright centre at rest. It floats a pixel above and below this,
+ * and its longest arms come only at rest, so no arm leaves the cell.
+ */
+const STAR_X = 3;
+const STAR_Y = 4;
+/**
+ * Every frame carries the same light. A light that changed with the frame
+ * would make each chunk it reaches hold one lighting bake per frame.
+ */
+const ESSENCE_LIGHT = { radius: 2, intensity: 0.8 };
 /** Alpha is snapped to these, as the wisps' glow is, so the fade steps rather than blurs. */
 const ALPHA_STEPS = [1, 0.7, 0.45, 0.25];
 /** Each spark's place and how far its twinkle runs behind the star's, as a share of a cycle. */
@@ -481,16 +490,19 @@ function glow(
 }
 
 /**
- * One frame of an essence: a four-pointed star whose arms grow and shrink
- * with the cycle, and two single-pixel sparks that flare out of step with it.
+ * One frame of an essence: a four-pointed star that floats up and down as
+ * its arms grow and shrink, and two single-pixel sparks that flare out of
+ * step with it.
  * Frame 0 is the star at its fullest, since that is the frame a still slot shows.
  */
 function drawEssence(ramp: readonly string[], frame: number, row: number) {
   const left = frame * CELL;
   const top = row * CELL;
   const phase = (frame / ESSENCE_FRAMES) * Math.PI * 2;
-  const reach = Math.round(2 + Math.cos(phase));
-  glow(ramp, left, top, STAR, STAR, 0, 1);
+  const reach = Math.cos(phase) > 0.8 ? 3 : Math.cos(phase) > -0.8 ? 2 : 1;
+  const cx = STAR_X;
+  const cy = STAR_Y - Math.round(Math.sin(phase));
+  glow(ramp, left, top, cx, cy, 0, 1);
   for (let k = 1; k <= reach; k++) {
     const alpha = ALPHA_STEPS[k - 1]!;
     for (const [dx, dy] of [
@@ -499,7 +511,7 @@ function drawEssence(ramp: readonly string[], frame: number, row: number) {
       [0, 1],
       [0, -1],
     ] as const) {
-      glow(ramp, left, top, STAR + dx * k, STAR + dy * k, k, alpha);
+      glow(ramp, left, top, cx + dx * k, cy + dy * k, k, alpha);
     }
   }
   const diagonal = reach >= 2 ? ALPHA_STEPS[2]! : ALPHA_STEPS[3]!;
@@ -509,7 +521,7 @@ function drawEssence(ramp: readonly string[], frame: number, row: number) {
     [1, -1],
     [-1, 1],
   ] as const) {
-    glow(ramp, left, top, STAR + dx, STAR + dy, 3, diagonal);
+    glow(ramp, left, top, cx + dx, cy + dy, 3, diagonal);
   }
   for (const spark of SPARKS) {
     const flare = Math.cos(phase - spark.lag * Math.PI * 2);
@@ -536,6 +548,7 @@ const essenceTiles: TileDef[] = ESSENCES.map((essence, row) => {
       frames: Array.from({ length: ESSENCE_FRAMES }, (_, frame) => ({
         sprite: { rect: { x: frame, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
         durationMs: ESSENCE_FRAME_MS,
+        light: { ...ESSENCE_LIGHT, color: essence.ramp[2]! },
       })),
     },
   } as TileDef;
