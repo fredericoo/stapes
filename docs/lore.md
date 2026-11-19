@@ -8,7 +8,8 @@ renamed.
 ## In one paragraph
 
 A ship caught in a storm goes down off an island, and you wake on the beach
-beside the wreck. Everybody on the island arrived the same way. The people here
+beside the wreck. Every player arrives this way. Everyone else on the island
+has lived here since before Wyrd. The people here
 learned to carve runes, which let them use the three elements: fire, water and
 nature. The best carver who ever lived went further. At the top of his
 lighthouse, the tallest thing on the island, he keeps **Wyrd**, the rune he cut
@@ -157,16 +158,24 @@ creatures of any element from the start.
 - **Nature**: the forest edge, then the deep woods, the caves where bears
   live, and the bog.
 
-## Everyone is a castaway
+## Islanders and castaways
 
-Every person on the island was shipwrecked there, in different years, from
-different ships, all of them sunk by the Wyrd's storms. Nobody leaves.
+- **Every character in the game is an islander.** They lived here before
+  Halvard carved Wyrd. They knew him, and Maren when she was alive, and they
+  remember an island where people aged, had children and died. They have been
+  the same age ever since.
+- **Only players are castaways.** Each one is a real person who joins the
+  game, and arrives the way every player does: wrecked by Wyrd's storms and
+  waking on the beach. To the islanders, castaways are the only new faces
+  there have been since Wyrd.
+
+Nobody leaves, islander or castaway.
 
 This is the main way a player learns the lore. **Islanders speak openly about
 it**, without being asked twice:
 
-- which ship they came on, and how long ago;
-- what they did before, in a life that kept moving;
+- what the island was like before Wyrd, and what they did then;
+- how long it has been, as near as anyone can count;
 - how many times they have died, and what killed them;
 - how much it hurt. Being killed by a troll is remembered as the worst.
 
@@ -236,9 +245,6 @@ Everything for fighting is here: weapons, armour, and gear that **resists
 magic**. In the game, resisting magic is a property of what you wear, so this
 town is where a player goes to stand up to the druids' spells.
 
-*(Each town could be the crew of a different wreck, which would give each a
-founding and a date. This is open.)*
-
 ## Money and work
 
 - **Gold is the only money.** There are no shards.
@@ -280,4 +286,4 @@ These were canon before this rewrite and are not any more:
 - **The two towns' names**, if they get names beyond the druids and the
   warriors.
 - **What traps are made from.**
-- **Which ships founded which town.**
+- **What became of the island's children** when Wyrd stopped everyone aging.
