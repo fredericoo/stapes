@@ -38,6 +38,9 @@ const GREY = 25;
 const DUSK = 22;
 const PLUM = 8;
 const INK = 4;
+const TEAL = 6;
+const MOSS = 15;
+const LEAF = 16;
 
 const SIDE_RAMP = [WHITE, PALE, GREY, DUSK];
 
@@ -434,11 +437,19 @@ function outline(grid: Pixel[][]): Pixel[][] {
   );
 }
 
-type FloorPattern = { tileId: string; name: string; joints: string[]; face: number; joint: number };
+type FloorPattern = {
+  tileId: string;
+  name: string;
+  joints: string[];
+  face: number;
+  joint: number;
+  growth?: Record<string, number>;
+  connectsTo?: string[];
+};
 
 /**
  * One cell of each floor, eight by eight, and it repeats across cell edges. `#`
- * is a joint between stones. The joints are broken and one palette step from
+ * is a joint between stones, and a letter in `growth` is a plant in it. The joints are broken and one palette step from
  * the stone so the floor stays quiet under whatever stands on it.
  */
 const FLOORS: FloorPattern[] = [
@@ -447,6 +458,7 @@ const FLOORS: FloorPattern[] = [
     name: "Flagstone floor",
     face: GREY,
     joint: DUSK,
+    connectsTo: ["moss-flagstone"],
     joints: [
       ".......#",
       ".......#",
@@ -474,6 +486,24 @@ const FLOORS: FloorPattern[] = [
       ".###..##",
     ],
   },
+  {
+    tileId: "moss-flagstone",
+    name: "Mossy flagstone floor",
+    face: GREY,
+    joint: DUSK,
+    growth: { t: TEAL, m: MOSS, g: LEAF },
+    connectsTo: ["flagstone-floor"],
+    joints: [
+      ".......t",
+      "......mt",
+      "........",
+      "..g.g...",
+      "...g....",
+      ".......m",
+      "........",
+      "tmt..#mt",
+    ],
+  },
 ];
 
 function alphaAt(png: PNG, x: number, y: number): number {
@@ -497,12 +527,9 @@ function drawFloor(
     for (let px = 0; px < span; px++) {
       const solid = alphaAt(wood, FLOOR_SOURCE.x * CELL + px, FLOOR_SOURCE.y * CELL + py) > 0;
       if (solid === inner) continue;
-      paint(
-        sheet,
-        origin.x * CELL + px,
-        origin.y * CELL + py,
-        pattern.joints[py % CELL]![px % CELL] === "#" ? pattern.joint : pattern.face,
-      );
+      const mark = pattern.joints[py % CELL]![px % CELL]!;
+      const index = mark === "#" ? pattern.joint : (pattern.growth?.[mark] ?? pattern.face);
+      paint(sheet, origin.x * CELL + px, origin.y * CELL + py, index);
     }
   }
 }
@@ -538,7 +565,7 @@ function floorTiles(pattern: FloorPattern, wood: TileDef, column: number): TileD
     kind: "prop",
     attributes: {},
     anchor: { tilesetId: TILESET_ID, x: column, y: FLOOR_ROW },
-    connectsTo: ["hole"],
+    connectsTo: ["hole", ...(pattern.connectsTo ?? [])],
     slices: wood.slices,
   };
   const inner: TileDef = {
