@@ -19,7 +19,7 @@ export type Judge = {
   readonly taste: Taste;
   /** Things never thrown away: money, anything an NPC buys, anything saved for, stones. */
   readonly keeps: (tileId: string) => boolean;
-  /** Things never worn as a light, though they glow: the money. */
+  /** Things never worn as a light, though they glow: the money, and what an NPC buys. */
   readonly spends: (tileId: string) => boolean;
   /** Moves that failed lately, by tile id, which are not tried again yet. */
   readonly refused: (tileId: string) => boolean;
