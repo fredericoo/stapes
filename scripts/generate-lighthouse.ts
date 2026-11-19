@@ -247,6 +247,121 @@ function parapetSampler(edges: number) {
   };
 }
 
+const SLIT_HALF = 0.6;
+const SLIT_FOOT = 2;
+const SLIT_HEAD = 6.5;
+
+/**
+ * A wall block with a narrow window in each face the camera sees. The slit is
+ * painted, not cut: carved through, the two slots would meet in the middle of
+ * the block and show as a cross on its top.
+ */
+function shadeSlit(hit: BlockHit, ramp: Ramp): number {
+  const [x, y, z] = hit.p;
+  const across = hit.face === "south" ? x : hit.face === "east" ? y : -1;
+  if (across >= 0 && Math.abs(across - CENTRE) <= SLIT_HALF && z >= SLIT_FOOT && z <= SLIT_HEAD) {
+    return 0;
+  }
+  if (
+    across >= 0 &&
+    Math.abs(across - CENTRE) <= SLIT_HALF + 0.8 &&
+    z >= SLIT_FOOT - 1 &&
+    z < SLIT_FOOT
+  ) {
+    return ramp.top;
+  }
+  return shadeBlock(hit, ramp);
+}
+
+const DOOR_HALF = 2.5;
+const DOOR_SPRING = 4;
+
+/**
+ * A wall block with a round-headed passage through it, high enough for a
+ * body. Facing `n` or `s` the passage runs north to south, so the arch is in
+ * the south face; facing `e` or `w` it runs east to west.
+ */
+function doorwaySampler(facing: Direction) {
+  const block = blockSampler(null);
+  const northSouth = facing === "n" || facing === "s";
+  return (p: Vec3): BlockHit | null => {
+    const across = northSouth ? p[0] : p[1];
+    const off = Math.abs(across - CENTRE);
+    if (off < DOOR_HALF) {
+      const head = DOOR_SPRING + Math.sqrt(DOOR_HALF ** 2 - off ** 2);
+      if (p[2] < head) return null;
+    }
+    const hit = block(p);
+    if (!hit || hit.face === "top") return hit;
+    if (off < DOOR_HALF + 0.5) {
+      return northSouth
+        ? { face: "east", p, normal: [1, 0, 0] }
+        : { face: "south", p, normal: [0, 1, 0] };
+    }
+    return hit;
+  };
+}
+
+const LEDGE_TOP = 2;
+const LEDGE_HALF = 1.4;
+
+/** A kerb of dressed stone, one height unit high, along the cell's centre lines to each neighbour that is ledge too. */
+function ledgeSampler(edges: number) {
+  return (p: Vec3): ThinHit | null => {
+    const [x, y, z] = p;
+    if (z < 0 || z > LEDGE_TOP || x < 0 || y < 0 || x > LEVEL_PX || y > LEVEL_PX) return null;
+    if (Math.abs(x - CENTRE) <= LEDGE_HALF && Math.abs(y - CENTRE) <= LEDGE_HALF) {
+      return thinHit(p, LEDGE_TOP, "pier", 0.7);
+    }
+    const arm = onArm(x, y, edges, LEDGE_HALF);
+    if (!arm) return null;
+    return thinHit(p, LEDGE_TOP, arm.axis, 0.7);
+  };
+}
+
+type PedestalHit = { part: "cap" | "shaft" | "foot"; face: Face; z: number };
+
+const PEDESTAL_TOP = 6;
+const FOOT_TOP = 1.2;
+const CAP_FOOT = 4.6;
+
+/**
+ * A column on a wide square foot with a slab on top, after `marble-pillar-top`:
+ * a light top, a white lip along its south edge, and a body darker than the
+ * flagstone it stands on, which is painted in the same greys as the top. The top stays the same in both states because items are set on it;
+ * a pressed pedestal shows it in a rim round its column instead.
+ */
+function samplePedestal(p: Vec3): PedestalHit | null {
+  const dx = p[0] - CENTRE;
+  const dy = p[1] - CENTRE;
+  const z = p[2];
+  if (z < 0 || z > PEDESTAL_TOP) return null;
+  const part = z < FOOT_TOP ? "foot" : z > CAP_FOOT ? "cap" : "shaft";
+  const half = part === "foot" ? 3 : part === "cap" ? 2.3 : 1.3;
+  if (Math.abs(dx) > half || Math.abs(dy) > half) return null;
+  const top = part === "foot" ? FOOT_TOP : part === "cap" ? PEDESTAL_TOP : CAP_FOOT;
+  if (z > top - 0.6) return { part, face: "top", z };
+  return { part, face: half - dy < half - dx ? "south" : "east", z };
+}
+
+/** A one-pixel band round the middle of the column: a dark groove, or the rune forge's teal once pressed. */
+const RIM_FROM = 2.6;
+const RIM_TO = 3.4;
+
+function shadePedestal(hit: PedestalHit, pressed: boolean): number {
+  if (hit.part === "foot") {
+    if (hit.face === "top") return 22;
+    return hit.face === "south" ? 8 : 4;
+  }
+  if (hit.face === "top") return 27;
+  if (hit.part === "cap") return hit.face === "south" ? 28 : 22;
+  if (hit.z >= RIM_FROM && hit.z < RIM_TO) {
+    if (pressed) return hit.face === "south" ? 30 : 24;
+    return hit.face === "south" ? 4 : 2;
+  }
+  return hit.face === "south" ? 22 : 4;
+}
+
 /** The arcade and parapet are dressed stone, so they take the rubble's colours but are cut in longer courses. */
 function shadeThin(hit: ThinHit, ramp: Ramp): number {
   return shadeStone(hit.face, hit.p, hit.normal, ramp);
@@ -450,13 +565,20 @@ function frameAt(x: number, y: number, cells = SMALL_CELLS): Frame {
   };
 }
 
-/** Sheet layout, in cells: one row of blocks, two of arcade, two of parapet, then Wyrd and the roof. */
+/**
+ * Sheet layout, in cells: one row of blocks, two of arcade, two of parapet,
+ * Wyrd and the roof, then a row of slit walls and doorways, two of ledge and
+ * the pedestals.
+ */
 const BLOCK_ROW = 0;
 const ARCADE_ROW = 2;
 const PARAPET_ROW = 6;
 const WYRD_ROW = 10;
 const CAP_COLUMN = 10;
-const SHEET_CELLS = { w: 20, h: WYRD_ROW + CAP_CELLS };
+const OPENING_ROW = WYRD_ROW + CAP_CELLS;
+const LEDGE_ROW = OPENING_ROW + 2;
+const PEDESTAL_ROW = LEDGE_ROW + 4;
+const SHEET_CELLS = { w: 20, h: PEDESTAL_ROW + SMALL_CELLS };
 const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
 
 /** The sprite for a set of connected edges, sixteen to a block of two rows. */
@@ -589,6 +711,127 @@ async function main() {
     walkable: false,
     slices: slicesFor(PARAPET_ROW),
   } as TileDef);
+
+  for (const [f, finish] of finishes.entries()) {
+    const slit = {
+      sample: atScale(blockSampler(null)),
+      shade: (hit: BlockHit) => shadeSlit(hit, finish.ramp),
+    };
+    const slitColumn = f * SMALL_CELLS;
+    blit(sheet, { pixels: castModel(slit, SMALL), size: SMALL_PX }, slitColumn, OPENING_ROW);
+    tiles.push({
+      id: `${finish.id}-slit`,
+      name: `${finish.name} (arrow slit)`,
+      height: 4,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      anchor,
+      lightPassing: true,
+      sprite: { frames: [frameAt(slitColumn, OPENING_ROW)] },
+    } as TileDef);
+
+    const sprites: Partial<Record<Direction, { frames: Frame[] }>> = {};
+    for (const [d, facing] of DIRECTIONS.entries()) {
+      const column = 4 + (f * 4 + d) * SMALL_CELLS;
+      const model = {
+        sample: atScale(doorwaySampler(facing)),
+        shade: (hit: BlockHit) => shadeBlock(hit, finish.ramp),
+      };
+      blit(sheet, { pixels: castModel(model, SMALL), size: SMALL_PX }, column, OPENING_ROW);
+      sprites[facing] = { frames: [frameAt(column, OPENING_ROW)] };
+    }
+    /** Walked through the way `door-open` is: intangible, so the passage does not block, and the arch lets light by. */
+    tiles.push({
+      id: `${finish.id}-doorway`,
+      name: `${finish.name} doorway`,
+      height: 4,
+      type: "directional",
+      kind: "prop",
+      attributes: {},
+      anchor,
+      lightPassing: true,
+      intangible: true,
+      walkable: false,
+      sprites,
+    } as TileDef);
+  }
+
+  for (const edges of EDGE_SETS) {
+    const ledge = {
+      sample: atScale(ledgeSampler(edges)),
+      shade: (hit: ThinHit) => shadeThin(hit, LIMEWASH),
+    };
+    const cell = edgeCell(LEDGE_ROW, edges);
+    blit(sheet, { pixels: castModel(ledge, SMALL), size: SMALL_PX }, cell.x, cell.y);
+  }
+  tiles.push({
+    id: "lighthouse-ledge",
+    name: "Lighthouse Ledge",
+    height: 1,
+    type: "autotile",
+    kind: "prop",
+    attributes: {},
+    anchor,
+    lightPassing: true,
+    walkable: false,
+    connectsTo: ["lighthouse-parapet"],
+    slices: slicesFor(LEDGE_ROW),
+  } as TileDef);
+
+  const pedestals = [
+    { id: "lighthouse-pedestal", name: "Pedestal", pressed: false, column: 0 },
+    { id: "lighthouse-pedestal-pressed", name: "Pedestal (Pressed)", pressed: true, column: 2 },
+  ];
+  for (const pedestal of pedestals) {
+    const model = {
+      sample: atScale(samplePedestal),
+      shade: (hit: PedestalHit) => shadePedestal(hit, pedestal.pressed),
+    };
+    const pixels = outlineBelow(castModel(model, SMALL), SMALL_PX, 4);
+    blit(sheet, { pixels, size: SMALL_PX }, pedestal.column, PEDESTAL_ROW);
+  }
+  /**
+   * The pair works as `pressure-plate` does, on whatever stands on the
+   * pedestal: anything at least one height unit tall presses it, and the
+   * pressed one emits on its channel until the pedestal is bare again.
+   */
+  tiles.push(
+    {
+      id: "lighthouse-pedestal",
+      name: "Pedestal",
+      height: 3,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      anchor,
+      walkable: true,
+      interactions: {
+        pressurePlate: { tileId: "lighthouse-pedestal-pressed", type: "gte", height: 1 },
+        emit: { value: "off" },
+      },
+      sprite: { frames: [frameAt(0, PEDESTAL_ROW)] },
+    } as TileDef,
+    {
+      id: "lighthouse-pedestal-pressed",
+      name: "Pedestal (Pressed)",
+      height: 3,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      anchor,
+      walkable: true,
+      interactions: {
+        pressurePlate: { tileId: "lighthouse-pedestal", type: "lte", height: 0 },
+        emit: { value: "on" },
+      },
+      sprite: {
+        frames: [
+          { ...frameAt(2, PEDESTAL_ROW), light: { radius: 5, intensity: 0.95, color: "#3d6fff" } },
+        ],
+      },
+    } as TileDef,
+  );
 
   const beats: Beat[] = ["rest", "swell", "beat"];
   for (const [i, beat] of beats.entries()) {
