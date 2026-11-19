@@ -294,5 +294,24 @@ describe("validating a dialog", () => {
       );
       expect(gives).toEqual([]);
     });
+
+    it("accepts cash only where some tile has a worth", () => {
+      const sells = { script: [{ ...trade, take: [], takeCash: 250 }] };
+      const coin = tileWith(undefined, "coin", { type: "artifact", pile: 100, worth: 1 });
+      expect(validateDialog(sells, { ...catalogue, tilesById: { potion, coin } })).toEqual([]);
+      expect(validateDialog(sells, catalogue)).toEqual([
+        {
+          severity: "error",
+          message: expect.stringContaining("no tile in the catalogue has a worth"),
+        },
+      ]);
+    });
+  });
+
+  it("counts cash alone as moving something", () => {
+    const priced = (takeCash?: number) =>
+      tileWith({ script: [{ ...trade, take: [], give: [], takeCash }] });
+    expect(resolveDialog(priced(250))).not.toBeNull();
+    expect(resolveDialog(priced())).toBeNull();
   });
 });

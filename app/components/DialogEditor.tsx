@@ -7,6 +7,7 @@ import {
   DEFAULT_DIALOG,
   listAt,
   MAX_DIALOG_AMOUNT,
+  MAX_DIALOG_CASH,
   validateDialog,
   withListAt,
   type CommandPath,
@@ -651,16 +652,20 @@ function TradeBlocks({
       <TradeSides
         label="Takes"
         sides={trade.take}
+        cash={trade.takeCash}
         options={ctx.itemOptions}
         ctx={ctx}
         onChange={(take) => onChange({ ...trade, take })}
+        onCashChange={(takeCash) => onChange({ ...trade, takeCash })}
       />
       <TradeSides
         label="Gives"
         sides={trade.give}
+        cash={trade.giveCash}
         options={ctx.giveOptions}
         ctx={ctx}
         onChange={(give) => onChange({ ...trade, give })}
+        onCashChange={(giveCash) => onChange({ ...trade, giveCash })}
       />
       <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
         <span>how many: from</span>
@@ -709,19 +714,35 @@ function TradeBlocks({
 function TradeSides({
   label,
   sides,
+  cash,
   options,
   ctx,
   onChange,
+  onCashChange,
 }: {
   label: string;
   sides: readonly TradeSide[];
+  cash: number | undefined;
   options: Array<{ value: string; label: string }>;
   ctx: EditorContext;
   onChange: (next: TradeSide[]) => void;
+  onCashChange: (next: number | undefined) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="w-10 text-[10px] font-bold uppercase text-muted">{label}</span>
+      <span className="flex items-center gap-1">
+        <NumberInput
+          min={0}
+          max={MAX_DIALOG_CASH}
+          step={1}
+          value={cash ?? 0}
+          onChange={(value) => onCashChange(value > 0 ? value : undefined)}
+          className="w-20"
+          aria-label={`Cash ${label.toLowerCase()}`}
+        />
+        <span className="text-[10px] uppercase text-muted">cash</span>
+      </span>
       {sides.map((side, i) => (
         <span key={i} className="flex items-center gap-1">
           <NumberInput

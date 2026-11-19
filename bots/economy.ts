@@ -2,10 +2,10 @@ import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { affordsRecipe } from "../app/game/craft";
 import type { Depots } from "../app/game/depot";
 import { capacityOf } from "../app/game/itemMoves";
-import { carriedCount, planTrade } from "../app/game/trade";
+import { carriedCash, carriedCount, planDeal, scaleTerms } from "../app/game/trade";
 import type { BattlerDef } from "../app/lib/battler";
-import type { TradeSide } from "../app/lib/dialog";
 import { resolveCraft, type CraftRecipe } from "../app/lib/interactions";
+import { resolveWorth } from "../app/lib/item";
 import { countOf, stow } from "../app/lib/piles";
 import type { StatusDef } from "../app/lib/status";
 import { resolveLight } from "../app/lib/tileResolve";
@@ -13,7 +13,7 @@ import type { TileDef } from "../app/lib/types";
 import { forgeInputs, isLit } from "./arcane";
 import { healing } from "./combat";
 import { bestUpgrade, type Style, type Taste } from "./gear";
-import { currencyOf, offersIn, type Offer } from "./shops";
+import { offersIn, type Offer } from "./shops";
 
 /** Healing food a bot keeps rather than sells, and buys back up to when it runs low. */
 export const FOOD_RESERVE = 4;
@@ -54,7 +54,6 @@ export type BankMove =
  */
 export class Economy {
   readonly offers: readonly Offer[];
-  readonly currency: string | null;
   readonly taste: Taste;
   /** Tiles with a recipe that turns something into food that heals, such as a fire. */
   readonly cookers: ReadonlySet<string>;
@@ -66,7 +65,6 @@ export class Economy {
     style: Style,
   ) {
     this.offers = offersIn(tilesById);
-    this.currency = currencyOf(this.offers);
     this.taste = { style, statusDefs };
     this.forging = forgeInputs(tilesById);
     this.cookers = new Set(
@@ -185,8 +183,7 @@ export class Economy {
     const saved = new Set(upgrades.flatMap(({ offer }) => offer.take.map((side) => side.tileId)));
     const moves: BankMove[] = [];
     (equipment.bag?.contents ?? []).forEach(({ tileId }, from) => {
-      if (tileId === this.currency || saved.has(tileId))
-        moves.push({ kind: "deposit", tileId, from });
+      if (this.isMoney(tileId) || saved.has(tileId)) moves.push({ kind: "deposit", tileId, from });
     });
     return moves;
   }
@@ -203,14 +200,25 @@ export class Economy {
     for (const [tag, stash] of Object.entries(depots)) {
       let contents = bag.contents ?? [];
       const moves: BankMove[] = [];
-      for (const side of offer.take) {
-        let short = side.count - carriedCount(this.tilesById, equipment, side.tileId);
+      const needs = [
+        ...offer.take.map((side) => ({
+          short: side.count - carriedCount(this.tilesById, equipment, side.tileId),
+          each: (tileId: string) => (tileId === side.tileId ? 1 : 0),
+        })),
+        {
+          short: offer.takeCash - carriedCash(this.tilesById, equipment),
+          each: (tileId: string) => this.moneyWorth(tileId),
+        },
+      ];
+      for (const need of needs) {
+        let short = need.short;
         stash.forEach((instance, from) => {
-          if (short <= 0 || instance.tileId !== side.tileId) return;
+          const each = need.each(instance.tileId);
+          if (short <= 0 || each === 0) return;
           const stowed = stow(contents, instance, capacity, this.tilesById);
           if (!stowed) return;
           contents = stowed;
-          short -= countOf(instance);
+          short -= countOf(instance) * each;
           moves.push({ kind: "withdraw", tileId: instance.tileId, from, tag });
         });
       }
@@ -246,7 +254,7 @@ export class Economy {
     return (tileId) => {
       const def = this.tilesById[tileId];
       if (!def) return false;
-      if (tileId === this.currency || saving.has(tileId) || this.bought(tileId)) return true;
+      if (this.isMoney(tileId) || saving.has(tileId) || this.bought(tileId)) return true;
       if (this.forges(tileId)) return true;
       if (hungry && healing(def, this.statusDefs) > 0) return true;
       if (dark && resolveLight(def, {}) !== undefined) return true;
@@ -275,7 +283,7 @@ export class Economy {
 
   /** What an NPC pays for one, or charges for one, whichever is more, and at least `UNPRICED_WORTH`. */
   private unitWorth(tileId: string): number {
-    if (tileId === this.currency) return 1;
+    if (this.isMoney(tileId)) return this.moneyWorth(tileId);
     return Math.max(UNPRICED_WORTH, this.salePrice(tileId), this.shopPrice(tileId) ?? 0);
   }
 
@@ -285,8 +293,7 @@ export class Economy {
     for (const offer of this.offers) {
       const side = offer.take.length === 1 ? offer.take[0]! : null;
       if (side?.tileId !== tileId || !this.paysMoney(offer)) continue;
-      const paid = offer.give.reduce((sum, given) => sum + given.count, 0);
-      best = Math.max(best, paid / side.count);
+      best = Math.max(best, offer.giveCash / side.count);
     }
     return best;
   }
@@ -297,6 +304,22 @@ export class Economy {
       .filter((offer) => soleGive(offer) === tileId)
       .map((offer) => this.price(offer));
     return prices.length > 0 ? Math.min(...prices) : null;
+  }
+
+  /** What one of these turns into in cash: its worth when it is money, else what an NPC pays for it. */
+  cashValue(tileId: string): number {
+    return this.isMoney(tileId) ? this.moneyWorth(tileId) : this.salePrice(tileId);
+  }
+
+  /** Whether this tile is money: a tile with a worth. */
+  isMoney(tileId: string): boolean {
+    return this.moneyWorth(tileId) > 0;
+  }
+
+  /** What one of these is worth in cash, or 0 when it is not money. */
+  moneyWorth(tileId: string): number {
+    const def = this.tilesById[tileId];
+    return def ? resolveWorth(def) : 0;
   }
 
   /** Whether this is a stone, or goes into making one. A bot keeps all of them. */
@@ -311,18 +334,16 @@ export class Economy {
     );
   }
 
-  /** What an offer costs, counted in the currency; anything else counts one a unit. */
+  /** What an offer costs: its cash, and one for every unit of anything else it takes. */
   price(offer: Offer): number {
-    return offer.take.reduce((sum, side) => sum + side.count, 0);
+    return offer.takeCash + offer.take.reduce((sum, side) => sum + side.count, 0);
   }
 
   /** How many times, up to `wanted`, the bot could make this trade with what it carries. */
   affordable(offer: Offer, equipment: Equipment, wanted: number): number {
     for (let amount = Math.min(wanted, offer.max); amount >= Math.max(1, offer.min); amount--) {
-      const times = (side: TradeSide) => ({ tileId: side.tileId, count: side.count * amount });
-      const take = offer.take.map(times);
-      const give = offer.give.map(times);
-      if (planTrade(this.tilesById, equipment, take, give, mintNothing) !== null) return amount;
+      const terms = scaleTerms(offer, amount);
+      if (planDeal(this.tilesById, equipment, terms, mintNothing) !== null) return amount;
     }
     return 0;
   }
@@ -353,11 +374,7 @@ export class Economy {
   }
 
   private paysMoney(offer: Offer): boolean {
-    return (
-      this.currency !== null &&
-      offer.give.length > 0 &&
-      offer.give.every((side) => side.tileId === this.currency)
-    );
+    return offer.giveCash > 0 && offer.give.length === 0;
   }
 
   private keep(tileId: string): number {

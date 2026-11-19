@@ -1,15 +1,26 @@
 import * as v from "valibot";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import { mentionedTileIds } from "./dialogText";
-import { resolveContainer } from "./item";
+import { denominations } from "./cash";
+import { MAX_WORTH, resolveContainer } from "./item";
 import { MAX_LEVEL, MIN_LEVEL, type Coord, type TileDef } from "./types";
 
 export type TradeSide = { tileId: string; count: number };
+
+/** What one unit of a trade moves: tiles on each side, and cash on either. */
+export type TradeTerms = {
+  take: readonly TradeSide[];
+  give: readonly TradeSide[];
+  takeCash?: number;
+  giveCash?: number;
+};
 
 export type DialogTrade = {
   kind: "request_trade";
   take: TradeSide[];
   give: TradeSide[];
+  takeCash?: number;
+  giveCash?: number;
   min: number;
   max: number;
   default?: number;
@@ -55,6 +66,8 @@ export type DialogDef = { script: DialogCommand[] };
 
 export const MAX_DIALOG_AMOUNT = 99;
 
+export const MAX_DIALOG_CASH = MAX_WORTH;
+
 export const MAX_DIALOG_DEPTH = 3;
 
 export const DEFAULT_DIALOG: DialogDef = {
@@ -67,6 +80,10 @@ const line = v.pipe(v.string(), v.minLength(1));
 const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT));
 
 const tradeSideSchema = v.object({ tileId, count });
+
+const cash = v.optional(
+  v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_CASH)),
+);
 
 const whenSchema = conditionSchema<DialogCondition>(
   v.variant("cond", [
@@ -105,13 +122,15 @@ const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind",
       kind: v.literal("request_trade"),
       take: v.array(tradeSideSchema),
       give: v.array(tradeSideSchema),
+      takeCash: cash,
+      giveCash: cash,
       min: count,
       max: count,
       default: v.optional(count),
       traded: v.array(v.lazy(() => commandSchema)),
       cancel: v.array(v.lazy(() => commandSchema)),
     }),
-    v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
+    v.check((raw) => movesSomething(raw), "a trade moves something"),
     v.check((raw) => raw.max >= raw.min, "a quantity's ceiling is at least its floor"),
   ),
   v.object({
@@ -148,6 +167,10 @@ export function resolveDialog(def: TileDef): DialogDef | null {
   const dialog = parsed?.success ? parsed.output : null;
   dialogCache.set(def, dialog);
   return dialog;
+}
+
+function movesSomething(trade: TradeTerms): boolean {
+  return trade.take.length + trade.give.length > 0 || Boolean(trade.takeCash || trade.giveCash);
 }
 
 export type CommandPath = readonly number[];
@@ -356,12 +379,15 @@ function checkTrade(
   error: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if (trade.take.length + trade.give.length === 0) error(`${where} trades nothing for nothing`);
+  if (!movesSomething(trade)) error(`${where} trades nothing for nothing`);
   if (trade.max < trade.min) error(`${where} has a quantity whose ceiling is below its floor`);
   if (trade.default !== undefined && (trade.default < trade.min || trade.default > trade.max)) {
     error(`${where} opens at a quantity outside its own range`);
   }
   if (!catalogue) return;
+  if ((trade.takeCash || trade.giveCash) && denominations(catalogue.tilesById).length === 0) {
+    error(`${where} moves cash, and no tile in the catalogue has a worth`);
+  }
   for (const side of [...trade.take, ...trade.give]) {
     if (!catalogue.tilesById[side.tileId]) {
       error(`${where} names a tile "${side.tileId}" the catalogue does not hold`);

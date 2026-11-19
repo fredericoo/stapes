@@ -10,7 +10,7 @@ import {
   type TalkAction,
 } from "../game/dialogRuntime";
 import { emptyEquipment, type Equipment } from "../game/equipment";
-import { planTrade } from "../game/trade";
+import { planDeal, planTrade } from "../game/trade";
 import type { DialogDef } from "../lib/dialog";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -103,7 +103,7 @@ function applyEffect(
     else partner.statuses.delete(effect.statusId);
     return true;
   }
-  const next = planTrade(tilesById, partner.equipment, effect.take, effect.give, mint);
+  const next = planDeal(tilesById, partner.equipment, effect, mint);
   if (!next) return false;
   partner.equipment = next;
   return true;

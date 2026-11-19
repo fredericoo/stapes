@@ -19,6 +19,8 @@ export type Exchange = {
   name: string | null;
   take: ExchangeSide[];
   give: ExchangeSide[];
+  takeCash?: number;
+  giveCash?: number;
 };
 
 export type FindKind = "start" | "gather" | "fall" | "drop" | "decay";
@@ -88,6 +90,8 @@ function exchangesAt(tile: TileDef): Exchange[] {
         name: null,
         take: command.take.map((side) => ({ ...side, chance: null })),
         give: command.give.map((side) => ({ ...side, chance: null })),
+        ...(command.takeCash ? { takeCash: command.takeCash } : {}),
+        ...(command.giveCash ? { giveCash: command.giveCash } : {}),
       });
     }
   }

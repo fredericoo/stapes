@@ -1634,7 +1634,7 @@ cause of death.
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
 Several things on each side, counted, because a price is a number and a
-number is what a pile already is: fourteen shards may be one pile or three
+number is what a pile already is: fourteen gold may be one pile or three
 and `takeUnits` peels across them. Every square a body has — hands, the worn
 bag, *and bags held in a hand*. A craft uses the same arithmetic (`planTrade`)
 for its inputs and outputs; see *A craft spends what you carry*. Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
@@ -1646,6 +1646,39 @@ schema and the runtime both refuse it. A container may be *given*, minted
 empty: nothing nests, so it goes on the back if the bag slot is free, else
 into an empty hand, else the trade is refused for want of room. That is what
 lets the tanner sell the leather backpack.
+
+### Cash is a field on a trade, paid in any tile with a worth
+
+A `request_trade` has `takeCash` and `giveCash` beside its `take` and `give`
+lists: an amount of money per unit, not a tile. Money is any item whose
+`interactions.item.worth` is set: `gold` is worth 1 and `gold-bar` 100, both
+piling to 100, and a coin worth 1000 is one more tile with `worth: 1000` and
+nothing else. `arcane-shard` has no worth; it is an item the blacksmith buys
+for one gold.
+
+- **Cash is not a tile anywhere.** No trade side names it, and nothing looks
+  for it by id. `planTrade` moves tiles only, which is all a craft needs;
+  `planDeal` pays the cash first, runs `planTrade`, then hands over the cash
+  given. `scaleTerms` multiplies all four by the quantity and leaves out a
+  cash field that is zero.
+- **`worth` is read beside the item, not through it.** Every item type may
+  carry one, and `itemSchema` strips any key its variant does not name, so
+  `resolveWorth` reads the raw block once `resolveItem` has accepted it and
+  `itemForSave` puts it back.
+- **Paying takes the largest coins that do not overshoot, then breaks one.**
+  `payCash` takes, from the highest worth down, as many of each coin as fit in
+  what is still owed. What is left is smaller than every coin still carried,
+  so the smallest of those settles it, and the difference comes back as
+  change.
+- **Giving cash is the fewest coins** (`splitCash`), largest first. Without a
+  coin of worth 1 some amounts cannot be made, and the remainder is dropped.
+- **`carriedCash` is the worth of everything carried.** The preview compares
+  it with the price for "You need 14 in cash, and have 3", and draws a cash
+  amount as the coins `splitCash` would give for it, so 250 reads as two bars
+  and fifty gold.
+- **A cash amount may go to `MAX_DIALOG_CASH`**, while a side in one tile keeps
+  `MAX_DIALOG_AMOUNT`. `validateDialog` reports a trade with cash in a
+  catalogue where nothing has a worth.
 
 **A trade has one side that is a kit, and the other side is nowhere.**
 `GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
@@ -1670,13 +1703,11 @@ armourer (`armourer`), who sells body armour and charms; and the tanner
 they settled on is worth knowing before authoring the next one, because two
 authored ceilings decide it.
 
-- **A price cannot exceed `MAX_DIALOG_AMOUNT`, which is ninety-nine.** That
-  bound is on a `TradeSide.count`, so the whole of what one trade takes per
-  unit is capped at it. Ninety-five shards is therefore the most expensive
-  thing anybody can sell for shards in one side, and the ladder is 20 / 50 /
-  95 rather than something that doubles indefinitely. Spelling a higher price
-  as two sides of the same tile would work and would read as two prices in
-  the preview, which is worse than a cheaper top rung.
+- **A side in one tile cannot exceed `MAX_DIALOG_AMOUNT`, which is
+  ninety-nine; a cash side can go to `MAX_DIALOG_CASH`.** The ladder of 20 /
+  50 / 95 was set when the shops were priced in shards and ninety-nine was the
+  ceiling for every price. Cash lifted that ceiling, so a rung above 99 is now
+  a cash price and nothing else.
 - **A family per button, a rung per button under it, is exactly as deep as
   `MAX_DIALOG_DEPTH` allows.** The nesting runs choices → choices →
   `request_trade` → its `traded` branch, which is three blocks — the last
@@ -1706,10 +1737,10 @@ therefore put the pieces that compete for one square next to each other, so
 the armourer's menus are Body and Charms and the tanner's are Head and Feet,
 priced off what each piece actually does rather than off a rung.
 
-**The tanner is paid in animal skins, not only shards.** Every head and foot
+**The tanner is paid in animal skins, not only gold.** Every head and foot
 piece costs five `skin`; the basic cap and boots cost nothing else, and the
-upper rungs add 20 to 50 shards, about ten short of what the piece's defence
-would cost in shards alone, so the hide stands in for part of the price. The
+upper rungs add 20 to 50 cash, about ten short of what the piece's defence
+would cost in cash alone, so the hide stands in for part of the price. The
 backpack is fifteen skins alone. Skins come only from what deer and rabbits drop, so the price is
 a reason to hunt. `skin` piles to 25 so a hunting trip fits in one square.
 
@@ -6808,9 +6839,9 @@ air.
   tab — the arrangement that already shows Battle and Item by the kind rather
   than by the block. No wall or crate grows a field it can never use, which is
   the whole reason this is not a block on every tile.
-- **Exclusive with `item`, and the arcane shard is why.** The shard is the coin
-  the shopkeeper trades in — an artifact that piles to 99 — so it cannot also
-  be ammunition. What a stone throws is `arcane-bolt`, which looks like a shard
+- **Exclusive with `item`, and the arcane shard is why.** The shard is an
+  item — an artifact that piles to 99 and that the blacksmith buys — so it
+  cannot also be ammunition. What a stone throws is `arcane-bolt`, which looks like a shard
   and is not one. That is `TileDef.kind`'s mutual exclusivity doing its job
   rather than something to work around.
 - **A flight is one event and never touched again** — an id, two fixed points
@@ -10776,7 +10807,7 @@ the raw authored block, so a default the schema filled in would be invisible in
 the one place somebody is choosing the number.
 
 **An artifact piles too, but only when its author writes the number.**
-`ArtifactItem.pile` exists for a currency — fourteen shards in fourteen squares
+`ArtifactItem.pile` exists for a currency — fourteen gold in fourteen squares
 is a bag nobody can trade out of — and it defaults the *other* way from food's:
 absent is one. Every artifact in the file predates the field, and a torch, a
 key or a signpost that quietly started heaping would be the default deciding
@@ -17283,9 +17314,9 @@ completes a purchase or what it carries is worth stashing (below), and
 otherwise `hunt`. After
 `HUNT_SPELL_MS` (four minutes) of hunting it goes to `gather` for
 `GATHER_PULLS` pulls when it knows of a resource worth working, because
-hunting grows mastery and pays in skins but the shops want shards, and on the
-shipped content shards come only from mining and from selling berries and
-apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
+hunting grows mastery and pays in skins but the shops want cash, and on the
+shipped content cash comes only from selling mined shards to the blacksmith
+and from selling berries and apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
 does not spend its life looking for a seller nobody has found. It does not
 interrupt a `shop`, `sell` or `gather` on the timer.
 
@@ -17721,8 +17752,8 @@ wears gives light, it moves the first light it carries to an empty square
 `equipDestination` picks: the charm square for the torch. A worn stone the
 bot can cast that lights its caster counts as a light (`isLit` in
 `bots/arcane.ts`), so a bot wearing the Light stone leaves its torch in the
-bag. The currency is never worn as a light, although an arcane shard
-glows. Light does not change what a bot can see. It is there so that other
+bag. Money and anything an NPC buys are never worn as a light, although an
+arcane shard glows. Light does not change what a bot can see. It is there so that other
 players can see the bot in the dark. The server confirms a move a tick later,
 so the same move is not sent again for `DRESS_RETRY_MS`, and one the server
 refuses `DRESS_ATTEMPTS` times is left alone for `DRESS_REFUSED_MS`.
@@ -17849,9 +17880,10 @@ flame afterwards because `unsafeToStepOn` already refuses a cell that burns.
 **A bot knows every NPC's trades from the catalogue.** `offersIn`
 (`bots/shops.ts`) walks every tile's dialog and lists each `request_trade` by
 its `CommandPath`, which is also the counter a conversation waits at.
-`currencyOf` takes the tile most offers ask for as the money, so nothing in
-the bots names `arcane-shard`. `Economy` (`bots/economy.ts`) turns the offers
-into decisions:
+Money is any tile with a worth (`Economy.isMoney`, counted at
+`Economy.moneyWorth`), and a price is an offer's `takeCash` plus one for every
+other unit it takes, so nothing in the bots names a coin. `Economy`
+(`bots/economy.ts`) turns the offers into decisions:
 
 - `purchases`: every upgrade it can pay for that adds at least `MIN_GAIN`,
   then food when the bag has none that heals, up to `FOOD_RESERVE`. The

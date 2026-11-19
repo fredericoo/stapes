@@ -344,6 +344,9 @@ an agent drives", lists every call.
   larger instead of touching `data/`. The brain and battler in the script are
   only what a new tile starts with; a re-run leaves the ones in `tiles.json`
   alone
+- `bun run generate:gold` — draw `data/tilesets/gold.png` and write the money:
+  `gold`, worth 1, and `gold-bar`, worth 100, both piling to 100. Drawn by
+  hand, a coin from above and the bar as a 2 px box
 - `bun run generate:mushrooms` — draw `data/tilesets/mushrooms.png` and write
   the mushrooms: the `mushroom` item, a short meal, and `blue-mushroom`, a
   poisonous one that looks like it, both piling to 32; and for each, the patch

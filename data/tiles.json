@@ -14326,22 +14326,18 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Drink one and you glow for an hour. Fourteen shards apiece — how many?"
+                    "text": "Drink one and you glow for an hour. Fourteen gold apiece — how many?"
                   },
                   {
                     "kind": "request_trade",
-                    "take": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 14
-                      }
-                    ],
+                    "take": [],
                     "give": [
                       {
                         "tileId": "luminous-potion",
                         "count": 1
                       }
                     ],
+                    "takeCash": 14,
                     "min": 1,
                     "max": 4,
                     "default": 1,
@@ -14373,7 +14369,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Two shards for every {item:empty-bottle}. How many have you got?"
+                    "text": "Two gold for every {item:empty-bottle}. How many have you got?"
                   },
                   {
                     "kind": "request_trade",
@@ -14383,12 +14379,8 @@
                         "count": 1
                       }
                     ],
-                    "give": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 2
-                      }
-                    ],
+                    "give": [],
+                    "giveCash": 2,
                     "min": 1,
                     "max": 12,
                     "default": 1,
@@ -15041,18 +15033,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "iron-sword",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15088,18 +15076,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "knights-sword",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15135,18 +15119,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "tempered-longsword",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15213,18 +15193,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "simple-axe",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15260,18 +15236,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "broad-axe",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15307,18 +15279,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "battleaxe",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15385,18 +15353,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "simple-hammer",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15432,18 +15396,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "iron-mace",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15479,18 +15439,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "war-maul",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15557,18 +15513,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "simple-bow",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15604,18 +15556,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "hunting-bow",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15651,18 +15599,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "war-bow",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15729,18 +15673,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "buckler",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15776,18 +15716,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "wooden-shield",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15823,18 +15759,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "iron-shield",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -15879,19 +15811,45 @@
                 ]
               },
               {
-                "label": "What are shards worth to you?",
+                "label": "Sell shards",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Twenty a rung, and three rungs to every rack. Crystals come out of the caves."
+                    "text": "A gold for every {item:arcane-shard}. Crystals come out of the caves. How many have you got?"
                   },
                   {
-                    "kind": "say",
-                    "text": "Bring me shards, I'll bring you something that outlives you."
-                  },
-                  {
-                    "kind": "goto",
-                    "name": "main"
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "arcane-shard",
+                        "count": 1
+                      }
+                    ],
+                    "give": [],
+                    "giveCash": 1,
+                    "min": 1,
+                    "max": 99,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Bring me more, I'll bring you something that outlives you."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Keep them, then."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
                   }
                 ]
               },
@@ -16561,18 +16519,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 15
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "cloth-tunic",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 15,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16608,18 +16562,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 45
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "warded-robe",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 45,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16655,18 +16605,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "padded-gambeson",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16702,18 +16648,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "leather-jerkin",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16749,18 +16691,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 55
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "tunic-of-flames",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 55,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16796,18 +16734,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 55
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "mantle-of-brambles",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 55,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16843,18 +16777,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 65
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "chain-mail",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 65,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16890,18 +16820,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 95
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "steel-plate",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 95,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -16968,18 +16894,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "copper-ring",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -17015,18 +16937,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 25
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "bone-charm",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 25,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -17062,18 +16980,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 35
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "jade-amulet",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 35,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -17109,18 +17023,14 @@
                           },
                           {
                             "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 40
-                              }
-                            ],
+                            "take": [],
                             "give": [
                               {
                                 "tileId": "amulet-of-tides",
                                 "count": 1
                               }
                             ],
+                            "takeCash": 40,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -17831,7 +17741,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Skins, {partner}? I don't take shards for leather — I take leather for leather."
+            "text": "Skins, {partner}? I don't take gold for leather — I take leather for leather."
           },
           {
             "kind": "anchor",
@@ -17902,7 +17812,7 @@
                         ]
                       },
                       {
-                        "label": "{item:iron-helm} — 5 skins, 30 shards",
+                        "label": "{item:iron-helm} — 5 skins, 30 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -17914,10 +17824,6 @@
                               {
                                 "tileId": "skin",
                                 "count": 5
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 30
                               }
                             ],
                             "give": [
@@ -17926,6 +17832,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 30,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -17953,7 +17860,7 @@
                         ]
                       },
                       {
-                        "label": "{item:knights-helm} — 5 skins, 50 shards",
+                        "label": "{item:knights-helm} — 5 skins, 50 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -17965,10 +17872,6 @@
                               {
                                 "tileId": "skin",
                                 "count": 5
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 50
                               }
                             ],
                             "give": [
@@ -17977,6 +17880,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 50,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -18004,7 +17908,7 @@
                         ]
                       },
                       {
-                        "label": "{item:wolfskin-hood} — 3 wolf skins, 20 shards",
+                        "label": "{item:wolfskin-hood} — 3 wolf skins, 20 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -18016,10 +17920,6 @@
                               {
                                 "tileId": "wolf-skin",
                                 "count": 3
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
                               }
                             ],
                             "give": [
@@ -18028,6 +17928,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -18086,7 +17987,7 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "{item:wolfskin-coat} — 5 wolf skins, 40 shards",
+                        "label": "{item:wolfskin-coat} — 5 wolf skins, 40 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -18098,10 +17999,6 @@
                               {
                                 "tileId": "wolf-skin",
                                 "count": 5
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 40
                               }
                             ],
                             "give": [
@@ -18110,6 +18007,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 40,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -18215,7 +18113,7 @@
                         ]
                       },
                       {
-                        "label": "{item:hobnailed-boots} — 5 skins, 20 shards",
+                        "label": "{item:hobnailed-boots} — 5 skins, 20 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -18227,10 +18125,6 @@
                               {
                                 "tileId": "skin",
                                 "count": 5
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
                               }
                             ],
                             "give": [
@@ -18239,6 +18133,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -18266,7 +18161,7 @@
                         ]
                       },
                       {
-                        "label": "{item:steel-sabatons} — 5 skins, 30 shards",
+                        "label": "{item:steel-sabatons} — 5 skins, 30 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -18278,10 +18173,6 @@
                               {
                                 "tileId": "skin",
                                 "count": 5
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 30
                               }
                             ],
                             "give": [
@@ -18290,6 +18181,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 30,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -18317,7 +18209,7 @@
                         ]
                       },
                       {
-                        "label": "{item:wolfskin-boots} — 3 wolf skins, 20 shards",
+                        "label": "{item:wolfskin-boots} — 3 wolf skins, 20 gold",
                         "then": [
                           {
                             "kind": "say",
@@ -18329,10 +18221,6 @@
                               {
                                 "tileId": "wolf-skin",
                                 "count": 3
-                              },
-                              {
-                                "tileId": "arcane-shard",
-                                "count": 20
                               }
                             ],
                             "give": [
@@ -18341,6 +18229,7 @@
                                 "count": 1
                               }
                             ],
+                            "takeCash": 20,
                             "min": 1,
                             "max": 1,
                             "default": 1,
@@ -40602,7 +40491,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Hello! Would you like to buy a slice of pie?\nIt's 3 shards per slice, 15 for the whole pie (6 slices). \nI also will buy your apples and berries for 1 shard each if you want. \nI need to replenish my stocks!"
+            "text": "Hello! Would you like to buy a slice of pie?\nIt's 3 gold per slice, 15 for the whole pie (6 slices). \nI also will buy your apples and berries for 1 gold each if you want. \nI need to replenish my stocks!"
           },
           {
             "kind": "anchor",
@@ -40620,18 +40509,14 @@
                   },
                   {
                     "kind": "request_trade",
-                    "take": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 3
-                      }
-                    ],
+                    "take": [],
                     "give": [
                       {
                         "tileId": "apple-pie",
                         "count": 1
                       }
                     ],
+                    "takeCash": 3,
                     "min": 1,
                     "max": 99,
                     "default": 1,
@@ -40663,7 +40548,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I'll pay you 1 shard per {item:apple} you have."
+                    "text": "I'll pay you 1 gold per {item:apple} you have."
                   },
                   {
                     "kind": "request_trade",
@@ -40673,12 +40558,8 @@
                         "count": 1
                       }
                     ],
-                    "give": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 1
-                      }
-                    ],
+                    "give": [],
+                    "giveCash": 1,
                     "min": 1,
                     "max": 99,
                     "default": 1,
@@ -40710,7 +40591,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I'll pay you 1 shard per {item:berry} you have. Not if they're stale!"
+                    "text": "I'll pay you 1 gold per {item:berry} you have. Not if they're stale!"
                   },
                   {
                     "kind": "request_trade",
@@ -40720,12 +40601,8 @@
                         "count": 1
                       }
                     ],
-                    "give": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 1
-                      }
-                    ],
+                    "give": [],
+                    "giveCash": 1,
                     "min": 1,
                     "max": 99,
                     "traded": [
@@ -41323,7 +41200,7 @@
         "script": [
           {
             "kind": "say",
-            "text": "Come in out of it, {partner}. Ale's three shards a mug."
+            "text": "Come in out of it, {partner}. Ale's three gold a mug."
           },
           {
             "kind": "anchor",
@@ -41341,18 +41218,14 @@
                   },
                   {
                     "kind": "request_trade",
-                    "take": [
-                      {
-                        "tileId": "arcane-shard",
-                        "count": 3
-                      }
-                    ],
+                    "take": [],
                     "give": [
                       {
                         "tileId": "ale",
                         "count": 1
                       }
                     ],
+                    "takeCash": 3,
                     "min": 1,
                     "max": 4,
                     "default": 1,
@@ -42276,7 +42149,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Shardsh buy ale. *hic* Obvioushly."
+                            "text": "The shmith buysh shardsh, an' gold buysh ale. *hic* Obvioushly."
                           },
                           {
                             "kind": "say",
@@ -46245,18 +46118,14 @@
           },
           {
             "kind": "request_trade",
-            "take": [
-              {
-                "tileId": "arcane-shard",
-                "count": 1
-              }
-            ],
+            "take": [],
             "give": [
               {
                 "tileId": "hand-lantern",
                 "count": 1
               }
             ],
+            "takeCash": 1,
             "min": 1,
             "max": 1,
             "traded": [
@@ -181019,5 +180888,85 @@
         ]
       }
     ]
+  },
+  {
+    "id": "gold",
+    "name": "Gold",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "gold",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 100,
+        "worth": 1
+      }
+    }
+  },
+  {
+    "id": "gold-bar",
+    "name": "Gold Bar",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "gold",
+      "x": 1,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 100,
+        "worth": 100
+      }
+    }
   }
 ]
