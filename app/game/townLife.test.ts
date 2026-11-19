@@ -15,6 +15,7 @@ const traits = traitsById(traitsJson as unknown[]);
 const statuses = statusesById(statusesJson as unknown[]);
 
 const HALF = 12;
+const MORNING = 10 * 60;
 
 function field(
   bodies: [x: number, y: number, tileId: string][],
@@ -54,8 +55,70 @@ function run(session: GameSession, ms: number): string[] {
 
 const body = (session: GameSession, tileId: string) =>
   session.actorSnapshots().find((a) => a.tileId === tileId)!;
+const me = (session: GameSession) => session.actorSnapshots().find((a) => a.id === LOCAL_ACTOR_ID)!;
 const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+
+function strike(session: GameSession, tileId: string) {
+  session.setTarget(body(session, tileId).id);
+  session.setAttackMode(true);
+  run(session, 1_500);
+  session.setAttackMode(false);
+}
+
+describe("a cat", () => {
+  it("fights back against a weaker player who hits it", () => {
+    const session = world(field([[1, 0, "cat-soot"]]), { minutes: MORNING });
+    const hpBefore = me(session).hp!;
+
+    strike(session, "cat-soot");
+    run(session, 3_000);
+
+    expect(me(session).hp).toBeLessThan(hpBefore);
+  });
+
+  it("runs from a stronger player who hits it", () => {
+    const session = world(field([[1, 0, "cat-soot"]]), { minutes: MORNING });
+    for (const mastery of ["sharp", "toughness", "agility"]) {
+      session.runCommand(`/mastery ${mastery} 40`);
+    }
+
+    strike(session, "cat-soot");
+    run(session, 3_000);
+
+    expect(apart(body(session, "cat-soot"), me(session))).toBeGreaterThan(3);
+  });
+
+  it("comes to a player who says psps", () => {
+    const session = world(field([[4, 0, "cat-soot"]]), { minutes: MORNING });
+
+    session.hear(LOCAL_ACTOR_ID, "psps");
+    run(session, 4_000);
+
+    expect(apart(body(session, "cat-soot"), me(session))).toBeLessThanOrEqual(2);
+  });
+
+  it("hunts a rat it sees", () => {
+    const session = world(
+      field(
+        [
+          [0, 0, "cat-soot"],
+          [4, 0, "rat"],
+        ],
+        [-HALF, -HALF],
+      ),
+      {
+        minutes: MORNING,
+      },
+    );
+    const ratHp = body(session, "rat").hp!;
+
+    run(session, 6_000);
+
+    const rat = body(session, "rat");
+    expect(rat === undefined || rat.hp! < ratHp).toBe(true);
+  });
+});
 
 describe("a townsperson", () => {
   it("walks to a bed at bedtime, sleeps, and is back at their post by morning", () => {

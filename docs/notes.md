@@ -1679,6 +1679,24 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   guards who warn at a gate keep their warning brain with only `keeps-hours`
   added.
 
+### A cat is judged by who hits it
+
+Every cat (the shared `cat`, the seven coats and the named cats, every
+`cat-*` tile with a brain) calls, in this order:
+`evades-the-unreachable`; `flees-the-stronger` with `below` 14, the cat's own
+rating, and `sight` 0, so it runs only from a player who hits it and is rated
+at or above it; `fights-back`, which takes everybody else; `hunts-on-sight` of
+`rat` within 6 cells; `eats-when-hungry` of meat and cheese lying about;
+`shelters-from-rain`; and `returns-home` with a leash of 12. The order
+matters: `flees-the-stronger`'s `attacked` trigger ties with `fights-back`'s,
+and a tie goes to the earlier call. Its call answer listens for "psps", not
+"ps", which every message containing "ps" used to match.
+
+**A cat does not nap.** A `sleeps` trait for the afternoon was tried, and it
+broke two bot tests that shoot a cat (`takes up a bow and shoots a slower
+creature`, `backs away along the corridor`) even at hours outside its window.
+Find out why before adding it back.
+
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
 Several things on each side, counted, because a price is a number and a

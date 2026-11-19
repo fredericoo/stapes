@@ -13362,7 +13362,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -13380,6 +13380,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -13388,8 +13399,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -56618,7 +56661,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -56636,16 +56679,23 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
               "target": "foe",
               "calm": 10
             }
-          },
-          {
-            "trait": "shelters-from-rain",
-            "with": {}
           },
           {
             "trait": "hunts-on-sight",
@@ -56658,6 +56708,24 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           },
           {
             "trait": "returns-home",
@@ -57186,7 +57254,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -57204,16 +57272,23 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
               "target": "foe",
               "calm": 10
             }
-          },
-          {
-            "trait": "shelters-from-rain",
-            "with": {}
           },
           {
             "trait": "hunts-on-sight",
@@ -57226,6 +57301,24 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           },
           {
             "trait": "returns-home",
@@ -57754,7 +57847,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -57772,16 +57865,23 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
               "target": "foe",
               "calm": 10
             }
-          },
-          {
-            "trait": "shelters-from-rain",
-            "with": {}
           },
           {
             "trait": "hunts-on-sight",
@@ -57794,6 +57894,24 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           },
           {
             "trait": "returns-home",
@@ -58322,7 +58440,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -58340,16 +58458,23 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
               "target": "foe",
               "calm": 10
             }
-          },
-          {
-            "trait": "shelters-from-rain",
-            "with": {}
           },
           {
             "trait": "hunts-on-sight",
@@ -58362,6 +58487,24 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           },
           {
             "trait": "returns-home",
@@ -58890,7 +59033,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -58908,16 +59051,23 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
               "target": "foe",
               "calm": 10
             }
-          },
-          {
-            "trait": "shelters-from-rain",
-            "with": {}
           },
           {
             "trait": "hunts-on-sight",
@@ -58930,6 +59080,24 @@
               "target": "foe",
               "calm": 10
             }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           },
           {
             "trait": "returns-home",
@@ -211216,7 +211384,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -211234,6 +211402,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -211242,8 +211421,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -211766,7 +211977,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -211784,6 +211995,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -211792,8 +212014,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -212316,7 +212570,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -212334,6 +212588,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -212342,8 +212607,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -212866,7 +213163,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -212884,6 +213181,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -212892,8 +213200,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -213416,7 +213756,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -213434,6 +213774,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -213442,8 +213793,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -213966,7 +214349,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -213984,6 +214367,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -213992,8 +214386,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
@@ -214516,7 +214942,7 @@
             "retarget": true,
             "if": {
               "cond": "heard",
-              "text": "ps",
+              "text": "psps",
               "cells": 5,
               "los": true
             },
@@ -214534,6 +214960,17 @@
             "with": {}
           },
           {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 0,
+              "below": 14,
+              "cry": "hiss!"
+            }
+          },
+          {
             "trait": "fights-back",
             "with": {
               "fight": "fighting",
@@ -214542,8 +214979,40 @@
             }
           },
           {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "rat"
+              ],
+              "within": 6,
+              "fight": "fighting",
+              "target": "foe",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "raw-meat",
+                "cooked-meat",
+                "cheese",
+                "stale-cheese",
+                "rotten-meat"
+              ],
+              "within": 7,
+              "cry": "mrrp"
+            }
+          },
+          {
             "trait": "shelters-from-rain",
             "with": {}
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
           }
         ]
       },
