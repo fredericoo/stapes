@@ -322,16 +322,6 @@
       "tiles": ["dirt"]
     },
     {
-      "at": [4, 7, 0],
-      "tiles": [
-        "grass-2",
-        {
-          "tile": "player",
-          "facing": "s"
-        }
-      ]
-    },
-    {
       "at": [8, 0, 0],
       "tiles": ["snow", "hill-wall-frost"]
     },
@@ -588,7 +578,7 @@
       "tiles": [
         "dirt",
         {
-          "tile": "hill-cave-mouth",
+          "tile": "hill-cave-mouth-frost",
           "facing": "s"
         }
       ]
@@ -628,16 +618,6 @@
     {
       "at": [10, 3, 0],
       "tiles": ["dirt"]
-    },
-    {
-      "at": [12, 7, 0],
-      "tiles": [
-        "snow",
-        {
-          "tile": "player",
-          "facing": "s"
-        }
-      ]
     },
     {
       "at": [16, 0, 0],
@@ -896,7 +876,7 @@
       "tiles": [
         "dirt",
         {
-          "tile": "hill-cave-mouth",
+          "tile": "hill-cave-mouth-sandstone",
           "facing": "s"
         }
       ]
@@ -936,16 +916,6 @@
     {
       "at": [18, 3, 0],
       "tiles": ["dirt"]
-    },
-    {
-      "at": [20, 7, 0],
-      "tiles": [
-        "sand-dunes",
-        {
-          "tile": "player",
-          "facing": "s"
-        }
-      ]
     },
     {
       "at": [24, 0, 0],
@@ -1204,7 +1174,7 @@
       "tiles": [
         "dirt",
         {
-          "tile": "hill-cave-mouth",
+          "tile": "hill-cave-mouth-basalt",
           "facing": "s"
         }
       ]
@@ -1244,6 +1214,92 @@
     {
       "at": [26, 3, 0],
       "tiles": ["dirt"]
+    },
+    {
+      "at": [4, 2, 0],
+      "tiles": [
+        "dirt",
+        {
+          "tile": "hill-cave-mouth",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [3, 2, 0],
+      "tiles": ["dirt"]
+    },
+    {
+      "at": [12, 2, 0],
+      "tiles": [
+        "dirt",
+        {
+          "tile": "hill-cave-mouth-frost",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [11, 2, 0],
+      "tiles": ["dirt"]
+    },
+    {
+      "at": [20, 2, 0],
+      "tiles": [
+        "dirt",
+        {
+          "tile": "hill-cave-mouth-sandstone",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [19, 2, 0],
+      "tiles": ["dirt"]
+    },
+    {
+      "at": [28, 2, 0],
+      "tiles": [
+        "dirt",
+        {
+          "tile": "hill-cave-mouth-basalt",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [27, 2, 0],
+      "tiles": ["dirt"]
+    },
+    {
+      "at": [4, 7, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "player",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [12, 7, 0],
+      "tiles": [
+        "snow",
+        {
+          "tile": "player",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [20, 7, 0],
+      "tiles": [
+        "sand-dunes",
+        {
+          "tile": "player",
+          "facing": "s"
+        }
+      ]
     },
     {
       "at": [28, 7, 0],

@@ -64604,7 +64604,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall-basalt"
+      "hill-wall-basalt",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -65525,7 +65528,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall-basalt"
+      "hill-wall-basalt",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -66446,7 +66452,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall-basalt"
+      "hill-wall-basalt",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -67367,7 +67376,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall-basalt"
+      "hill-wall-basalt",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -102475,7 +102487,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall-basalt"
+      "hill-wall-basalt",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -116646,7 +116661,10 @@
       "hill-cave-mouth",
       "hill-wall-sandstone",
       "hill-wall-basalt",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -117567,7 +117585,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-basalt",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -118488,7 +118509,10 @@
       "hill-cave-mouth",
       "hill-wall-frost",
       "hill-wall-sandstone",
-      "hill-wall"
+      "hill-wall",
+      "hill-cave-mouth-frost",
+      "hill-cave-mouth-sandstone",
+      "hill-cave-mouth-basalt"
     ],
     "slices": {
       "0": {
@@ -119372,6 +119396,288 @@
               "rect": {
                 "x": 12,
                 "y": 10,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "hill-cave-mouth-frost",
+    "name": "Frosted Hill Cave Mouth",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "cave-wall",
+      "x": 0,
+      "y": 98
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "hill-cave-mouth-sandstone",
+    "name": "Sandstone Hill Cave Mouth",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "cave-wall",
+      "x": 0,
+      "y": 100
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "hill-cave-mouth-basalt",
+    "name": "Basalt Hill Cave Mouth",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "cave-wall",
+      "x": 0,
+      "y": 102
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
                 "w": 2,
                 "h": 2
               },

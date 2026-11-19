@@ -220,7 +220,22 @@ const VARIANTS: Variant[] = [
 
 const HILL = VARIANTS.find((variant) => variant.tileId === "hill-wall")!;
 
-const MOUTH_ID = "hill-cave-mouth";
+/**
+ * One mouth per hill rock, each a row of the sheet below the walls. A mouth
+ * has to be its own `directional` tile: a placement carries its facing, and a
+ * tile cannot have facings and variants at once.
+ */
+const MOUTH_TILES: { tileId: string; name: string; wall: string }[] = [
+  { tileId: "hill-cave-mouth", name: "Hill Cave Mouth", wall: "hill-wall" },
+  { tileId: "hill-cave-mouth-frost", name: "Frosted Hill Cave Mouth", wall: "hill-wall-frost" },
+  {
+    tileId: "hill-cave-mouth-sandstone",
+    name: "Sandstone Hill Cave Mouth",
+    wall: "hill-wall-sandstone",
+  },
+  { tileId: "hill-cave-mouth-basalt", name: "Basalt Hill Cave Mouth", wall: "hill-wall-basalt" },
+];
+const MOUTH_IDS = MOUTH_TILES.map((mouth) => mouth.tileId);
 const MOUTH_WIDTH = CELL - 2;
 const MOUTH_DARK = 0;
 
@@ -396,9 +411,15 @@ function drawSlice(
  * wall before it was cut, so the face round the opening is the face of the
  * cells beside it.
  */
-function drawMouth(sheet: PNG, originX: number, originY: number, mouth: (typeof MOUTHS)[number]) {
+function drawMouth(
+  sheet: PNG,
+  originX: number,
+  originY: number,
+  mouth: (typeof MOUTHS)[number],
+  wall: Variant,
+) {
   const [near, far] = mouth.ends.map((open) =>
-    crossSections(~open & 0xff, HILL.crown, HILL.spread),
+    crossSections(~open & 0xff, wall.crown, wall.spread),
   ) as [boolean[][][], boolean[][][]];
   const whole = near.map((rows, layer) =>
     rows.map((row, y) => row.map((rock, x) => rock && far[layer]![y]![x]!)),
@@ -416,7 +437,7 @@ function drawMouth(sheet: PNG, originX: number, originY: number, mouth: (typeof 
    */
   const seen = (layer: number, x: number, y: number) =>
     hollow(layer, x, y) && (alongY ? y : x) >= HALF;
-  cast(sheet, originX, originY, layers, heightsOf(whole), HILL.rock, seen);
+  cast(sheet, originX, originY, layers, heightsOf(whole), wall.rock, seen);
 }
 
 function sliceRect(slice: number) {
@@ -439,7 +460,7 @@ async function writeJson(file: string, value: unknown) {
 async function main() {
   const sheet = new PNG({
     width: SLICES_PER_ROW * SPRITE_CELLS * CELL,
-    height: (VARIANTS.length * VARIANT_ROWS + SPRITE_CELLS) * CELL,
+    height: (VARIANTS.length * VARIANT_ROWS + MOUTH_TILES.length * SPRITE_CELLS) * CELL,
   });
   sheet.data.fill(0);
 
@@ -459,7 +480,7 @@ async function main() {
     }
     const others = [
       ...VARIANTS.filter((other) => other.tileId !== tileId).map((o) => o.tileId),
-      MOUTH_ID,
+      ...MOUTH_IDS,
     ];
     const existing = tiles.find((t) => t.id === tileId);
     if (existing) {
@@ -488,35 +509,45 @@ async function main() {
       });
     }
   });
-  const mouthAnchor = { tilesetId: TILESET_ID, x: 0, y: VARIANTS.length * VARIANT_ROWS };
-  const sprites: Partial<Record<Direction, TileSprite>> = {};
-  MOUTHS.forEach((mouth, i) => {
-    const rect = { x: i * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS };
-    drawMouth(sheet, rect.x * CELL, mouthAnchor.y * CELL, mouth);
-    for (const facing of mouth.facings) {
-      sprites[facing] = {
-        frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
-      };
+  const template = tiles.find((t) => t.id === MOUTH_TILES[0]!.tileId);
+  MOUTH_TILES.forEach(({ tileId, name, wall }, m) => {
+    const anchor = {
+      tilesetId: TILESET_ID,
+      x: 0,
+      y: VARIANTS.length * VARIANT_ROWS + m * SPRITE_CELLS,
+    };
+    const variant = VARIANTS.find((v) => v.tileId === wall)!;
+    const sprites: Partial<Record<Direction, TileSprite>> = {};
+    MOUTHS.forEach((mouth, i) => {
+      const rect = { x: i * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS };
+      drawMouth(sheet, rect.x * CELL, anchor.y * CELL, mouth, variant);
+      for (const facing of mouth.facings) {
+        sprites[facing] = {
+          frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
+        };
+      }
+    });
+    const existing = tiles.find((t) => t.id === tileId);
+    if (existing) {
+      Object.assign(existing, { type: "directional", anchor, sprites });
+    } else if (template) {
+      tiles.push({ ...structuredClone(template), id: tileId, name, anchor, sprites });
+    } else {
+      tiles.push({
+        id: tileId,
+        name,
+        height: 4,
+        type: "directional",
+        kind: "prop",
+        attributes: {},
+        anchor,
+        lightPassing: true,
+        intangible: true,
+        walkable: false,
+        sprites,
+      } as TileDef);
     }
   });
-  const mouthTile = tiles.find((t) => t.id === MOUTH_ID);
-  if (mouthTile) {
-    Object.assign(mouthTile, { type: "directional", anchor: mouthAnchor, sprites });
-  } else {
-    tiles.push({
-      id: MOUTH_ID,
-      name: "Hill Cave Mouth",
-      height: 4,
-      type: "directional",
-      kind: "prop",
-      attributes: {},
-      anchor: mouthAnchor,
-      lightPassing: true,
-      intangible: true,
-      walkable: false,
-      sprites,
-    } as TileDef);
-  }
   await fs.writeFile(path.join(DATA, "tilesets", `${TILESET_ID}.png`), PNG.sync.write(sheet));
   await writeJson(tilesPath, tiles);
 
