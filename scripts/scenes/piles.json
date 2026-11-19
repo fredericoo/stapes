@@ -1,0 +1,14 @@
+{
+  "zoom": 8,
+  "look": [3, 2],
+  "cells": [
+    { "from": [-2, -2], "to": [9, 6], "tiles": ["grass-2"] },
+    { "at": [0, 1], "tiles": ["grass-2", { "tile": "berry", "count": 3 }] },
+    { "at": [2, 1], "tiles": ["grass-2", { "tile": "berry", "count": 6 }] },
+    { "at": [4, 1], "tiles": ["grass-2", { "tile": "berry", "count": 12 }] },
+    { "at": [0, 3], "tiles": ["grass-2", { "tile": "bone", "count": 3 }] },
+    { "at": [2, 3], "tiles": ["grass-2", { "tile": "bone", "count": 6 }] },
+    { "at": [4, 3], "tiles": ["grass-2", { "tile": "bone", "count": 10 }] },
+    { "at": [6, 3], "tiles": ["grass-2", { "tile": "apple", "count": 8 }] }
+  ]
+}
