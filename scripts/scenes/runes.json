@@ -1,0 +1,137 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [6, 4],
+  "cells": [
+    {
+      "from": [-4, -4],
+      "to": [18, 12],
+      "tiles": ["grass"]
+    },
+    {
+      "from": [8, -4],
+      "to": [18, 12],
+      "tiles": ["dirt"]
+    },
+    {
+      "at": [0, 0],
+      "tiles": ["grass", "arcane-stone-of-flame"]
+    },
+    {
+      "at": [2, 0],
+      "tiles": ["grass", "arcane-stone-of-cinder"]
+    },
+    {
+      "at": [4, 0],
+      "tiles": ["grass", "arcane-stone-of-ember"]
+    },
+    {
+      "at": [6, 0],
+      "tiles": ["grass", "arcane-stone-of-pyre"]
+    },
+    {
+      "at": [8, 0],
+      "tiles": ["dirt", "arcane-stone-of-inferno"]
+    },
+    {
+      "at": [10, 0],
+      "tiles": ["dirt", "arcane-stone-of-berserk"]
+    },
+    {
+      "at": [0, 2],
+      "tiles": ["grass", "arcane-stone-of-sleet"]
+    },
+    {
+      "at": [2, 2],
+      "tiles": ["grass", "arcane-stone-of-frost"]
+    },
+    {
+      "at": [4, 2],
+      "tiles": ["grass", "arcane-stone-of-rime"]
+    },
+    {
+      "at": [6, 2],
+      "tiles": ["grass", "arcane-stone-of-shatter"]
+    },
+    {
+      "at": [8, 2],
+      "tiles": ["dirt", "arcane-stone-of-crystallise"]
+    },
+    {
+      "at": [0, 4],
+      "tiles": ["grass", "arcane-stone-of-barbs"]
+    },
+    {
+      "at": [2, 4],
+      "tiles": ["grass", "arcane-stone-of-thorns"]
+    },
+    {
+      "at": [4, 4],
+      "tiles": ["grass", "arcane-stone-of-bramble"]
+    },
+    {
+      "at": [6, 4],
+      "tiles": ["grass", "arcane-stone-of-verdance"]
+    },
+    {
+      "at": [8, 4],
+      "tiles": ["dirt", "arcane-stone-of-bloom"]
+    },
+    {
+      "at": [10, 4],
+      "tiles": ["dirt", "arcane-stone-of-overgrowth"]
+    },
+    {
+      "at": [12, 4],
+      "tiles": ["dirt", "arcane-stone-of-blossom"]
+    },
+    {
+      "at": [0, 6],
+      "tiles": ["grass", "arcane-stone-of-light"]
+    },
+    {
+      "at": [2, 6],
+      "tiles": ["grass", "arcane-stone-of-spark"]
+    },
+    {
+      "at": [4, 6],
+      "tiles": ["grass", "arcane-stone-of-bolt"]
+    },
+    {
+      "at": [6, 6],
+      "tiles": ["grass", "arcane-stone-of-lance"]
+    },
+    {
+      "at": [8, 6],
+      "tiles": ["dirt", "arcane-stone-of-stomp"]
+    },
+    {
+      "at": [0, 8],
+      "tiles": ["grass", "rune-blank-bone"]
+    },
+    {
+      "at": [2, 8],
+      "tiles": ["grass", "rune-blank-crystal"]
+    },
+    {
+      "at": [4, 8],
+      "tiles": ["grass", "rune-blank-obsidian"]
+    },
+    {
+      "at": [6, 8],
+      "tiles": ["grass", "arcane-stone"]
+    },
+    {
+      "at": [8, 8],
+      "tiles": ["dirt", "essence-fire"]
+    },
+    {
+      "at": [10, 8],
+      "tiles": ["dirt", "essence-water"]
+    },
+    {
+      "at": [12, 8],
+      "tiles": ["dirt", "essence-nature"]
+    }
+  ]
+}

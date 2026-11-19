@@ -275,5 +275,20 @@
     "file": "ruins.png",
     "width": 64,
     "height": 144
+  },
+  {
+    "id": "runes",
+    "name": "Runes",
+    "file": "runes.png",
+    "width": 64,
+    "height": 40
+  },
+  {
+    "id": "essences",
+    "name": "Essences",
+    "file": "essences.png",
+    "width": 64,
+    "height": 24,
+    "translucent": true
   }
 ]

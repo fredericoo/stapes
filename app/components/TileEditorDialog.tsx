@@ -600,6 +600,7 @@ export function TileEditorDialog({
     const saved: TileDef = {
       id: draft.id,
       name: draft.name,
+      description: draft.description?.trim() || undefined,
       height: draft.height,
       type: draft.type,
       kind: draft.kind,

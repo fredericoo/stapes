@@ -178,6 +178,11 @@ export type TileDef = StateSprites & {
    * hold parts (placements carrying `span`) kept in step by `./footprint`.
    */
   footprint?: Footprint;
+  /**
+   * What examining any one of this tile tells you. The item card shows it
+   * when the placement carries no `description` of its own.
+   */
+  description?: string;
   attributes: Record<string, never>;
   connectsTo?: string[];
   scatterSeed?: number;

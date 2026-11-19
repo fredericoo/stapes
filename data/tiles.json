@@ -27763,14 +27763,15 @@
   {
     "id": "arcane-stone-of-flame",
     "name": "Flame",
+    "description": "Bone, carved with a rising flame. Kindles a fire where you point it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -27817,14 +27818,15 @@
   {
     "id": "arcane-stone-of-ember",
     "name": "Ember",
+    "description": "Red crystal, carved with a diamond. Hurls a burning ember.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -27882,14 +27884,15 @@
   {
     "id": "arcane-stone-of-frost",
     "name": "Frost",
+    "description": "Blue crystal, carved with a cross of frost. Chills whatever it strikes.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -27947,14 +27950,15 @@
   {
     "id": "arcane-stone-of-thorns",
     "name": "Thorns",
+    "description": "Green crystal, carved with a rising thorn. Strikes with a poisoned thorn.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28012,14 +28016,15 @@
   {
     "id": "arcane-stone-of-pyre",
     "name": "Pyre",
+    "description": "Red crystal, carved with a flame over logs. Bursts into fire around its target.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -28125,14 +28130,15 @@
   {
     "id": "arcane-stone-of-rime",
     "name": "Rime",
+    "description": "Blue crystal, carved with a saltire. Frosts everything around its target.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -28238,14 +28244,15 @@
   {
     "id": "arcane-stone-of-bramble",
     "name": "Bramble",
+    "description": "Green crystal, carved with a tangle of stems. Grows poison briars around its target.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28351,14 +28358,15 @@
   {
     "id": "arcane-stone-of-verdance",
     "name": "Verdance",
+    "description": "Green crystal, carved with a sprouting shoot. Mends your wounds.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28444,14 +28452,15 @@
   {
     "id": "arcane-stone-of-bloom",
     "name": "Bloom",
+    "description": "Green crystal, carved with an opening bud. Heals you and draws out burns, chills and poison.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28542,14 +28551,15 @@
   {
     "id": "arcane-stone-of-cinder",
     "name": "Cinder",
+    "description": "Bone, carved with falling sparks. Flicks a cinder at a foe.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -28599,14 +28609,15 @@
   {
     "id": "arcane-stone-of-sleet",
     "name": "Sleet",
+    "description": "Bone, scored with slanting rain. Flings a shard of sleet.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -28656,14 +28667,15 @@
   {
     "id": "arcane-stone-of-barbs",
     "name": "Barbs",
+    "description": "Bone, carved with a barbed stem. Looses a hooked barb.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28713,14 +28725,15 @@
   {
     "id": "arcane-stone-of-light",
     "name": "Light",
+    "description": "Bone, carved with a beam. Makes your skin shine in the dark.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28809,14 +28822,15 @@
   {
     "id": "arcane-stone-of-spark",
     "name": "Spark",
+    "description": "Bone, carved with a small cross. Snaps a spark of raw arcana at a foe.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28865,14 +28879,15 @@
   {
     "id": "arcane-stone-of-bolt",
     "name": "Bolt",
+    "description": "Lavender crystal, carved with a zigzag. Hurls a bolt of raw arcana.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28921,14 +28936,15 @@
   {
     "id": "arcane-stone-of-lance",
     "name": "Lance",
+    "description": "Lavender crystal, carved with a spear. Drives a lance of raw arcana into a foe.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28977,14 +28993,15 @@
   {
     "id": "arcane-stone-of-inferno",
     "name": "Inferno",
+    "description": "Obsidian, carved with a blazing star. Sets everything around you alight.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -29120,14 +29137,15 @@
   {
     "id": "arcane-stone-of-shatter",
     "name": "Shatter",
+    "description": "Obsidian, cut with a jagged crack. Bursts into ice around you.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -29263,14 +29281,15 @@
   {
     "id": "arcane-stone-of-overgrowth",
     "name": "Overgrowth",
+    "description": "Obsidian, carved with a branching trident. Bursts into poison growth around you.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 5,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -29406,14 +29425,15 @@
   {
     "id": "arcane-stone-of-stomp",
     "name": "Stomp",
+    "description": "Obsidian, carved with a blow on the ground. Shakes the earth and dazes everyone around you.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -29552,14 +29572,15 @@
   {
     "id": "arcane-stone-of-berserk",
     "name": "Berserk",
+    "description": "Obsidian, carved with bared teeth. Fills you with a careless fury.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 5,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -29650,14 +29671,15 @@
   {
     "id": "arcane-stone-of-crystallise",
     "name": "Crystallise",
+    "description": "Obsidian, carved with a cold diamond. Cases you in ice.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -29748,14 +29770,15 @@
   {
     "id": "arcane-stone-of-blossom",
     "name": "Blossom",
+    "description": "Obsidian, carved with two linked buds. You flower and mend fast.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 6,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -44080,14 +44103,15 @@
   {
     "id": "arcane-stone",
     "name": "Blank Arcane Stone",
+    "description": "An uncut stone. The stone forge can shape it into a rune.",
     "height": 0,
     "type": "simple",
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 2,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 4
     },
     "lightPassing": true,
     "intangible": true,
@@ -123175,5 +123199,692 @@
         ]
       }
     ]
+  },
+  {
+    "id": "rune-blank-bone",
+    "name": "Bone Blank",
+    "description": "Bone shaped for carving. Only the runemaster can cut a mark into it.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rune-blank-crystal",
+    "name": "Crystal Blank",
+    "description": "Crystal shaped for carving. It stays clear until an essence colours it.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rune-blank-obsidian",
+    "name": "Obsidian Blank",
+    "description": "Obsidian shaped for carving. No material holds a stronger rune.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-fire",
+    "name": "Fire Essence",
+    "description": "A spark of fire, gathered from a creature of flame.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "essences",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#e83b3b"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-water",
+    "name": "Water Essence",
+    "description": "A spark of water, gathered from a creature of the tide.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "essences",
+      "x": 0,
+      "y": 1
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#4d9be6"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-nature",
+    "name": "Nature Essence",
+    "description": "A spark of nature, gathered from a creature of the wild.",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "essences",
+      "x": 0,
+      "y": 2
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 5,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 7,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 140,
+          "light": {
+            "radius": 2,
+            "intensity": 0.8,
+            "color": "#1ebc73"
+          }
+        }
+      ]
+    }
   }
 ]

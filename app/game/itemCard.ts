@@ -550,7 +550,7 @@ export function itemCard(
     elements: elementsOf(item),
     kind: kindOf(item),
     inscription: instance?.inscription?.trim() || null,
-    description: instance?.description?.trim() || null,
+    description: instance?.description?.trim() || def.description?.trim() || null,
     stats: statsFor(item, instance, masteries, statusDefs),
     requirements: requirementsFrom(demandsOf(item), masteries),
     dormant: dormancyOf(item, masteries),

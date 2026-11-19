@@ -332,6 +332,13 @@ an agent drives", lists every call.
   faces. The sprites are 3D models cast through the game's projection by
   `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
   times larger
+- `bun run generate:runes` — draw `data/tilesets/runes.png` and point every
+  `arcane-stone-*` item at it, write the three blank runes, and draw the three
+  essences into `data/tilesets/essences.png`. A rune is a slab in its material
+  (bone, crystal or obsidian) with a 5×6 mark carved into it, coloured by its
+  element; an essence is a twinkling, floating star in its element's colours,
+  faded with stepped opacity like the wisps, and lit in that colour. The
+  glyphs, materials and colours are tables at the top of the script
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this

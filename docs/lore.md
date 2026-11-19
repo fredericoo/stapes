@@ -52,7 +52,7 @@ The material decides how strong the rune is.
 | --- | --- | --- |
 | **Bone** | Crude | Easy to get. Skeletons drop it, and so do many animals. |
 | **Crystal** | Medium | Mined in risky places. |
-| **Deep ore** *(name open)* | High | A rare ore found only deep in dungeons, and slow to mine. |
+| **Obsidian** | High | Rare volcanic glass found only deep in dungeons, and slow to mine. |
 
 More materials can be added later.
 
@@ -76,7 +76,7 @@ built around it. There is one forge for each material.
 Making a rune takes two steps:
 
 1. **The player shapes the material into a blank rune** at its forge: bone
-   into a crude blank, crystal into a medium one, deep ore into a high one.
+   into a crude blank, crystal into a medium one, obsidian into a high one.
 2. **The runemaster carves it.** The runemaster *(coined)*, an elder of the
    temple, takes the blank and an essence and carves the mark. Only the
    runemaster carves; no player can.
@@ -277,7 +277,6 @@ These were canon before this rewrite and are not any more:
   it.
 - **What is inside the lighthouse**, floor by floor, and what makes a floor
   need a group.
-- **The deep ore's name.**
 - **The two towns' names**, if they get names beyond the druids and the
   warriors.
 - **What traps are made from.**
