@@ -1,0 +1,26 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [8, 7],
+  "cells": [
+    { "from": [-10, -8], "to": [26, 20], "tiles": ["beach-sand"] },
+    { "from": [-10, -8], "to": [26, -2], "tiles": ["sand-dunes"] },
+    { "from": [-10, 10], "to": [26, 20], "tiles": ["beach-sand", "water"] },
+    { "from": [-10, 10], "to": [26, 10], "tiles": ["beach-sand", "water", "shore-foam"] },
+    { "from": [-10, 15], "to": [26, 20], "tiles": ["beach-sand", "water", "deep-water"] },
+    { "at": [7, 11], "tiles": ["beach-sand", "water", "wreck-ribs"] },
+    { "at": [14, 8], "tiles": ["beach-sand", "wreck-hull"] },
+    { "at": [5, 6], "tiles": ["beach-sand", "wreck-mast"] },
+    { "at": [9, 4], "tiles": ["beach-sand", "wreck-planks"] },
+    { "at": [10, 6], "tiles": ["beach-sand", "wreck-planks"] },
+    { "at": [16, 4], "tiles": ["beach-sand", "wreck-planks"] },
+    { "at": [2, 9], "tiles": ["beach-sand", "wreck-planks"] },
+    { "at": [18, 10], "tiles": ["beach-sand", "water", "shore-foam", "wreck-planks"] },
+    { "at": [3, 3], "tiles": ["beach-sand", "driftwood"] },
+    { "at": [13, 12], "tiles": ["beach-sand", "water", "driftwood"] },
+    { "at": [11, 2], "tiles": ["beach-sand", "barrel"] },
+    { "at": [13, 4], "tiles": ["beach-sand", "rope-coil"] },
+    { "at": [17, 7], "tiles": ["beach-sand", "crate-chest"] },
+    { "at": [2, 6], "tiles": ["beach-sand", "sack"] }
+  ]
+}

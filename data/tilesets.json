@@ -261,5 +261,12 @@
     "file": "shore-foam.png",
     "width": 64,
     "height": 376
+  },
+  {
+    "id": "beach",
+    "name": "Beach",
+    "file": "beach.png",
+    "width": 120,
+    "height": 64
   }
 ]
