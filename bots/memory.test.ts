@@ -15,19 +15,19 @@ it("shares what one bot saw with another that opens the same file, one place per
   dir = mkdtempSync(join(tmpdir(), "landmarks-"));
   const path = join(dir, "world.db");
   const finder = new Landmarks(path);
-  finder.saw("blacksmith", { x: 10, y: 10, z: 0 }, 0);
-  finder.saw("blacksmith", { x: 14, y: 10, z: 0 }, 1);
-  finder.saw("blacksmith", { x: 10 + SAME_PLACE_CELLS * 4, y: 10, z: 0 }, 2);
+  finder.saw("brannoc-hale", { x: 10, y: 10, z: 0 }, 0);
+  finder.saw("brannoc-hale", { x: 14, y: 10, z: 0 }, 1);
+  finder.saw("brannoc-hale", { x: 10 + SAME_PLACE_CELLS * 4, y: 10, z: 0 }, 2);
   finder.close();
 
   const other = new Landmarks(path);
-  expect(other.where("blacksmith", { x: 0, y: 10, z: 0 }, 3)).toEqual([
+  expect(other.where("brannoc-hale", { x: 0, y: 10, z: 0 }, 3)).toEqual([
     { x: 14, y: 10, z: 0 },
     { x: 10 + SAME_PLACE_CELLS * 4, y: 10, z: 0 },
   ]);
 
-  other.missing("blacksmith", { x: 13, y: 9, z: 0 });
-  expect(other.where("blacksmith", { x: 0, y: 10, z: 0 }, 4)).toEqual([
+  other.missing("brannoc-hale", { x: 13, y: 9, z: 0 });
+  expect(other.where("brannoc-hale", { x: 0, y: 10, z: 0 }, 4)).toEqual([
     { x: 10 + SAME_PLACE_CELLS * 4, y: 10, z: 0 },
   ]);
   other.close();

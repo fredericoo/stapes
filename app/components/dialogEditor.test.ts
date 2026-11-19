@@ -108,7 +108,7 @@ describe("moving a command", () => {
 describe("a fresh command", () => {
   it("is something the runtime accepts as soon as it is added", () => {
     const tiles = normalizeTiles(tilesJson as unknown[]);
-    const salesman = tiles.find((t) => t.id === "potion-salesman")!;
+    const salesman = tiles.find((t) => t.id === "noor-halabi")!;
     const dialog = resolveDialog(salesman)!;
     const fresh = DIALOG_COMMANDS.choices.make({ tileId: "arcane-shard", statusId: "luminous" });
     const withFresh = {

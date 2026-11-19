@@ -59,7 +59,7 @@ function tutorialWorld(): FlatMapFile {
 
 /**
  * An open field with the bot at its west end, a pile of gold on the way
- * and the blacksmith at the east end.
+ * and Brannoc Hale, the smith, at the east end.
  */
 function marketWorld(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
@@ -68,7 +68,7 @@ function marketWorld(): FlatMapFile {
   }
   cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
   cells["5,3"]!.push({ tileId: "gold", itemId: "gold", count: 30 });
-  cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
+  cells["14,3"]!.push({ tileId: "brannoc-hale", direction: "w" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
@@ -126,7 +126,7 @@ function forgeWorld(rewards: string[]): FlatMapFile {
 
 /**
  * A field with the bot, a pile of `gold` beside it, the town's depot a few
- * cells east, and, when the test wants sellers, the blacksmith at the far end
+ * cells east, and, when the test wants sellers, Brannoc Hale at the far end
  * with the pie maker beside him.
  */
 function depotWorld(gold: number, { sellers = false } = {}): FlatMapFile {
@@ -138,8 +138,8 @@ function depotWorld(gold: number, { sellers = false } = {}): FlatMapFile {
   cells["2,3"]!.push({ tileId: "gold", itemId: "found", count: gold });
   cells["6,2"]!.push({ tileId: "silver-chest", depotTag: "town" });
   if (sellers) {
-    cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
-    cells["14,5"]!.push({ tileId: "pie-maker", direction: "w" });
+    cells["14,3"]!.push({ tileId: "brannoc-hale", direction: "w" });
+    cells["14,5"]!.push({ tileId: "pell-marrow", direction: "w" });
   }
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
@@ -188,7 +188,7 @@ function longFieldWorld(): FlatMapFile {
     for (let y = 0; y < 9; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
   }
   cells["2,4"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
-  cells["60,4"]!.push({ tileId: "pie-maker", direction: "w" });
+  cells["60,4"]!.push({ tileId: "pell-marrow", direction: "w" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
@@ -231,7 +231,7 @@ async function play(bot: Bot, remote: RemoteSession, until: () => boolean, clock
   }
 }
 
-it("picks up gold it walks past, buys a hammer from the blacksmith, and wields it", async () => {
+it("picks up gold it walks past, buys a hammer from Brannoc Hale, and wields it", async () => {
   await harness.blobs.put("map.json", JSON.stringify(marketWorld()), JSON_TYPE);
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
@@ -745,7 +745,7 @@ it("walks a hurt bot away from where the fleet saw a wolf to the pie maker", asy
   const { remote, clock } = await joinBot(true);
   const landmarks = new Landmarks(":memory:");
   landmarks.saw("wolf", { x: 4, y: 8, z: 0 });
-  landmarks.saw("pie-maker", { x: 60, y: 4, z: 0 });
+  landmarks.saw("pell-marrow", { x: 60, y: 4, z: 0 });
   const goals: string[] = [];
   const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
     random: () => 0.5,

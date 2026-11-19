@@ -61,9 +61,9 @@ function strikeOnce(session: GameSession, x: number, y: number): string[] {
 describe("the town", () => {
   it("runs to a guard who is out of sight, and the guard hunts the culprit down", () => {
     const session = town([
-      [1, 0, "beggar"],
-      [3, 2, "pie-maker"],
-      [22, 0, "east-gate-guard"],
+      [1, 0, "jory-thistlewood"],
+      [3, 2, "pell-marrow"],
+      [22, 0, "gideon-okafor"],
     ]);
 
     const said = [...strikeOnce(session, 1, 0), ...run(session, 20_000)];
@@ -73,7 +73,7 @@ describe("the town", () => {
     expect(said).toContain(`Halt, ${PLAYER}!`);
     const deaths = session.drainDeaths();
     expect(deaths.map((death) => death.id)).toEqual([LOCAL_ACTOR_ID]);
-    const guard = session.actorSnapshots().find((a) => a.tileId === "east-gate-guard")!;
+    const guard = session.actorSnapshots().find((a) => a.tileId === "gideon-okafor")!;
     expect(deaths[0]?.blame?.byId).toBe(guard.id);
     expect(session.isWanted(LOCAL_ACTOR_ID)).toBe(false);
   });
@@ -81,8 +81,8 @@ describe("the town", () => {
   it("does not care about a blow on the training dummy", () => {
     const session = town([
       [1, 0, "training-dummy"],
-      [3, 2, "pie-maker"],
-      [6, 0, "east-gate-guard"],
+      [3, 2, "pell-marrow"],
+      [6, 0, "gideon-okafor"],
     ]);
 
     const dummy = session.actorSnapshots().find((a) => a.tileId === "training-dummy")!;

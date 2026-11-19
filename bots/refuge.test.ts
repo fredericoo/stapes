@@ -24,13 +24,13 @@ it.each([
     case: "walks far to an NPC when a wolf was seen beside it",
     sightings: [
       ["wolf", { x: 0, y: 5, z: 0 }],
-      ["pie-maker", { x: 80, y: 0, z: 0 }],
+      ["pell-marrow", { x: 80, y: 0, z: 0 }],
     ],
     expected: { x: 80, y: 0, z: 0 },
   },
   {
     case: "recovers where it stands when nothing was seen near it and safe ground is far",
-    sightings: [["pie-maker", { x: 80, y: 0, z: 0 }]],
+    sightings: [["pell-marrow", { x: 80, y: 0, z: 0 }]],
     expected: null,
   },
   {
@@ -50,7 +50,7 @@ it.each([
     case: "passes over an NPC with a wolf seen beside it",
     sightings: [
       ["wolf", { x: 0, y: 5, z: 0 }],
-      ["pie-maker", { x: 40, y: 0, z: 0 }],
+      ["pell-marrow", { x: 40, y: 0, z: 0 }],
       ["wolf", { x: 43, y: 0, z: 0 }],
       [REBIRTH_MARK, { x: -60, y: 0, z: 0 }],
     ],
@@ -63,7 +63,7 @@ it.each([
       ["wolf", { x: 20, y: 30, z: 0 }],
       ["snake", { x: 30, y: 30, z: 0 }],
       [REBIRTH_MARK, { x: 40, y: 40, z: 0 }],
-      ["pie-maker", { x: -90, y: 0, z: 0 }],
+      ["pell-marrow", { x: -90, y: 0, z: 0 }],
     ],
     expected: { x: -90, y: 0, z: 0 },
   },

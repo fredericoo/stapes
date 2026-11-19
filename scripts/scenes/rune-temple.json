@@ -11,7 +11,7 @@
     { "at": [3, 3], "tiles": ["slate-floor", "bone-forge"] },
     { "at": [5, 3], "tiles": ["slate-floor", "crystal-forge"] },
     { "at": [7, 3], "tiles": ["slate-floor", "obsidian-forge"] },
-    { "at": [5, 5], "tiles": ["slate-floor", { "tile": "runemaster", "facing": "s" }] },
+    { "at": [5, 5], "tiles": ["slate-floor", { "tile": "hesper-vaun", "facing": "s" }] },
     { "at": [3, 6], "tiles": ["slate-floor", "obsidian-vein-1"] },
     { "at": [7, 6], "tiles": ["slate-floor", "obsidian-vein-2"] },
     { "at": [5, 7], "tiles": ["slate-floor", "obsidian-shard"] }

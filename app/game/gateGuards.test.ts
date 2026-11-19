@@ -48,7 +48,7 @@ const warnings = (said: string[]) => said.filter((text) => text.includes("don't 
 
 describe("a gate guard", () => {
   it("warns a newcomer once, and again only after they have left and come back", () => {
-    const session = atGate("north-gate-guard");
+    const session = atGate("edda-kell");
 
     expect(warnings(heard(session))).toEqual([expect.stringContaining("too far north")]);
     expect(warnings(heard(session))).toEqual([]);
@@ -60,7 +60,7 @@ describe("a gate guard", () => {
   });
 
   it("lets a player past who is rated high enough", () => {
-    const session = atGate("north-gate-guard");
+    const session = atGate("edda-kell");
     for (const mastery of ["sharp", "toughness", "agility"]) {
       session.runCommand(`/mastery ${mastery} 40`);
     }
@@ -68,7 +68,7 @@ describe("a gate guard", () => {
   });
 
   it("only hints on the beginner's road east", () => {
-    const session = atGate("east-gate-guard");
+    const session = atGate("gideon-okafor");
     expect(warnings(heard(session))).toEqual([]);
   });
 });
