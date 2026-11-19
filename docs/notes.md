@@ -17295,6 +17295,11 @@ Not yet fixed, and worth knowing before you profile something else:
   nodes and sharing distance maps were both measured against the current cost
   and left out (see "A creature thinks every round only while somebody could
   notice it").
+- **The editor reads and meshes the whole map.** On Rune Isle `/admin/map`
+  is ready after about 13 seconds in headless Chromium, with a 575 MB heap,
+  659,000 quads and 135 world meshes across 16 levels; `maxWorldMeshes` in
+  `app/editor/perf.ts` was raised from 98 to 140 for it, because the count
+  grows with the levels the map holds and the lighthouse alone is 16.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
 
@@ -18567,3 +18572,67 @@ before, and the script refuses to write a map that does.
 
 **It runs once.** A second run finds new shortcuts measured against the
 first run's ramps.
+
+## Rune Isle is generated, and the scale is what the server can hold
+
+`data/map.json` is written by `bun run generate:island` (`scripts/island/`),
+and so are `data/map-staging.json` and `docs/map.md`. Regenerating replaces
+all three, so a hand edit to the map is kept only by moving it into the
+generator.
+
+**The scale was measured, not chosen.** The lore asks for the towns five
+minutes apart, about 1,500 cells of road; at the sketch's proportions that is
+an island near 2,500 × 1,900 cells and about eight million level-cells. The
+server holds roughly 1.1–1.7 KB per cell (synthetic islands of 0.3M, 0.7M,
+1.2M and 2.8M cells loaded into the real `GameServer` took 545 MB, 1.0 GB,
+1.45 GB and 2.3 GB, and 3, 6.5, 12 and 27 seconds to the first join), so that
+island would need about 11 GB. At 0.5 cells per sketch pixel the island is
+596 × 450 cells and 405,000 level-cells, measured at 640 MB with one player
+in and 3.7 seconds to the first join, and the towns are about 340 cells
+apart by the inn road. What would make a larger island affordable is the
+server keeping static ground in typed arrays rather than as an object per
+placement; nothing smaller moves the number much.
+
+**A raised cell costs a cell per storey under it.** Raised ground is a filled
+column (`docs/terrain.md`), so height is spent where it shows: the reference
+generator's elevation maps to storeys on a 1.3 power, which keeps the
+lowlands at levels 0 and 1 and puts the storeys on the peak.
+
+**The coast is the sketch's, the rest is the reference generator's.** The
+generator the sketch was drawn from is `scripts/island/reference.ts`,
+ported as given. Its own coast comes out without Wreckers' Bay or the
+lighthouse headland, so the coastline is traced from `docs/lore-map.webp`
+(`sketchLand`) and pushed into its height before the basins are filled and
+the rain is routed, so the lakes and rivers agree with the traced coast. The
+lighthouse needs ground 21 cells across and the headland is narrower, so the
+sea under the tower's site is filled in (`raiseHeadland`).
+
+**Every cliff is one storey, and every terrace has a way up.** Each level
+stands on a shelf of the level below at least three cells wide, small hollows
+are filled and small pieces lowered, ramps go on cliffs every 36 cells and
+wherever two shelves are not yet joined, and a shelf still unreached from the
+wreck beach is folded into its lowest neighbour and the plan cut again. A road
+routed over the terraces may build a ramp of its own where it meets a cliff,
+so the safe path from the beach to the camp climbs where it is rather than
+walking round to a ramp somewhere else.
+
+**A town stands on one ground.** A site is levelled to one storey and given
+the ground most of it had, because a floor or a street over the line between
+two grounds draws that line through it (`verify content` warns). Outside
+the sites `harmoniseGround` moves each such line off the autotiles that would
+draw it, and gives up on a cell of road, which is left as bare ground.
+
+**Buildings come from the editor's own house generator** (`planHouse`), so a
+house the generator wrote and one an author draws in `/admin/map` are the same
+house. Every character in `docs/npcs.md` has a bed in the building their
+profile puts them in, and `docs/map.md` lists each bed and work cell by the
+character's tile id. The reachability check the generator's tables were tested
+with opens every door first: the walk does not carry a door's state from one
+leg to the next, so a body that has walked into a closed door is stood on top
+of it, and every house of one storey would look sealed.
+
+**The staging map is a corner of the island**, the beach, the camp, the
+harbour ruins and the lighthouse, widened until the crop cuts no hill off from
+its ramps and ringed with sea. It is seeded where `SEED_MAP=map-staging.json`
+(`docs/deploy.md`) and needs about 180 MB.
+

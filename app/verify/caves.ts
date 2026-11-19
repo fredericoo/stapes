@@ -198,6 +198,8 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
     daylit,
   });
 
+  if (denCells.size === 0) return report({});
+
   const approach = { x: mouth.x - STEP[mouthDescent].x, y: mouth.y - STEP[mouthDescent].y };
   const start = settle(approach.x, approach.y, 0);
   if (!start) {

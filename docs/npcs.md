@@ -1168,7 +1168,7 @@ each would need.
   in one of the coats from `bun run generate:cats`: Biscuit in the shared cat's
   ginger, Soot black, Ghee cream, Captain grey and Nettle tuxedo.
 - **Travellers.** A brain finds a goal only as far as its furthest distance
-  (`brainReach`), and the towns are about 1,650 cells apart. A traveller needs a
+  (`brainReach`), and the towns are about 340 cells apart by road. A traveller needs a
   chain of waypoint markers along the road, each a distinct tile, with a brain
   state per leg, or a new action that follows a named route. Routing does not
   open doors, so routes should not cross one.

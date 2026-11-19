@@ -285,6 +285,18 @@ an agent drives", lists every call.
   launches; `PREVIEW=<dir>` also writes a 4× copy there. One frame of the same
   crystal becomes `public/favicon.ico` (32 and 64 px) and
   `public/apple-touch-icon.png` (180 px, on the ink background)
+- `bun run generate:island` — write Rune Isle to `data/map.json` from
+  `scripts/island/`: the reference generator's height, lakes and rivers inside
+  the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,
+  the towns, the camp, the inn, the lighthouse, the harbour ruins and the
+  wreck, and what grows on each kind of ground. It also writes
+  `data/map-staging.json`, a corner of the same island for the staging world,
+  and `docs/map.md`, the table of who lives and works where. It replaces the
+  map rather than adding to it; `--seed` and `--scale` change the island
+- `bun run preview:island` — draw the island top-down to a PNG, one pixel a
+  cell, and print its cell count per level and each road's length in cells and
+  seconds. `--plan` draws the sites, ramps and bridges as well; `--scale` tries
+  another size without writing a map
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block in `scripts/caveSystem.ts`; `--verify` checks the map

@@ -220,6 +220,7 @@ export function buildIsland(options: IslandOptions): Island {
         const x = want.x + dx;
         const y = want.y + dy;
         if (x < 0 || y < 0 || x >= w || y >= h || !dry(y * w + x)) continue;
+        if (id === "wreckBeach" && ground[y * w + x] !== Ground.Beach) continue;
         const d = dx * dx + dy * dy;
         if (d < bestD) {
           bestD = d;

@@ -3,6 +3,7 @@ import { PNG } from "pngjs";
 import { PLACES, type PlaceId } from "./island/layout";
 import { countLevelCells, renderIsland } from "./island/preview";
 import { readSketch } from "./island/sketch";
+import { planIsland } from "./island/plan";
 import { GROUND_NAMES, Ground, buildIsland } from "./island/terrain";
 import { WALK_DURATION_MS } from "../app/game/constants";
 
@@ -24,8 +25,13 @@ const island = buildIsland({
   peakLevel: 7,
   seaRing: 20,
 });
+const plan = process.argv.includes("--plan") ? planIsland(island) : null;
 const ms = performance.now() - t0;
-await writeFile(out, PNG.sync.write(renderIsland(island, zoom)));
+if (plan) {
+  island.road.set(plan.road);
+  island.roadLengths = plan.roadLengths;
+}
+await writeFile(out, PNG.sync.write(renderIsland(island, zoom, plan)));
 
 let minX = Infinity;
 let minY = Infinity;

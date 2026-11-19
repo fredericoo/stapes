@@ -188,10 +188,13 @@ silently starts a brand new world**. Nothing warns you.
 
 ### Memory limit
 
-**Resource Limits → Memory: `1g`.**
+**Resource Limits → Memory: `1536m`.**
 
-Do not skip this. An idle world is about 90 MB, so a gigabyte is
-enormous headroom — the number matters less than the limit existing. Without one,
+Do not skip this. The world holds the whole map in memory: Rune Isle measured
+640 MB with one player in, and players add to that, so 1.5 GB leaves room for
+them on a 4 GB box whose previews run elsewhere. The staging world seeds the
+smaller `map-staging.json` (set `SEED_MAP=map-staging.json` there) and fits
+in less. Without one,
 a container that leaks hands the problem to the kernel's OOM killer, which
 chooses its victim by resident size; on a box full of small preview worlds, the
 largest process is production. With a limit, the offender dies inside its own

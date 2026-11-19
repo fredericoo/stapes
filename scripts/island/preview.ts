@@ -1,4 +1,5 @@
 import { PNG } from "pngjs";
+import type { Plan } from "./plan";
 import { Ground, type Island } from "./terrain";
 
 const COLOURS: Record<number, [number, number, number]> = {
@@ -23,7 +24,11 @@ const COLOURS: Record<number, [number, number, number]> = {
  * and a cliff (a step down to the south or east) is shaded, so terraces read
  * as they will from the game's camera.
  */
-export function renderIsland(island: Island, zoom: number): PNG {
+export function renderIsland(island: Island, zoom: number, plan: Plan | null = null): PNG {
+  const marks = new Uint8Array(island.width * island.height);
+  for (const r of plan?.ramps ?? []) marks[r.low] = marks[r.high] = 1;
+  for (const b of plan?.bridges ?? []) for (const c of b.cells) marks[c] = 2;
+  for (let i = 0; i < marks.length; i++) if (plan?.siteOf[i] && !marks[i]) marks[i] = 3;
   const { width: w, height: h, level, ground, road } = island;
   const png = new PNG({ width: w * zoom, height: h * zoom });
   for (let y = 0; y < h; y++) {
@@ -50,6 +55,9 @@ export function renderIsland(island: Island, zoom: number): PNG {
       const nearRoad = road[i] || (x + 1 < w && road[i + 1]) || (y + 1 < h && road[i + w]);
       if (road[i]) [r, g, b] = ground[i] === Ground.River ? [120, 80, 50] : [120, 84, 52];
       else if (nearRoad && zoom < 3) [r, g, b] = [150, 112, 72];
+      if (marks[i] === 1) [r, g, b] = [230, 40, 40];
+      else if (marks[i] === 2) [r, g, b] = [250, 220, 60];
+      else if (marks[i] === 3) [r, g, b] = [r * 0.8 + 50, g * 0.8 + 40, b * 0.8 + 50];
       for (let dy = 0; dy < zoom; dy++) {
         for (let dx = 0; dx < zoom; dx++) {
           const o = ((y * zoom + dy) * w * zoom + x * zoom + dx) * 4;

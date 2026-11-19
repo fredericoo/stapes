@@ -52,3 +52,22 @@ export const ROADS: ReadonlyArray<readonly [PlaceId, PlaceId]> = [
 
 /** The camp road, and the only one nothing hostile is placed beside. */
 export const SAFE_PATH: readonly [PlaceId, PlaceId] = ["wreckBeach", "camp"];
+
+/**
+ * Every settlement's flat site in cells, centred on its place. The ground in
+ * a site is levelled to one storey, and the land round it eases down to it
+ * over `SITE_APRON` cells, so a town never stands on a cliff.
+ */
+export const SITES = {
+  camp: { w: 40, h: 30 },
+  druids: { w: 76, h: 64 },
+  warriors: { w: 80, h: 66 },
+  inn: { w: 34, h: 26 },
+  witch: { w: 14, h: 14 },
+  lighthouse: { w: 30, h: 30 },
+  harbour: { w: 56, h: 24 },
+} as const satisfies Partial<Record<PlaceId, { w: number; h: number }>>;
+
+export type SiteId = keyof typeof SITES;
+
+export const SITE_APRON = 12;
