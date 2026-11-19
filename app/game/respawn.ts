@@ -96,17 +96,11 @@ export function presentItemIds(map: MapFile, point: SpawnPoint): string[] {
 }
 
 /**
- * Pass `owners` as `listActorOwners(map)` when checking many points against
- * one map: without it, each creature's point sweeps the whole board.
+ * A creature's point sweeps the whole board here; `GameSession.isSpawnFilled`
+ * answers the same question from its actors.
  */
-export function isSpawnFilled(
-  map: MapFile,
-  point: SpawnPoint,
-  owners?: ReadonlySet<string>,
-): boolean {
-  if (point.ownerId) {
-    return owners ? owners.has(point.ownerId) : findActorAnywhere(map, point.ownerId) !== null;
-  }
+export function isSpawnFilled(map: MapFile, point: SpawnPoint): boolean {
+  if (point.ownerId) return findActorAnywhere(map, point.ownerId) !== null;
   const owed = point.count ?? 1;
   if (point.itemIds) return presentItemIds(map, point).length >= owed;
   const present = getStack(map, point.cell.x, point.cell.y, point.cell.z).filter(

@@ -91,6 +91,20 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "stone", height: 4, walkable: false }),
   tile({
+    id: "kindling",
+    interactions: {
+      endure: {
+        durability: GRASS_DURABILITY,
+        suffers: [{ statusId: "burned", tileId: "cinder" }],
+      },
+    },
+  }),
+  tile({
+    id: "cinder",
+    kind: "item",
+    interactions: { item: { type: "container", size: 1, equippable: false } },
+  }),
+  tile({
     id: "flame",
     height: 2,
     intangible: true,
@@ -483,6 +497,14 @@ describe("a flame in a world", () => {
 
     run(play, Math.ceil(((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000) / TICK_MS) + 2);
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+  });
+
+  it("gives an item its id when wear turns a placement into one", () => {
+    const play = session(world([{ at: ORIGIN, stack: ["dirt", "kindling", "flame"] }]));
+
+    run(play, Math.ceil(((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000) / TICK_MS) + 2);
+    const cinder = getStack(play.getMap(), 0, 0, 0).find((placed) => placed.tileId === "cinder");
+    expect(cinder?.itemId).toBeTruthy();
   });
 
   it("leaves alone what it has nothing to say to", () => {

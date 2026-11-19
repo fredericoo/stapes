@@ -328,7 +328,7 @@ import {
   extractEarnings,
   practiceEarnings,
 } from "./experience";
-import { mintItemIds } from "./itemIds";
+import { mintCellItemIds, mintItemIds } from "./itemIds";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import { planDistanceSq, type ReachPoint } from "./distance";
 import { type BodyBoard, nearestOnTiles, TileColumns } from "./nearestBody";
@@ -1296,11 +1296,15 @@ export class GameSession implements PlaySession {
    * the board is swept for a body only when one of them comes back.
    */
   private claimKeptBody(id: string): (Coord & { stackIndex: number }) | null {
+    if (!this.ownersWithoutActor().delete(id)) return null;
+    return findActorAnywhere(this.map, id);
+  }
+
+  private ownersWithoutActor(): Set<string> {
     this.unclaimedOwners ??= new Set(
       [...listActorOwners(this.map)].filter((owner) => !this.actors.has(owner)),
     );
-    if (!this.unclaimedOwners.delete(id)) return null;
-    return findActorAnywhere(this.map, id);
+    return this.unclaimedOwners;
   }
 
   actorPosition(id: string): ActorPosition | null {
@@ -1324,6 +1328,7 @@ export class GameSession implements PlaySession {
         .filter((owner): owner is string => owner != null),
     );
     this.map = despawnActors(this.map, (owner) => !live.has(owner) && !residents.has(owner));
+    this.unclaimedOwners = null;
   }
 
   despawn(id: string) {
@@ -1347,8 +1352,20 @@ export class GameSession implements PlaySession {
       : despawnActor(this.map, id);
   }
 
+  /**
+   * A creature on the board always has an actor, apart from the bodies the
+   * starting board held for nobody, so its point is answered without sweeping
+   * the board for a body that a due respawn is not going to find.
+   */
+  isSpawnFilled(point: SpawnPoint): boolean {
+    if (!point.ownerId) return isSpawnFilled(this.map, point);
+    const actor = this.actors.get(point.ownerId);
+    if (actor) return this.tryLocate(actor) !== null;
+    return this.ownersWithoutActor().has(point.ownerId);
+  }
+
   respawnAt(point: SpawnPoint): RespawnOutcome {
-    if (isSpawnFilled(this.map, point)) return { kind: "done" };
+    if (this.isSpawnFilled(point)) return { kind: "done" };
     const def = this.tilesById[point.placed.tileId];
     if (!def) return { kind: "done" };
     const { x, y, z } = point.cell;
@@ -1363,7 +1380,6 @@ export class GameSession implements PlaySession {
       ...(itemId ? { itemId } : {}),
       ...(point.ownerId ? { owner: point.ownerId } : {}),
     });
-    this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
       this.residentHomes.set(point.ownerId, point.cell);
@@ -1442,9 +1458,15 @@ export class GameSession implements PlaySession {
     return actor;
   }
 
+  /**
+   * Every write that changes what a cell holds ends here, so this is where a
+   * placement that has just become an item gets its id, before `armCell`
+   * would read the missing id as a placement's clock.
+   */
   private reindexCells(cells: Iterable<Coord>) {
     for (const cell of cells) {
       const key = cellKey(cell);
+      this.map = mintCellItemIds(this.map, cell, this.tilesById);
       this.decay.armCell(this.map, cell, this.tilesById);
       this.weathering.index(this.map, cell, this.tilesById);
       this.shedding.index(this.map, cell, this.tilesById);

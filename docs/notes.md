@@ -4675,7 +4675,8 @@ phases inside it.
   `addResident` remembers the cell instead.
 - **Each creature's spawn point.** `loadRespawnState` asked `isSpawnFilled`
   about every point, and for a creature that is `findActorAnywhere`. It now
-  builds `listActorOwners` once and passes the set in.
+  asks `GameSession.isSpawnFilled`, which answers a creature's point from the
+  actor table (see "An item gets its id in the cell it became one in").
 - **Each absent player's body.** `reapAbsentActors` removed them one
   `despawnActor` at a time. The last checkpoint before a restart holds
   everyone who was online, up to `MAX_ONLINE_PLAYERS`, so this one grows with
@@ -4698,9 +4699,8 @@ the `GameSession` 7.7s, almost all of it in separate passes over every cell:
 `clearExtractReservations` (about 0.3s each). Most of those passes go through
 `listCoords`, which builds an object for every cell of a level.
 
-**Three sweeps remain that run per event rather than per load**: a respawn
-(see "Known remaining costs"), `spawn` on every join (see "A thousand players,
-profiled"), and a body moved by `moveThrough` — a step teleport, `/goto` or
+**Two sweeps remain that run per event rather than per load**: `spawn` on
+every join (see "A thousand players, profiled"), and a body moved by `moveThrough` — a step teleport, `/goto` or
 `/move` — whose memo still names the cell it left, so its next lookup sweeps
 the board once.
 
@@ -14002,6 +14002,46 @@ last, and that last turns in place exactly as a single berry always did. The pee
 that becomes *nothing* needs no room and happens anywhere. A refused peel is put
 back rather than left half-done.
 
+### An item gets its id in the cell it became one in
+
+Every item on the board carries an item id, and `reindexCells` is where a cell
+gets that guarantee: it calls `mintCellItemIds` on each cell before `armCell`
+reads it. Every write that changes what a cell holds already ends in
+`reindexCells`, because the decay, plate, wire, gravity and affliction indexes
+need it to. So a placement decay, a weathering, a wear (`applyConsumed`), a
+switch, an extraction that leaves a tile behind, or a respawned container's
+contents (`authoredPlacement` strips their ids) all get ids in the cell that
+changed. The order matters: `armCell` arms a placement without an item id by
+cell and tile, so an item reindexed before its id was minted would count down
+as scenery.
+
+`mintItemIds` still sweeps the whole board, once, when the `GameSession` is
+built, because a board from `data/map.json` or the editor arrives without ids.
+Before this, `respawnAt` called it on every respawn, and that sweep was what
+gave an id to a placement that decayed or wore into an item.
+
+A creature's spawn point is answered from the actor table
+(`GameSession.isSpawnFilled`). A creature on the board always has an actor:
+`adoptResidents` makes one for every body the starting board holds, and every
+later body (`respawnAt`, a spell, `/spawn`) is added with its actor. The one
+exception is a body the starting board held for nobody, which
+`ownersWithoutActor` lists once. The free function `isSpawnFilled` still sweeps
+the board for a creature, and is for callers without a session.
+
+Measured with `bun run bench:respawn`, 20 rounds, 500 respawns due at the
+restart:
+
+| | shipped map (169k cells) before | after | Rune Isle (405k cells) before | after |
+|---|---|---|---|---|
+| tick with one item respawn, p50 | 57ms | 3.0ms | – | – |
+| tick with one object respawn, p50 | 58ms | 2.9ms | 111ms | 1.0ms |
+| tick with one creature respawn, p50 | 67ms | 3.1ms | – | – |
+| first tick after a restart with 500 due | 28.4s | 127ms | 57.1s | 59ms |
+
+Rune Isle has no creature or item points yet. A tick with nothing due is about
+3ms on the shipped map and 1ms on Rune Isle, so the rows after the change are
+the ordinary tick.
+
 ## A tile can form and dissolve, and only when it says so
 
 `TileDef.transitions` (`app/lib/tileTransition.ts`) is how a tile arrives and
@@ -17200,17 +17240,6 @@ Not yet fixed, and worth knowing before you profile something else:
   nodes and sharing distance maps were both measured against the current cost
   and left out (see "A creature thinks every round only while somebody could
   notice it").
-- **A respawn sweeps the whole board, and a creature's respawn sweeps it
-  twice.** `respawnAt` mints item ids with `mintItemIds` over the whole board
-  rather than in the cell it grew: about 26ms on the shipped map and 70ms on a
-  512×512 field. A creature's point also asks `isSpawnFilled`, which is
-  `findActorAnywhere` and misses, because a creature whose respawn is due is
-  not on the board: another 6.5ms and 18ms. Every tree that grows back pays
-  the first, and a restart pays both, in one tick, for every respawn that fell
-  due while the world was down. Minting in the one cell is not a drop-in
-  change: a decay or a wear that turns a non-item into an item leaves it with
-  no id (no shipped tile does either), and at the moment the next respawn
-  anywhere on the board is what gives it one.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.
 
