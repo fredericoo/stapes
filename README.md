@@ -171,8 +171,11 @@ an agent drives", lists every call.
   line of its cell wherever it meets open ground, so a passage one cell wide
   shows a cell of floor, and `cave-wall-sloped`, the same outline at the ceiling
   widening to the cell's edge at the floor, each in red rock and in grey. Also
-  `hill-wall`, the sloped wall with a wider top that hills are built of, and
-  `hill-cave-mouth`, the cell a cave leaves a hill through
+  `hill-wall`, the sloped wall with a wider top that hills are built of, the
+  same wall in three regional rocks (`hill-wall-frost`, `hill-wall-sandstone`,
+  `hill-wall-basalt`), and
+  `hill-cave-mouth`, the cell a cave leaves a hill through, with one for each
+  rock (`hill-cave-mouth-frost`, `-sandstone`, `-basalt`)
   (`cave-wall-grey`, `cave-wall-sloped-grey`). Every corner is rounded. Geometry
   too, drawn through the game's own projection; the variants, the shape rules
   and the palette entries are constants in the script

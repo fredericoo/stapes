@@ -34,7 +34,14 @@ type Face = "top" | "south" | "bevel" | "east";
 /** A speck `width` pixels wide covers `percent` of the positions it can start at. */
 type Speck = { index: number; percent: number; width?: number };
 type Ink = { base: number; specks: Speck[]; salt: number };
-type Rock = Record<Face, Ink>;
+/**
+ * `mark` overrides the speckle for a hit: strata, snow on a ledge, the joints
+ * between basalt columns. It sees the footprint pixel and layer the ray hit,
+ * so a mark that follows them follows the rock's shape rather than the screen.
+ */
+type Mark = (hit: Hit, face: Face) => number | undefined;
+type Rock = Record<Face, Ink> & { mark?: Mark };
+type Hit = Point & { layer: number; tread: boolean; sx: number; sy: number };
 
 /**
  * Palette indices of `half-stone`'s three faces, so the two can share a cave,
@@ -88,6 +95,87 @@ const GREY: Rock = {
   },
 };
 
+/** Hashes a footprint pixel and layer, so a mark keyed on it agrees across every slice. */
+function hash(x: number, y: number, salt: number): number {
+  let h =
+    Math.imul((x & (CELL - 1)) + 1, 0x27d4eb2d) ^
+    Math.imul((y & (CELL - 1)) + 1, 0x165667b1) ^
+    Math.imul(salt, 0x9e3779b9);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  return ((h ^ (h >>> 13)) >>> 0) % 100;
+}
+
+/**
+ * `snow-brink`'s rim grey on the lit face, with snow on some of the steps of
+ * the slope that face up and streaks of ice running down the lit face. A streak follows
+ * one footprint column, which the projection leans up and to the left as it
+ * does every upright edge.
+ */
+const FROST: Rock = {
+  top: { base: 27, specks: [{ index: 28, percent: 30 }], salt: 9 },
+  south: { base: 25, specks: [{ index: 22, percent: 10 }], salt: 10 },
+  bevel: { base: 22, specks: [{ index: 7, percent: 10 }], salt: 11 },
+  east: { base: 7, specks: [{ index: 5, percent: 12 }], salt: 12 },
+  mark: (hit, face) => {
+    if (hit.tread && face !== "east") return hash(hit.x, hit.y, 13) < 45 ? 28 : undefined;
+    if (face === "south" && hash(hit.x, 0, 14) < 20 && hash(hit.x, hit.layer, 15) < 85) {
+      return 27;
+    }
+    return undefined;
+  },
+};
+
+/** Bands of layers, floor first, and the face colours each band takes. */
+const STRATA: readonly { south: number; bevel: number; east: number }[] = [
+  { south: 13, bevel: 11, east: 3 },
+  { south: 18, bevel: 13, east: 11 },
+  { south: 18, bevel: 13, east: 11 },
+  { south: 19, bevel: 18, east: 13 },
+  { south: 18, bevel: 13, east: 11 },
+  { south: 13, bevel: 11, east: 3 },
+  { south: 19, bevel: 18, east: 13 },
+  { south: 19, bevel: 18, east: 13 },
+];
+
+/**
+ * `sand-brink`'s rim and lip as the middle of the ramp, laid in level bands so
+ * the strata run along a cliff at one height and line up from cell to cell.
+ */
+const SANDSTONE: Rock = {
+  top: { base: 19, specks: [{ index: 18, percent: 14 }], salt: 16 },
+  south: { base: 18, specks: [{ index: 19, percent: 8 }], salt: 17 },
+  bevel: { base: 13, specks: [{ index: 18, percent: 8 }], salt: 18 },
+  east: { base: 11, specks: [{ index: 13, percent: 6 }], salt: 19 },
+  mark: (hit, face) => {
+    if (face === "top") return undefined;
+    const band = STRATA[hit.layer % STRATA.length]!;
+    if (hash(hit.x + hit.y, hit.layer, 20) < 6) return face === "east" ? 3 : 11;
+    return band[face];
+  },
+};
+
+const COLUMN = 3;
+
+/**
+ * Near-black with the palette's darkest purple on the lit faces. Columns are
+ * `COLUMN` footprint pixels wide with a black joint and a lit edge beside it,
+ * and a column's top is a lighter step where the slope breaks it.
+ */
+const BASALT: Rock = {
+  top: { base: 4, specks: [{ index: 8, percent: 8 }], salt: 21 },
+  south: { base: 4, specks: [{ index: 8, percent: 8 }], salt: 22 },
+  bevel: { base: 1, specks: [{ index: 4, percent: 8 }], salt: 23 },
+  east: { base: 0, specks: [{ index: 1, percent: 10 }], salt: 24 },
+  mark: (hit, face) => {
+    if (hit.tread) return 22;
+    if (face === "top") return undefined;
+    const along = (face === "east" ? hit.y : hit.x) % COLUMN;
+    if (along === 0) return 0;
+    if (along === 1 && face !== "east") return 8;
+    return undefined;
+  },
+};
+
 /**
  * Every variant shares one sheet, so a cave that mixes them costs no more draw
  * calls than a cave of one, and each connects to the others so the rock stays
@@ -107,11 +195,47 @@ const VARIANTS: Variant[] = [
     rock: GREY,
   },
   { tileId: "hill-wall", name: "Hill Wall", crown: HILL_CROWN, spread: HALF, rock: RED },
+  {
+    tileId: "hill-wall-frost",
+    name: "Frosted Hill Wall",
+    crown: HILL_CROWN,
+    spread: HALF,
+    rock: FROST,
+  },
+  {
+    tileId: "hill-wall-sandstone",
+    name: "Sandstone Hill Wall",
+    crown: HILL_CROWN,
+    spread: HALF,
+    rock: SANDSTONE,
+  },
+  {
+    tileId: "hill-wall-basalt",
+    name: "Basalt Hill Wall",
+    crown: HILL_CROWN,
+    spread: HALF,
+    rock: BASALT,
+  },
 ];
 
 const HILL = VARIANTS.find((variant) => variant.tileId === "hill-wall")!;
 
-const MOUTH_ID = "hill-cave-mouth";
+/**
+ * One mouth per hill rock, each a row of the sheet below the walls. A mouth
+ * has to be its own `directional` tile: a placement carries its facing, and a
+ * tile cannot have facings and variants at once.
+ */
+const MOUTH_TILES: { tileId: string; name: string; wall: string }[] = [
+  { tileId: "hill-cave-mouth", name: "Hill Cave Mouth", wall: "hill-wall" },
+  { tileId: "hill-cave-mouth-frost", name: "Frosted Hill Cave Mouth", wall: "hill-wall-frost" },
+  {
+    tileId: "hill-cave-mouth-sandstone",
+    name: "Sandstone Hill Cave Mouth",
+    wall: "hill-wall-sandstone",
+  },
+  { tileId: "hill-cave-mouth-basalt", name: "Basalt Hill Cave Mouth", wall: "hill-wall-basalt" },
+];
+const MOUTH_IDS = MOUTH_TILES.map((mouth) => mouth.tileId);
 const MOUTH_WIDTH = CELL - 2;
 const MOUTH_DARK = 0;
 
@@ -161,7 +285,7 @@ function hitAt(
   sx: number,
   sy: number,
   hollow?: (layer: number, x: number, y: number) => boolean,
-): (Point & { layer: number; face: Face | "hollow" }) | null {
+): (Point & { layer: number; face: Face | "hollow"; tread: boolean }) | null {
   const rock = (layer: number, x: number, y: number) =>
     x >= 0 && y >= 0 && x < CELL && y < CELL && layers[layer]![y]![x]!;
   const inside = (layer: number, x: number, y: number) =>
@@ -170,14 +294,16 @@ function hitAt(
   for (let layer = RISE - 1; layer >= 0; layer--) {
     const x = sx - (RISE - 1 - layer);
     const y = sy - (RISE - 1 - layer);
-    if (through && (x < 0 || y < 0)) return { x, y, layer, face: "hollow" };
-    for (const [px, py, face] of [
-      [x, y, layer === RISE - 1 ? "top" : "south"],
-      [x, y - 1, "south"],
-      [x - 1, y - 1, "east"],
+    if (through && (x < 0 || y < 0)) return { x, y, layer, face: "hollow", tread: false };
+    for (const [px, py, face, tread] of [
+      [x, y, layer === RISE - 1 ? "top" : "south", layer < RISE - 1],
+      [x, y - 1, "south", false],
+      [x - 1, y - 1, "east", false],
     ] as const) {
       if (inside(layer, px, py)) through = true;
-      else if (rock(layer, px, py)) return { x: px, y: py, layer, face: through ? "hollow" : face };
+      else if (rock(layer, px, py)) {
+        return { x: px, y: py, layer, face: through ? "hollow" : face, tread };
+      }
     }
   }
   return null;
@@ -253,14 +379,11 @@ function cast(
     for (let sx = 0; sx < size; sx++) {
       const hit = hitAt(layers, sx, sy, hollow);
       if (!hit) continue;
-      const index =
-        hit.face === "hollow"
-          ? MOUTH_DARK
-          : inkAt(
-              sx,
-              sy,
-              rock[hit.face === "top" ? "top" : sideFace(heights, hit.x, hit.y, hit.face)],
-            );
+      let index = MOUTH_DARK;
+      if (hit.face !== "hollow") {
+        const face = hit.face === "top" ? "top" : sideFace(heights, hit.x, hit.y, hit.face);
+        index = rock.mark?.({ ...hit, sx, sy }, face) ?? inkAt(sx, sy, rock[face]);
+      }
       const colour = rgba(index);
       const i = (sheet.width * (originY + sy) + originX + sx) << 2;
       for (let c = 0; c < 4; c++) sheet.data[i + c] = colour[c]!;
@@ -288,9 +411,15 @@ function drawSlice(
  * wall before it was cut, so the face round the opening is the face of the
  * cells beside it.
  */
-function drawMouth(sheet: PNG, originX: number, originY: number, mouth: (typeof MOUTHS)[number]) {
+function drawMouth(
+  sheet: PNG,
+  originX: number,
+  originY: number,
+  mouth: (typeof MOUTHS)[number],
+  wall: Variant,
+) {
   const [near, far] = mouth.ends.map((open) =>
-    crossSections(~open & 0xff, HILL.crown, HILL.spread),
+    crossSections(~open & 0xff, wall.crown, wall.spread),
   ) as [boolean[][][], boolean[][][]];
   const whole = near.map((rows, layer) =>
     rows.map((row, y) => row.map((rock, x) => rock && far[layer]![y]![x]!)),
@@ -308,7 +437,7 @@ function drawMouth(sheet: PNG, originX: number, originY: number, mouth: (typeof 
    */
   const seen = (layer: number, x: number, y: number) =>
     hollow(layer, x, y) && (alongY ? y : x) >= HALF;
-  cast(sheet, originX, originY, layers, heightsOf(whole), HILL.rock, seen);
+  cast(sheet, originX, originY, layers, heightsOf(whole), wall.rock, seen);
 }
 
 function sliceRect(slice: number) {
@@ -331,7 +460,7 @@ async function writeJson(file: string, value: unknown) {
 async function main() {
   const sheet = new PNG({
     width: SLICES_PER_ROW * SPRITE_CELLS * CELL,
-    height: (VARIANTS.length * VARIANT_ROWS + SPRITE_CELLS) * CELL,
+    height: (VARIANTS.length * VARIANT_ROWS + MOUTH_TILES.length * SPRITE_CELLS) * CELL,
   });
   sheet.data.fill(0);
 
@@ -351,7 +480,7 @@ async function main() {
     }
     const others = [
       ...VARIANTS.filter((other) => other.tileId !== tileId).map((o) => o.tileId),
-      MOUTH_ID,
+      ...MOUTH_IDS,
     ];
     const existing = tiles.find((t) => t.id === tileId);
     if (existing) {
@@ -373,40 +502,52 @@ async function main() {
         attributes: {},
         anchor,
         walkable: false,
-        connectsTo: ["stone-wall", "half-stone", ...others],
+        connectsTo: [
+          ...new Set([...(tiles.find((t) => t.id === HILL.tileId)?.connectsTo ?? []), ...others]),
+        ].filter((id) => id !== tileId),
         slices,
       });
     }
   });
-  const mouthAnchor = { tilesetId: TILESET_ID, x: 0, y: VARIANTS.length * VARIANT_ROWS };
-  const sprites: Partial<Record<Direction, TileSprite>> = {};
-  MOUTHS.forEach((mouth, i) => {
-    const rect = { x: i * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS };
-    drawMouth(sheet, rect.x * CELL, mouthAnchor.y * CELL, mouth);
-    for (const facing of mouth.facings) {
-      sprites[facing] = {
-        frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
-      };
+  const template = tiles.find((t) => t.id === MOUTH_TILES[0]!.tileId);
+  MOUTH_TILES.forEach(({ tileId, name, wall }, m) => {
+    const anchor = {
+      tilesetId: TILESET_ID,
+      x: 0,
+      y: VARIANTS.length * VARIANT_ROWS + m * SPRITE_CELLS,
+    };
+    const variant = VARIANTS.find((v) => v.tileId === wall)!;
+    const sprites: Partial<Record<Direction, TileSprite>> = {};
+    MOUTHS.forEach((mouth, i) => {
+      const rect = { x: i * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS };
+      drawMouth(sheet, rect.x * CELL, anchor.y * CELL, mouth, variant);
+      for (const facing of mouth.facings) {
+        sprites[facing] = {
+          frames: [{ sprite: { rect, base: { x: 1, y: 1 } }, durationMs: FRAME_MS }],
+        };
+      }
+    });
+    const existing = tiles.find((t) => t.id === tileId);
+    if (existing) {
+      Object.assign(existing, { type: "directional", anchor, sprites });
+    } else if (template) {
+      tiles.push({ ...structuredClone(template), id: tileId, name, anchor, sprites });
+    } else {
+      tiles.push({
+        id: tileId,
+        name,
+        height: 4,
+        type: "directional",
+        kind: "prop",
+        attributes: {},
+        anchor,
+        lightPassing: true,
+        intangible: true,
+        walkable: false,
+        sprites,
+      } as TileDef);
     }
   });
-  const mouthTile = tiles.find((t) => t.id === MOUTH_ID);
-  if (mouthTile) {
-    Object.assign(mouthTile, { type: "directional", anchor: mouthAnchor, sprites });
-  } else {
-    tiles.push({
-      id: MOUTH_ID,
-      name: "Hill Cave Mouth",
-      height: 4,
-      type: "directional",
-      kind: "prop",
-      attributes: {},
-      anchor: mouthAnchor,
-      lightPassing: true,
-      intangible: true,
-      walkable: false,
-      sprites,
-    } as TileDef);
-  }
   await fs.writeFile(path.join(DATA, "tilesets", `${TILESET_ID}.png`), PNG.sync.write(sheet));
   await writeJson(tilesPath, tiles);
 
