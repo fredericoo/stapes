@@ -325,5 +325,12 @@
     "file": "spoils.png",
     "width": 64,
     "height": 16
+  },
+  {
+    "id": "lighthouse",
+    "name": "Lighthouse",
+    "file": "lighthouse.png",
+    "width": 160,
+    "height": 192
   }
 ]

@@ -58,6 +58,10 @@ an oblique cabinet projection with Three.js.
 - **`docs/<subject>.md`** — `combat`, `terrain`, `ui`, `server`, `deploy`,
   `testing`, `tooling`: the constraints in the code that the obvious
   change would break.
+- **`docs/lighthouse.md`** — the lighthouse dungeon's intended design: its
+  tiers, the tiles it is built from, how its pedestals open doors and the
+  limits that shape its layout. Read it before building any of it in
+  `data/map.json`.
 - **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules. Each
   exception has its reason in `docs/tooling.md`. A rule turned off without one
   is one nobody can turn back on.

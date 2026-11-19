@@ -374,6 +374,13 @@ an agent drives", lists every call.
   mineable `obsidian-vein` faces; and the `obsidian-shard` item they drop. The veins
   and the item are cast by `scripts/model-caster.ts`; `PREVIEW=<dir>` also
   writes each cast four times larger
+- `bun run generate:lighthouse` — draw `data/tilesets/lighthouse.png` and
+  write the lighthouse's tiles: rubble and limewashed tower walls with their
+  diagonal corners, arrow slits and doorways, the stone arcade, crenellated
+  parapet and setback ledge autotiles, a pedestal that works as a pressure
+  plate, the 3×3 stone roof and `wyrd`, the rune on its plinth at the top. All are cast
+  through the game's projection by `scripts/model-caster.ts`; `PREVIEW=<dir>`
+  also writes the small ones cast four times larger
 - `bun run seed` — copy `data/` into the `blob` table of the database in
   `DATA_DIR`. The server has to be stopped, since it holds the file, and the
   world keeps its checkpoint. Rarely needed: every deploy already does this
