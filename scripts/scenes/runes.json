@@ -15,95 +15,95 @@
     },
     {
       "at": [0, 0],
-      "tiles": ["grass", "arcane-stone-of-flame"]
+      "tiles": ["grass", "rune-flame"]
     },
     {
       "at": [2, 0],
-      "tiles": ["grass", "arcane-stone-of-cinder"]
+      "tiles": ["grass", "rune-cinder"]
     },
     {
       "at": [4, 0],
-      "tiles": ["grass", "arcane-stone-of-ember"]
+      "tiles": ["grass", "rune-ember"]
     },
     {
       "at": [6, 0],
-      "tiles": ["grass", "arcane-stone-of-pyre"]
+      "tiles": ["grass", "rune-pyre"]
     },
     {
       "at": [8, 0],
-      "tiles": ["dirt", "arcane-stone-of-inferno"]
+      "tiles": ["dirt", "rune-inferno"]
     },
     {
       "at": [10, 0],
-      "tiles": ["dirt", "arcane-stone-of-berserk"]
+      "tiles": ["dirt", "rune-berserk"]
     },
     {
       "at": [0, 2],
-      "tiles": ["grass", "arcane-stone-of-sleet"]
+      "tiles": ["grass", "rune-sleet"]
     },
     {
       "at": [2, 2],
-      "tiles": ["grass", "arcane-stone-of-frost"]
+      "tiles": ["grass", "rune-frost"]
     },
     {
       "at": [4, 2],
-      "tiles": ["grass", "arcane-stone-of-rime"]
+      "tiles": ["grass", "rune-rime"]
     },
     {
       "at": [6, 2],
-      "tiles": ["grass", "arcane-stone-of-shatter"]
+      "tiles": ["grass", "rune-shatter"]
     },
     {
       "at": [8, 2],
-      "tiles": ["dirt", "arcane-stone-of-crystallise"]
+      "tiles": ["dirt", "rune-crystallise"]
     },
     {
       "at": [0, 4],
-      "tiles": ["grass", "arcane-stone-of-barbs"]
+      "tiles": ["grass", "rune-barbs"]
     },
     {
       "at": [2, 4],
-      "tiles": ["grass", "arcane-stone-of-thorns"]
+      "tiles": ["grass", "rune-thorns"]
     },
     {
       "at": [4, 4],
-      "tiles": ["grass", "arcane-stone-of-bramble"]
+      "tiles": ["grass", "rune-bramble"]
     },
     {
       "at": [6, 4],
-      "tiles": ["grass", "arcane-stone-of-verdance"]
+      "tiles": ["grass", "rune-verdance"]
     },
     {
       "at": [8, 4],
-      "tiles": ["dirt", "arcane-stone-of-bloom"]
+      "tiles": ["dirt", "rune-bloom"]
     },
     {
       "at": [10, 4],
-      "tiles": ["dirt", "arcane-stone-of-overgrowth"]
+      "tiles": ["dirt", "rune-overgrowth"]
     },
     {
       "at": [12, 4],
-      "tiles": ["dirt", "arcane-stone-of-blossom"]
+      "tiles": ["dirt", "rune-blossom"]
     },
     {
       "at": [0, 6],
-      "tiles": ["grass", "arcane-stone-of-light"]
+      "tiles": ["grass", "rune-light"]
     },
     {
       "at": [2, 6],
-      "tiles": ["grass", "arcane-stone-of-spark"]
+      "tiles": ["grass", "rune-spark"]
     },
     {
       "at": [4, 6],
-      "tiles": ["grass", "arcane-stone-of-bolt"]
+      "tiles": ["grass", "rune-bolt"]
     },
     {
       "at": [6, 6],
-      "tiles": ["grass", "arcane-stone-of-lance"]
+      "tiles": ["grass", "rune-lance"]
     },
     {
       "at": [8, 6],
-      "tiles": ["dirt", "arcane-stone-of-stomp"]
+      "tiles": ["dirt", "rune-stomp"]
     },
     {
       "at": [0, 8],

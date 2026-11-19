@@ -616,7 +616,7 @@ it("forges the blank stone from the chest at the stone forge", async () => {
       temperament: { ...DEFAULT_TEMPERAMENT, style: "arcane", wanderChance: 0 },
     },
   );
-  const forged = () => carried(remote).some((tileId) => tileId.startsWith("arcane-stone-of-"));
+  const forged = () => carried(remote).some((tileId) => tileId.startsWith("rune-"));
 
   await play(bot, remote, forged, clock);
 
@@ -626,10 +626,7 @@ it("forges the blank stone from the chest at the stone forge", async () => {
 
 it("holds a spark stone and casts it at a creature, training Arcane", async () => {
   const world = huntingWorld();
-  world.levels["0"]!["11,15"] = [
-    { tileId: "grass-2" },
-    { tileId: "arcane-stone-of-spark", itemId: "spark" },
-  ];
+  world.levels["0"]!["11,15"] = [{ tileId: "grass-2" }, { tileId: "rune-spark", itemId: "spark" }];
   await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
   const { remote, clock } = await joinBot(true, { emptyHanded: true });
   remote.say("/mastery arcane 3");
@@ -640,7 +637,7 @@ it("holds a spark stone and casts it at a creature, training Arcane", async () =
   const arcaneXp = () => remote.getSnapshot().masteryXp.arcane ?? 0;
   const held = () => {
     const { weapon, offhand } = remote.getSnapshot().equipment;
-    return [weapon, offhand].some((hand) => hand?.tileId === "arcane-stone-of-spark");
+    return [weapon, offhand].some((hand) => hand?.tileId === "rune-spark");
   };
 
   await play(bot, remote, held, clock);
@@ -652,7 +649,7 @@ it("holds a spark stone and casts it at a creature, training Arcane", async () =
 });
 
 it("conjures a flame with a stone and cooks its raw meat on it", async () => {
-  const rewards = ["arcane-stone-of-flame", "raw-meat"];
+  const rewards = ["rune-flame", "raw-meat"];
   await harness.blobs.put("map.json", JSON.stringify(forgeWorld(rewards)), JSON_TYPE);
   const { remote, clock } = await joinBot(true);
   remote.say("/mastery arcane 10");
@@ -674,11 +671,7 @@ it("conjures a flame with a stone and cooks its raw meat on it", async () => {
 });
 
 it("backs away from a threat and conjures a flame on it", async () => {
-  await harness.blobs.put(
-    "map.json",
-    JSON.stringify(forgeWorld(["arcane-stone-of-flame"])),
-    JSON_TYPE,
-  );
+  await harness.blobs.put("map.json", JSON.stringify(forgeWorld(["rune-flame"])), JSON_TYPE);
   const { remote, clock } = await joinBot(true);
   remote.say("/mastery arcane 10");
   remote.say("/mastery toughness 5");
@@ -692,7 +685,7 @@ it("backs away from a threat and conjures a flame on it", async () => {
       temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0, dread: 1_000, courage: 1_000 },
     },
   );
-  const worn = () => remote.getSnapshot().equipment.charm?.tileId === "arcane-stone-of-flame";
+  const worn = () => remote.getSnapshot().equipment.charm?.tileId === "rune-flame";
   const flames = () => JSON.stringify(remote.getSnapshot().map).includes('"arcane-flame"');
 
   await play(bot, remote, worn, clock);
@@ -704,13 +697,13 @@ it("backs away from a threat and conjures a flame on it", async () => {
 
 it.each([
   {
-    stone: "arcane-stone-of-verdance",
+    stone: "rune-verdance",
     masteries: { arcane: 20, water: 8, nature: 8 },
     hurt: "/health 3",
     mended: (remote: RemoteSession) => (remote.getSnapshot().self.hp ?? 0) > 3,
   },
   {
-    stone: "arcane-stone-of-bloom",
+    stone: "rune-bloom",
     masteries: { arcane: 38, water: 15, nature: 15 },
     hurt: "/status poison",
     mended: (remote: RemoteSession) =>

@@ -1,3 +1,4 @@
+import { renameTileIdsInJson } from "../lib/tileRenames";
 import { type CheckpointBatch, type Checkpoints, memoryCheckpoints } from "./checkpoints";
 
 export class LocalStore {
@@ -18,7 +19,16 @@ export class LocalStore {
 
   async restore(): Promise<void> {
     const stored = await this.checkpoints.load();
-    for (const [key, value] of stored.values) this.values.set(key, value);
+    /**
+     * A tab's world outlives a deploy, so ids renamed since it was stored are
+     * rewritten here, as `server/db.ts` does for a server's on open, and the
+     * next checkpoint keeps the rewrite.
+     */
+    for (const [key, value] of stored.values) {
+      const renamed = renameTileIdsInJson(value);
+      this.values.set(key, renamed);
+      if (renamed !== value) this.written.add(key);
+    }
     this.alarmAtMs = stored.alarmAtMs;
   }
 

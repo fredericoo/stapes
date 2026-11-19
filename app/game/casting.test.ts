@@ -681,9 +681,9 @@ describe("what a row of buttons says", () => {
 });
 
 const LADDER: Record<Element, readonly string[]> = {
-  fire: ["arcane-stone-of-cinder", "arcane-stone-of-ember", "arcane-stone-of-pyre"],
-  water: ["arcane-stone-of-sleet", "arcane-stone-of-frost", "arcane-stone-of-rime"],
-  nature: ["arcane-stone-of-barbs", "arcane-stone-of-thorns", "arcane-stone-of-bramble"],
+  fire: ["rune-cinder", "rune-ember", "rune-pyre"],
+  water: ["rune-sleet", "rune-frost", "rune-rime"],
+  nature: ["rune-barbs", "rune-thorns", "rune-bramble"],
 };
 
 const TRAITS: Record<Element, { damage: number; variance: number; cooldown: number }> = {
@@ -698,38 +698,34 @@ const LEAVES: Record<Element, string> = {
   nature: "poison",
 };
 
-const NEUTRAL_LADDER = [
-  "arcane-stone-of-spark",
-  "arcane-stone-of-bolt",
-  "arcane-stone-of-lance",
-] as const;
+const NEUTRAL_LADDER = ["rune-spark", "rune-bolt", "rune-lance"] as const;
 
 const ELEMENTAL_ARCANE_GAP = 5;
 
 const TOP_RUNG = 2;
 
-const LIGHT = "arcane-stone-of-light";
+const LIGHT = "rune-light";
 
 const NOVAS: Record<Element, string> = {
-  fire: "arcane-stone-of-inferno",
-  water: "arcane-stone-of-shatter",
-  nature: "arcane-stone-of-overgrowth",
+  fire: "rune-inferno",
+  water: "rune-shatter",
+  nature: "rune-overgrowth",
 };
 
 const STANCES: Record<Element, { stone: string; status: string }> = {
-  fire: { stone: "arcane-stone-of-berserk", status: "enraged" },
-  water: { stone: "arcane-stone-of-crystallise", status: "crystallised" },
-  nature: { stone: "arcane-stone-of-blossom", status: "blossoming" },
+  fire: { stone: "rune-berserk", status: "enraged" },
+  water: { stone: "rune-crystallise", status: "crystallised" },
+  nature: { stone: "rune-blossom", status: "blossoming" },
 };
 
-const STOMP = "arcane-stone-of-stomp";
+const STOMP = "rune-stomp";
 
 const HIGH_TOUGHNESS = 40;
 
 const BESIDE_THE_LADDER = [
-  "arcane-stone-of-flame",
-  "arcane-stone-of-verdance",
-  "arcane-stone-of-bloom",
+  "rune-flame",
+  "rune-verdance",
+  "rune-bloom",
   LIGHT,
   ...Object.values(NOVAS),
   ...Object.values(STANCES).map((stance) => stance.stone),
@@ -782,7 +778,7 @@ describe("the stones we ship", () => {
   });
 
   it("ships a bolt that mends and a bolt that harms", () => {
-    const verdance = resolveStone(shipped["arcane-stone-of-verdance"]!)!;
+    const verdance = resolveStone(shipped["rune-verdance"]!)!;
     expect(verdance.effect).toMatchObject({ kind: "bolt", on: "caster" });
     if (verdance.effect.kind !== "bolt") return;
     expect(verdance.effect.damage).toBeLessThan(0);
@@ -794,8 +790,8 @@ describe("the stones we ship", () => {
   });
 
   it("makes Bloom a Verdance that mends more and cures what every element leaves", () => {
-    const verdance = resolveStone(shipped["arcane-stone-of-verdance"]!)!;
-    const bloom = resolveStone(shipped["arcane-stone-of-bloom"]!)!;
+    const verdance = resolveStone(shipped["rune-verdance"]!)!;
+    const bloom = resolveStone(shipped["rune-bloom"]!)!;
     if (verdance.effect.kind !== "bolt" || bloom.effect.kind !== "bolt") {
       throw new Error("Verdance and Bloom are bolts");
     }
@@ -813,7 +809,7 @@ describe("the stones we ship", () => {
   });
 
   it("makes Flame quick for an arcanist who has outgrown it", () => {
-    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const flame = resolveStone(shipped["rune-flame"]!)!;
     const asks = flame.requirements!;
 
     expect(castDurationMs(flame, asks)).toBe(3_000);
@@ -832,7 +828,7 @@ describe("the stones we ship", () => {
       }
     }
 
-    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const flame = resolveStone(shipped["rune-flame"]!)!;
     expect(flame.effect.kind).toBe("conjure");
     if (flame.effect.kind !== "conjure") return;
     expect(shipped[flame.effect.tileId]).toBeDefined();
@@ -1028,14 +1024,14 @@ describe("the stones we ship", () => {
   });
 
   it("keeps Flame beside the ladder rather than on it", () => {
-    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const flame = resolveStone(shipped["rune-flame"]!)!;
     expect(flame.effect.kind).toBe("conjure");
     expect(flame.requirements).toEqual(rung("fire", 0).requirements);
     expect(flame.cooldownMs).toBeGreaterThan(rung("fire", 2).cooldownMs);
   });
 
   it("gives the conjured flame a lifetime and leaves the hearth alone", () => {
-    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const flame = resolveStone(shipped["rune-flame"]!)!;
     if (flame.effect.kind !== "conjure") throw new Error("not a conjure");
     const conjured = shipped[flame.effect.tileId]!;
     expect(conjured.interactions?.decay).toBeDefined();
@@ -1098,7 +1094,7 @@ describe("the stones we ship", () => {
     const fromStones = forge.recipes
       .filter((recipe) => recipe.inputs.every((input) => input.tileId !== "arcane-stone"))
       .flatMap((recipe) => recipe.output.items.map((item) => item.tileId));
-    const forged = BESIDE_THE_LADDER.filter((id) => id !== LIGHT && id !== "arcane-stone-of-flame");
+    const forged = BESIDE_THE_LADDER.filter((id) => id !== LIGHT && id !== "rune-flame");
 
     for (const id of forged) expect(fromStones, id).toContain(id);
   });

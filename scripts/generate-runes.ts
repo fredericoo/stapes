@@ -456,7 +456,7 @@ RUNES.forEach((row, cy) =>
       glyph: GLYPHS[rune.glyph],
       colour: MARK[rune.material][rune.essence],
     });
-    tiles.push({ id: `arcane-stone-of-${rune.id}`, ...cellSprite(cx, cy) } as TileDef);
+    tiles.push({ id: `rune-${rune.id}`, ...cellSprite(cx, cy) } as TileDef);
   }),
 );
 

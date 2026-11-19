@@ -27761,7 +27761,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-flame",
+    "id": "rune-flame",
     "name": "Flame",
     "description": "Bone, carved with a rising flame. Kindles a fire where you point it.",
     "height": 0,
@@ -27816,7 +27816,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-ember",
+    "id": "rune-ember",
     "name": "Ember",
     "description": "Red crystal, carved with a diamond. Hurls a burning ember.",
     "height": 0,
@@ -27882,7 +27882,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-frost",
+    "id": "rune-frost",
     "name": "Frost",
     "description": "Blue crystal, carved with a cross of frost. Chills whatever it strikes.",
     "height": 0,
@@ -27948,7 +27948,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-thorns",
+    "id": "rune-thorns",
     "name": "Thorns",
     "description": "Green crystal, carved with a rising thorn. Strikes with a poisoned thorn.",
     "height": 0,
@@ -28014,7 +28014,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-pyre",
+    "id": "rune-pyre",
     "name": "Pyre",
     "description": "Red crystal, carved with a flame over logs. Bursts into fire around its target.",
     "height": 0,
@@ -28128,7 +28128,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-rime",
+    "id": "rune-rime",
     "name": "Rime",
     "description": "Blue crystal, carved with a saltire. Frosts everything around its target.",
     "height": 0,
@@ -28242,7 +28242,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-bramble",
+    "id": "rune-bramble",
     "name": "Bramble",
     "description": "Green crystal, carved with a tangle of stems. Grows poison briars around its target.",
     "height": 0,
@@ -28356,7 +28356,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-verdance",
+    "id": "rune-verdance",
     "name": "Verdance",
     "description": "Green crystal, carved with a sprouting shoot. Mends your wounds.",
     "height": 0,
@@ -28450,7 +28450,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-bloom",
+    "id": "rune-bloom",
     "name": "Bloom",
     "description": "Green crystal, carved with an opening bud. Heals you and draws out burns, chills and poison.",
     "height": 0,
@@ -28549,7 +28549,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-cinder",
+    "id": "rune-cinder",
     "name": "Cinder",
     "description": "Bone, carved with falling sparks. Flicks a cinder at a foe.",
     "height": 0,
@@ -28607,7 +28607,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-sleet",
+    "id": "rune-sleet",
     "name": "Sleet",
     "description": "Bone, scored with slanting rain. Flings a shard of sleet.",
     "height": 0,
@@ -28665,7 +28665,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-barbs",
+    "id": "rune-barbs",
     "name": "Barbs",
     "description": "Bone, carved with a barbed stem. Looses a hooked barb.",
     "height": 0,
@@ -28723,7 +28723,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-light",
+    "id": "rune-light",
     "name": "Light",
     "description": "Bone, carved with a beam. Makes your skin shine in the dark.",
     "height": 0,
@@ -28820,7 +28820,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-spark",
+    "id": "rune-spark",
     "name": "Spark",
     "description": "Bone, carved with a small cross. Snaps a spark of raw arcana at a foe.",
     "height": 0,
@@ -28877,7 +28877,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-bolt",
+    "id": "rune-bolt",
     "name": "Bolt",
     "description": "Lavender crystal, carved with a zigzag. Hurls a bolt of raw arcana.",
     "height": 0,
@@ -28934,7 +28934,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-lance",
+    "id": "rune-lance",
     "name": "Lance",
     "description": "Lavender crystal, carved with a spear. Drives a lance of raw arcana into a foe.",
     "height": 0,
@@ -28991,7 +28991,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-inferno",
+    "id": "rune-inferno",
     "name": "Inferno",
     "description": "Obsidian, carved with a blazing star. Sets everything around you alight.",
     "height": 0,
@@ -29135,7 +29135,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-shatter",
+    "id": "rune-shatter",
     "name": "Shatter",
     "description": "Obsidian, cut with a jagged crack. Bursts into ice around you.",
     "height": 0,
@@ -29279,7 +29279,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-overgrowth",
+    "id": "rune-overgrowth",
     "name": "Overgrowth",
     "description": "Obsidian, carved with a branching trident. Bursts into poison growth around you.",
     "height": 0,
@@ -29423,7 +29423,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-stomp",
+    "id": "rune-stomp",
     "name": "Stomp",
     "description": "Obsidian, carved with a blow on the ground. Shakes the earth and dazes everyone around you.",
     "height": 0,
@@ -29570,7 +29570,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-berserk",
+    "id": "rune-berserk",
     "name": "Berserk",
     "description": "Obsidian, carved with bared teeth. Fills you with a careless fury.",
     "height": 0,
@@ -29669,7 +29669,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-crystallise",
+    "id": "rune-crystallise",
     "name": "Crystallise",
     "description": "Obsidian, carved with a cold diamond. Cases you in ice.",
     "height": 0,
@@ -29768,7 +29768,7 @@
     }
   },
   {
-    "id": "arcane-stone-of-blossom",
+    "id": "rune-blossom",
     "name": "Blossom",
     "description": "Obsidian, carved with two linked buds. You flower and mend fast.",
     "height": 0,
@@ -39879,27 +39879,27 @@
               "kind": "one",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-spark",
+                  "tileId": "rune-spark",
                   "weight": 3
                 },
                 {
-                  "tileId": "arcane-stone-of-light",
+                  "tileId": "rune-light",
                   "weight": 3
                 },
                 {
-                  "tileId": "arcane-stone-of-cinder",
+                  "tileId": "rune-cinder",
                   "weight": 2
                 },
                 {
-                  "tileId": "arcane-stone-of-sleet",
+                  "tileId": "rune-sleet",
                   "weight": 2
                 },
                 {
-                  "tileId": "arcane-stone-of-barbs",
+                  "tileId": "rune-barbs",
                   "weight": 2
                 },
                 {
-                  "tileId": "arcane-stone-of-flame",
+                  "tileId": "rune-flame",
                   "weight": 1
                 }
               ]
@@ -39909,7 +39909,7 @@
             "name": "Forge Ember",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-cinder",
+                "tileId": "rune-cinder",
                 "count": 2
               }
             ],
@@ -39917,7 +39917,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-ember",
+                  "tileId": "rune-ember",
                   "chance": 100
                 }
               ]
@@ -39927,7 +39927,7 @@
             "name": "Forge Frost",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-sleet",
+                "tileId": "rune-sleet",
                 "count": 2
               }
             ],
@@ -39935,7 +39935,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-frost",
+                  "tileId": "rune-frost",
                   "chance": 100
                 }
               ]
@@ -39945,7 +39945,7 @@
             "name": "Forge Thorns",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-barbs",
+                "tileId": "rune-barbs",
                 "count": 2
               }
             ],
@@ -39953,7 +39953,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-thorns",
+                  "tileId": "rune-thorns",
                   "chance": 100
                 }
               ]
@@ -39963,7 +39963,7 @@
             "name": "Forge Bolt",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-spark",
+                "tileId": "rune-spark",
                 "count": 2
               }
             ],
@@ -39971,7 +39971,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-bolt",
+                  "tileId": "rune-bolt",
                   "chance": 100
                 }
               ]
@@ -39981,7 +39981,7 @@
             "name": "Forge Pyre",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-ember",
+                "tileId": "rune-ember",
                 "count": 2
               }
             ],
@@ -39989,7 +39989,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-pyre",
+                  "tileId": "rune-pyre",
                   "chance": 75
                 }
               ]
@@ -39999,7 +39999,7 @@
             "name": "Forge Rime",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-frost",
+                "tileId": "rune-frost",
                 "count": 2
               }
             ],
@@ -40007,7 +40007,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-rime",
+                  "tileId": "rune-rime",
                   "chance": 75
                 }
               ]
@@ -40017,7 +40017,7 @@
             "name": "Forge Bramble",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-thorns",
+                "tileId": "rune-thorns",
                 "count": 2
               }
             ],
@@ -40025,7 +40025,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-bramble",
+                  "tileId": "rune-bramble",
                   "chance": 75
                 }
               ]
@@ -40035,7 +40035,7 @@
             "name": "Forge Lance",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-bolt",
+                "tileId": "rune-bolt",
                 "count": 2
               }
             ],
@@ -40043,7 +40043,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-lance",
+                  "tileId": "rune-lance",
                   "chance": 75
                 }
               ]
@@ -40053,11 +40053,11 @@
             "name": "Forge Verdance",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-frost",
+                "tileId": "rune-frost",
                 "count": 1
               },
               {
-                "tileId": "arcane-stone-of-thorns",
+                "tileId": "rune-thorns",
                 "count": 1
               }
             ],
@@ -40065,7 +40065,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-verdance",
+                  "tileId": "rune-verdance",
                   "chance": 100
                 }
               ]
@@ -40075,7 +40075,7 @@
             "name": "Forge Bloom",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-verdance",
+                "tileId": "rune-verdance",
                 "count": 2
               }
             ],
@@ -40083,7 +40083,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-bloom",
+                  "tileId": "rune-bloom",
                   "chance": 75
                 }
               ]
@@ -40093,7 +40093,7 @@
             "name": "Forge Inferno",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-pyre",
+                "tileId": "rune-pyre",
                 "count": 2
               }
             ],
@@ -40101,7 +40101,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-inferno",
+                  "tileId": "rune-inferno",
                   "chance": 75
                 }
               ]
@@ -40111,7 +40111,7 @@
             "name": "Forge Shatter",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-rime",
+                "tileId": "rune-rime",
                 "count": 2
               }
             ],
@@ -40119,7 +40119,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-shatter",
+                  "tileId": "rune-shatter",
                   "chance": 75
                 }
               ]
@@ -40129,7 +40129,7 @@
             "name": "Forge Overgrowth",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-bramble",
+                "tileId": "rune-bramble",
                 "count": 2
               }
             ],
@@ -40137,7 +40137,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-overgrowth",
+                  "tileId": "rune-overgrowth",
                   "chance": 75
                 }
               ]
@@ -40147,7 +40147,7 @@
             "name": "Forge Stomp",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-lance",
+                "tileId": "rune-lance",
                 "count": 2
               }
             ],
@@ -40155,7 +40155,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-stomp",
+                  "tileId": "rune-stomp",
                   "chance": 75
                 }
               ]
@@ -40165,11 +40165,11 @@
             "name": "Forge Berserk",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-pyre",
+                "tileId": "rune-pyre",
                 "count": 1
               },
               {
-                "tileId": "arcane-stone-of-lance",
+                "tileId": "rune-lance",
                 "count": 1
               }
             ],
@@ -40177,7 +40177,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-berserk",
+                  "tileId": "rune-berserk",
                   "chance": 75
                 }
               ]
@@ -40187,11 +40187,11 @@
             "name": "Forge Crystallise",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-rime",
+                "tileId": "rune-rime",
                 "count": 1
               },
               {
-                "tileId": "arcane-stone-of-lance",
+                "tileId": "rune-lance",
                 "count": 1
               }
             ],
@@ -40199,7 +40199,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-crystallise",
+                  "tileId": "rune-crystallise",
                   "chance": 75
                 }
               ]
@@ -40209,11 +40209,11 @@
             "name": "Forge Blossom",
             "inputs": [
               {
-                "tileId": "arcane-stone-of-bramble",
+                "tileId": "rune-bramble",
                 "count": 1
               },
               {
-                "tileId": "arcane-stone-of-bloom",
+                "tileId": "rune-bloom",
                 "count": 1
               }
             ],
@@ -40221,7 +40221,7 @@
               "kind": "all",
               "items": [
                 {
-                  "tileId": "arcane-stone-of-blossom",
+                  "tileId": "rune-blossom",
                   "chance": 75
                 }
               ]
@@ -74043,7 +74043,7 @@
         "kit": [
           {
             "slot": "offhand",
-            "tileId": "arcane-stone-of-cinder",
+            "tileId": "rune-cinder",
             "chance": 1
           }
         ]
@@ -74651,7 +74651,7 @@
         "kit": [
           {
             "slot": "offhand",
-            "tileId": "arcane-stone-of-sleet",
+            "tileId": "rune-sleet",
             "chance": 1
           }
         ]
@@ -75259,7 +75259,7 @@
         "kit": [
           {
             "slot": "offhand",
-            "tileId": "arcane-stone-of-barbs",
+            "tileId": "rune-barbs",
             "chance": 1
           }
         ]
@@ -110254,7 +110254,7 @@
             "chance": 100,
             "contents": [
               {
-                "tileId": "arcane-stone-of-frost",
+                "tileId": "rune-frost",
                 "chance": 25
               },
               {

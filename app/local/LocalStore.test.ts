@@ -110,6 +110,21 @@ describe("LocalStore", () => {
       expect(after.alarmAt()).toBe(1234);
     });
 
+    it("brings a world stored before a tile rename back under the new ids, and keeps them", async () => {
+      const checkpoints = recording();
+      checkpoints.world.values.set(
+        "equip:alice",
+        JSON.stringify({ weapon: { tileId: "arcane-stone-of-flame" } }),
+      );
+
+      const store = new LocalStore(checkpoints);
+      await store.restore();
+      expect(await store.get("equip:alice")).toEqual({ weapon: { tileId: "rune-flame" } });
+
+      await store.flush();
+      expect(checkpoints.world.values.get("equip:alice")).toContain('"rune-flame"');
+    });
+
     it("carries a deletion across a restart", async () => {
       const checkpoints = recording();
       const before = new LocalStore(checkpoints);
