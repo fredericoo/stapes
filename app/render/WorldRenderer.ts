@@ -160,6 +160,8 @@ import {
   noSunUniforms,
   setDepthOrigin,
   writeBoxAttr,
+  buildSpreadQuadGeometry,
+  type SpreadSprite,
   writeLightUvAttr,
   writeWadeAttr,
 } from "./worldQuads";
@@ -167,6 +169,7 @@ import { AnimationTable, tableCanHold } from "./animTable";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
+  makeFollowingPileOutlines,
   makeRectOutline,
   makeCellFill,
   makeSpriteGhost,
@@ -212,6 +215,9 @@ type AnimatedInstance = {
   state: SpriteState;
   frameIdx: number;
 };
+
+/** A merged pile geometry has more than one quad; a lone sprite has exactly this many vertices. */
+const VERTS_PER_SPRITE = 4;
 
 const PROJECTILE_STACK_BIAS = 32;
 
@@ -284,6 +290,7 @@ type BuildItem = Quad & {
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
   mergedAnim?: { frames: Frame[]; tileset: TilesetDef; phaseMs: number };
   emitter?: ParticleEmitterSpec;
+  spread?: readonly SpreadSprite[];
 };
 
 type TransitionState = {
@@ -1175,6 +1182,17 @@ export class WorldRenderer {
   private outlinesFor(spec: ObjectOutlineOverlay): THREE.Mesh[] {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
+    if (source && source.geometry.attributes.position!.count > VERTS_PER_SPRITE) {
+      const subject = this.overlaySubject(spec);
+      const outlines = makeFollowingPileOutlines(
+        source,
+        pileRings(subject ? countOf(subject.placed) : 1),
+        spec.color,
+        this.outlineMaterials,
+      );
+      for (const outline of outlines) this.followingOutlines.push({ outline, source });
+      return outlines;
+    }
     if (source) {
       const outline = makeFollowingSpriteOutline(source, spec.color, this.outlineMaterials);
       if (!outline) return [];
@@ -2630,7 +2648,33 @@ export class WorldRenderer {
       const texture = this.textures.get(tileset.id) ?? this.magentaTex;
       const animKey = animationKey(def, placed, x, y, z, state);
 
-      const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      const anim =
+        separate && (animates || hasSpriteStates(def))
+          ? {
+              frames,
+              tileset,
+              animKey,
+              def,
+              placed,
+              cell: { x, y, z },
+              state,
+              frameIdx,
+            }
+          : undefined;
+      const heap = forming !== undefined || anim ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      /**
+       * A separate mesh is looked up by `tileKey`, so a pile that moves is one
+       * mesh carrying every sprite rather than one mesh per sprite.
+       */
+      const spread: SpreadSprite[] | undefined =
+        separate && heap.length > 1
+          ? heap.map((at, i) => ({
+              dx: at.dx,
+              dy: at.dy,
+              stackNudge: pileDepthNudge(i, heap.length),
+            }))
+          : undefined;
+      const offsets = spread ? NO_PILE_OFFSET : heap;
       const standsOnFeet = def.kind === "battler" || resolveActor(def);
       const stackBias = depthStackBias(z, stackIndex);
       const extent = extents[stackIndex] ?? { foot: elev, top: elev };
@@ -2640,7 +2684,7 @@ export class WorldRenderer {
         x,
         y,
         boxFoot,
-        offsets.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
+        heap.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
         footprintOf(def, placed.direction),
       );
 
@@ -2692,19 +2736,8 @@ export class WorldRenderer {
           pivotY: baseOrigin.y + CELL_SIZE / 2 + offset.dy,
           mergedAnim,
           emitter: i === 0 ? emitter : undefined,
-          anim:
-            separate && (animates || hasSpriteStates(def))
-              ? {
-                  frames,
-                  tileset,
-                  animKey,
-                  def,
-                  placed,
-                  cell: { x, y, z },
-                  state,
-                  frameIdx,
-                }
-              : undefined,
+          anim,
+          spread,
         });
       }
 
@@ -3206,11 +3239,13 @@ export class WorldRenderer {
 
   private addQuadMesh(
     parent: THREE.Object3D,
-    quad: Quad,
+    quad: Quad & { spread?: readonly SpreadSprite[] },
     texture: THREE.Texture,
     z: number,
   ): THREE.Mesh {
-    const geo = buildSingleQuadGeometry(quad);
+    const geo = quad.spread
+      ? buildSpreadQuadGeometry(quad, quad.spread)
+      : buildSingleQuadGeometry(quad);
     const mesh = new THREE.Mesh(geo, this.materialFor(texture, z));
     mesh.renderOrder = restingRenderOrder(mesh);
     mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);

@@ -3,7 +3,9 @@ import type { WeatherKind } from "./weather";
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
 import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
 
-export type ScenePlacement = string | { tile: string; facing?: Direction; variant?: string };
+export type ScenePlacement =
+  | string
+  | { tile: string; facing?: Direction; variant?: string; count?: number };
 
 export type SceneCells =
   | { at: [number, number] | [number, number, number]; tiles: ScenePlacement[] }
@@ -96,6 +98,9 @@ function cellsOf(entry: SceneCells): [number, number, number][] {
 function placed(placement: ScenePlacement, tilesById: Record<string, TileDef>): PlacedTile {
   const spec = typeof placement === "string" ? { tile: placement } : placement;
   if (!tilesById[spec.tile]) throw new Error(`No tile called "${spec.tile}"`);
+  if (spec.count !== undefined && !(Number.isInteger(spec.count) && spec.count >= 1)) {
+    throw new Error(`"${spec.count}" is not a count. Use a whole number of at least 1`);
+  }
   if (spec.facing !== undefined && !DIRECTIONS.includes(spec.facing)) {
     throw new Error(`"${spec.facing}" is not a facing. Use one of ${DIRECTIONS.join(", ")}`);
   }
@@ -103,6 +108,7 @@ function placed(placement: ScenePlacement, tilesById: Record<string, TileDef>): 
     tileId: spec.tile,
     ...(spec.facing ? { direction: spec.facing } : {}),
     ...(spec.variant ? { variant: spec.variant } : {}),
+    ...(spec.count !== undefined && spec.count > 1 ? { count: spec.count } : {}),
   };
 }
 
