@@ -30,6 +30,7 @@ import {
   MAX_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_PILE,
+  MAX_WORTH,
   MIN_PILE,
   pileOf,
 } from "../lib/item";
@@ -160,7 +161,7 @@ const TYPE_INFO: Record<ItemType, string> = {
 };
 
 export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: Props) {
-  const item = draft.interactions?.item ?? DEFAULT_WEAPON;
+  const item: ItemDef = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {
     const merged: TileInteractions = { ...draft.interactions, item: next };
@@ -491,6 +492,18 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
             />
           </div>
         )}
+
+        <div className="border-t-2 border-border pt-3">
+          <StatField
+            label="Worth"
+            info="What one of these pays toward a cash price. 0 means it is not money. A trade that asks for cash takes the largest coins first and gives change."
+            value={item.worth ?? 0}
+            min={0}
+            max={MAX_WORTH}
+            onChange={(worth) => setItem({ ...item, worth: worth > 0 ? worth : undefined })}
+            readout={item.worth ? `Worth ${item.worth} cash each.` : "Not money."}
+          />
+        </div>
 
         {wearable ? (
           <div className="border-t-2 border-border pt-3">
