@@ -65,6 +65,7 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Peregrine Voss | The camp | Trapmaker |
 | Wenna Pascoe | The camp | Salvager of the wrecks |
 | Jory Thistlewood | The camp | Rag-and-bone man; buys small spoils |
+| Iolanthe Sarno | Druids' town, council house | Speaker of the council; leads the town |
 | Hesper Vaun | Druids' town, rune temple | The runemaster |
 | Dagny Rook | Druids' town, rune temple | Temple clerk; sells neutral runes |
 | Amaru Quispe | Druids' town, weaving house | Weaver of caster's robes |
@@ -76,7 +77,10 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Rosalind Peake | Druids' town, the ledger house | Keeps the ledger of deaths |
 | Orrin Fask | Druids' town, the long house | Builder |
 | Fen Achterberg | Druids' town, temple steps | Retired adventurer |
-| Absalom Grieve | Warriors' town, drill yard | Drillmaster and head of the town |
+| Taavi Kask | Druids' town, temple door | Day warden (guard) |
+| Nadia Ferreira | Druids' town, streets at night | Night warden (guard) |
+| Ragna Holt | Warriors' town, longhall | Chief; leads the town |
+| Absalom Grieve | Warriors' town, drill yard | Drillmaster; second to Ragna |
 | Brannoc Hale | Warriors' town, smithy | Blacksmith; swords, axes and maces |
 | Selin Arslan | Warriors' town, bowyer's shop | Bowyer and fletcher |
 | Mateo Ferran | Warriors' town, spear shed | Spear-maker; buys and sells used weapons |
@@ -85,9 +89,11 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Magda Fenwick | Warriors' town, trophy shed | Buys claws, tusks, furs and animal skulls |
 | Tobiah Marsh | Warriors' town, streets | Lamplighter |
 | Rukmini Desai | Warriors' town, storehouse | Storekeeper; owns the cat Ghee |
-| Edda Kell | Warriors' town, gate | Gatekeeper |
+| Edda Kell | Warriors' town, north gate | Gatekeeper (guard) |
 | Aurelio Benedetti | Warriors' town, cooperage | Cooper; a carver who left the temple |
 | Sigrun Halde | Warriors' town, drill yard bench | Retired adventurer |
+| Gideon Okafor | Warriors' town, east gate | Gate guard |
+| Liv Sandvik | Warriors' town, walls at night | Night watch (guard) |
 | Margit Oslund | The roadside inn | Innkeeper; ale, stew and beds; owns the cat Captain |
 | Kofi Asante | The roadside inn | Brewer and cook |
 | Rodrigo Vela | The roadside inn | Retired adventurer who drinks there every night |
@@ -96,9 +102,11 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Hamid Sarraf | The roads | Pedlar between the towns |
 | Yeva Kostenko | The roads | Courier between the towns |
 
-That is 36 characters: 6 at the camp, 11 in the druids' town, 13 in the
-warriors' town, 3 at the inn, 1 at the witch's house and 3 on the roads. Five of
-them own cats.
+That is 42 characters: 6 at the camp, 14 in the druids' town, 16 in the
+warriors' town, 3 at the inn, 1 at the witch's house and 3 on the roads. Each
+town has a leader (Iolanthe Sarno and Ragna Holt) and guards (Taavi Kask and
+Nadia Ferreira for the druids; Edda Kell, Gideon Okafor and Liv Sandvik for the
+warriors). Five characters own cats.
 
 ## The camp
 
@@ -270,6 +278,40 @@ than in either town.
 Built round the rune temple, on the road from the camp to the deep woods. Every
 druid is expected to be able to manifest a flame to cook, light a room or warm
 water; they talk about runes as tools.
+
+### Iolanthe Sarno
+
+- **Where**: the druids' town, the council house on the temple square. She sleeps
+  in the rooms above the council chamber.
+- **What she does**: speaker of the druids' council, and the town's leader. She
+  hears complaints in the morning, sits with the council in the afternoon and
+  walks the town at dusk. She sells nothing. She tells players what the town
+  expects of them and pays a bounty in gold for wolves killed near the garden
+  plots. She fights with runes if the town is attacked.
+- **Before Wyrd**: aged 61. Born on the island. The harbour town's magistrate.
+- **Backstory**: when the harbour flooded she led its people inland. That first
+  winter Hesper's runes kept them warm and fed, and Iolanthe has backed the
+  craft ever since. When Absalom, who had been her captain of the watch, took
+  the people who refused runes east, she let them go rather than fight. She
+  does not want Wyrd broken until somebody can say what happens to a person
+  who should have died of age a hundred years ago. She has died twelve times,
+  three of them in the fights before the split.
+- **Ties**: Absalom Grieve was her captain of the watch, and she still calls him
+  Captain. Hesper Vaun sits on her council. Ragna Holt leads the warriors; the two
+  of them meet at the roadside inn twice a year, and Margit keeps the back room
+  free for it. Taavi Kask, her day warden, was one of Absalom's watchmen.
+- **Voice**: measured, formal, used to being listened to.
+  - "Welcome to the temple town. Carve what you like. Don't carve it at anyone."
+  - "I led these people up from the harbour. I'm still leading them, a hundred
+    and thirty years later. Nobody else has had the chance to try."
+  - "Break Wyrd, and Morwen is seventy and Peregrine is sixty, and both of them
+    are a hundred and thirty years late. Somebody should think about that before
+    they climb."
+  - "Twelve deaths. Three of them were our own people, in the year before the
+    split. Those are the ones I remember."
+- **Game support**: a dialog with a bounty trade (wolf spoils for gold). She
+  fights with spells the way Lord Corvin does today: single-target spells only,
+  because an area spell would hit the townsfolk round her.
 
 ### Hesper Vaun
 
@@ -535,6 +577,61 @@ water; they talk about runes as tools.
 - **Game support**: a dialog. Repeating himself across visits can be a `tag` that
   changes which lines he says.
 
+### Taavi Kask
+
+- **Where**: the druids' town, at the rune temple's door by day. He sleeps in the
+  wardens' house beside the council house.
+- **What he does**: day warden. He stands at the temple door from dawn to dusk,
+  fights anyone who attacks a townsperson, and goes after wolves and bog imps
+  that come into the town. He fights with Thorns and Ember runes and a staff.
+  He sells nothing; he gives directions round the temple.
+- **Before Wyrd**: aged 33. Born on the island. A watchman in the harbour watch
+  under Absalom Grieve.
+- **Backstory**: he stayed with the temple when the watch split, because the
+  runes were what fed his mother that first winter. His old watchmates in the
+  warriors' town have not forgiven him. He has died twenty-seven times, most of
+  them to wolves from the deep woods, and twice to Absalom in the fights before
+  the split.
+- **Ties**: Iolanthe Sarno's warden. He served with Mateo Ferran and Tobiah Marsh
+  under Absalom; Tobiah still talks to him at the inn, Mateo does not.
+  Nadia Ferreira takes the town from him at dusk.
+- **Voice**: steady, polite, a little sad.
+  - "Temple's open. Forges are inside, the runemaster's at the back."
+  - "I was in the watch with half the men in the warriors' town. I chose the
+    runes. They chose the drill yard."
+  - "Twenty-seven times. Two of those were Absalom. He was right to; it was a bad
+    year."
+- **Game support**: a dialog and a guard's brain: `keeps-the-peace` and
+  `raises-the-alarm` over the town's list, and `hunts-on-sight` over a named
+  list of monsters. Casting single-target spells as Lord Corvin does.
+
+### Nadia Ferreira
+
+- **Where**: the druids' town, its streets at night. She sleeps by day in the
+  wardens' house.
+- **What she does**: night warden. From dusk to dawn she walks the town with a
+  Light rune burning over her head, checking doors and the garden plots. She
+  fights anyone who attacks a townsperson and anything that comes out of the
+  woods. She sells nothing.
+- **Before Wyrd**: aged 28. She came from abroad as a sailor and worked the
+  harbour's night boats.
+- **Backstory**: she took the night watch because she was used to being awake
+  at night and could not get unused to it. She has died eighteen times, nine
+  of them to wolves at the plots. She lost the name of the ship that brought her
+  to the island about her tenth death, and asks Rosalind to read it to her now
+  and then.
+- **Ties**: she and Casimir Wren cross paths every dusk and dawn; he lights the
+  lamps she walks past. She guards Suvi Kallio's plots. She takes the town from
+  Taavi at dusk.
+- **Voice**: quiet, wry, wide awake.
+  - "Late to be walking. Stay under the lamps."
+  - "I carry my own light. Casimir says it makes his lamps look bad."
+  - "The wolves come to the plots after midnight. Eighteen deaths, and they
+    were half of them."
+- **Game support**: a guard's brain with a night patrol on `time_of_day` and a
+  day's sleep in a bed. A light that follows her needs a carried light, which
+  players have; whether an NPC can hold one needs checking.
+
 ## The warriors' town
 
 On the east side of the island, at the edge of the Red Waste, on the road from the
@@ -542,18 +639,54 @@ camp to the lighthouse and the ember deeps. Nobody here touches a rune. They
 light fires with flint, train every morning in the drill yard and make gear that
 holds off magic.
 
+### Ragna Holt
+
+- **Where**: the warriors' town, the longhall on the main square. She sleeps in
+  the room at its far end.
+- **What she does**: chief of the warriors' town. She holds the longhall in the
+  morning, hears disputes, and sets the watch rota with Absalom. In the
+  afternoon she trains with the greataxe. In the evening she eats in the
+  longhall with whoever is there. She sells nothing. She keeps the list of
+  players who want to climb the lighthouse and tells them who else is looking
+  for a group.
+- **Before Wyrd**: aged 49. Born on the island. She ran the harbour's ropewalk
+  and the forty people who worked it.
+- **Backstory**: Absalom led the people east, and Ragna built the town. When it
+  was done the town asked her to lead it, and Absalom agreed; he says he can
+  train people or run them, not both. She wants Wyrd broken, and has decided
+  that it will be done by a group, not by one hero, so she spends her time
+  putting people together. She has died thirty-eight times, eleven of them on
+  the lighthouse.
+- **Ties**: Absalom Grieve is her drillmaster and second. Edda Kell sits at her
+  table every night. She meets Iolanthe Sarno at the roadside inn twice a year.
+  Gideon Okafor worked in her ropewalk.
+- **Voice**: loud, direct, warm with her own people.
+  - "You want the tower? Good. You can't climb it alone. Nobody can. Give me your
+    name and I'll find you three more."
+  - "Absalom brought us here. I built the walls. We each did the part we were good
+    at."
+  - "Eleven times on the tower. Every one of them because somebody behind me ran."
+  - "Iolanthe thinks we should wait and see what breaking it does. I've waited a
+    hundred and thirty years. I've seen."
+- **Game support**: a dialog. She fights with a greataxe and the
+  `townsfolk-fight` trait. Keeping a list of players and matching them into a
+  group is not something a dialog can do; there is no group or party system,
+  so for now she says fixed lines about it.
+
 ### Absalom Grieve
 
 - **Where**: the warriors' town, the drill yard, and the house beside it.
-- **What he does**: drillmaster and the head of the town. He drills the town at
-  dawn, trains anyone who asks, and settles disputes in the afternoon. He sells
+- **What he does**: drillmaster, and second to Ragna Holt. He drills the town at
+  dawn, trains anyone who asks, and sets the watch rota in the afternoon. He sells
   nothing, but a player can spar with him. At night he walks the walls.
 - **Before Wyrd**: aged 46. Born on the island. Captain of the harbour watch.
 - **Backstory**: in the first decades, when the arguments over runes turned to
   fights, he led those who refused them east and built the town. He has died
   forty-four times, many of them deliberately, to test himself against the
   lighthouse. He wants Wyrd broken and says so.
-- **Ties**: Mateo Ferran and Tobiah Marsh served in his watch. Edda Kell is his
+- **Ties**: Ragna Holt is the town's chief; he is her second. Iolanthe Sarno was
+  his magistrate. Mateo Ferran and Tobiah Marsh served in his watch, and so did
+  Taavi Kask, who stayed with the temple. Edda Kell is his
   sister. He dislikes that the inn's cat is called Captain.
 - **Voice**: clipped, formal, never raises his voice.
   - "Up at dawn. A body is the one thing on this island no rune made. Train it."
@@ -791,6 +924,57 @@ holds off magic.
     afraid."
 - **Game support**: a dialog.
 
+### Gideon Okafor
+
+- **Where**: the warriors' town, the east gate, facing the Red Waste. He sleeps
+  in the gatehouse there.
+- **What he does**: east gate guard. He watches the road to the ember deeps from
+  dawn to dusk and fights whatever comes out of the waste: fire creatures, and
+  now and then a troll from the gorge. He fights anyone who attacks a
+  townsperson. He sells nothing, but tells players what has come out of the
+  waste that day.
+- **Before Wyrd**: aged 37. He came from abroad as a stevedore and worked in
+  Ragna Holt's ropewalk.
+- **Backstory**: he asked for the east gate because nobody else wanted it. He has
+  died forty-one times, more than any other guard, and six of those were trolls.
+  He has lost most of the language he grew up speaking, and sings in it anyway,
+  in the words he still has.
+- **Ties**: worked for Ragna in the ropewalk. Selin Arslan's shop is beside his
+  gate, and she shoots at whatever he is fighting. Edda Kell keeps the north
+  gate.
+- **Voice**: calm, big-voiced, unhurried.
+  - "Waste is quiet today. That means nothing."
+  - "Forty-one. Six trolls. You never stop hearing the troll ones."
+  - "Selin shoots past my ear. She hasn't hit me yet. Twice."
+- **Game support**: a guard's brain: `keeps-the-peace`, `raises-the-alarm` and
+  `hunts-on-sight` over a named list of fire creatures and trolls, with a leash
+  to the gate.
+
+### Liv Sandvik
+
+- **Where**: the warriors' town, on the walls at night. She sleeps by day in the
+  barracks by the drill yard.
+- **What she does**: night watch. From dusk to dawn she walks the top of the
+  walls with a lantern and a spear, and comes down to fight anyone who attacks
+  a townsperson. At dawn she drills with Absalom before she sleeps. She sells
+  nothing.
+- **Before Wyrd**: aged 25. Born on the island. An apprentice in Halina Brzeska's
+  sailmaker's loft.
+- **Backstory**: she joined the walk east because Halina did. She has died
+  fifteen times, three of them falling from the walls in the dark, which is why
+  she carries a lantern and not a torch.
+- **Ties**: Halina's old apprentice, and still close to her. She walks the walls
+  with Absalom on the nights he takes a turn. Tobiah Marsh lights her lantern
+  at dusk.
+- **Voice**: alert, short, a little dry.
+  - "Who's that? Oh. Go on, then."
+  - "Fifteen. Three of them were the walls. Watch your step up here."
+  - "From up here you can see the light on the lighthouse all night. I don't look
+    at it much."
+- **Game support**: a guard's brain with a night patrol on `time_of_day` and a
+  day's sleep. Walking the top of the walls needs stairs the brain can route
+  over (see the two-leg note on stairs in `docs/notes.md`).
+
 ## The roadside inn
 
 The inn stands halfway along the road between the two towns, on the north shore
@@ -993,6 +1177,8 @@ each would need.
   needs a skull spoil per animal, or one generic `animal-skull`.
 - **Sparring.** Absalom offering a fight from dialog that stops before death does
   not exist.
+- **Groups.** Ragna Holt matching players into groups for the lighthouse needs a
+  group or party system, which the game does not have.
 - **Waking at the inn.** Only the towns and the camp are places to wake in the
   canon. A bed at the inn as a place to wake is a proposal.
 - **A sprite per character.** Every named NPC is a tile and needs its own sprite;
