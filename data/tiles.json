@@ -57,7 +57,8 @@
     "connectsTo": [
       "half-stone",
       "hole",
-      "sand-dunes"
+      "sand-dunes",
+      "beach-sand"
     ],
     "slices": {
       "0": {
@@ -98906,7 +98907,8 @@
     "connectsTo": [
       "sand-dunes",
       "grass-ledge",
-      "wooden-floor"
+      "wooden-floor",
+      "beach-sand"
     ],
     "slices": {
       "0": {
@@ -101566,7 +101568,8 @@
     "connectsTo": [
       "grass-2",
       "grass-brink",
-      "sand-dunes"
+      "sand-dunes",
+      "beach-sand"
     ],
     "slices": {
       "0": {
