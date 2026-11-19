@@ -39,8 +39,8 @@ describe("buildScene", () => {
 
   it("names what is wrong with a scene it cannot build", () => {
     const at: [number, number] = [0, 0];
-    expect(() => buildScene({ cells: [{ at, tiles: ["lava"] }] }, tiles)).toThrow(
-      'No tile called "lava"',
+    expect(() => buildScene({ cells: [{ at, tiles: ["no-such-tile"] }] }, tiles)).toThrow(
+      'No tile called "no-such-tile"',
     );
     expect(() => buildScene({ cells: [{ at, tiles: ["grass"] }], time: "25:00" }, tiles)).toThrow(
       '"25:00" is not a time',
