@@ -268,5 +268,12 @@
     "file": "beach.png",
     "width": 120,
     "height": 64
+  },
+  {
+    "id": "runes",
+    "name": "Runes",
+    "file": "runes.png",
+    "width": 64,
+    "height": 48
   }
 ]

@@ -27768,9 +27768,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -27822,9 +27822,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -27887,9 +27887,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -27952,9 +27952,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28017,9 +28017,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -28130,9 +28130,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -28243,9 +28243,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28356,9 +28356,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28449,9 +28449,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28547,9 +28547,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -28604,9 +28604,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -28661,9 +28661,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -28718,9 +28718,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28814,9 +28814,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28870,9 +28870,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28926,9 +28926,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -28982,9 +28982,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -29125,9 +29125,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -29268,9 +29268,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 4,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 5,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -29411,9 +29411,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 3
     },
     "lightPassing": true,
     "intangible": true,
@@ -29557,9 +29557,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 7,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 5,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -29655,9 +29655,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 6,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 4,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -29753,9 +29753,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 5,
-      "y": 19
+      "tilesetId": "runes",
+      "x": 6,
+      "y": 2
     },
     "lightPassing": true,
     "intangible": true,
@@ -44085,9 +44085,9 @@
     "kind": "item",
     "attributes": {},
     "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 2,
-      "y": 18
+      "tilesetId": "runes",
+      "x": 3,
+      "y": 4
     },
     "lightPassing": true,
     "intangible": true,
@@ -120546,6 +120546,252 @@
             "base": {
               "x": 4,
               "y": 4
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rune-blank-bone",
+    "name": "Bone Blank",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rune-blank-crystal",
+    "name": "Crystal Blank",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rune-blank-deep-ore",
+    "name": "Deep Ore Blank",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 4
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-fire",
+    "name": "Fire Essence",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 0,
+      "y": 5
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-water",
+    "name": "Water Essence",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 1,
+      "y": 5
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "essence-nature",
+    "name": "Nature Essence",
+    "height": 0,
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "type": "simple",
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 2,
+      "y": 5
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 200
