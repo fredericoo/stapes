@@ -72,6 +72,16 @@ describe("itemCard", () => {
     expect(card?.kind).toBe("One hand — Sharp");
   });
 
+  it("falls back to the tile's description when the instance has none of its own", () => {
+    const def = tileWith(SWORD, { description: "Carved in bone" });
+
+    expect(itemCard(def, null, NOTHING_LEARNT)?.description).toBe("Carved in bone");
+    expect(
+      itemCard(def, { id: "1", tileId: "thing", description: "Fangs by Wolf" }, NOTHING_LEARNT)
+        ?.description,
+    ).toBe("Fangs by Wolf");
+  });
+
   it("says how many hands it costs", () => {
     const card = itemCard(tileWith({ ...SWORD, twoHanded: true }), null, NOTHING_LEARNT);
     expect(card?.kind).toBe("Both hands — Sharp");

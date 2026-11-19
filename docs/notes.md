@@ -13483,6 +13483,13 @@ The line between them is **who is asking**. Walking past a shelf is not a
 question; pointing at one thing is. That is also why a look shows both: you
 cannot be spammed by a label you aimed at.
 
+A tile can carry a `description` of its own, for what is true of every one of
+it: what a rune is carved from, what an essence was taken from. The item card
+shows a placement's description when it has one and the tile's otherwise, so
+a skull's cause of death still wins over whatever all skulls say. The tile
+editor's save builds the tile field by field, so the field is listed there or
+an edit in the editor would erase it.
+
 Two knock-on rules follow from the rename, and both are about the *slot's own
 name*. A sign in your bag is called what it says rather than "Sign", and that
 was always the inscription doing the work — so `slotLabelFor`, the container
