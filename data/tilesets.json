@@ -270,6 +270,13 @@
     "height": 64
   },
   {
+    "id": "ruins",
+    "name": "Ruins",
+    "file": "ruins.png",
+    "width": 64,
+    "height": 144
+  },
+  {
     "id": "runes",
     "name": "Runes",
     "file": "runes.png",
