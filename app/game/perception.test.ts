@@ -81,10 +81,6 @@ describe("1 — indoors, door shut, rat in the yard", () => {
     expect(canHit(board(), me, rat)).toBe(false);
     expect(canHit(board(), rat, me)).toBe(false);
   });
-
-  it("disagrees on purpose about who can see what", () => {
-    expect(canRead(board(), rat, me)).not.toBe(notices(board(), rat, me));
-  });
 });
 
 describe("2 — up on a box, nothing in between", () => {

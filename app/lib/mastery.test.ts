@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  BENEATH_YOU_EXPONENT,
   spellElements,
   experienceMultiplier,
   masteryMultiplier,
@@ -248,8 +247,8 @@ describe("experienceMultiplier", () => {
     expect(experienceMultiplier(NOTHING_BELOW_RATIO * 20 - 0.001, 20)).toBe(0);
   });
 
-  it("gives up a figure too small to read as a number", () => {
-    expect(NOTHING_BELOW_RATIO ** BENEATH_YOU_EXPONENT).toBeLessThan(0.005);
+  it("pays a figure too small to read as a number just above the cliff", () => {
+    expect(experienceMultiplier(NOTHING_BELOW_RATIO * 20, 20)).toBeLessThan(0.005);
   });
 
   it("falls away steeply for anything beneath you", () => {

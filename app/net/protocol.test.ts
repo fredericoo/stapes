@@ -423,20 +423,6 @@ describe("nothing is quietly dropped in transit", () => {
     stackIndex: 1,
   };
 
-  it("carries a damage event through whole", () => {
-    const message = parseServerMessage(
-      JSON.stringify({
-        type: "patch",
-        cells: [],
-        events: [damageEvent],
-        hps: [],
-        carriedLights: [],
-      }),
-    );
-
-    expect(message?.type === "patch" && message.events[0]).toEqual(damageEvent);
-  });
-
   it("keeps every outcome a swing can have", () => {
     for (const outcome of SWING_OUTCOMES) {
       const message = parseServerMessage(

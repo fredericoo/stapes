@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { PX_PER_HEIGHT } from "../lib/geometry";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { labelHeadroomPx } from "./labelHeadroom";
 
@@ -9,12 +8,11 @@ describe("labelHeadroomPx", () => {
   });
 
   it("lifts a half-height tile clear of the art above its head", () => {
-    const half = HEIGHT_PER_LEVEL / 2;
-    expect(labelHeadroomPx(half)).toBe(1 + half * PX_PER_HEIGHT);
+    expect(labelHeadroomPx(HEIGHT_PER_LEVEL / 2)).toBe(5);
   });
 
   it("lifts a flat tile by a whole level's worth", () => {
-    expect(labelHeadroomPx(0)).toBe(1 + HEIGHT_PER_LEVEL * PX_PER_HEIGHT);
+    expect(labelHeadroomPx(0)).toBe(9);
   });
 
   it("never pulls a label down into a tile taller than a level", () => {

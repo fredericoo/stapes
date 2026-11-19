@@ -90,22 +90,15 @@ describe("renderGrid", () => {
     const grid = emptyGrid(ONE_CELL);
     grid.fill(1);
     const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ffffff"]);
-    const topShade = 255;
-    const southShade = Math.round(255 * 0.78);
-    const eastShade = Math.round(255 * 0.6);
-    expect(pixel(sprite.rgba, sprite.widthPx, 4, 4)).toEqual([topShade, topShade, topShade, 255]);
-    expect(pixel(sprite.rgba, sprite.widthPx, 8, 15)).toEqual([
-      southShade,
-      southShade,
-      southShade,
-      255,
-    ]);
-    expect(pixel(sprite.rgba, sprite.widthPx, 15, 8)).toEqual([
-      eastShade,
-      eastShade,
-      eastShade,
-      255,
-    ]);
+    const top = pixel(sprite.rgba, sprite.widthPx, 4, 4);
+    const [south] = pixel(sprite.rgba, sprite.widthPx, 8, 15);
+    const [east] = pixel(sprite.rgba, sprite.widthPx, 15, 8);
+    expect(top).toEqual([255, 255, 255, 255]);
+    expect(pixel(sprite.rgba, sprite.widthPx, 8, 15)).toEqual([south, south, south, 255]);
+    expect(pixel(sprite.rgba, sprite.widthPx, 15, 8)).toEqual([east, east, east, 255]);
+    expect(south).toBeLessThan(255);
+    expect(east).toBeLessThan(south!);
+    expect(east).toBeGreaterThan(0);
   });
 });
 

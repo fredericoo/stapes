@@ -15,7 +15,7 @@ import {
   stackOcclusion,
 } from "./lighting";
 import type { PackedLightGrid } from "./lighting";
-import { computeLightingFlood, FULL_CELL_TOP_LIGHT_SHARE, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { computeLightingFlood, FULL_CELL_TOP_LIGHT_SHARE } from "./lightingFlood";
 import { sampleIllumination } from "./clock";
 import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO, SUN_SPAN_STRIDE } from "./sunSpan";
 import type { MapFile, TileDef } from "./types";
@@ -552,10 +552,6 @@ describe("computeLighting flood fill", () => {
       },
     ]);
     expect(map.levels[levelKey(0)]).toBe(before);
-  });
-
-  it(`uses MAX_LIGHT_LEVEL=${MAX_LIGHT_LEVEL}`, () => {
-    expect(MAX_LIGHT_LEVEL).toBe(15);
   });
 });
 

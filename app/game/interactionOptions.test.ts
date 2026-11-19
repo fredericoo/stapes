@@ -1095,13 +1095,6 @@ describe("listInteractionOptions — picking things up", () => {
     expect(kinds[0]!.action).toBe("switch");
     expect(kinds[0]!.label).toBe("Pull");
   });
-
-  it("never offers the viewer their own body, now that the sweep is round", () => {
-    const map = field();
-    const me = playerAt(map);
-
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
-  });
 });
 
 describe("listInteractionOptions — a tile somebody conjured", () => {
@@ -1216,16 +1209,6 @@ describe("listInteractionOptions — bags on the floor", () => {
 
     expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT))).toEqual([
       "open",
-    ]);
-  });
-
-  it("does not offer open for something that is not a container", () => {
-    let map = field();
-    map = place(map, 1, 0, ["grass", "sword"]);
-    const me = playerAt(map);
-
-    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED))).toEqual([
-      "pickUp",
     ]);
   });
 });

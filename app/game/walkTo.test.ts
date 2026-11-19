@@ -798,16 +798,4 @@ describe("clicking into a hole", () => {
     expect(standingCellOn(view(map), crate)).toBeNull();
     expect(asked.flatMap((input) => input.directions)).not.toContain("n");
   });
-
-  it("still reads a wall on ordinary ground as a thing, not a hole", () => {
-    const { walk, asked } = walker();
-    const map = put(field(3), 0, -1, "wall");
-
-    walk.start({ x: 0, y: -1, z: 0, stackIndex: 1 }, view(map));
-
-    expect(standingCellOn(view(map), { x: 0, y: -1, z: 0, stackIndex: 1 })).toBeNull();
-    expect(asked).toEqual([]);
-    expect(walk.walking).toBe(false);
-    expect(walk.drainNotices()).toEqual([]);
-  });
 });

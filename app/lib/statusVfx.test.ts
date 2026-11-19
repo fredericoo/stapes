@@ -79,12 +79,6 @@ describe("winding down", () => {
     expect(taperAt(0, 4_000)).toBe(0);
   });
 
-  it("measures what is left, not what there was", () => {
-    const window = 4_000;
-    expect(taperAt(2_000, window)).toBe(taperAt(2_000, window));
-    expect(taperAt(600_000, window)).toBe(1);
-  });
-
   it("never tapers a status that did not ask to", () => {
     expect(taperAt(1, 0)).toBe(1);
     expect(taperAt(0, 0)).toBe(1);

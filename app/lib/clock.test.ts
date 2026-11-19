@@ -115,11 +115,6 @@ describe("clockAfter", () => {
 });
 
 describe("minutesOfDayAt", () => {
-  it("is the same reading for the same instant", () => {
-    const now = 1_770_000_000_000;
-    expect(minutesOfDayAt(now)).toBe(minutesOfDayAt(now));
-  });
-
   it("advances a minute per real second and a day per 24 real minutes", () => {
     const now = 1_770_000_000_000;
     expect(minutesOfDayAt(now + MS_PER_CLOCK_MINUTE)).toBe(wrapMinutes(minutesOfDayAt(now) + 1));

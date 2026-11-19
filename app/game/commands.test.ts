@@ -242,13 +242,6 @@ describe("reading a typed line", () => {
     });
   });
 
-  it("counts one when no count was typed", () => {
-    expect(parseCommand("/tile apple +1")).toMatchObject({
-      ok: true,
-      command: { count: 1 },
-    });
-  });
-
   it("names a count that is zero or past the ceiling", () => {
     for (const typed of ["x0", "x1000"]) {
       expect(parseCommand(`/tile apple ${typed}`)).toEqual({
@@ -614,11 +607,26 @@ describe("what a command does to the board", () => {
   });
 
   it("gives a summoned body the cell it was called into as its home", () => {
-    const session = world();
-    session.runCommand("/tile deer 0 1 0", "me");
+    const homer = tile({
+      id: "homer",
+      height: 2,
+      actor: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "home",
+          states: { home: { do: [{ action: "step_toward", of: { type: "home" } }] } },
+          transitions: [],
+        },
+      },
+    });
+    const session = new GameSession(field(), [...tiles, homer], { actorIds: ["me"], seed: 1 });
+    session.runCommand("/tile homer 0 1 0", "me");
+    const summoned = residentAt(session, 0, 1, 0);
+    session.runCommand(`/goto -2 -2 ${summoned}`, "me");
 
-    const internals = session as unknown as { actors: Map<string, { home: unknown }> };
-    expect(internals.actors.get(residentAt(session, 0, 1, 0))?.home).toEqual({ x: 0, y: 1, z: 0 });
+    expect(session.actorPosition(summoned)).toMatchObject({ x: -2, y: -2 });
+    expect(cellAfter(session, summoned, A_FEW_BRAIN_TURNS_MS * 3)).toEqual({ x: 0, y: 1 });
   });
 
   it("passes over the ids a board resumed from a checkpoint already gives its bodies", () => {
@@ -977,9 +985,10 @@ describe("going somewhere", () => {
   });
 
   it("keeps the level it was standing on when none is given", () => {
-    const session = world();
-    session.runCommand("/goto 2 2", "me");
-    expect(session.actorSnapshots().find((a) => a.id === "me")!.z).toBe(0);
+    const session = upstairs();
+    session.runCommand("/goto 2 0", "me");
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    expect({ x: me.x, y: me.y, z: me.z }).toEqual({ x: 2, y: 0, z: 1 });
   });
 
   it("counts a move from wherever the body now stands", () => {

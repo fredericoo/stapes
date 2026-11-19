@@ -103,12 +103,6 @@ describe("every count it will draw", () => {
     }
   });
 
-  it("is the same arrangement every time, because nothing here is random", () => {
-    for (const n of EVERY_COUNT) {
-      expect(pileOffsets(n)).toEqual(pileOffsets(n));
-    }
-  });
-
   it("stays centred on the cell rather than drifting to one side", () => {
     for (const n of EVERY_COUNT) {
       const offsets = pileOffsets(n);
@@ -173,16 +167,20 @@ describe("the rings around a heap", () => {
   });
 
   it("gives the vector from this sprite to each of the others", () => {
-    const offsets = pileOffsets(5);
-    pileRings(5).forEach((ring, i) => {
-      const others = offsets.filter((_, j) => j !== i);
-      expect(ring.peers).toEqual(
-        others.map((other) => ({
-          dx: offsets[i]!.dx - other.dx,
-          dy: offsets[i]!.dy - other.dy,
-        })),
-      );
-    });
+    expect(pileRings(3).map((ring) => ring.peers)).toEqual([
+      [
+        { dx: -3, dy: -3 },
+        { dx: -6, dy: -6 },
+      ],
+      [
+        { dx: 3, dy: 3 },
+        { dx: -3, dy: -3 },
+      ],
+      [
+        { dx: 6, dy: 6 },
+        { dx: 3, dy: 3 },
+      ],
+    ]);
   });
 
   it("gives a lone sprite one ring and no peers at all", () => {

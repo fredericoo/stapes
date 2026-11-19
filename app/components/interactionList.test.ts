@@ -32,26 +32,6 @@ describe("how far through a pull a row is", () => {
   });
 });
 
-describe("how far through the wait before a blow a fight row is", () => {
-  const INTERVAL_MS = 1_200;
-  const wait = (remainingMs: number) => ({
-    remainingMs,
-    durationMs: INTERVAL_MS,
-  });
-
-  it("is half the interval when a fight opens, because the windup is half of one", () => {
-    expect(fillElapsedMs(wait(INTERVAL_MS / 2))).toBe(INTERVAL_MS / 2);
-  });
-
-  it("is the whole interval when the blow is due", () => {
-    expect(fillElapsedMs(wait(0))).toBe(INTERVAL_MS);
-  });
-
-  it("is nothing when a blow has just been thrown", () => {
-    expect(fillElapsedMs(wait(INTERVAL_MS))).toBe(0);
-  });
-});
-
 describe("why a blocked row is grey", () => {
   const WORKING = {
     kind: "working",

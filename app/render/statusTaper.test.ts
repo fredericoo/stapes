@@ -86,18 +86,19 @@ describe("smoothing what the wire says", () => {
     clocks.endFrame();
   });
 
-  it("forgets a status nobody asked about", () => {
+  it("forgets a status nobody asked about, and starts it afresh when it is asked again", () => {
     const clocks = new SmoothedRemaining();
+    const key = taperKey("me", "poison");
     clocks.beginFrame(0);
-    clocks.read(taperKey("me", "poison"), 1_000);
-    clocks.read(taperKey("rat", "burn"), 2_000);
+    clocks.read(key, 1_000);
     clocks.endFrame();
-    expect(clocks.size).toBe(2);
 
-    clocks.beginFrame(16);
-    clocks.read(taperKey("me", "poison"), 1_000);
+    clocks.beginFrame(100);
     clocks.endFrame();
-    expect(clocks.size).toBe(1);
+
+    clocks.beginFrame(100);
+    expect(clocks.read(key, 1_000)).toBe(1_000);
+    clocks.endFrame();
   });
 
   it("keeps one bearer's status apart from another's", () => {

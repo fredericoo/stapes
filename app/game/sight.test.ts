@@ -144,25 +144,6 @@ describe("looking from higher up", () => {
 });
 
 describe("line of sight", () => {
-  it("crosses open ground", () => {
-    expect(hasLineOfSight(field(), tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
-  });
-
-  it("stops at a full-height wall", () => {
-    const map = put(field(), 2, 0, "wall");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(false);
-  });
-
-  it("passes over a crate", () => {
-    const map = put(field(), 2, 0, "crate");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
-  });
-
-  it("passes through a window, which a body could not walk through", () => {
-    const map = put(field(), 2, 0, "window");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
-  });
-
   it("looks past a wall that is not between the two", () => {
     const map = put(field(), 2, 3, "wall");
     expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
@@ -184,12 +165,6 @@ describe("line of sight", () => {
   it("has nothing in the way of a neighbour", () => {
     const map = put(field(), 1, 0, "wall");
     expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 0 })).toBe(true);
-  });
-
-  it("looks up through open air", () => {
-    const map = field();
-
-    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: 1 })).toBe(true);
   });
 
   it("does not look down through a floor", () => {

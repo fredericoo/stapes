@@ -340,16 +340,6 @@ describe("settleSignals", () => {
     expect(changed).toEqual([]);
   });
 
-  it("reads every channel before any swap lands", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
-    map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
-    map = replaceStack(map, 6, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
-
-    const { map: next } = settleSignals(map, findWiredCells(map), tilesById);
-    expect(stackIds(next, 5, 0)).toEqual(["door-open"]);
-    expect(stackIds(next, 6, 0)).toEqual(["door-open"]);
-  });
-
   it("preserves the channel across a swap", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);

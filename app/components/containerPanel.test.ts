@@ -39,11 +39,6 @@ describe("containerSlotGrid", () => {
     expect(containerSlotGrid(400).slotPx).toBeLessThanOrEqual(72);
   });
 
-  it("keeps the two columns it actually lives in off the threshold", () => {
-    expect(DESKTOP_ROW_PX - DENSE_THRESHOLD_PX).toBeGreaterThanOrEqual(8);
-    expect(DENSE_THRESHOLD_PX - PHONE_ROW_PX).toBeGreaterThanOrEqual(8);
-  });
-
   it("draws a usable square before anything has measured", () => {
     expect(containerSlotGrid(0).slotPx).toBeGreaterThanOrEqual(DENSE_MIN_SLOT_PX);
   });

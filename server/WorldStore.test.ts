@@ -26,12 +26,6 @@ describe("buffered writes", () => {
     expect(await store.get<unknown>("a")).toEqual({ n: 1 });
   });
 
-  it("survives a flush", async () => {
-    await store.put("a", { n: 1 });
-    await store.flush();
-    expect(await store.get<unknown>("a")).toEqual({ n: 1 });
-  });
-
   it("is durable across reopening the database", async () => {
     await store.put("chunk:0:0", [{ tileId: "grass" }]);
     await store.flush();

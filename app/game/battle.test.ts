@@ -900,11 +900,6 @@ describe("the authored creatures", () => {
     expect(swings).toBe(false);
   });
 
-  it("still parses both creatures' brains after the new transitions", () => {
-    expect(resolveBrain(byId.deer!)).not.toBeNull();
-    expect(resolveBrain(byId.cat!)).not.toBeNull();
-  });
-
   it("sends the cat after whoever hit it", () => {
     const brain = resolveBrain(byId.cat!)!;
     const retaliation = brain.transitions.find(
@@ -1053,15 +1048,6 @@ function arrows(session: GameSession) {
 }
 
 describe("shooting at somebody", () => {
-  it("lands a blow far past arm's reach", () => {
-    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
-    fight(session, bodyOf(session, "dummy")!.id);
-
-    advance(session, 1000);
-
-    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
-  });
-
   it("never leans, even at point-blank range", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);

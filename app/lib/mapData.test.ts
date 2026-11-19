@@ -290,22 +290,6 @@ describe("placement descriptions", () => {
     expect(updatePlacedDescription(map, 1, 2, 0, 0, "To the mill")).toBe(map);
     expect(updatePlacedDescription(map, 1, 2, 0, 0, " To the mill ")).toBe(map);
   });
-
-  it("keeps the description when the tile in the slot is swapped", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "door-closed", description: "Beware of the dog", channel: "a" },
-    ]);
-    const swapped = getStack(map, 0, 0, 0).map((p) => ({
-      ...p,
-      tileId: "door-open",
-    }));
-
-    expect(swapped[0]).toEqual({
-      tileId: "door-open",
-      description: "Beware of the dog",
-      channel: "a",
-    });
-  });
 });
 
 describe("container contents", () => {

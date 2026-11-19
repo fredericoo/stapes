@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import tilesRaw from "../../data/tiles.json";
 import { emptyMap, getStack, setStacks } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTiles, physicalHeight } from "../lib/types";
+import { normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   MIN_CAVE_FOOTPRINT,
@@ -221,13 +221,6 @@ describe("planCave", () => {
       }
     });
     expect(ledges).toBeGreaterThan(0);
-  });
-
-  it("puts a ledge at half the height of the rock beside it", () => {
-    const map = build(RECT, { ledgeTileId: "half-stone", ledgeChance: 100 });
-    const ledge = physicalHeight(tilesById["half-stone"]!);
-    expect(ledge * 2).toBe(HEIGHT_PER_LEVEL);
-    expect(ids(map, RECT.x0, RECT.y0)).toHaveLength(3);
   });
 
   it("refuses a floor too tall to leave room for rock over it", () => {

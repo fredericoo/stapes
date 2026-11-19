@@ -81,22 +81,12 @@ describe("naming a speaker", () => {
     expect(bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById)).toBe("Arthur");
   });
 
-  it("does not call a person after the tile they stand up in", () => {
-    expect(bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById)).not.toBe("Player");
-  });
-
   it("still attributes the words when a person has no name", () => {
     expect(bodyNameFor({ tileId: PLAYER_TILE_ID }, tilesById)).toBe(UNNAMED_BODY);
   });
 
   it("calls a creature what its tile is called", () => {
     expect(bodyNameFor({ tileId: "deer" }, tilesById)).toBe("Deer");
-  });
-
-  it("calls every creature of a kind the same thing", () => {
-    expect(bodyNameFor({ tileId: "deer" }, tilesById)).toBe(
-      bodyNameFor({ tileId: "deer" }, tilesById),
-    );
   });
 
   it("still attributes the words when the tile is unknown", () => {

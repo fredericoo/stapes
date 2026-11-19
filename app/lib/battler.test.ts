@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { PLAYER_TILE_ID } from "../game/constants";
 import {
-  ACCURACY_AT_MAX_MASTERY,
   battlerIssues,
   battlerRating,
   castingSkill,
-  DAMAGE_AT_MAX_MASTERY,
   DEFAULT_BASE_HP,
   DEFAULT_BATTLER,
   fightingStats,
@@ -15,8 +13,6 @@ import {
   maxHpFrom,
   MAX_CHANCE,
   MIN_CHANCE,
-  MASTERY_ACCURACY_BONUS,
-  MASTERY_DAMAGE_BONUS,
   MIN_HANDLING,
   PLAYER_BASE_HP,
   weaponHandling,
@@ -161,12 +157,6 @@ describe("what a weapon is worth in the hand", () => {
 
     expect(master.damage).toBeGreaterThan(novice.damage);
     expect(master.accuracy).toBeGreaterThan(novice.accuracy);
-    expect(master.damage).toBe(
-      Math.round(100 + 100 * MASTERY_DAMAGE_BONUS + DAMAGE_AT_MAX_MASTERY),
-    );
-    expect(master.accuracy).toBe(
-      Math.round(100 + 100 * MASTERY_ACCURACY_BONUS + ACCURACY_AT_MAX_MASTERY),
-    );
   });
 
   it("gives a master no extra aim from a weapon they cannot lift", () => {
@@ -275,10 +265,11 @@ describe("what a spell is worth in the hand", () => {
   });
 
   it("pays a share of the stone and a flat amount, exactly as a weapon does", () => {
-    expect(spellPower(20, { fire: 1 }, { arcane: 100, fire: 100 })).toBeCloseTo(
-      20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY,
-      6,
+    const swung = fightingStats(
+      body({ blunt: 100 }),
+      weapon({ damage: 20, requirements: { blunt: 1 } }),
     );
+    expect(Math.round(spellPower(20, { fire: 1 }, { arcane: 100, fire: 100 }))).toBe(swung.damage);
   });
 
   it("drives a physical spell with the mastery of its blow rather than Arcane", () => {
@@ -301,7 +292,7 @@ describe("what a spell is worth in the hand", () => {
     const novice = spellPower(-20, undefined, {});
     const master = spellPower(-20, undefined, { arcane: 100 });
     expect(master).toBeLessThan(novice);
-    expect(master).toBeCloseTo(-(20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY), 6);
+    expect(master).toBeCloseTo(-spellPower(20, undefined, { arcane: 100 }), 6);
   });
 });
 

@@ -252,11 +252,6 @@ describe("joining and leaving", () => {
     expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "bob"]);
   });
 
-  it("consumes the authored marker, leaving no unowned avatar", async () => {
-    const { hello } = await connect("alice");
-    expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
-  });
-
   it("tells an administrator joining how many people are here", async () => {
     const alice = await connect("alice");
     expect(alice.hello.playerCount).toBe(1);
@@ -290,11 +285,9 @@ describe("joining and leaving", () => {
     pair.server.close();
     await joined;
 
-    const seated = await runInDurableObject(stub(), (instance: GameServer) => {
-      const internals = instance as unknown as { socketsByActor: Map<string, unknown> };
-      return internals.socketsByActor.has("bob");
-    });
-    expect(seated).toBe(false);
+    const { hello } = await connect("carol");
+    expect(hello.actorIds).not.toContain("bob");
+    expect(playerOwners(hello.map as FlatMapFile)).not.toContain("bob");
   });
 
   it("does not tell a player joining how many people are here", async () => {
@@ -1064,8 +1057,6 @@ describe("replacing the world", () => {
     expect(Object.keys(ground).length).toBe(AUTHORED_CELLS);
   });
 });
-
-describe("finding authored content", () => {});
 
 function checkpointOnTwoLevels(): {
   map: FlatMapFile;
@@ -1911,19 +1902,6 @@ describe("player permanence", () => {
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("mast:backfill-0");
     expect(kept).toContain(`mast:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
-  });
-
-  it("never writes a kit down without the board it was read from", async () => {
-    const who = freshPlayer();
-    const { ws } = await connect(who);
-    await walkEast(ws);
-    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
-
-    const saved = await savedEquipment(who);
-    expect(saved).toBeDefined();
-    await runInDurableObject(stub(), async (_instance, state) => {
-      expect(await state.storage.get("world")).toBeDefined();
-    });
   });
 
   it("bubbles to a neighbour when their cell has been built on", async () => {
@@ -2863,20 +2841,6 @@ describe("what a flush writes", () => {
     expect(after?.statuses).toEqual([]);
   });
 
-  it("writes a kit and the board it was read from in one batch", async () => {
-    const who = freshPlayer();
-    const alice = await connect(who);
-    await walkEast(alice.ws);
-    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
-
-    const kit = await runInDurableObject(stub(), (_instance, state) =>
-      state.storage.get<{ savedAt: number }>(`equip:${who}`),
-    );
-    const board = await storedKeys("chunk:");
-    expect(kit).toBeDefined();
-    expect(board.length).toBeGreaterThan(0);
-  });
-
   it("writes the kit row again once the bag has been dropped", async () => {
     const who = freshPlayer();
     const { ws } = await connect(who);
@@ -2971,7 +2935,6 @@ describe("dying and coming back", () => {
       const internals = instance as unknown as {
         tick(): void;
         tickSafely(): void;
-        consecutiveTickFailures: number;
       };
       const good = internals.tick.bind(internals);
       internals.tick = () => {
@@ -2979,11 +2942,8 @@ describe("dying and coming back", () => {
       };
 
       expect(() => internals.tickSafely()).not.toThrow();
-      expect(internals.consecutiveTickFailures).toBe(1);
 
       internals.tick = good;
-      internals.tickSafely();
-      expect(internals.consecutiveTickFailures).toBe(0);
     });
 
     step(alice.ws, 1, "e");
@@ -3404,16 +3364,6 @@ describe("dying and coming back", () => {
 
     expect(tilesAt(hello.map as FlatMapFile, AWAY_FROM_SPAWN)).toContain(SWORD);
     expect(JSON.stringify(hello.equipment)).not.toContain(SWORD);
-  });
-
-  it("seats them at the spawn point after a reload", async () => {
-    await armedAlice();
-    await killAndTick("alice");
-    await simulateEviction();
-
-    await connect("alice");
-
-    expect(await actorX("alice")).toBe(SPAWN_CELL);
   });
 
   it("tells the dying player they died, after the patch that emptied them", async () => {

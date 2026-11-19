@@ -13,12 +13,6 @@ describe("normalising a typed name", () => {
     expect(normaliseCharacterName("aRtHuR")).toBe("Arthur");
   });
 
-  it("gives every casing of a name the same answer", () => {
-    const forms = ["arthur", "Arthur", "ARTHUR", "ArThUr"];
-    const stored = new Set(forms.map(normaliseCharacterName));
-    expect([...stored]).toEqual(["Arthur"]);
-  });
-
   it("ignores space somebody typed around it", () => {
     expect(normaliseCharacterName("  arthur ")).toBe("Arthur");
   });

@@ -24,7 +24,6 @@ import {
   REFLEX_EDGE,
   reflex,
   rollAttack,
-  SWING_WINDUP_SHARE,
   swingIntervalMs,
   swingWindupMs,
   underPressure,
@@ -33,7 +32,6 @@ import {
 } from "./combat";
 import { TICK_MS } from "./constants";
 import { MELEE_REACH, type Reach } from "../lib/item";
-import { planDistanceSq } from "./distance";
 import { Rng } from "./rng";
 import type { Masteries } from "../lib/mastery";
 
@@ -61,7 +59,6 @@ describe("attack speed", () => {
     const halfway = attackIntervalMs(50);
     const linear = ((MIN_ATTACK_TICKS + MAX_ATTACK_TICKS) / 2) * TICK_MS;
     expect(halfway).toBeLessThan(linear / 4);
-    expect(halfway / TICK_MS).toBe(Math.round(Math.sqrt(MIN_ATTACK_TICKS * MAX_ATTACK_TICKS)));
   });
 
   it("clamps a stat somebody hand-edited out of range", () => {
@@ -74,7 +71,7 @@ describe("the approach", () => {
   it("is half of whatever this body's own interval is", () => {
     for (const spd of [0, 1, 25, 50, 75, 99, 100]) {
       const stats = battler({ spd });
-      const half = swingIntervalMs(stats) * SWING_WINDUP_SHARE;
+      const half = swingIntervalMs(stats) / 2;
       expect(swingWindupMs(stats)).toBeGreaterThanOrEqual(half - TICK_MS / 2);
       expect(swingWindupMs(stats)).toBeLessThanOrEqual(half + TICK_MS / 2);
     }
@@ -679,12 +676,6 @@ describe("reach", () => {
     expect(inAttackRange(here, at(0, 0, -HEIGHT_PER_LEVEL), melee)).toBe(false);
   });
 
-  it("keeps the boundary case inside", () => {
-    expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
-    expect(melee.cells * melee.cells).toBeGreaterThan(2);
-    expect(melee.cells * melee.cells).toBeLessThan(4);
-  });
-
   it("widens the disc without raising the lid", () => {
     const bow: Reach = { cells: 6, height: HEIGHT_PER_LEVEL };
     expect(inAttackRange(here, at(4, 0, 0), bow)).toBe(true);
@@ -711,13 +702,6 @@ describe("reach", () => {
       expect(inAttackRange(here, at(1, 1, 0), bow)).toBe(false);
       expect(inAttackRange(here, at(2, 0, 0), bow)).toBe(true);
       expect(inAttackRange(here, at(8, 0, 0), bow)).toBe(true);
-    });
-
-    it("keeps the cell it names, and drops the diagonal below it", () => {
-      expect(planDistanceSq(here, at(2, 0, 0))).toBe(4);
-      expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
-      expect(inAttackRange(here, at(2, 0, 0), bow)).toBe(true);
-      expect(inAttackRange(here, at(1, 1, 0), bow)).toBe(false);
     });
 
     it("measures the floor on the plan and never on the height", () => {

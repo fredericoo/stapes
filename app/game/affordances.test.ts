@@ -14,7 +14,6 @@ import {
   pickUpDestination,
   pushableDefAt,
   pushTargetFrom,
-  REACH_CELLS,
   withinReach,
   type ObjectRef,
 } from "./affordances";
@@ -160,11 +159,6 @@ describe("withinReach", () => {
     for (const [x, y] of outOfReach) {
       expect(withinReach(OPEN_AIR, tilesById, ME, ref(x, y))).toBe(false);
     }
-  });
-
-  it("is a circle, not a square of side 1.5", () => {
-    expect(REACH_CELLS).toBeGreaterThan(Math.SQRT2);
-    expect(REACH_CELLS).toBeLessThan(2);
   });
 
   it("reaches a wide tile from beside any cell it covers", () => {

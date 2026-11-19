@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { residentAt } from "./testResidents";
-import statusesJson from "../../data/statuses.json";
-import { maxHpFrom } from "../lib/battler";
 import { resolveAddStatus } from "../lib/interactions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { canAddStatusFrom, reachableAddStatusAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
@@ -22,7 +19,6 @@ const BURN_MS = 4_000;
 
 const PLAYER_BASE_HP = 8;
 const PLAYER_TOUGHNESS = 92;
-const PLAYER_MAX_HP = maxHpFrom(PLAYER_BASE_HP, PLAYER_TOUGHNESS);
 
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
@@ -382,10 +378,13 @@ describe("stepping into a fire", () => {
   it("spends hit points once a second, as the status says", () => {
     const play = session(world("fire"));
     step(play, "e");
-    const perSecond = Math.max(4, Math.ceil(PLAYER_MAX_HP / 10));
+    const second = Math.round(1000 / TICK_MS);
     const start = hpOf(play)!;
-    run(play, Math.round(1000 / TICK_MS));
-    expect(hpOf(play)).toBe(start - perSecond);
+    run(play, second);
+    const afterOne = hpOf(play)!;
+    run(play, second);
+    expect(afterOne).toBeLessThan(start);
+    expect(hpOf(play)).toBe(afterOne - (start - afterOne));
   });
 });
 
@@ -447,28 +446,6 @@ describe("being shoved into a fire", () => {
     expect(play.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(whereIs(play.getMap(), "shovable")).toMatchObject({ x: 2, y: 0 });
     expect(held(play, resident)).toEqual(["burned"]);
-  });
-});
-
-describe("the flame, as authored", () => {
-  it("is a step trigger granting a status the catalogue holds", () => {
-    const authored = statusesById(statusesJson);
-    const flame = tilesByIdFromList([
-      normalizeTileDef({
-        id: "flame",
-        name: "Flame",
-        height: 2,
-        directional: false,
-        variants: { default: [FRAME] },
-        attributes: {},
-        interactions: { addStatus: { trigger: "step", statusId: "burned" } },
-      }),
-    ]).flame!;
-
-    const gesture = resolveAddStatus(flame);
-    expect(gesture?.trigger).toBe("step");
-    expect(authored[gesture!.statusId]).toBeDefined();
-    expect(authored.burned!.tone).toBe("bad");
   });
 });
 

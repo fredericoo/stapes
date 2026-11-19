@@ -59,10 +59,6 @@ describe("availableStates", () => {
     expect(availableStates(wall)).toEqual(["idle"]);
   });
 
-  it("offers moving to anything that can change cell", () => {
-    expect(availableStates(deer())).toContain("moving");
-  });
-
   it("offers nothing a renderer does not draw", () => {
     expect(availableStates(deer())).toEqual(["idle", "moving"]);
   });

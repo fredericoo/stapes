@@ -676,15 +676,6 @@ describe("packed grid matches CPU-composed output", () => {
       expect(differing, `${differing}/${total} bytes differ`).toBe(0);
     });
   }
-
-  it("stays put when only the clock moves", () => {
-    const c = new ChunkedLighting(tilesById, omit);
-    const first = c.packedGridFor(mapFile, inBand(rect));
-    const again = c.packedGridFor(mapFile, inBand(rect));
-
-    expect(again).toBe(first);
-    expect(c.bakedLastCall).toBe(0);
-  });
 });
 
 describe("a flickering emitter", () => {

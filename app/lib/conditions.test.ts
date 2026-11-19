@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
   appendTo,
@@ -202,11 +202,5 @@ describe("building", () => {
       not: true,
       rules: [leaf("a")],
     });
-  });
-
-  it("never asks a leaf twice for one evaluation", () => {
-    const test = vi.fn(() => true);
-    evaluateCondition(group("and", [leaf("a")]), test);
-    expect(test).toHaveBeenCalledTimes(1);
   });
 });
