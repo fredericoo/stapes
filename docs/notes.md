@@ -7220,8 +7220,9 @@ recoloured, and `#6e2727` and `#ae2334` appear in the clothes for that reason.
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
-decided by which **arcane stones** they are carrying, how recently each was used
-and how far past or short of what one asks the caster has got. The whole of a loadout is two hands and a charm, which is why the desktop
+decided by which **arcane stones** they are carrying, how recently each was used,
+how far past or short of what one asks the caster has got, and whether they
+carry what a stone spends (see "A stone can spend what you carry"). The whole of a loadout is two hands and a charm, which is why the desktop
 binding is `Q`, `E`, `F` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
@@ -7624,6 +7625,22 @@ is 1). It melts on its own through its brain: `after 9–12 s`, then `fade`.
 Because the timer is a brain's, it runs only while somebody is online: a ring
 standing when the last player leaves stays up until somebody connects.
 
+**`on: "target"` centres the shape on the target instead.** With nobody
+targeted the centre is the cell a single conjure would take, the step in
+front; with no such step the cast is refused as `blocked`. Every cell is
+judged against the centre's feet rather than the caster's, so a shape cast
+down a slope still fills the ground round the target. Only a shape on the
+target shows its cells while the cast winds up (`castAreaOf`): a shape round
+the caster is the yeti's cage, and the cage works because nobody sees it
+coming.
+
+**A body standing in a cell is not the ground.** `areaLanding` measures the
+ground from the stack beneath the lowest body and asks for footing with that
+body left out, the way `exclude` lets a walker ignore itself. Before that, a
+cell holding a body taller than a climb was skipped: the body's own height put
+the "ground" out of reach and its `walkable: false` refused the footing, so a
+shape laid round a crowd had a hole wherever somebody tall stood.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
@@ -7669,6 +7686,46 @@ facing, and each is a way the server's idea of the caster lagged the browser's:
   landed that step already, so the turn it sends arrives mid-walk on the
   server. `faceActor` now writes the turn onto the walk too — in place, since a
   new walk object is announced as a new step.
+
+### A stone can spend what you carry
+
+`reagents` on a stone is a list of `{ tileId, count }`, and a cast spends them
+from the caster's kit when it lands. It is the one exception to "there is
+nothing else to it", and it is a price rather than a resource: no mana,
+nothing that refills, and a stone without reagents behaves exactly as it did.
+
+- **Counted the way a trade counts a price** (`carriedCount`), across every
+  pile in the hands, the worn squares and the bag, and taken with
+  `planTrade` with nothing given back.
+- **Refused before anything starts**, as `reagents`, after the cooldown and the
+  mastery and before reach, so the bar dims a stone you cannot pay for and
+  says "missing what it spends".
+- **Spent on landing, in `resolveCast`, beside the cooldown.** A cast that is
+  broken spends nothing. A cast whose reagents leave the kit while it winds up
+  does not land, because `finishCasting` asks `castability` again when the bar
+  fills; it is the same second question that stops a flame cast into a crate
+  dropped mid-cast.
+- **The card says what it costs** ("Costs: 1 Green Potion"), which is why
+  `itemCard` and `catalogueCard` take the tile catalogue as an optional last
+  argument: a reagent is named by its tile's name, and without the catalogue
+  the line falls back to the id.
+
+Venom spends a Green Potion and Spores three Blue Mushrooms, which is what
+those two are for; drunk or eaten, both still poison you.
+
+Venom's cloud is `poison-cloud`, a conjured prop with a `step` `addStatus` of
+`poison`, laid in a circle of radius 1 round the target. It decays in 6 to 8
+seconds and blows away in rain. Standing in it grants poison every second
+(`STANDING_STATUS_EVERY_MS`) and poison stacks, so how long somebody stays is
+how badly they are poisoned; the caster is spared by `sparesStander`. The
+sprite (`scripts/generate-poison-cloud.ts`) is a checker of opaque pixels
+rather than a translucent wash, because the renderer snaps a blended colour
+back to the palette, and a light green over grass came out as one more green.
+
+Spores lands `stupor`: it stops the bearer acting and any damage ends it, like
+`sleep`, but it does not mend them. Sleep heals about one hit point in a
+hundred every fifth of a second, so an enemy put to sleep came back at full
+health. The cyclops is immune to it, as it is to every status a stone leaves.
 
 ### The cooldown is per stone, durable, and locks the square
 
@@ -10723,8 +10780,10 @@ single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
 | 2 Lance                 | Stomp, 75%                                                    |
 | Pyre / Rime + Lance     | Berserk / Crystallise, 75%                                    |
 | Bramble + Bloom         | Blossom, 75%                                                  |
+| Thorns + 2 Green Potion | Venom, 100%                                                   |
+| Frost + 6 Blue Mushroom | Spores, 100%                                                  |
 
-The forge holds 18 recipes, which is why `MAX_CRAFT_RECIPES` is 24.
+The forge holds 20 recipes, which is why `MAX_CRAFT_RECIPES` is 24.
 
 Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to

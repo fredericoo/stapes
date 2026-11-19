@@ -1,4 +1,5 @@
 import { ConjureAreaFields } from "./ConjureAreaFields";
+import { InputsFields } from "./CraftFields";
 import { SoundStyleField } from "./SoundStyleField";
 import type {
   ArcaneStoneItem,
@@ -16,14 +17,18 @@ import {
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
   MAX_SOUND_LENGTH,
+  MAX_REAGENT_COUNT,
   MAX_SPELL_DAMAGE,
   MAX_STONE_COOLDOWN_MS,
+  MAX_STONE_REAGENTS,
   MELEE_REACH,
   MIN_CAST_TIME_MS,
   MIN_PERCENT_STAT,
   MIN_STONE_COOLDOWN_MS,
   PHYSICAL_BLOWS,
   reachOf,
+  resolveContainer,
+  resolveItem,
 } from "../lib/item";
 import {
   MASTERIES,
@@ -92,6 +97,10 @@ const EFFECT_INFO: Record<StoneEffectKind, string> = {
     "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square. A body stands in a free cell beside the caster instead.",
 };
 
+function isGiveable(tile: TileDef): boolean {
+  return resolveItem(tile) != null && resolveContainer(tile) == null;
+}
+
 export function StoneFields({
   stone,
   onChange,
@@ -106,6 +115,7 @@ export function StoneFields({
   statusDefs?: Record<string, StatusDef>;
 }) {
   const effect = stone.effect;
+  const giveable = tiles.filter(isGiveable);
   const reach = reachOf(stone);
   const patchReach = (fields: Partial<Reach>) => onChange({ reach: { ...reach, ...fields } });
 
@@ -418,6 +428,21 @@ export function StoneFields({
           info="Taking damage leaves this cast running. Off for everything else, which is what makes a long cast a decision about where you are standing."
         />
       ) : null}
+
+      <div className="border-t-2 border-border pt-3">
+        <InputsFields
+          inputs={stone.reagents ?? []}
+          onChange={(reagents) =>
+            onChange({ reagents: reagents.length > 0 ? reagents : undefined })
+          }
+          giveable={giveable}
+          tilesets={tilesets ?? []}
+          label="Reagents"
+          info="Spent from the caster's kit when the spell lands, counted across piles. Without all of them the stone is refused before anything starts, and a cast whose reagents leave the kit while it winds up does not land. A broken cast spends nothing."
+          maxInputs={MAX_STONE_REAGENTS}
+          maxCount={MAX_REAGENT_COUNT}
+        />
+      </div>
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
         <FieldLabel info="An unmet requirement refuses the cast outright. Arcane is what casting trains, and every cast pays a small flat amount whatever the stone asks. An element asked for makes this a spell of that element; everybody starts with a point of each.">

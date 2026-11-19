@@ -3,6 +3,7 @@ import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import { ARMOR_SLOTS, type ConjureEffect, resolveCharm, resolveStone } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { countOf } from "../lib/piles";
 import { spellElements } from "../lib/mastery";
 import { resolveCraft } from "../lib/interactions";
 import { resolveProjectile } from "../lib/projectile";
@@ -20,7 +21,9 @@ import {
   naturalSlot,
   squareSlot,
   castDurationMs,
+  carriesReagents,
   MIN_CAST_SHARE,
+  spendReagents,
   type CastContext,
   type CasterPoint,
   type CastPoint,
@@ -108,6 +111,18 @@ const tiles: TileDef[] = [
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
+  stoneTile("venom-stone", {
+    effect: { kind: "conjure", tileId: "fire", area: { shape: "cross", radius: 1, on: "target" } },
+    cooldownMs: 20_000,
+    reach: NEAR_REACH,
+    reagents: [{ tileId: "potion", count: 2 }],
+  }),
+  tile({ id: "potion", kind: "item", interactions: { item: { type: "artifact", pile: 4 } } }),
+  tile({
+    id: "pouch",
+    kind: "item",
+    interactions: { item: { type: "container", size: 4, equippable: true } },
+  }),
   charmTile("life-charm", { everyMs: 10_000, hp: 5 }),
   charmTile("balm-charm", {
     everyMs: 10_000,
@@ -137,6 +152,7 @@ const tiles: TileDef[] = [
   tile({ id: "fire", intangible: true, lightPassing: true }),
   tile({ id: "body", height: 2 }),
   tile({ id: "rat", height: 2, interactions: { brain: { kind: "wander" } } }),
+  tile({ id: "ogre", height: 4, walkable: false, interactions: { brain: { kind: "wander" } } }),
   tile({ id: "water", walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
   tile({
@@ -156,6 +172,10 @@ const tiles: TileDef[] = [
 const tilesById = tilesByIdFromList(tiles);
 
 let nextId = 0;
+function pile(tileId: string, count: number): ItemInstance {
+  return { id: `itm_${++nextId}`, tileId, count };
+}
+
 function instance(tileId: string, cooldownMs?: number): ItemInstance {
   return {
     id: `itm_${++nextId}`,
@@ -517,9 +537,76 @@ describe("a conjure that fills a shape around its caster", () => {
     });
   });
 
+  it("lays a thing beneath a body taller than a climb, which is not ground", () => {
+    const map = replaceStack(floored(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "ogre" }]);
+    expect(conjureLandings(context({}, { map }), FIRE_RING)).toContainEqual({
+      at: { x: 1, y: 0, z: 0 },
+      under: 1,
+    });
+  });
+
   it("is refused only when not one cell will hold it", () => {
     const alone = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
     expect(conjureLandings(context({}, { map: alone }), RAT_RING)).toBeNull();
+  });
+});
+
+describe("a stone that spends reagents", () => {
+  const venom = { weapon: instance("venom-stone") };
+
+  it("is refused while the kit holds fewer than it spends", () => {
+    const short = context({ ...venom, offhand: pile("potion", 1) }, { target: point(2) });
+    expect(castability(short, squareSlot("weapon"))).toEqual({ ok: false, reason: "reagents" });
+  });
+
+  it("counts every pile it can find, a hand and the bag alike", () => {
+    const bag = { ...instance("pouch"), contents: [pile("potion", 1)] };
+    const equipment = { ...emptyEquipment(), ...venom, offhand: pile("potion", 1), bag };
+    expect(
+      carriesReagents({ tilesById, equipment }, { reagents: [{ tileId: "potion", count: 2 }] }),
+    ).toBe(true);
+  });
+
+  it("takes exactly what it spends and leaves the rest", () => {
+    const equipment = { ...emptyEquipment(), ...venom, offhand: pile("potion", 3) };
+    const spent = spendReagents(tilesById, equipment, resolveStone(tilesById["venom-stone"]!)!);
+    expect(spent?.offhand?.tileId).toBe("potion");
+    expect(countOf(spent!.offhand!)).toBe(1);
+    expect(spent?.weapon).toEqual(equipment.weapon);
+  });
+});
+
+describe("a conjured shape centred on the target", () => {
+  const CROSS: ConjureEffect = {
+    kind: "conjure",
+    tileId: "fire",
+    area: { shape: "cross", radius: 1, on: "target" },
+  };
+
+  function field(): MapFile {
+    let map = emptyMap();
+    for (let y = -1; y <= 1; y++) {
+      for (let x = -1; x <= 4; x++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+    }
+    return map;
+  }
+
+  const cellsOf = (landings: ConjureLanding[] | null) =>
+    (landings ?? []).map(({ at }) => `${at.x},${at.y}`).sort();
+
+  it("fills the shape around whoever is targeted, not around the caster", () => {
+    const state = context({}, { map: field(), target: point(3) });
+    expect(cellsOf(conjureLandings(state, CROSS))).toEqual(["2,0", "3,-1", "3,0", "3,1", "4,0"]);
+  });
+
+  it("is centred on the cell the caster faces with nobody targeted", () => {
+    const state = context({}, { map: field() });
+    expect(cellsOf(conjureLandings(state, CROSS))).toEqual(["0,0", "1,-1", "1,0", "1,1", "2,0"]);
+  });
+
+  it("is refused with nobody targeted and nowhere in front to stand", () => {
+    const walled = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    expect(conjureLandings(context({}, { map: walled }), CROSS)).toBeNull();
   });
 });
 

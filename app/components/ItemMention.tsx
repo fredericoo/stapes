@@ -44,8 +44,8 @@ export function ItemMention({
   const { dwelling, handlers } = useDwell(coarse);
   const [pointedAt, setPointedAt] = useState(false);
   const card = useMemo(
-    () => (def ? itemCard(def, null, masteryXp, statusDefs) : null),
-    [def, masteryXp, statusDefs],
+    () => (def ? itemCard(def, null, masteryXp, statusDefs, tilesById) : null),
+    [def, masteryXp, statusDefs, tilesById],
   );
   const amount = count === undefined ? "" : `x${count} `;
 

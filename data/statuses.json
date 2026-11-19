@@ -442,6 +442,63 @@
     }
   },
   {
+    "id": "stupor",
+    "name": "Stupor",
+    "description": "Spores in your lungs. You cannot act, and any damage brings you round.",
+    "tone": "bad",
+    "fromMs": 6000,
+    "toMs": 9000,
+    "stacks": false,
+    "maxMs": 9000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {},
+    "incapacitates": true,
+    "endsOnDamage": true,
+    "vfx": {
+      "tint": {
+        "color": "#4d9be6",
+        "strength": 0.45,
+        "keepLuma": 1
+      },
+      "particles": {
+        "ratePerSecond": 4,
+        "ttlFromMs": 2600,
+        "ttlToMs": 3200,
+        "spawnRadiusCells": 0.3,
+        "spawnElevFrom": 1.5,
+        "spawnElevTo": 2,
+        "riseFrom": 2,
+        "riseTo": 2.5,
+        "driftCellsPerSecond": 0,
+        "gravity": 0,
+        "offsetX": "0.3 * sin(3 * AGE_SEC)",
+        "offsetY": "-0.3 * sin(3 * AGE_SEC)",
+        "offsetElev": "",
+        "lit": false,
+        "shape": null,
+        "sizeFromPx": 5,
+        "sizeToPx": null,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 1,
+        "alphaTo": 0.2,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#affcdb"
+          },
+          {
+            "at": 1,
+            "color": "#4d9be6"
+          }
+        ]
+      },
+      "light": null,
+      "taperMs": 1500
+    }
+  },
+  {
     "id": "dazed",
     "name": "Dazed",
     "description": "The ground went out from under you: slow, off-aim and in no state to dodge.",

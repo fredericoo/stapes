@@ -157,9 +157,11 @@ export type ConjureEffect = {
   area?: ConjureArea;
 };
 
+/** Absent `on` centres the shape on the caster. */
 export type ConjureArea = {
   shape: AreaShape;
   radius: number;
+  on?: StoneSubject;
 };
 
 /** The caster's own cell and the cells a step away. */
@@ -193,11 +195,19 @@ export const STONE_EFFECT_KINDS = ["bolt", "conjure"] as const;
 
 export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
 
+/** Something a cast spends from its caster's kit, counted across piles as a trade counts a price. */
+export type Reagent = { tileId: string; count: number };
+
+export const MAX_STONE_REAGENTS = 3;
+
+export const MAX_REAGENT_COUNT = 32;
+
 export type ArcaneStoneItem = {
   type: "stone";
   effect: StoneEffect;
   cooldownMs: number;
   castTimeMs?: number;
+  reagents?: Reagent[];
   uninterruptible?: boolean;
   /** Absent is a magical spell, weighed against arcane resist rather than defence. */
   physical?: PhysicalBlow;
@@ -541,6 +551,7 @@ const spellAreaSchema = v.pipe(
 const conjureAreaSchema = v.object({
   shape: v.picklist(AREA_SHAPES),
   radius: v.pipe(v.number(), v.integer(), v.minValue(MIN_AREA_RADIUS), v.maxValue(MAX_AREA_RADIUS)),
+  on: v.optional(v.picklist(STONE_SUBJECTS)),
 });
 
 const stoneEffectSchema = v.variant("kind", [
@@ -575,9 +586,15 @@ const stoneEffectSchema = v.variant("kind", [
   }),
 ]);
 
+const reagentSchema = v.object({
+  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  count: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_REAGENT_COUNT)),
+});
+
 export const stoneSchema = v.object({
   type: v.literal("stone"),
   effect: stoneEffectSchema,
+  reagents: v.optional(v.pipe(v.array(reagentSchema), v.maxLength(MAX_STONE_REAGENTS))),
   cooldownMs: v.pipe(
     v.number(),
     v.integer(),
@@ -848,6 +865,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     effect: stoneEffectForSave(stone.effect),
     cooldownMs: Math.round(stone.cooldownMs),
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
+    ...reagentsForSave(stone.reagents),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
     ...(stone.physical ? { physical: stone.physical } : {}),
     ...(stone.physical && stone.accuracy !== undefined ? { accuracy: stone.accuracy } : {}),
@@ -860,6 +878,18 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
   };
 }
 
+/** Blank rows are dropped and a tile named twice is summed, so the cost reads as one line per item. */
+function reagentsForSave(reagents: Reagent[] | undefined): { reagents?: Reagent[] } {
+  const counts = new Map<string, number>();
+  for (const { tileId, count } of reagents ?? []) {
+    const id = tileId.trim();
+    if (!id || count < 1) continue;
+    counts.set(id, Math.min(MAX_REAGENT_COUNT, (counts.get(id) ?? 0) + Math.round(count)));
+  }
+  if (counts.size === 0) return {};
+  return { reagents: [...counts].map(([tileId, count]) => ({ tileId, count })) };
+}
+
 function stoneEffectForSave(effect: StoneEffect): StoneEffect {
   if (effect.kind === "conjure") {
     return {
@@ -869,7 +899,7 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
         ? { count: Math.round(effect.count) }
         : {}),
       ...(effect.consumesCaster ? { consumesCaster: true } : {}),
-      ...(effect.area ? { area: { shape: effect.area.shape, radius: effect.area.radius } } : {}),
+      ...(effect.area ? { area: conjureAreaForSave(effect.area) } : {}),
     };
   }
   const statuses = statusGrantsForSave(effect.statuses);
@@ -884,6 +914,10 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     ...(cures ? { cures } : {}),
     ...(effect.area ? { area: areaForSave(effect.area) } : {}),
   };
+}
+
+function conjureAreaForSave({ shape, radius, on }: ConjureArea): ConjureArea {
+  return { shape, radius, ...(on === "target" ? { on } : {}) };
 }
 
 function curesForSave(cures: string[] | undefined): string[] | undefined {

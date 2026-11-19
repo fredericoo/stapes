@@ -27,6 +27,7 @@
     "generate:apple-trees": "bun scripts/generate-apple-trees.ts",
     "generate:waterfall": "bun scripts/generate-waterfall-tileset.ts",
     "generate:wisps": "bun scripts/generate-wisps.ts",
+    "generate:poison-cloud": "bun scripts/generate-poison-cloud.ts",
     "generate:desert": "bun scripts/generate-desert.ts",
     "generate:ice": "bun scripts/generate-ice.ts",
     "generate:snow-beasts": "bun scripts/generate-snow-beasts.ts",

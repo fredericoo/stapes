@@ -124,30 +124,39 @@ function RecipeCard({
   );
 }
 
-function InputsFields({
+const INPUTS_INFO =
+  "Everything spent, all at once. Counted across piles, from the hands first, then the bags. The recipe is only listed while the player carries all of it.";
+
+export function InputsFields({
   inputs,
   onChange,
   giveable,
   tilesets,
+  label = "Spends",
+  info = INPUTS_INFO,
+  maxInputs = MAX_CRAFT_INPUTS,
+  maxCount = MAX_CRAFT_INPUT_COUNT,
 }: {
   inputs: CraftInput[];
   onChange: (next: CraftInput[]) => void;
   giveable: TileDef[];
   tilesets: TilesetDef[];
+  label?: string;
+  info?: string;
+  maxInputs?: number;
+  maxCount?: number;
 }) {
   const patch = (index: number, next: Partial<CraftInput>) =>
     onChange(inputs.map((input, i) => (i === index ? { ...input, ...next } : input)));
 
   return (
     <div className="flex flex-col gap-2">
-      <FieldLabel info="Everything spent, all at once. Counted across piles, from the hands first, then the bags. The recipe is only listed while the player carries all of it.">
-        Spends
-      </FieldLabel>
+      <FieldLabel info={info}>{label}</FieldLabel>
       {inputs.map((input, index) => (
         <div key={index} className="flex items-end gap-2">
           <NumberInput
             min={1}
-            max={MAX_CRAFT_INPUT_COUNT}
+            max={maxCount}
             step={1}
             value={input.count}
             onChange={(count) => patch(index, { count })}
@@ -174,7 +183,7 @@ function InputsFields({
           </Button>
         </div>
       ))}
-      {inputs.length < MAX_CRAFT_INPUTS ? (
+      {inputs.length < maxInputs ? (
         <Button
           variant="secondary"
           size="sm"

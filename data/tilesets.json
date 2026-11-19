@@ -261,5 +261,12 @@
     "file": "shore-foam.png",
     "width": 64,
     "height": 376
+  },
+  {
+    "id": "poison-cloud",
+    "name": "Poison Cloud",
+    "file": "poison-cloud.png",
+    "width": 128,
+    "height": 16
   }
 ]

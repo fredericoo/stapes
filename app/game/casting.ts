@@ -27,6 +27,7 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
 import { isSupported } from "./gravity";
 import { canWalk, DIR_DELTA } from "./movement";
 import type { Progress } from "./progress";
+import { carriedCount, planTrade } from "./trade";
 
 export const CAST_SQUARES = ["weapon", "offhand", "charm"] as const;
 
@@ -60,6 +61,7 @@ export type CastRefusal =
   | "casting"
   | "cooling"
   | "mastery"
+  | "reagents"
   | "noTarget"
   | "outOfRange"
   | "blocked"
@@ -101,7 +103,15 @@ export type CastArea = {
 
 export function castAreaOf(stone: ArcaneStoneItem): CastArea | undefined {
   const effect = stone.effect;
-  if (effect.kind !== "bolt" || !effect.area) return undefined;
+  if (!effect.area) return undefined;
+  /**
+   * A conjure around its caster is the yeti's cage, which is only a cage while
+   * nobody sees it coming, so only a conjure on the target shows its shape.
+   */
+  if (effect.kind === "conjure") {
+    const { shape, radius, on } = effect.area;
+    return on === "target" ? { shape, radius, height: MAX_CLIMB_HEIGHT, on } : undefined;
+  }
   const { shape, radius, height } = effect.area;
   return { shape, radius, height, on: effect.on };
 }
@@ -136,12 +146,38 @@ export function castability(context: CastContext, slot: CastSlot): Castability {
     return refused("mastery");
   }
 
+  if (!carriesReagents(context, stone)) return refused("reagents");
+
   return reachability(context, stone);
 }
 
 export function spellIn(context: CastContext, slot: CastSlot): ArcaneStoneItem | null {
   if (slot.from === "square") return stoneInSquare(context, slot.square);
   return context.spells.find((spell) => spell.name === slot.name) ?? null;
+}
+
+export function carriesReagents(
+  { tilesById, equipment }: Pick<CastContext, "tilesById" | "equipment">,
+  stone: Pick<ArcaneStoneItem, "reagents">,
+): boolean {
+  return (stone.reagents ?? []).every(
+    ({ tileId, count }) => carriedCount(tilesById, equipment, tileId) >= count,
+  );
+}
+
+/** The kit with the stone's reagents taken out of it, or null when it does not hold them all. */
+export function spendReagents(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+  stone: Pick<ArcaneStoneItem, "reagents">,
+): Equipment | null {
+  const reagents = stone.reagents ?? [];
+  if (reagents.length === 0) return equipment;
+  return planTrade(tilesById, equipment, reagents, [], unminted);
+}
+
+function unminted(): never {
+  throw new Error("spending reagents gives nothing back");
 }
 
 function cooldownOf(context: CastContext, slot: CastSlot): number {
@@ -291,39 +327,62 @@ function bodyLandings(
 }
 
 /**
- * Centred on the caster, on the caster's level, and it takes whichever cells of
- * the shape will hold the tile: a ring cast beside a wall comes out with a gap
- * rather than not at all. Refused only when not one cell fits.
+ * Centred on its subject, on that subject's level, and it takes whichever cells
+ * of the shape will hold the tile: a ring cast beside a wall comes out with a
+ * gap rather than not at all. Refused only when not one cell fits.
  */
 function areaLandings(
   context: CastContext,
   def: TileDef,
   area: ConjureArea,
 ): ConjureLanding[] | null {
-  const { caster } = context;
+  const centre = areaCentre(context, area);
+  if (!centre) return null;
   const landings = areaOffsets(area.shape, area.radius).flatMap(({ dx, dy }) => {
-    const at = { x: caster.x + dx, y: caster.y + dy, z: caster.z };
-    const landing = areaLanding(context, def, at);
+    const at = { x: centre.x + dx, y: centre.y + dy, z: centre.z };
+    const landing = areaLanding(context, def, at, centre.elevAbs);
     return landing ? [landing] : [];
   });
   return landings.length > 0 ? landings : null;
 }
 
+type AreaCentre = Coord & { elevAbs: number };
+
+/** An area on the target with nobody targeted is centred on the cell the caster faces, as a single conjure would land there. */
+function areaCentre(context: CastContext, area: ConjureArea): AreaCentre | null {
+  const { caster, target, map, tilesById } = context;
+  if (area.on !== "target") return caster;
+  if (target) return target;
+  const front = cellInFront(context);
+  if (!front) return null;
+  const { at } = front;
+  const elevAbs = absoluteStandingElevation(at.z, getStack(map, at.x, at.y, at.z), tilesById);
+  return { ...at, elevAbs };
+}
+
 /**
  * A body needs a cell nobody stands in, and a thing lands under whoever does,
- * as a targeted conjure would. Either needs ground the caster could walk on
- * within a climb of its own feet, which leaves out a drop, water and the top
+ * as a targeted conjure would. Either needs walkable ground within a climb of
+ * the centre's feet, which leaves out a drop, water and the top
  * of a wall, the same three `canWalk` turns away for a conjure in front.
  */
-function areaLanding(context: CastContext, def: TileDef, at: Coord): ConjureLanding | null {
-  const { caster, map, tilesById } = context;
+function areaLanding(
+  context: CastContext,
+  def: TileDef,
+  at: Coord,
+  centreElevAbs: number,
+): ConjureLanding | null {
+  const { map, tilesById } = context;
   const stack = getStack(map, at.x, at.y, at.z);
   const under = lowestBodyIn(stack, tilesById);
   if (under !== undefined && resolveActor(def)) return null;
   if (!isSupported(map, at.x, at.y, at.z, stack.length, tilesById)) return null;
-  const groundAbs = absoluteStandingElevation(at.z, stack, tilesById);
-  if (Math.abs(groundAbs - caster.elevAbs) > MAX_CLIMB_HEIGHT) return null;
-  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById)) return null;
+  /** The ground is what the body stands on, so neither its height nor its own footing counts. */
+  const ground = under === undefined ? stack : stack.slice(0, under);
+  const groundAbs = absoluteStandingElevation(at.z, ground, tilesById);
+  if (Math.abs(groundAbs - centreElevAbs) > MAX_CLIMB_HEIGHT) return null;
+  const body = under === undefined ? undefined : { z: at.z, stackIndex: under };
+  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById, body)) return null;
   if (!canPlace(map, at.x, at.y, at.z, def, tilesById).ok) return null;
   return under === undefined ? { at } : { at, under };
 }
@@ -458,6 +517,7 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   casting: "already casting",
   cooling: "still cooling",
   mastery: "not learnt yet",
+  reagents: "missing what it spends",
   noTarget: "nothing targeted",
   outOfRange: "out of range",
   blocked: "nowhere for it to land",
