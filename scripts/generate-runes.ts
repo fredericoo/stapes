@@ -77,17 +77,26 @@ const BASES: Record<Material, Base> = {
       "#######.",
     ],
     fill: 4,
-    lit: 22,
+    lit: 7,
     dark: 0,
+    /** Glass shows a sharp glint where stone would show a soft highlight. */
     marks: [
+      {
+        colour: 28,
+        at: [
+          [1, 0],
+          [2, 0],
+          [0, 1],
+        ],
+      },
       {
         colour: 25,
         at: [
-          [6, 1],
-          [6, 5],
-          [2, 6],
+          [3, 0],
+          [0, 2],
         ],
       },
+      { colour: 22, at: [[6, 6]] },
     ],
   },
 };
