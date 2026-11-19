@@ -304,5 +304,12 @@
     "file": "rune-temple.png",
     "width": 144,
     "height": 64
+  },
+  {
+    "id": "deep-woods",
+    "name": "Deep Woods",
+    "file": "deep-woods.png",
+    "width": 128,
+    "height": 64
   }
 ]

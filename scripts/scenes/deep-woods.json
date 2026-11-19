@@ -1,0 +1,109 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [9, 7],
+  "cells": [
+    {
+      "from": [-6, -6],
+      "to": [24, 20],
+      "tiles": ["grass-2"]
+    },
+    {
+      "from": [16, 9],
+      "to": [24, 20],
+      "tiles": ["dirt", "water", "swamp"]
+    },
+    {
+      "at": [2, 3],
+      "tiles": ["grass-2", "tree"]
+    },
+    {
+      "at": [4, 4],
+      "tiles": ["grass-2", "tree"]
+    },
+    {
+      "at": [3, 7],
+      "tiles": ["grass-2", "apple-tree"]
+    },
+    {
+      "at": [4, 10],
+      "tiles": ["grass-2", "bush"]
+    },
+    {
+      "at": [5, 11],
+      "tiles": ["grass-2", "mushroom"]
+    },
+    {
+      "at": [10, 5],
+      "tiles": ["grass-2", "old-tree"]
+    },
+    {
+      "at": [14, 8],
+      "tiles": ["grass-2", "old-tree"]
+    },
+    {
+      "at": [8, 9],
+      "tiles": ["grass-2", "fern"]
+    },
+    {
+      "at": [7, 8],
+      "tiles": ["grass-2", "fern"]
+    },
+    {
+      "at": [12, 7],
+      "tiles": ["grass-2", "fern"]
+    },
+    {
+      "at": [6, 6],
+      "tiles": ["grass-2", "fern-trodden"]
+    },
+    {
+      "at": [11, 10],
+      "tiles": ["grass-2", "undergrowth"]
+    },
+    {
+      "at": [12, 10],
+      "tiles": ["grass-2", "undergrowth"]
+    },
+    {
+      "at": [11, 11],
+      "tiles": ["grass-2", "undergrowth"]
+    },
+    {
+      "at": [11, 6],
+      "tiles": ["grass-2", "tree-roots"]
+    },
+    {
+      "at": [15, 9],
+      "tiles": ["grass-2", "tree-roots"]
+    },
+    {
+      "at": [9, 13],
+      "tiles": ["grass-2", "fallen-log"]
+    },
+    {
+      "at": [14, 13],
+      "tiles": ["grass-2", "mushroom-patch"]
+    },
+    {
+      "at": [17, 4],
+      "tiles": ["grass-2", "dead-tree"]
+    },
+    {
+      "at": [17, 11],
+      "tiles": ["dirt", "water", "swamp", "reeds"]
+    },
+    {
+      "at": [18, 13],
+      "tiles": ["dirt", "water", "swamp", "cattails"]
+    },
+    {
+      "at": [5, 13],
+      "tiles": ["grass-2", "tree-stump"]
+    },
+    {
+      "at": [12, 12],
+      "tiles": ["grass-2", "tree-stump"]
+    }
+  ]
+}
