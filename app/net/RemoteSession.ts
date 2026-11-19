@@ -86,8 +86,8 @@ import { NOTICE_LIFETIME_MS } from "../render/notifications";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
-import { itemInSlot, type SlotRef } from "../game/itemMoves";
-import { applyDepotMove, NO_DEPOTS, type Depots } from "../game/depot";
+import { itemInSlot, portionOf, type SlotRef } from "../game/itemMoves";
+import { applyDepotMove, applyPileSplit, NO_DEPOTS, type Depots } from "../game/depot";
 import type { ConsumeSource } from "../game/itemUse";
 import { canCraftFrom } from "../game/craft";
 import { resolveConsumable } from "../lib/item";
@@ -1773,35 +1773,52 @@ export class RemoteSession implements PlaySession {
     return true;
   }
 
-  canMoveItem(from: SlotRef, to: SlotRef): boolean {
-    if (this.incapacitated()) return false;
+  private kitLocation(): ActorLocation | null {
+    if (this.incapacitated()) return null;
     const motion = this.motions.get(this.selfId);
-    const loc = motion && this.locate(this.selfId, motion);
-    if (!loc) return false;
-    const { map, tilesById, equipment, depots } = this;
-    return applyDepotMove(map, tilesById, loc, equipment, depots, from, to) != null;
+    return (motion && this.locate(this.selfId, motion)) || null;
   }
 
-  moveItem(from: SlotRef, to: SlotRef): boolean {
-    if (!this.canMoveItem(from, to)) return false;
-    this.send({ type: "moveItem", from, to });
+  canMoveItem(from: SlotRef, to: SlotRef, count?: number): boolean {
+    const loc = this.kitLocation();
+    if (!loc) return false;
+    const { map, tilesById, equipment, depots } = this;
+    return applyDepotMove(map, tilesById, loc, equipment, depots, from, to, count) != null;
+  }
+
+  moveItem(from: SlotRef, to: SlotRef, count?: number): boolean {
+    if (!this.canMoveItem(from, to, count)) return false;
+    this.send(
+      count === undefined ? { type: "moveItem", from, to } : { type: "moveItem", from, to, count },
+    );
     return true;
   }
 
-  canDrop(from: SlotRef, to: Coord): boolean {
-    if (this.incapacitated()) return false;
-    const motion = this.motions.get(this.selfId);
-    const loc = motion && this.locate(this.selfId, motion);
+  canSplitPile(slot: SlotRef, count: number): boolean {
+    const loc = this.kitLocation();
     if (!loc) return false;
-    const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from);
-    const def = instance && this.tilesById[instance.tileId];
+    const { map, tilesById, equipment, depots } = this;
+    return applyPileSplit(map, tilesById, loc, equipment, depots, slot, count) != null;
+  }
+
+  splitPile(slot: SlotRef, count: number): boolean {
+    if (!this.canSplitPile(slot, count)) return false;
+    this.send({ type: "splitPile", slot, count });
+    return true;
+  }
+
+  canDrop(from: SlotRef, to: Coord, count?: number): boolean {
+    const loc = this.kitLocation();
+    if (!loc) return false;
+    const held = itemInSlot(this.map, this.tilesById, loc, this.equipment, from);
+    const def = held && portionOf(held, count) && this.tilesById[held.tileId];
     if (!def) return false;
     return canDropAt(this.map, this.tilesById, loc, to, def);
   }
 
-  drop(from: SlotRef, to: Coord): boolean {
-    if (!this.canDrop(from, to)) return false;
-    this.send({ type: "drop", from, to });
+  drop(from: SlotRef, to: Coord, count?: number): boolean {
+    if (!this.canDrop(from, to, count)) return false;
+    this.send(count === undefined ? { type: "drop", from, to } : { type: "drop", from, to, count });
     return true;
   }
 

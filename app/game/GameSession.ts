@@ -64,7 +64,15 @@ import {
   resolveCharm,
 } from "../lib/item";
 import { affectsBody } from "../lib/area";
-import { appendItem, landingIndex, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
+import {
+  appendItem,
+  countOf,
+  landingIndex,
+  peelOne,
+  pourInto,
+  stackWithItem,
+  stow,
+} from "../lib/piles";
 import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   DIRECTIONS,
@@ -338,7 +346,8 @@ import { pushDropUnits, pushedColumn, slideDurationMs, slideStillShoving } from 
 import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
   capacityOf,
-  clearSlot,
+  portionOf,
+  takeFromSlot,
   isBodySlot,
   itemInSlot,
   peelSlot,
@@ -348,7 +357,13 @@ import {
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
-import { applyDepotMove, DepotLedger, type Depots } from "./depot";
+import {
+  applyDepotMove,
+  applyPileSplit,
+  DepotLedger,
+  type DepotMoveResult,
+  type Depots,
+} from "./depot";
 import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
@@ -708,10 +723,12 @@ export interface PlaySession {
   consume(from: ConsumeSource): boolean;
   craft(ref: ObjectRef, recipe: number): boolean;
   talk(action: TalkAction): boolean;
-  canMoveItem(from: SlotRef, to: SlotRef): boolean;
-  moveItem(from: SlotRef, to: SlotRef): boolean;
-  canDrop(from: SlotRef, to: Coord): boolean;
-  drop(from: SlotRef, to: Coord): boolean;
+  canMoveItem(from: SlotRef, to: SlotRef, count?: number): boolean;
+  moveItem(from: SlotRef, to: SlotRef, count?: number): boolean;
+  canSplitPile(slot: SlotRef, count: number): boolean;
+  splitPile(slot: SlotRef, count: number): boolean;
+  canDrop(from: SlotRef, to: Coord, count?: number): boolean;
+  drop(from: SlotRef, to: Coord, count?: number): boolean;
   drainNotices(): string[];
 }
 
@@ -5346,16 +5363,15 @@ export class GameSession implements PlaySession {
     return { consumable, name: def.name };
   }
 
-  canMoveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const actor = this.actors.get(id);
-    if (!actor || this.incapacitated(actor)) return false;
-    const loc = this.tryLocate(actor);
-    if (!loc) return false;
-    const depots = this.depots.of(actor.id);
-    return applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to) != null;
+  canMoveItem(from: SlotRef, to: SlotRef, count?: number, id: string = LOCAL_ACTOR_ID): boolean {
+    return (
+      this.planKitChange(id, (loc, equipment, depots) =>
+        applyDepotMove(this.map, this.tilesById, loc, equipment, depots, from, to, count),
+      ) != null
+    );
   }
 
-  moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
+  moveItem(from: SlotRef, to: SlotRef, count?: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
@@ -5364,9 +5380,44 @@ export class GameSession implements PlaySession {
     if (this.noteCoolingRefusal(actor, loc, from)) return false;
     if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
-    const depots = this.depots.of(actor.id);
-    const moved = applyDepotMove(this.map, this.tilesById, loc, actor.equipment, depots, from, to);
-    if (!moved) return false;
+    return this.applyKitChange(id, (at, equipment, depots) =>
+      applyDepotMove(this.map, this.tilesById, at, equipment, depots, from, to, count),
+    );
+  }
+
+  canSplitPile(slot: SlotRef, count: number, id: string = LOCAL_ACTOR_ID): boolean {
+    return (
+      this.planKitChange(id, (loc, equipment, depots) =>
+        applyPileSplit(this.map, this.tilesById, loc, equipment, depots, slot, count),
+      ) != null
+    );
+  }
+
+  splitPile(slot: SlotRef, count: number, id: string = LOCAL_ACTOR_ID): boolean {
+    return this.applyKitChange(id, (loc, equipment, depots) =>
+      applyPileSplit(this.map, this.tilesById, loc, equipment, depots, slot, count),
+    );
+  }
+
+  private planKitChange(
+    id: string,
+    change: (loc: ActorLocation, equipment: Equipment, depots: Depots) => DepotMoveResult | null,
+  ): DepotMoveResult | null {
+    const actor = this.actors.get(id);
+    if (!actor || this.incapacitated(actor)) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    return change(loc, actor.equipment, this.depots.of(actor.id));
+  }
+
+  private applyKitChange(
+    id: string,
+    change: (loc: ActorLocation, equipment: Equipment, depots: Depots) => DepotMoveResult | null,
+  ): boolean {
+    const actor = this.actors.get(id);
+    const depots = actor && this.depots.of(actor.id);
+    const moved = this.planKitChange(id, change);
+    if (!actor || !moved) return false;
 
     this.map = moved.map;
     if (moved.equipment !== actor.equipment) {
@@ -5376,8 +5427,8 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canDrop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
-    return this.dropCandidate(from, to, id) != null;
+  canDrop(from: SlotRef, to: Coord, count?: number, id: string = LOCAL_ACTOR_ID): boolean {
+    return this.dropCandidate(from, to, id, count) != null;
   }
 
   private noteCoolingRefusal(actor: ActorRuntime, loc: ActorLocation, from: SlotRef): boolean {
@@ -5392,6 +5443,7 @@ export class GameSession implements PlaySession {
     from: SlotRef,
     to: Coord,
     id: string,
+    count?: number,
   ): {
     actor: ActorRuntime;
     instance: ItemInstance;
@@ -5402,29 +5454,37 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
-    const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, from);
-    if (!instance) return null;
+    const held = itemInSlot(this.map, this.tilesById, loc, actor.equipment, from);
+    const instance = held && portionOf(held, count);
+    if (!held || !instance) return null;
 
     const def = this.tilesById[instance.tileId];
     if (!def) return null;
-    if (stoneLocked(instance, this.tilesById)) return null;
+    if (stoneLocked(held, this.tilesById)) return null;
     const destination = dropDestinationAt(this.map, this.tilesById, loc, to, def);
     if (!destination) return null;
     return { actor, instance, destination };
   }
 
-  drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
+  drop(from: SlotRef, to: Coord, count?: number, id: string = LOCAL_ACTOR_ID): boolean {
     const thrower = this.actors.get(id);
     const at = thrower ? this.tryLocate(thrower) : null;
     if (thrower && at && this.noteCoolingRefusal(thrower, at, from)) return false;
 
-    const candidate = this.dropCandidate(from, to, id);
+    const candidate = this.dropCandidate(from, to, id, count);
     if (!candidate) return false;
     const { actor, instance, destination } = candidate;
     const thrownFrom = this.locate(actor);
     const origin = this.midBody(thrownFrom);
 
-    const emptied = clearSlot(this.map, this.tilesById, thrownFrom, actor.equipment, from);
+    const emptied = takeFromSlot(
+      this.map,
+      this.tilesById,
+      thrownFrom,
+      actor.equipment,
+      from,
+      countOf(instance),
+    );
     if (!emptied) return false;
 
     const landed =

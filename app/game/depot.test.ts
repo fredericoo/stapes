@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONSUMABLE, DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import { DEFAULT_CONSUMABLE, DEFAULT_CONTAINER, DEFAULT_PILE, DEFAULT_WEAPON } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -152,6 +152,38 @@ describe("taking something out of a depot", () => {
     const from: SlotRef = { kind: "depot", ref: SAFE, index: 0 };
     const to: SlotRef = { kind: "depot", ref: OTHER_SAFE, index: 0 };
     expect(move(map, carrying(), depots, from, to)).toBeNull();
+  });
+});
+
+describe("dropping a pile onto one of its kind in a depot", () => {
+  const map = safeAt(emptyMap(), SAFE);
+  const SECOND: SlotRef = { kind: "depot", ref: SAFE, index: 1 };
+
+  it("fills the pile and leaves the rest in the square it came from", () => {
+    const depots = { town: [item("itm_a", "apple", DEFAULT_PILE - 1), item("itm_b", "apple", 2)] };
+    const moved = move(map, carrying(), depots, SECOND, INTO_SAFE);
+
+    expect(moved?.depots).toEqual({
+      town: [item("itm_a", "apple", DEFAULT_PILE), item("itm_b", "apple")],
+    });
+  });
+
+  it("fills the piles already there from the bag, then a free square", () => {
+    const depots = { town: [item("itm_a", "apple", DEFAULT_PILE - 1)] };
+    const moved = move(map, carrying(item("itm_b", "apple", 2)), depots, BAG_0, INTO_SAFE);
+
+    expect(moved?.depots).toEqual({
+      town: [item("itm_a", "apple", DEFAULT_PILE), item("itm_b", "apple")],
+    });
+    expect(moved?.equipment.bag?.contents).toEqual([]);
+  });
+
+  it("leaves in the bag what a full depot has no room for", () => {
+    const depots = { town: [item("itm_a", "apple", DEFAULT_PILE - 1), item("itm_c")] };
+    const moved = move(map, carrying(item("itm_b", "apple", 2)), depots, BAG_0, INTO_SAFE);
+
+    expect(moved?.depots.town?.[0]).toEqual(item("itm_a", "apple", DEFAULT_PILE));
+    expect(moved?.equipment.bag?.contents).toEqual([item("itm_b", "apple")]);
   });
 });
 

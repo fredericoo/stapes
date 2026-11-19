@@ -199,7 +199,7 @@ describe("putting a pile down", () => {
   it("lands as one placement, whole", () => {
     const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
 
-    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, BESIDE, undefined, WHO)).toBe(true);
     expect(asideStack(session)).toEqual([
       { tileId: "grass" },
       { tileId: "berry", itemId: "itm_a", count: 3 },
@@ -213,7 +213,7 @@ describe("putting a pile down", () => {
       itemId: "itm_b",
     });
 
-    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, BESIDE, undefined, WHO)).toBe(true);
     expect(asideStack(session)).toEqual([
       { tileId: "grass" },
       { tileId: "berry", itemId: "itm_b", count: 2 },
@@ -227,7 +227,7 @@ describe("putting a pile down", () => {
       count: 3,
     });
 
-    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, BESIDE, undefined, WHO)).toBe(true);
     expect(asideStack(session)).toEqual([
       { tileId: "grass" },
       { tileId: "berry", itemId: "itm_b", count: 3 },
@@ -240,7 +240,7 @@ describe("putting a thing down where you stand", () => {
   it("lands beneath you rather than on your head", () => {
     const session = world(carrying([{ id: "itm_a", tileId: "sword" }]));
 
-    expect(session.drop(BAG_SLOT, HERE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, HERE, undefined, WHO)).toBe(true);
     const stack = getStack(session.getMap(), HERE.x, HERE.y, HERE.z);
     expect(stack.map((placed) => placed.tileId)).toEqual(["grass", "sword", "player"]);
     expect(stack[2]?.owner).toBe(WHO);
@@ -258,7 +258,7 @@ describe("a thing put down on the floor", () => {
   it("is tossed from halfway up whoever put it down", () => {
     const session = world(carrying([{ id: "itm_a", tileId: "berry" }]));
 
-    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, BESIDE, undefined, WHO)).toBe(true);
     expect(tosses(session)).toMatchObject([
       {
         side: "appear",
@@ -275,7 +275,7 @@ describe("a thing put down on the floor", () => {
       itemId: "itm_b",
     });
 
-    expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
+    expect(session.drop(BAG_SLOT, BESIDE, undefined, WHO)).toBe(true);
     expect(tosses(session)).toEqual([]);
   });
 });
@@ -374,7 +374,7 @@ describe("dragging a pile between squares", () => {
   it("moves the whole pile", () => {
     const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
 
-    expect(session.moveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
+    expect(session.moveItem(BAG_SLOT, OFFHAND, undefined, WHO)).toBe(true);
     expect(kitOf(session).offhand).toEqual({
       id: "itm_a",
       tileId: "berry",
@@ -390,8 +390,8 @@ describe("dragging a pile between squares", () => {
       }),
     );
 
-    expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
-    expect(session.moveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
+    expect(session.canMoveItem(BAG_SLOT, OFFHAND, undefined, WHO)).toBe(true);
+    expect(session.moveItem(BAG_SLOT, OFFHAND, undefined, WHO)).toBe(true);
     expect(kitOf(session).offhand).toEqual({
       id: "itm_b",
       tileId: "berry",
@@ -407,17 +407,19 @@ describe("dragging a pile between squares", () => {
       }),
     );
 
-    expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
+    expect(session.canMoveItem(BAG_SLOT, OFFHAND, undefined, WHO)).toBe(true);
   });
 
-  it("refuses a hand whose pile has no room for all of it", () => {
+  it("fills a hand whose pile has room for only some of it", () => {
     const session = world(
       carrying([{ id: "itm_a", tileId: "berry", count: 2 }], {
         offhand: { id: "itm_b", tileId: "berry", count: 2 },
       }),
     );
 
-    expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(false);
+    expect(session.moveItem(BAG_SLOT, OFFHAND, undefined, WHO)).toBe(true);
+    expect(kitOf(session).offhand).toEqual({ id: "itm_b", tileId: "berry", count: 3 });
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry" }]);
   });
 
   it("pours into a full bag out of a hand", () => {
@@ -431,11 +433,123 @@ describe("dragging a pile between squares", () => {
       ),
     );
 
-    expect(session.moveItem(OFFHAND, SECOND_BAG_SLOT, WHO)).toBe(true);
+    expect(session.moveItem(OFFHAND, SECOND_BAG_SLOT, undefined, WHO)).toBe(true);
     expect(bag(session)).toEqual([
       { id: "itm_a", tileId: "berry", count: 2 },
       { id: "itm_c", tileId: "sword" },
     ]);
     expect(kitOf(session).offhand).toBeNull();
+  });
+});
+
+describe("taking part of a pile", () => {
+  it("moves only the count asked for, under an id of its own", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
+
+    expect(session.moveItem(BAG_SLOT, OFFHAND, 1, WHO)).toBe(true);
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 2 }]);
+    const taken = kitOf(session).offhand;
+    expect(taken).toMatchObject({ tileId: "berry" });
+    expect(taken?.count).toBeUndefined();
+    expect(taken?.id).not.toBe("itm_a");
+  });
+
+  it("does not trade with a hand holding something else", () => {
+    const session = world(
+      carrying([{ id: "itm_a", tileId: "berry", count: 3 }], {
+        offhand: { id: "itm_c", tileId: "bread" },
+      }),
+    );
+
+    expect(session.canMoveItem(BAG_SLOT, OFFHAND, 1, WHO)).toBe(false);
+  });
+
+  it("puts down only the count asked for", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
+
+    expect(session.drop(BAG_SLOT, BESIDE, 2, WHO)).toBe(true);
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry" }]);
+    expect(asideStack(session)[1]).toMatchObject({ tileId: "berry", count: 2 });
+  });
+});
+
+describe("splitting a pile", () => {
+  it("puts the count asked for in a square of its own beside the pile", () => {
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
+
+    expect(session.splitPile(BAG_SLOT, 1, WHO)).toBe(true);
+    const [left, taken] = bag(session);
+    expect(left).toEqual({ id: "itm_a", tileId: "berry", count: 2 });
+    expect(taken).toMatchObject({ tileId: "berry" });
+    expect(taken?.id).not.toBe("itm_a");
+  });
+
+  it("refuses with no free square, or a count that would leave nothing behind", () => {
+    const full = world(
+      carrying([
+        { id: "itm_a", tileId: "berry", count: 3 },
+        { id: "itm_c", tileId: "sword" },
+      ]),
+    );
+    expect(full.canSplitPile(BAG_SLOT, 1, WHO)).toBe(false);
+
+    const roomy = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
+    expect(roomy.canSplitPile(BAG_SLOT, 3, WHO)).toBe(false);
+  });
+});
+
+describe("dropping a pile onto one of its kind", () => {
+  it("fills the bag's pile from a hand and keeps in the hand what a full bag cannot take", () => {
+    const session = world(
+      carrying(
+        [
+          { id: "itm_a", tileId: "berry", count: 2 },
+          { id: "itm_c", tileId: "sword" },
+        ],
+        { offhand: { id: "itm_b", tileId: "berry", count: 3 } },
+      ),
+    );
+
+    expect(session.moveItem(OFFHAND, BAG_SLOT, undefined, WHO)).toBe(true);
+    expect(bag(session)[0]).toEqual({ id: "itm_a", tileId: "berry", count: 3 });
+    expect(kitOf(session).offhand).toEqual({ id: "itm_b", tileId: "berry", count: 2 });
+  });
+
+  it("fills the pile it lands on and leaves the rest where it came from", () => {
+    const session = world(
+      carrying([
+        { id: "itm_a", tileId: "berry", count: 2 },
+        { id: "itm_b", tileId: "berry", count: 2 },
+      ]),
+    );
+
+    expect(session.moveItem(SECOND_BAG_SLOT, BAG_SLOT, undefined, WHO)).toBe(true);
+    expect(bag(session)).toEqual([
+      { id: "itm_a", tileId: "berry", count: 3 },
+      { id: "itm_b", tileId: "berry" },
+    ]);
+  });
+
+  it("empties the square it came from when all of it fits", () => {
+    const session = world(
+      carrying([
+        { id: "itm_a", tileId: "berry", count: 2 },
+        { id: "itm_b", tileId: "berry" },
+      ]),
+    );
+
+    expect(session.moveItem(SECOND_BAG_SLOT, BAG_SLOT, undefined, WHO)).toBe(true);
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 3 }]);
+  });
+
+  it("has nothing to do on a pile that is already full", () => {
+    const session = world(
+      carrying([
+        { id: "itm_a", tileId: "berry", count: 3 },
+        { id: "itm_b", tileId: "berry" },
+      ]),
+    );
+
+    expect(session.canMoveItem(SECOND_BAG_SLOT, BAG_SLOT, undefined, WHO)).toBe(false);
   });
 });

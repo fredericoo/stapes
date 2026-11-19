@@ -913,12 +913,12 @@ describe("moving things between slots", () => {
 
   it("has nothing to say for an actor who is not here", () => {
     const session = stocked();
-    expect(session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" }, "nobody")).toBe(
-      false,
-    );
-    expect(session.canMoveItem({ kind: "contents", index: 0 }, { kind: "weapon" }, "nobody")).toBe(
-      false,
-    );
+    expect(
+      session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" }, undefined, "nobody"),
+    ).toBe(false);
+    expect(
+      session.canMoveItem({ kind: "contents", index: 0 }, { kind: "weapon" }, undefined, "nobody"),
+    ).toBe(false);
   });
 
   it("answers the same question the move runs", () => {
