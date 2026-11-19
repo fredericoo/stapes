@@ -60,7 +60,7 @@ export class World {
 
     const blobs = config.deployed ? new SqliteBlobs(db) : new DiskBlobs(config.SEED_DIR);
     if (blobs instanceof SqliteBlobs && (await blobs.isEmpty())) {
-      await seedFromDirectory(blobs, config.SEED_DIR);
+      await seedFromDirectory(blobs, config.SEED_DIR, config.SEED_MAP);
     }
 
     const store = new WorldStore(db);
@@ -268,7 +268,7 @@ export class World {
   }
 
   async reseed(): Promise<void> {
-    await seedFromDirectory(this.rawBlobs, this.config.SEED_DIR);
+    await seedFromDirectory(this.rawBlobs, this.config.SEED_DIR, this.config.SEED_MAP);
     await this.server.replaceWorld(await this.blobs.readFlatMap(), { keepPositions: true });
   }
 

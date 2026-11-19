@@ -8,6 +8,8 @@ const schema = v.object({
 
   SEED_DIR: v.optional(v.string(), "./data"),
 
+  SEED_MAP: v.optional(v.string(), "map.json"),
+
   CLIENT_BUILD_ID: v.optional(v.string()),
 
   ADMIN_SECRET: v.optional(v.string()),

@@ -23,4 +23,4 @@
 - `release.yml` has no concurrency group on purpose. Only the run for the release PR's merge commit has no pending changesets, so it is the only one that tags and deploys; a group would cancel it while queued behind two newer pushes, and the version would stay untagged.
 - If a release tagged but did not deploy (a failed or cancelled production job), a re-run finds the tag and publishes nothing. Deploy it by hand: `gh workflow run deploy.yml --ref v<version> -f environment=production`. The same command with an older tag rolls production back.
 - Production gets its pre-deploy snapshot only on a release now. Staging gets none; see the comment in `deploy.yml`.
-
+- `SEED_MAP` names the file in `data/` that is stored as the world's `map.json` when the store is seeded (`server/seed.ts`), and defaults to `map.json`. It applies only where content is seeded into the database; `bun dev` reads `data/map.json` from disk, so a different map there is a different `SEED_DIR`.
