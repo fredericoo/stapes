@@ -22,6 +22,8 @@ export type Offer = {
   readonly path: CommandPath;
   readonly take: readonly TradeSide[];
   readonly give: readonly TradeSide[];
+  readonly takeCash: number;
+  readonly giveCash: number;
   readonly min: number;
   readonly max: number;
 };
@@ -44,6 +46,8 @@ export function offersIn(tilesById: Record<string, TileDef>): readonly Offer[] {
         path,
         take: command.take,
         give: command.give,
+        takeCash: command.takeCash ?? 0,
+        giveCash: command.giveCash ?? 0,
         min: command.min,
         max: command.max,
       });
@@ -51,26 +55,6 @@ export function offersIn(tilesById: Record<string, TileDef>): readonly Offer[] {
   }
   offersByCatalogue.set(tilesById, offers);
   return offers;
-}
-
-/**
- * The tile most offers ask for, which is what the world uses as money. Read
- * from the catalogue so a shop priced in something else changes it.
- */
-export function currencyOf(offers: readonly Offer[]): string | null {
-  const counts = new Map<string, number>();
-  for (const offer of offers) {
-    for (const side of offer.take) counts.set(side.tileId, (counts.get(side.tileId) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [tileId, count] of counts) {
-    if (count > bestCount) {
-      best = tileId;
-      bestCount = count;
-    }
-  }
-  return best;
 }
 
 /**

@@ -422,7 +422,7 @@ import {
   type PartnerView,
   type TalkAction,
 } from "./dialogRuntime";
-import { planTrade } from "./trade";
+import { planDeal } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
   enterBrainState,
@@ -2043,7 +2043,7 @@ export class GameSession implements PlaySession {
         return false;
       }
       if (effect.effect !== "trade") continue;
-      const next = planTrade(this.tilesById, kit, effect.take, effect.give, mintItemId);
+      const next = planDeal(this.tilesById, kit, effect, mintItemId);
       if (!next) return false;
       kit = next;
     }

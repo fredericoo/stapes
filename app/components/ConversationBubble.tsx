@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  scaledTrade,
   TRADE_REFUSED,
   waitingOn,
   type Conversation,
@@ -9,7 +8,7 @@ import {
 } from "../game/dialogRuntime";
 import type { Equipment } from "../game/equipment";
 import { bindNumberKeys, bindStepKeys, numberKeyLabel } from "../game/heldDirections";
-import { carriedCount, largestTradeAmount, planTrade } from "../game/trade";
+import { carriedCash, carriedCount, largestTradeAmount, planDeal, scaleTerms } from "../game/trade";
 import {
   clampAmount,
   resolveDialog,
@@ -17,6 +16,7 @@ import {
   type DialogTrade,
   type TradeSide,
 } from "../lib/dialog";
+import { splitCash } from "../lib/cash";
 import { dialogPlainText } from "../lib/dialogText";
 import { mintItemId } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -364,12 +364,15 @@ function TradeOffer({
   hotkeys: boolean;
 }) {
   const [amount, setAmount] = useState(clampAmount(trade, undefined));
-  const scaled = scaledTrade(trade, amount);
-  const take = scaled.effect === "trade" ? scaled.take : [];
-  const give = scaled.effect === "trade" ? scaled.give : [];
+  const scaled = scaleTerms(trade, amount);
+  const { take, give, takeCash = 0, giveCash = 0 } = scaled;
+  const cash = carriedCash(tilesById, equipment);
   const short = take.filter((side) => carriedCount(tilesById, equipment, side.tileId) < side.count);
+  const shortOfCash = cash < takeCash;
   const possible =
-    short.length === 0 && planTrade(tilesById, equipment, take, give, mintItemId) !== null;
+    short.length === 0 &&
+    !shortOfCash &&
+    planDeal(tilesById, equipment, scaled, mintItemId) !== null;
   const step = (delta: 1 | -1) =>
     setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
   const less = useTap(() => step(-1));
@@ -403,8 +406,8 @@ function TradeOffer({
   return (
     <>
       <div className="talk-trade">
-        <TradeSideRow label="You give" sides={take} />
-        <TradeSideRow label="You get" sides={give} />
+        <TradeSideRow label="You give" sides={take} cash={takeCash} tilesById={tilesById} />
+        <TradeSideRow label="You get" sides={give} cash={giveCash} tilesById={tilesById} />
         {trade.max > trade.min ? (
           <div className="talk-trade__amount">
             <button
@@ -444,7 +447,12 @@ function TradeOffer({
             {carriedCount(tilesById, equipment, side.tileId)}.
           </p>
         ))}
-        {short.length === 0 && !possible ? (
+        {shortOfCash ? (
+          <p className="talk-bubble__note">
+            You need {takeCash} in cash, and have {cash}.
+          </p>
+        ) : null}
+        {short.length === 0 && !shortOfCash && !possible ? (
           <p className="talk-bubble__note">There is nowhere on you to put what you would get.</p>
         ) : null}
       </div>
@@ -467,14 +475,25 @@ function TradeOffer({
   );
 }
 
-function TradeSideRow({ label, sides }: { label: string; sides: readonly TradeSide[] }) {
+function TradeSideRow({
+  label,
+  sides,
+  cash,
+  tilesById,
+}: {
+  label: string;
+  sides: readonly TradeSide[];
+  cash: number;
+  tilesById: Record<string, TileDef>;
+}) {
+  const shown = [...splitCash(tilesById, cash), ...sides];
   return (
     <div className="talk-trade__side">
       <span className="talk-trade__label">{label}</span>
       <span className="talk-trade__items">
-        {sides.length === 0 ? <span className="talk-bubble__note">nothing</span> : null}
-        {sides.map((side) => (
-          <ItemMention key={side.tileId} tileId={side.tileId} count={side.count} />
+        {shown.length === 0 ? <span className="talk-bubble__note">nothing</span> : null}
+        {shown.map((side, i) => (
+          <ItemMention key={`${i}:${side.tileId}`} tileId={side.tileId} count={side.count} />
         ))}
       </span>
     </div>

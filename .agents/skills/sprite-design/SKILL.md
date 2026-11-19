@@ -69,6 +69,13 @@ Whichever you use:
 
 ## Traps already found
 
+- **A `limb-caster` capsule of zero length draws nothing.** Its `from` and
+  `to` being equal divides by zero, so a ball (a leaf bundle, a berry) needs a
+  very short capsule instead; `ball` in `generate-deep-woods.ts` is one.
+- **Most of the world is `grass-2`, and its colour is palette index 15
+  (`#239063`).** A plant or a crown whose lit side or edge is that colour
+  vanishes into the ground. Judge outdoor art on `grass-2` in the scene, not
+  on `grass`, which is a dark tile for sparse detail.
 - **A tall part hides behind a wide part above it.** A mushroom stem shorter
   than its cap is wide is entirely under the cap on screen. Make the hidden
   part longer, or the covering part smaller.

@@ -255,6 +255,15 @@ describe("reachOf", () => {
 });
 
 describe("itemForSave", () => {
+  it("keeps a worth on any type of item", () => {
+    expect(itemForSave({ type: "artifact", pile: 100, worth: 100 })).toEqual({
+      type: "artifact",
+      pile: 100,
+      worth: 100,
+    });
+    expect(itemForSave({ ...DEFAULT_WEAPON, worth: 5 })).toEqual({ ...DEFAULT_WEAPON, worth: 5 });
+  });
+
   it("drops fields belonging to the other arm of the union", () => {
     const draft = { ...DEFAULT_WEAPON, size: 4, equippable: true } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_WEAPON);

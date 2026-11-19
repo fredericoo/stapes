@@ -9,11 +9,12 @@ import {
   type DialogCondition,
   type DialogTrade,
   type SwitchTo,
-  type TradeSide,
+  type TradeTerms,
 } from "../lib/dialog";
 import { evaluateCondition, type ConditionNode } from "../lib/conditions";
 import type { Coord } from "../lib/types";
 import { NOBODY } from "./brainRuntime";
+import { scaleTerms } from "./trade";
 
 export type TalkAction =
   | { kind: "open"; ref: { x: number; y: number; z: number; stackIndex: number } }
@@ -38,7 +39,7 @@ export type Conversation = {
 };
 
 export type DialogEffectDef =
-  | { effect: "trade"; take: TradeSide[]; give: TradeSide[] }
+  | ({ effect: "trade" } & TradeTerms)
   | { effect: "add_status"; statusId: string }
   | { effect: "remove_status"; statusId: string }
   | { effect: "tag"; tag: string }
@@ -111,8 +112,7 @@ export function acceptTrade(
 }
 
 export function scaledTrade(trade: DialogTrade, amount: number): DialogEffectDef {
-  const times = (side: TradeSide) => ({ tileId: side.tileId, count: side.count * amount });
-  return { effect: "trade", take: trade.take.map(times), give: trade.give.map(times) };
+  return { effect: "trade", ...scaleTerms(trade, amount) };
 }
 
 export function cancelTrade(

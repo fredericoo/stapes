@@ -220,7 +220,7 @@ export type CharmItem = {
   elements?: Element[];
 };
 
-export type ItemDef =
+export type ItemDef = (
   | WeaponItem
   | ConsumableItem
   | ContainerItem
@@ -228,7 +228,8 @@ export type ItemDef =
   | ShieldItem
   | ArtifactItem
   | ArcaneStoneItem
-  | CharmItem;
+  | CharmItem
+) & { worth?: number };
 
 export type ItemType = ItemDef["type"];
 
@@ -258,7 +259,9 @@ export const CONSUME_FALLBACK_VERB = "Use";
 export const MAX_SOUND_LENGTH = 32;
 
 export const MIN_PILE = 1;
-export const MAX_PILE = 99;
+export const MAX_PILE = 100;
+
+export const MAX_WORTH = 1_000_000;
 
 export const DEFAULT_PILE = 8;
 
@@ -636,6 +639,17 @@ export function resolveItem(def: TileDef): ItemDef | null {
   return item;
 }
 
+const worthSchema = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_WORTH));
+
+/**
+ * Read beside `resolveItem` rather than through it, because every item type
+ * may carry a worth and `itemSchema` strips any key its variant does not name.
+ */
+export function resolveWorth(def: TileDef): number {
+  const raw = def.kind === "item" && resolveItem(def) ? def.interactions?.item?.worth : undefined;
+  return raw !== undefined && v.is(worthSchema, raw) ? raw : 0;
+}
+
 export function isItem(def: TileDef): boolean {
   return resolveItem(def) !== null;
 }
@@ -773,6 +787,12 @@ function armorForSave(armor: ArmorItem): ArmorItem {
 
 export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   if (!item) return undefined;
+  const saved = itemFieldsForSave(item);
+  const worth = item.worth !== undefined && v.is(worthSchema, item.worth) ? item.worth : 0;
+  return worth > 0 ? { ...saved, worth } : saved;
+}
+
+function itemFieldsForSave(item: ItemDef): ItemDef {
   if (item.type === "weapon") return weaponForSave(item);
   if (item.type === "armor") return armorForSave(item);
   if (item.type === "consumable") {

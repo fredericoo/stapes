@@ -3,7 +3,7 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import type { CastSlot, SpellButton } from "../app/game/casting";
 import { carriedInstances, type Equipment } from "../app/game/equipment";
 import { walkDurationMsFor } from "../app/game/movement";
-import { carriedCount } from "../app/game/trade";
+import { carriedCash } from "../app/game/trade";
 import { firstWithoutRoom, walkSpeedPercentFrom } from "../app/game/statuses";
 import { hasLineOfSight } from "../app/game/sight";
 import type { ActorSnapshot, GameSnapshot } from "../app/game/GameSession";
@@ -1610,16 +1610,15 @@ export class Bot {
     if (!body) return;
     const { equipment } = snapshot;
     const saving = new Set(this.economy.savingFor(equipment, body)?.take.map((s) => s.tileId));
-    const currency = this.economy.currency;
     const dressing = nextDressing(equipment, this.tilesById, {
       body,
       taste: this.economy.taste,
       keeps: (tileId) =>
-        tileId === currency ||
+        this.economy.isMoney(tileId) ||
         saving.has(tileId) ||
         this.economy.bought(tileId) ||
         this.economy.forges(tileId),
-      spends: (tileId) => tileId === currency,
+      spends: (tileId) => this.economy.isMoney(tileId) || this.economy.bought(tileId),
       refused: (tileId) => (this.dressRefused.get(tileId) ?? 0) > nowMs,
     });
     if (!dressing) return;
@@ -2372,12 +2371,14 @@ export class Bot {
     this.summarizedAtMs ??= nowMs;
     if (nowMs - this.summarizedAtMs < SUMMARY_EVERY_MS) return;
     this.summarizedAtMs = nowMs;
-    const { currency, taste } = this.economy;
-    const gold = currency ? carriedCount(this.tilesById, snapshot.equipment, currency) : 0;
+    const { taste } = this.economy;
+    const gold = carriedCash(this.tilesById, snapshot.equipment);
     const stash = Object.values(snapshot.depots)
       .flat()
-      .filter((instance) => instance.tileId === currency)
-      .reduce((total, instance) => total + countOf(instance), 0);
+      .reduce(
+        (total, instance) => total + countOf(instance) * this.economy.moneyWorth(instance.tileId),
+        0,
+      );
     const gear = body ? wornWorth(snapshot.equipment, this.tilesById, body, taste) : 0;
     this.log(
       `summary deaths=${this.deaths} kills=${this.kills} gold=${gold} stash=${stash} gear=${gear.toFixed(1)}`,

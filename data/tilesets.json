@@ -306,6 +306,20 @@
     "height": 64
   },
   {
+    "id": "deep-woods",
+    "name": "Deep Woods",
+    "file": "deep-woods.png",
+    "width": 128,
+    "height": 64
+  },
+  {
+    "id": "gold",
+    "name": "Gold",
+    "file": "gold.png",
+    "width": 16,
+    "height": 8
+  },
+  {
     "id": "spoils",
     "name": "Spoils",
     "file": "spoils.png",
