@@ -2,8 +2,7 @@
 
 The non-player characters of Rune Isle: who they are, where they live, what they
 trade and when, what their lives were before Wyrd, and how they talk. It follows
-the canon in `docs/lore.md`, with one change from it (see *Ground rules*), and
-replaces every NPC the game ships today. None of those names, roles or lines
+the canon in `docs/lore.md` on the lore redesign branch, and replaces every NPC the game ships today. None of those names, roles or lines
 carry over.
 
 Each profile ends with a **Game support** note. It names the mechanisms the
@@ -14,9 +13,8 @@ are collected in *What the game cannot do yet* at the end.
 ## Ground rules for the cast
 
 - **Nobody in the cast is a castaway.** Every NPC lived on the island before
-  Wyrd took hold. Only players come ashore from a wreck. This differs from
-  `docs/lore.md`, which says everyone on the island was shipwrecked; that
-  section needs the same change.
+  Wyrd took hold. Only players come ashore from a wreck, and to the islanders
+  they are the only new faces since Wyrd.
 - **Wyrd took hold about 130 years ago.** Since then nobody has aged, died or
   had a child. Everyone looks the age they were that night. Nobody in the cast
   was a child then, so there are no children on the island.
@@ -27,8 +25,9 @@ are collected in *What the game cannot do yet* at the end.
   being asked twice, how old they were when the island stopped, what they did
   before, how often they have died and what killed them. A troll is the death
   everybody agrees is the worst.
-- **Everyone knew Halvard and Maren, or knew of them.** The island was small.
-  Characters disagree about him, and most of them remember her kindly.
+- **Everyone knew Halvard, and knew Maren while she was alive.** The island
+  was small. Characters disagree about him, and most of them remember her
+  kindly.
 - **Gold is the only money.** Towns buy bones, animal skulls, leather and the
   spoils of the hunt. Nobody buys a human skull.
 
@@ -1001,9 +1000,6 @@ each would need.
 
 ## Open points against the canon
 
-- **Only players are castaways.** `docs/lore.md` (*Everyone is a castaway*) says
-  everybody on the island was shipwrecked. This cast assumes the opposite for
-  NPCs, and that section needs rewriting to match.
 - **Why castaways survive the wrecks**, and what happens to everybody else on the
   ships, is left open. No character explains it.
 - **The old harbour town** on Wreckers' Bay, the lighthouse built to guide ships
