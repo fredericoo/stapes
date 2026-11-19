@@ -78,6 +78,15 @@ const tiles: TileDef[] = [
     interactions: { item: DEFAULT_WEAPON },
   }),
   tile({
+    id: "chest",
+    height: 1,
+    kind: "item",
+    interactions: {
+      item: { type: "container", size: 2, equippable: false },
+      respawn: RESPAWN,
+    },
+  }),
+  tile({
     id: "backwards",
     height: 0,
     interactions: { respawn: { fromMs: 5000, toMs: 1000 } },
@@ -361,6 +370,25 @@ describe("GameSession.respawnAt", () => {
     const coin = getStack(session.getMap(), 1, 0, 0)[1];
     expect(coin?.tileId).toBe("coin");
     expect(coin?.itemId).toBeTruthy();
+  });
+
+  it("mints identities for what a respawned container holds", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      {
+        tileId: "chest",
+        itemId: "authored-chest",
+        contents: [{ id: "authored-coin", tileId: "coin" }],
+      },
+    ]);
+    const point = objectPointAt(map, 1, "chest");
+
+    const session = new GameSession(strip(6), tiles);
+    expect(session.respawnAt(point).kind).toBe("done");
+    const [held] = getStack(session.getMap(), 1, 0, 0)[1]?.contents ?? [];
+    expect(held?.tileId).toBe("coin");
+    expect(held?.id).toBeTruthy();
+    expect(held?.id).not.toBe("authored-coin");
   });
 
   it("rolls a respawned creature's kit, and rolls it fresh each time", () => {

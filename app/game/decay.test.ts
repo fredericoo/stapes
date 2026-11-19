@@ -137,6 +137,11 @@ const tiles: TileDef[] = [
     interactions: { decay: { tileId: "wall", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
   }),
   tile({
+    id: "husk",
+    height: 0,
+    interactions: { decay: { tileId: "crate", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+  }),
+  tile({
     id: "orphan",
     height: 0,
     interactions: { decay: { tileId: "nope", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
@@ -482,6 +487,18 @@ describe("GameSession decay", () => {
   it("leaves a world with nothing decaying at rest", () => {
     const session = new GameSession(withIdlePlayer(emptyMap()), tiles);
     expect(session.isAtRest()).toBe(true);
+  });
+
+  it("gives an item its id when a placement decays into one", () => {
+    const map = withIdlePlayer(
+      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "husk" }]),
+    );
+    const session = new GameSession(map, tiles);
+
+    run(session, BLOOD_MS);
+    const [, crate] = getStack(session.getMap(), 0, 0, 0);
+    expect(crate?.tileId).toBe("crate");
+    expect(crate?.itemId).toBeTruthy();
   });
 
   it("does not offer decay as something the player can click", () => {

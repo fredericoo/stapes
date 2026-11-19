@@ -328,7 +328,7 @@ import {
   extractEarnings,
   practiceEarnings,
 } from "./experience";
-import { mintItemIds } from "./itemIds";
+import { mintCellItemIds, mintItemIds } from "./itemIds";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import { planDistanceSq, type ReachPoint } from "./distance";
 import { type BodyBoard, nearestOnTiles, TileColumns } from "./nearestBody";
@@ -1363,7 +1363,6 @@ export class GameSession implements PlaySession {
       ...(itemId ? { itemId } : {}),
       ...(point.ownerId ? { owner: point.ownerId } : {}),
     });
-    this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
       this.residentHomes.set(point.ownerId, point.cell);
@@ -1442,9 +1441,15 @@ export class GameSession implements PlaySession {
     return actor;
   }
 
+  /**
+   * Every write that changes what a cell holds ends here, so this is where a
+   * placement that has just become an item gets its id, before `armCell`
+   * would read the missing id as a placement's clock.
+   */
   private reindexCells(cells: Iterable<Coord>) {
     for (const cell of cells) {
       const key = cellKey(cell);
+      this.map = mintCellItemIds(this.map, cell, this.tilesById);
       this.decay.armCell(this.map, cell, this.tilesById);
       this.weathering.index(this.map, cell, this.tilesById);
       this.shedding.index(this.map, cell, this.tilesById);
