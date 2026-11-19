@@ -484,7 +484,7 @@ describe("the potion salesman, as authored", () => {
     trade(session, 1);
     expect(lastLine(session)).toBe(TRADE_REFUSED);
     session.talk({ kind: "cancel" });
-    expect(press(session, 3)).toBeNull();
+    expect(press(session, 4)).toBeNull();
     expect(session.drainSpeech().at(-1)?.text).toContain("Mind the dark");
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });

@@ -14416,6 +14416,319 @@
                 ]
               },
               {
+                "label": "Sell jelly and wisp dust",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Slime jelly, and whatever a wisp leaves when it goes out. I brew with both."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "sell"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "{item:nature-slime-jelly} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:nature-slime-jelly}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "nature-slime-jelly",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:water-slime-jelly} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:water-slime-jelly}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "water-slime-jelly",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:fire-slime-jelly} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:fire-slime-jelly}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "fire-slime-jelly",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:wisp-ash} — 3 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "3 shards for every {item:wisp-ash}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wisp-ash",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 3
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:wisp-dew} — 3 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "3 shards for every {item:wisp-dew}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wisp-dew",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 3
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:wisp-spore} — 3 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "3 shards for every {item:wisp-spore}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wisp-spore",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 3
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
                 "label": "How do you make it?",
                 "then": [
                   {
@@ -18426,6 +18739,601 @@
                       {
                         "kind": "goto",
                         "name": "main"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Sell",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "I'll pay shards for anything you cut off a beast. What have you got?"
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "sell"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "{item:skin} — 2 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "2 shards for every {item:skin}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 2
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:wolf-skin} — 3 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "3 shards for every {item:wolf-skin}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "wolf-skin",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 3
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:bone} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:bone}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "bone",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:rat-tail} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:rat-tail}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "rat-tail",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:bat-wing} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:bat-wing}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "bat-wing",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:rabbit-foot} — 1 shard each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "1 shard for every {item:rabbit-foot}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "rabbit-foot",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:snake-fang} — 2 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "2 shards for every {item:snake-fang}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "snake-fang",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 2
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:imp-horn} — 3 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "3 shards for every {item:imp-horn}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "imp-horn",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 3
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:bear-claw} — 5 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "5 shards for every {item:bear-claw}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "bear-claw",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 5
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:troll-tusk} — 6 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "6 shards for every {item:troll-tusk}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "troll-tusk",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 6
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:yeti-fur} — 20 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "20 shards for every {item:yeti-fur}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "yeti-fur",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:cyclops-eye} — 25 shards each",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "25 shards for every {item:cyclops-eye}. How many?"
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "cyclops-eye",
+                                "count": 1
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 25
+                              }
+                            ],
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Ta. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Keep them, then. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "sell"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -30453,6 +31361,17 @@
             "slot": "weapon",
             "tileId": "bread",
             "chance": 5
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "rat-tail",
+                "chance": 75
+              }
+            ]
           }
         ]
       },
@@ -30849,6 +31768,19 @@
             "cooldownMs": 12000,
             "castTimeMs": 500,
             "sound": "sssk"
+          }
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "snake-fang",
+                "chance": 70
+              }
+            ]
           }
         ]
       },
@@ -32718,6 +33650,17 @@
             "slot": "offhand",
             "tileId": "raw-meat",
             "chance": 10
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "bat-wing",
+                "chance": 70
+              }
+            ]
           }
         ]
       },
@@ -33331,6 +34274,10 @@
               {
                 "tileId": "skull-player",
                 "chance": 100
+              },
+              {
+                "tileId": "troll-tusk",
+                "chance": 60
               }
             ]
           },
@@ -43864,11 +44811,15 @@
           {
             "slot": "bag",
             "tileId": "basic-bag",
-            "chance": 25,
+            "chance": 100,
             "contents": [
               {
                 "tileId": "skin",
-                "chance": 100
+                "chance": 25
+              },
+              {
+                "tileId": "rabbit-foot",
+                "chance": 60
               }
             ]
           }
@@ -58269,6 +59220,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "imp-horn",
+                "chance": 60
+              },
+              {
                 "tileId": "hand-lantern",
                 "chance": 100
               },
@@ -59287,6 +60242,10 @@
               {
                 "tileId": "arcane-stone",
                 "chance": 10
+              },
+              {
+                "tileId": "cyclops-eye",
+                "chance": 80
               }
             ]
           }
@@ -60506,6 +61465,17 @@
             "slot": "offhand",
             "tileId": "green-potion",
             "chance": 5
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "water-slime-jelly",
+                "chance": 75
+              }
+            ]
           }
         ],
         "elements": [
@@ -61978,6 +62948,17 @@
             "slot": "offhand",
             "tileId": "green-potion",
             "chance": 5
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "fire-slime-jelly",
+                "chance": 75
+              }
+            ]
           }
         ],
         "elements": [
@@ -63412,6 +64393,17 @@
             "slot": "offhand",
             "tileId": "green-potion",
             "chance": 5
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "nature-slime-jelly",
+                "chance": 75
+              }
+            ]
           }
         ],
         "elements": [
@@ -74045,6 +75037,17 @@
             "slot": "offhand",
             "tileId": "rune-cinder",
             "chance": 1
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "wisp-ash",
+                "chance": 70
+              }
+            ]
           }
         ]
       },
@@ -74653,6 +75656,17 @@
             "slot": "offhand",
             "tileId": "rune-sleet",
             "chance": 1
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "wisp-dew",
+                "chance": 70
+              }
+            ]
           }
         ]
       },
@@ -75261,6 +76275,17 @@
             "slot": "offhand",
             "tileId": "rune-barbs",
             "chance": 1
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "wisp-spore",
+                "chance": 70
+              }
+            ]
           }
         ]
       },
@@ -104262,6 +105287,10 @@
               {
                 "tileId": "skin",
                 "chance": 80
+              },
+              {
+                "tileId": "bear-claw",
+                "chance": 75
               }
             ]
           }
@@ -110260,6 +111289,10 @@
               {
                 "tileId": "wolf-skin",
                 "chance": 50
+              },
+              {
+                "tileId": "yeti-fur",
+                "chance": 80
               }
             ]
           }
@@ -180640,6 +181673,7 @@
   {
     "id": "rat-tail",
     "name": "Rat Tail",
+    "description": "Bald and pink, off a rat. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180681,6 +181715,7 @@
   {
     "id": "bat-wing",
     "name": "Bat Wing",
+    "description": "Skin stretched over fingers, off a bat. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180722,6 +181757,7 @@
   {
     "id": "rabbit-foot",
     "name": "Rabbit's Foot",
+    "description": "Soft, and lucky for somebody other than the rabbit. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180763,6 +181799,7 @@
   {
     "id": "snake-fang",
     "name": "Snake Fang",
+    "description": "Hollow, with venom still in it. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180804,6 +181841,7 @@
   {
     "id": "imp-horn",
     "name": "Imp Horn",
+    "description": "A twisted horn, off a bog imp. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180845,6 +181883,7 @@
   {
     "id": "bear-claw",
     "name": "Bear Claw",
+    "description": "As long as a finger, and sharper. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180886,6 +181925,7 @@
   {
     "id": "troll-tusk",
     "name": "Troll Tusk",
+    "description": "Yellowed ivory, off a cave troll. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180927,6 +181967,7 @@
   {
     "id": "yeti-fur",
     "name": "Yeti Fur",
+    "description": "A white tuft that never gets wet. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -180968,6 +182009,7 @@
   {
     "id": "cyclops-eye",
     "name": "Cyclops Eye",
+    "description": "Still looking at you. The tanner buys them.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181009,6 +182051,7 @@
   {
     "id": "nature-slime-jelly",
     "name": "Slime Jelly",
+    "description": "Green, and it wobbles. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181050,6 +182093,7 @@
   {
     "id": "water-slime-jelly",
     "name": "Water Slime Jelly",
+    "description": "Blue, and cold to hold. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181091,6 +182135,7 @@
   {
     "id": "fire-slime-jelly",
     "name": "Fire Slime Jelly",
+    "description": "Red, and warm to hold. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181132,6 +182177,7 @@
   {
     "id": "wisp-ash",
     "name": "Wisp Ash",
+    "description": "What is left of an ember wisp. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181173,6 +182219,7 @@
   {
     "id": "wisp-dew",
     "name": "Wisp Dew",
+    "description": "What is left of a tide wisp. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -181214,6 +182261,7 @@
   {
     "id": "wisp-spore",
     "name": "Wisp Spore",
+    "description": "What is left of a moss wisp. The potion seller buys it.",
     "height": 0,
     "type": "simple",
     "kind": "item",
