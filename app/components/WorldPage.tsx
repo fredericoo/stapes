@@ -7,6 +7,7 @@ import { DeathScreen } from "./DeathScreen";
 import { FeedbackButton } from "./FeedbackButton";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
+import type { PileActions } from "./ContainerPanel";
 import { InkDocument } from "./InkDocument";
 import { LightingToggle } from "./LightingToggle";
 import { LoadingScreen } from "./LoadingScreen";
@@ -176,12 +177,20 @@ export function WorldPage({
     [],
   );
   const canMoveItem = useCallback(
-    (from: SlotRef, to: SlotRef) => sessionRef.current?.canMoveItem(from, to) ?? false,
+    (from: SlotRef, to: SlotRef, count?: number) =>
+      sessionRef.current?.canMoveItem(from, to, count) ?? false,
     [],
   );
-  const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
-    sessionRef.current?.moveItem(from, to);
+  const moveItem = useCallback((from: SlotRef, to: SlotRef, count?: number) => {
+    sessionRef.current?.moveItem(from, to, count);
   }, []);
+  const piles = useMemo<PileActions>(
+    () => ({
+      canSplit: (slot, count) => sessionRef.current?.canSplitPile(slot, count) ?? false,
+      split: (slot, count) => sessionRef.current?.splitPile(slot, count),
+    }),
+    [],
+  );
   const consumeItem = useCallback((slot: SlotRef) => {
     sessionRef.current?.consume({ kind: "slot", slot });
   }, []);
@@ -206,11 +215,14 @@ export function WorldPage({
     },
     [],
   );
-  const dropOnWorld = useCallback((from: SlotRef, point: { x: number; y: number }) => {
-    const cell = rendererRef.current?.dropCellAt(point.x, point.y);
-    if (cell) sessionRef.current?.drop(from, cell);
-    rendererRef.current?.setDropGhost(null);
-  }, []);
+  const dropOnWorld = useCallback(
+    (from: SlotRef, point: { x: number; y: number }, count?: number) => {
+      const cell = rendererRef.current?.dropCellAt(point.x, point.y);
+      if (cell) sessionRef.current?.drop(from, cell, count);
+      rendererRef.current?.setDropGhost(null);
+    },
+    [],
+  );
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const coarse = useCoarsePointer();
@@ -569,6 +581,7 @@ export function WorldPage({
                 onOpenContainer={openContainer}
                 canMoveItem={canMoveItem}
                 onMoveItem={moveItem}
+                piles={piles}
                 onConsumeItem={consumeItem}
                 onDragOverWorld={dragOverWorld}
                 onDropOnWorld={dropOnWorld}

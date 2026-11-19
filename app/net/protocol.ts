@@ -476,8 +476,9 @@ export type ClientMessage =
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
   | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
   | { type: "equip"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { type: "moveItem"; from: SlotRef; to: SlotRef }
-  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number } }
+  | { type: "moveItem"; from: SlotRef; to: SlotRef; count?: number }
+  | { type: "splitPile"; slot: SlotRef; count: number }
+  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number }; count?: number }
   | { type: "consume"; from: ConsumeSource }
   | { type: "talk"; action: TalkAction }
   | {
@@ -527,6 +528,8 @@ const inboundSlotRefSchema = v.variant("kind", [
   }),
 ]);
 
+const pileCountSchema = v.pipe(v.number(), v.integer(), v.minValue(1));
+
 const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("step"),
@@ -559,6 +562,12 @@ const clientMessageSchema = v.variant("type", [
     type: v.literal("moveItem"),
     from: inboundSlotRefSchema,
     to: inboundSlotRefSchema,
+    count: v.optional(pileCountSchema),
+  }),
+  v.object({
+    type: v.literal("splitPile"),
+    slot: inboundSlotRefSchema,
+    count: pileCountSchema,
   }),
   v.object({
     type: v.literal("drop"),
@@ -568,6 +577,7 @@ const clientMessageSchema = v.variant("type", [
       y: v.pipe(v.number(), v.integer()),
       z: v.pipe(v.number(), v.integer()),
     }),
+    count: v.optional(pileCountSchema),
   }),
   v.object({
     type: v.literal("consume"),

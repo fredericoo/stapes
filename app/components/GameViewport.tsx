@@ -18,7 +18,7 @@ import { TalkAnchorChannel } from "../render/talkBubble";
 import { tilesByIdFromList } from "../lib/validation";
 import { AppMenuButton } from "./AppShell";
 import { ChatBar, ChatButton } from "./ChatBar";
-import { ContainerPanel } from "./ContainerPanel";
+import { ContainerPanel, type PileActions } from "./ContainerPanel";
 import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { HealthGauge } from "./HealthGauge";
@@ -35,7 +35,7 @@ import { RatingUpBanner } from "./RatingUpBanner";
 import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
-import { useItemDrag } from "./useItemDrag";
+import { useItemDrag, type HeldItem } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 import { HudWindow } from "./HudWindow";
 import { WindowStack } from "./WindowStack";
@@ -90,6 +90,7 @@ export function GameViewport({
   onOpenContainer,
   canMoveItem = () => false,
   onMoveItem,
+  piles,
   onConsumeItem,
   onDragOverWorld,
   onDropOnWorld,
@@ -124,11 +125,12 @@ export function GameViewport({
   statusDefs?: Record<string, StatusDef>;
   openedContainer?: OpenedContainer | null;
   onOpenContainer?: (ref: ObjectRef | null) => void;
-  canMoveItem?: (from: SlotRef, to: SlotRef) => boolean;
-  onMoveItem?: (from: SlotRef, to: SlotRef) => void;
+  canMoveItem?: (from: SlotRef, to: SlotRef, count?: number) => boolean;
+  onMoveItem?: (from: SlotRef, to: SlotRef, count?: number) => void;
+  piles?: PileActions;
   onConsumeItem?: (slot: SlotRef) => void;
   onDragOverWorld?: (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => void;
-  onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }) => void;
+  onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }, count?: number) => void;
   spells?: SpellButton[];
   onCast?: (slot: CastSlot) => void;
   onStopCast?: () => void;
@@ -141,7 +143,10 @@ export function GameViewport({
   useNoZoom(coarse);
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
-  const move = useCallback((from: SlotRef, to: SlotRef) => onMoveItem?.(from, to), [onMoveItem]);
+  const move = useCallback(
+    (from: SlotRef, to: SlotRef, count?: number) => onMoveItem?.(from, to, count),
+    [onMoveItem],
+  );
   const cast = useCallback((slot: CastSlot) => onCast?.(slot), [onCast]);
   const stopCast = useCallback(() => onStopCast?.(), [onStopCast]);
   const world = useMemo(
@@ -162,8 +167,8 @@ export function GameViewport({
               }
             : null,
         ),
-      drop: (held: { instance: ItemInstance; from: SlotRef }, point: { x: number; y: number }) =>
-        onDropOnWorld?.(held.from, point),
+      drop: (held: HeldItem, point: { x: number; y: number }) =>
+        onDropOnWorld?.(held.from, point, held.count),
     }),
     [onDragOverWorld, onDropOnWorld],
   );
@@ -385,6 +390,7 @@ export function GameViewport({
         masteryXp={masteryXp}
         statusDefs={statusDefs}
         statuses={statuses}
+        piles={piles}
       />
     ) : null;
   const handWindow =
@@ -401,6 +407,7 @@ export function GameViewport({
         masteryXp={masteryXp}
         statusDefs={statusDefs}
         statuses={statuses}
+        piles={piles}
       />
     ) : null;
   const containerWindow = openedContainer ? (
@@ -416,6 +423,7 @@ export function GameViewport({
       masteryXp={masteryXp}
       statusDefs={statusDefs}
       statuses={statuses}
+      piles={piles}
     />
   ) : null;
 

@@ -1,8 +1,17 @@
 import { getStack, replaceStack } from "../lib/mapData";
 import type { ItemDef } from "../lib/item";
-import { resolveContainer, resolveItem } from "../lib/item";
-import type { ItemInstance } from "../lib/itemInstance";
-import { countOf, fuses, peelOne, pourInto, stow, stowFits, withCount } from "../lib/piles";
+import { pileMax, resolveContainer, resolveItem } from "../lib/item";
+import { mintItemId, type ItemInstance } from "../lib/itemInstance";
+import {
+  canSplit,
+  countOf,
+  fuses,
+  pourInto,
+  stow,
+  stowFilling,
+  stowFits,
+  withCount,
+} from "../lib/piles";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { equipSlotsFor, reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
@@ -289,6 +298,78 @@ export function stashInContainer(
 
 export type ItemMoveResult = { map: MapFile; equipment: Equipment };
 
+/**
+ * How many of `moving` a drop onto `onto` pours in: as many as the pile has
+ * room for, so it lands partly and the rest stays where it came from. Zero
+ * when the two are not the same kind of plain pile, or `onto` is full.
+ */
+export function roomToTopUp(
+  onto: ItemInstance,
+  moving: ItemInstance,
+  tilesById: Record<string, TileDef>,
+): number {
+  if (!fuses(onto, withCount(moving, 1), tilesById)) return 0;
+  return Math.min(countOf(moving), pileMax(tilesById[onto.tileId]!) - countOf(onto));
+}
+
+/**
+ * Lands as much of `moving` as fits in the container `to` is a square of,
+ * whichever square that is: many callers name the first square to mean the
+ * container, so only a move inside one container goes by the square.
+ */
+export function landInContainer(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  to: SlotRef,
+  moving: ItemInstance,
+): (ItemMoveResult & { poured: number }) | null {
+  const container = containerOfSlot(to);
+  if (!container) return null;
+  let poured = 0;
+  const landed = editContents(map, tilesById, actor, equipment, container, (contents, capacity) => {
+    const stowed = stowFilling(contents, moving, capacity, tilesById);
+    poured = stowed?.landed ?? 0;
+    return stowed?.list ?? null;
+  });
+  return landed && { ...landed, poured };
+}
+
+/** Pours as much of `moving` as fits into the pile of its kind already in `to`, or null when none does. */
+export function topUpSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  to: SlotRef,
+  moving: ItemInstance,
+): (ItemMoveResult & { poured: number }) | null {
+  const onto = itemInSlot(map, tilesById, actor, equipment, to);
+  const poured = onto ? roomToTopUp(onto, moving, tilesById) : 0;
+  if (!onto || poured === 0) return null;
+  const filled = replaceInSlot(
+    map,
+    tilesById,
+    actor,
+    equipment,
+    to,
+    withCount(onto, countOf(onto) + poured),
+  );
+  return filled && { ...filled, poured };
+}
+
+/**
+ * The part of a pile a move carries: the whole of it when `count` is absent or
+ * covers it, otherwise a new pile under a new id, since the one left behind
+ * keeps the old one.
+ */
+export function portionOf(instance: ItemInstance, count?: number): ItemInstance | null {
+  if (count === undefined || count >= countOf(instance)) return instance;
+  if (!canSplit(instance, count)) return null;
+  return withCount({ ...instance, id: mintItemId() }, count);
+}
+
 export function applyItemMove(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -296,21 +377,106 @@ export function applyItemMove(
   equipment: Equipment,
   from: SlotRef,
   to: SlotRef,
+  count?: number,
 ): ItemMoveResult | null {
-  if (sameContainer(from, to)) return null;
+  if (slotKey(from) === slotKey(to)) return null;
 
   const instance = itemInSlot(map, tilesById, actor, equipment, from);
   if (!instance) return null;
   if (!instance.id) return null;
   if (stoneLocked(instance, tilesById)) return null;
-  if (!slotAccepts(to.kind, instance, tilesById)) return null;
-  if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) {
-    return isBodySlot(to) ? swapInto(map, tilesById, actor, equipment, from, to, instance) : null;
+  const moving = portionOf(instance, count);
+  if (!moving) return null;
+  if (!slotAccepts(to.kind, moving, tilesById)) return null;
+
+  const same = sameContainer(from, to);
+  const landed =
+    same || isBodySlot(to)
+      ? topUpSlot(map, tilesById, actor, equipment, to, moving)
+      : landInContainer(map, tilesById, actor, equipment, to, moving);
+  if (landed) {
+    return takeFromSlot(landed.map, tilesById, actor, landed.equipment, from, landed.poured);
+  }
+  if (same || !isBodySlot(to)) return null;
+  if (!slotHasRoom(map, tilesById, actor, equipment, to, moving)) {
+    if (moving !== instance || !isBodySlot(to)) return null;
+    return swapInto(map, tilesById, actor, equipment, from, to, instance);
   }
 
-  const emptied = clearSlot(map, tilesById, actor, equipment, from);
+  const emptied = takeFromSlot(map, tilesById, actor, equipment, from, countOf(moving));
   if (!emptied) return null;
-  return fillSlot(emptied.map, tilesById, actor, emptied.equipment, to, instance);
+  return fillSlot(emptied.map, tilesById, actor, emptied.equipment, to, moving);
+}
+
+export function containerOfSlot(slot: SlotRef): ContainerRef | null {
+  if (slot.kind === "contents") {
+    return slot.of ? { kind: "hand", hand: slot.of } : { kind: "bag" };
+  }
+  if (slot.kind === "ground" || slot.kind === "depot") return { kind: slot.kind, ref: slot.ref };
+  return null;
+}
+
+/**
+ * Rewrites the contents of a bag, a held container or one on the ground. A
+ * depot's contents are the player's rather than the map's, so `depot.ts`
+ * edits those.
+ */
+function editContents(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  container: ContainerRef,
+  edit: (contents: readonly ItemInstance[], capacity: number) => ItemInstance[] | null,
+): ItemMoveResult | null {
+  if (container.kind === "depot") return null;
+  if (container.kind === "ground") {
+    const placed = groundContainerAt(map, tilesById, actor, container.ref);
+    const def = placed && tilesById[placed.tileId];
+    if (!placed || !def) return null;
+    const next = edit(placed.contents ?? [], resolveContainer(def)?.size ?? 0);
+    return next && { map: withGroundContents(map, container.ref, next), equipment };
+  }
+  const where = container.kind === "bag" ? "bag" : container.hand;
+  const holder = equipment[where];
+  if (!holder) return null;
+  const next = edit(holder.contents ?? [], capacityOf(holder, tilesById));
+  return next && { map, equipment: { ...equipment, [where]: { ...holder, contents: next } } };
+}
+
+/** Splits `count` off the pile at `index` into a square of its own, beside it. */
+export function splitInList(
+  contents: readonly ItemInstance[],
+  index: number,
+  count: number,
+  capacity: number,
+): ItemInstance[] | null {
+  const pile = contents[index];
+  if (!pile?.id || !canSplit(pile, count) || contents.length >= capacity) return null;
+  const taken = portionOf(pile, count)!;
+  return [
+    ...contents.slice(0, index),
+    withCount(pile, countOf(pile) - count),
+    taken,
+    ...contents.slice(index + 1),
+  ];
+}
+
+export function splitSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  slot: SlotRef,
+  count: number,
+): ItemMoveResult | null {
+  const container = containerOfSlot(slot);
+  if (!container || !("index" in slot)) return null;
+  const instance = itemInSlot(map, tilesById, actor, equipment, slot);
+  if (!instance || stoneLocked(instance, tilesById)) return null;
+  return editContents(map, tilesById, actor, equipment, container, (contents, capacity) =>
+    splitInList(contents, slot.index, count, capacity),
+  );
 }
 
 export function canMoveItem(
@@ -407,12 +573,40 @@ export function peelSlot(
   equipment: Equipment,
   slot: SlotRef,
 ): ItemMoveResult | null {
+  return takeFromSlot(map, tilesById, actor, equipment, slot, 1);
+}
+
+export function takeFromSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  slot: SlotRef,
+  count: number,
+): ItemMoveResult | null {
   const instance = itemInSlot(map, tilesById, actor, equipment, slot);
   if (!instance) return null;
-  const left = peelOne(instance);
-  if (!left) return clearSlot(map, tilesById, actor, equipment, slot);
+  if (count >= countOf(instance)) return clearSlot(map, tilesById, actor, equipment, slot);
+  return replaceInSlot(
+    map,
+    tilesById,
+    actor,
+    equipment,
+    slot,
+    withCount(instance, countOf(instance) - count),
+  );
+}
 
+function replaceInSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  slot: SlotRef,
+  left: ItemInstance,
+): ItemMoveResult | null {
   if (isBodySlot(slot)) {
+    if (!equipment[slot.kind]) return null;
     return { map, equipment: { ...equipment, [slot.kind]: left } };
   }
   if (slot.kind === "contents") {

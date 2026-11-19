@@ -476,7 +476,18 @@ type QueuedStep = {
 
 type BoardAction = Extract<
   ClientMessage,
-  { type: "interact" | "pickUp" | "equip" | "moveItem" | "drop" | "consume" | "talk" | "craft" }
+  {
+    type:
+      | "interact"
+      | "pickUp"
+      | "equip"
+      | "moveItem"
+      | "splitPile"
+      | "drop"
+      | "consume"
+      | "talk"
+      | "craft";
+  }
 >;
 
 /**
@@ -495,12 +506,15 @@ type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
 function applyBoardAction(session: GameSession, actorId: string, message: BoardAction) {
   if (message.type === "pickUp") session.pickUp(message.ref, actorId);
   else if (message.type === "equip") session.equip(message.ref, actorId);
-  else if (message.type === "moveItem") session.moveItem(message.from, message.to, actorId);
+  else if (message.type === "moveItem") {
+    session.moveItem(message.from, message.to, message.count, actorId);
+  } else if (message.type === "splitPile") session.splitPile(message.slot, message.count, actorId);
   else if (message.type === "consume") session.consume(message.from, actorId);
   else if (message.type === "talk") session.talk(message.action, actorId);
   else if (message.type === "craft") session.craft(message.ref, message.recipe, actorId);
-  else if (message.type === "drop") session.drop(message.from, message.to, actorId);
-  else session.interact(message.ref, actorId);
+  else if (message.type === "drop") {
+    session.drop(message.from, message.to, message.count, actorId);
+  } else session.interact(message.ref, actorId);
 }
 
 type Checkpoint = {

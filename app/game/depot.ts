@@ -3,16 +3,23 @@ import { resolveDepot, type PlacedDepot } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import { mintItemId, type ItemInstance } from "../lib/itemInstance";
 import { getStack } from "../lib/mapData";
-import { stow } from "../lib/piles";
+import { countOf, stowFilling, withCount } from "../lib/piles";
 import type { MapFile, TileDef } from "../lib/types";
 import { coveredBySomething, withinReach, type Actor, type ObjectRef } from "./affordances";
 import { stoneLocked, type Equipment } from "./equipment";
 import {
   applyItemMove,
-  clearSlot,
+  isBodySlot,
   itemInSlot,
+  landInContainer,
   placeInSlot,
+  portionOf,
+  roomToTopUp,
   slotAccepts,
+  splitInList,
+  splitSlot,
+  takeFromSlot,
+  topUpSlot,
   type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
@@ -53,12 +60,84 @@ export function applyDepotMove(
   depots: Depots,
   from: SlotRef,
   to: SlotRef,
+  count?: number,
 ): DepotMoveResult | null {
-  if (from.kind === "depot" && to.kind === "depot") return null;
-  if (from.kind === "depot") return withdraw(map, tilesById, actor, equipment, depots, from, to);
-  if (to.kind === "depot") return deposit(map, tilesById, actor, equipment, depots, from, to);
-  const moved = applyItemMove(map, tilesById, actor, equipment, from, to);
+  if (from.kind === "depot" && to.kind === "depot") {
+    return withinDepot(map, tilesById, actor, equipment, depots, from, to, count);
+  }
+  if (from.kind === "depot") {
+    return withdraw(map, tilesById, actor, equipment, depots, from, to, count);
+  }
+  if (to.kind === "depot") {
+    return deposit(map, tilesById, actor, equipment, depots, from, to, count);
+  }
+  const moved = applyItemMove(map, tilesById, actor, equipment, from, to, count);
   return moved && { ...moved, depots };
+}
+
+function topUpStash(
+  stash: readonly ItemInstance[],
+  index: number,
+  moving: ItemInstance,
+  tilesById: Record<string, TileDef>,
+): { stash: ItemInstance[]; poured: number } | null {
+  const onto = stash[index];
+  const poured = onto ? roomToTopUp(onto, moving, tilesById) : 0;
+  if (!onto || poured === 0) return null;
+  return {
+    stash: stash.map((held, i) => (i === index ? withCount(held, countOf(held) + poured) : held)),
+    poured,
+  };
+}
+
+function lessOf(stash: readonly ItemInstance[], index: number, count: number): ItemInstance[] {
+  const held = stash[index]!;
+  return countOf(held) <= count
+    ? stash.filter((_, i) => i !== index)
+    : stash.map((one, i) => (i === index ? withCount(one, countOf(one) - count) : one));
+}
+
+/** A depot square onto a pile of its kind in the same depot; anywhere else in a depot is no move. */
+function withinDepot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  depots: Depots,
+  from: DepotSlotRef,
+  to: DepotSlotRef,
+  count?: number,
+): DepotMoveResult | null {
+  if (from.index === to.index) return null;
+  const depot = depotAt(map, tilesById, actor, from.ref);
+  if (!depot || depotAt(map, tilesById, actor, to.ref)?.tag !== depot.tag) return null;
+  const stash = stashIn(depots, depot.tag);
+  const instance = stash[from.index];
+  const moving = instance && portionOf(instance, count);
+  if (!moving) return null;
+  const topped = topUpStash(stash, to.index, moving, tilesById);
+  if (!topped) return null;
+  const left = lessOf(topped.stash, from.index, topped.poured);
+  return { map, equipment, depots: { ...depots, [depot.tag]: left } };
+}
+
+export function applyPileSplit(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  depots: Depots,
+  slot: SlotRef,
+  count: number,
+): DepotMoveResult | null {
+  if (slot.kind !== "depot") {
+    const split = splitSlot(map, tilesById, actor, equipment, slot, count);
+    return split && { ...split, depots };
+  }
+  const depot = depotAt(map, tilesById, actor, slot.ref);
+  if (!depot) return null;
+  const stash = splitInList(stashIn(depots, depot.tag), slot.index, count, depot.size);
+  return stash && { map, equipment, depots: { ...depots, [depot.tag]: stash } };
 }
 
 function withdraw(
@@ -69,16 +148,27 @@ function withdraw(
   depots: Depots,
   from: DepotSlotRef,
   to: SlotRef,
+  count?: number,
 ): DepotMoveResult | null {
   const depot = depotAt(map, tilesById, actor, from.ref);
   if (!depot) return null;
   const stash = stashIn(depots, depot.tag);
   const instance = stash[from.index];
   if (!instance) return null;
+  const moving = portionOf(instance, count);
+  if (!moving) return null;
 
-  const placed = placeInSlot(map, tilesById, actor, equipment, to, instance);
+  if (!slotAccepts(to.kind, moving, tilesById)) return null;
+  const landed = isBodySlot(to)
+    ? topUpSlot(map, tilesById, actor, equipment, to, moving)
+    : landInContainer(map, tilesById, actor, equipment, to, moving);
+  if (landed) {
+    const { poured, ...result } = landed;
+    return { ...result, depots: { ...depots, [depot.tag]: lessOf(stash, from.index, poured) } };
+  }
+  const placed = placeInSlot(map, tilesById, actor, equipment, to, moving);
   if (!placed) return null;
-  const left = stash.filter((_, i) => i !== from.index);
+  const left = lessOf(stash, from.index, countOf(moving));
   return { ...placed, depots: { ...depots, [depot.tag]: left } };
 }
 
@@ -90,6 +180,7 @@ function deposit(
   depots: Depots,
   from: SlotRef,
   to: DepotSlotRef,
+  count?: number,
 ): DepotMoveResult | null {
   const depot = depotAt(map, tilesById, actor, to.ref);
   if (!depot) return null;
@@ -97,12 +188,13 @@ function deposit(
   if (!instance?.id) return null;
   if (stoneLocked(instance, tilesById)) return null;
   if (!slotAccepts("depot", instance, tilesById)) return null;
+  const moving = portionOf(instance, count);
+  if (!moving) return null;
 
-  const stashed = stow(stashIn(depots, depot.tag), instance, depot.size, tilesById);
-  if (!stashed) return null;
-  const emptied = clearSlot(map, tilesById, actor, equipment, from);
-  if (!emptied) return null;
-  return { ...emptied, depots: { ...depots, [depot.tag]: stashed } };
+  const stowed = stowFilling(stashIn(depots, depot.tag), moving, depot.size, tilesById);
+  if (!stowed) return null;
+  const emptied = takeFromSlot(map, tilesById, actor, equipment, from, stowed.landed);
+  return emptied && { ...emptied, depots: { ...depots, [depot.tag]: stowed.list } };
 }
 
 const savedDepotsSchema = v.record(

@@ -1,5 +1,5 @@
 import type { TileDef, TilesetDef } from "../lib/types";
-import type { ItemDrag } from "./useItemDrag";
+import { carriedCount, type ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
 const FRONT = "s" as const;
@@ -17,6 +17,7 @@ export function DragLayer({
 }) {
   const held = drag.held;
   const tile = held ? (tilesById[held.instance.tileId] ?? null) : null;
+  const carried = held ? carriedCount(held) : 0;
 
   return (
     <div
@@ -25,7 +26,7 @@ export function DragLayer({
       style={{ visibility: held ? "visible" : "hidden" }}
       aria-hidden="true"
     >
-      <div style={{ transform: "translate(-50%, -50%)" }}>
+      <div className="relative" style={{ transform: "translate(-50%, -50%)" }}>
         {tile ? (
           <TilePreview
             tile={tile}
@@ -36,6 +37,11 @@ export function DragLayer({
             chrome={false}
             background={null}
           />
+        ) : null}
+        {carried > 1 ? (
+          <span className="absolute right-0 bottom-0 text-2xs leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]">
+            {`\u00d7${carried}`}
+          </span>
         ) : null}
       </div>
     </div>
