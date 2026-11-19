@@ -124355,5 +124355,575 @@
         }
       ]
     }
+  },
+  {
+    "id": "runemaster",
+    "name": "Runemaster",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "people",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ],
+        "traits": []
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Welcome to the temple, {partner}. Mind the forges; they are older than the town."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "What are the forges for?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Each one takes one material. Bone at the white forge, crystal at the blue, obsidian at the black one."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Shape your material into a blank there, then bring the blank to me."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "What do you do with a blank?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "I carve the mark. Bring an essence with it and the rune takes that element. Bring none and it stays plain."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Go well."
+                  },
+                  {
+                    "kind": "exit"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 18,
+        "masteries": {
+          "fist": 5,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 30,
+          "toughness": 10,
+          "agility": 15,
+          "fire": 1,
+          "water": 1,
+          "nature": 20
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "white",
+      "head": "beard",
+      "outfit": {
+        "hat": "druid-hood",
+        "clothes": "druid-robe",
+        "shoes": "brown-boots",
+        "weaponHand": "staff"
+      }
+    }
   }
 ]

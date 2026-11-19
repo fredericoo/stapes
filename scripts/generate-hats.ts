@@ -55,6 +55,7 @@ const ICON_PX = 0.62;
 const BROWN = ["#45293f", "#6e2727", "#9e4539"];
 const STEEL = ["#3e3546", "#7f708a", "#9babb2", "#c7dcd0"];
 const GREEN = ["#165a4c", "#239063", "#1ebc73", "#91db69"];
+const MOSS = ["#165a4c", "#239063", "#1ebc73"];
 const RED = ["#ae2334", "#e83b3b"];
 const WOLF = ["#3e3546", "#694f62", "#7f708a", "#9babb2"];
 const PALE = ["#7f708a", "#9babb2", "#ffffff"];
@@ -166,6 +167,25 @@ const HATS: Record<PartOn<"hat">, HatModel> = {
           weight: 2,
         },
       ]),
+    ],
+  },
+  "druid-hood": {
+    opensToFace: true,
+    solids: (c, x) => [
+      {
+        sdf: above(sphere(at(c, [x.up, 0.3], [x.fw, -0.15]), HEAD_R + 0.5), c[2] - 0.5),
+        ramp: MOSS,
+      },
+      {
+        sdf: cone(
+          at(c, [x.up, 1.2], [x.fw, -0.9]),
+          add(scale(x.fw, -1), scale(x.up, 0.35)),
+          2.2,
+          0.9,
+        ),
+        ramp: MOSS,
+        weight: 1.5,
+      },
     ],
   },
 };
