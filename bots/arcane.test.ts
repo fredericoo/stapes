@@ -39,7 +39,7 @@ describe("bestBolt", () => {
     }));
 
   it("throws water at a fire body, though fire hits harder on paper", () => {
-    const buttons = hands({ weapon: "arcane-stone-of-cinder", offhand: "arcane-stone-of-sleet" });
+    const buttons = hands({ weapon: "rune-cinder", offhand: "rune-sleet" });
 
     expect(bestBolt(buttons, tilesById, caster, ["fire"])).toEqual(squareSlot("offhand"));
     expect(bestBolt(buttons, tilesById, caster, [])).toEqual(squareSlot("weapon"));
@@ -47,7 +47,7 @@ describe("bestBolt", () => {
 
   it("throws magic at a body in plate and a blow at one with high Arcane", () => {
     const sling: TileDef = {
-      ...tilesById["arcane-stone-of-spark"]!,
+      ...tilesById["rune-spark"]!,
       id: "sling-stone",
       interactions: {
         item: {
@@ -59,7 +59,7 @@ describe("bestBolt", () => {
       },
     };
     const withSling = { ...tilesById, [sling.id]: sling };
-    const buttons = hands({ weapon: "arcane-stone-of-spark", offhand: "sling-stone" });
+    const buttons = hands({ weapon: "rune-spark", offhand: "sling-stone" });
     const plated = { guard: { def: 20, resist: {} }, masteries: {} };
     const adept = { guard: { def: 0, resist: {} }, masteries: { arcane: 80 } };
 
@@ -69,10 +69,10 @@ describe("bestBolt", () => {
 
   it("passes over a stone that is still cooling", () => {
     const buttons = [
-      ...hands({ offhand: "arcane-stone-of-sleet" }),
+      ...hands({ offhand: "rune-sleet" }),
       {
         slot: squareSlot("weapon"),
-        tileId: "arcane-stone-of-cinder",
+        tileId: "rune-cinder",
         castability: { ok: false, reason: "cooling" } as const,
       },
     ];
@@ -90,7 +90,7 @@ describe("forgeOrders", () => {
   });
 
   it("merges a pair only once what it makes can be cast and outworths either stone", () => {
-    const cinders = ["arcane-stone-of-cinder", "arcane-stone-of-cinder"];
+    const cinders = ["rune-cinder", "rune-cinder"];
 
     expect(recipes(cinders, { arcane: 10 })).toEqual([]);
     expect(recipes(cinders, { arcane: 20, fire: 5 })).toEqual([]);

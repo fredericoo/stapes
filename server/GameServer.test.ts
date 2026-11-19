@@ -4004,7 +4004,7 @@ describe("saving authored content", () => {
 });
 
 describe("tile transitions", () => {
-  const STONE = "arcane-stone-of-flame";
+  const STONE = "rune-flame";
 
   function tilesWithInstantStone() {
     return (tilesJson as Array<Record<string, unknown>>).map((def) => {
@@ -4180,7 +4180,7 @@ describe("a pull somebody else is making", () => {
 });
 
 describe("a cast somebody else is making", () => {
-  const STONE = "arcane-stone-of-flame";
+  const STONE = "rune-flame";
 
   const CAST_MS = 2_000;
 

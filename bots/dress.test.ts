@@ -74,17 +74,13 @@ describe("nextDressing", () => {
     const sword = { weapon: { id: "s", tileId: "rusty-sword" } };
     const xp = { arcane: xpForLevel(3) };
 
-    const one = dressed(kit(sword, ["arcane-stone-of-spark"]), "arcane", xp);
+    const one = dressed(kit(sword, ["rune-spark"]), "arcane", xp);
     expect(one.equipment.weapon?.tileId).toBe("rusty-sword");
-    expect(one.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
+    expect(one.equipment.offhand?.tileId).toBe("rune-spark");
 
-    const two = dressed(
-      kit(sword, ["arcane-stone-of-spark", "arcane-stone-of-spark"]),
-      "arcane",
-      xp,
-    );
-    expect(two.equipment.weapon?.tileId).toBe("arcane-stone-of-spark");
-    expect(two.equipment.offhand?.tileId).toBe("arcane-stone-of-spark");
+    const two = dressed(kit(sword, ["rune-spark", "rune-spark"]), "arcane", xp);
+    expect(two.equipment.weapon?.tileId).toBe("rune-spark");
+    expect(two.equipment.offhand?.tileId).toBe("rune-spark");
     expect(two.dropped).toEqual(["rusty-sword"]);
   });
 

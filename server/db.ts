@@ -1,6 +1,7 @@
 import { connect } from "@tursodatabase/database";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { TILE_ID_PREFIX_RENAMES, renameTileIdsSql } from "../app/lib/tileRenames";
 
 export type Database = Awaited<ReturnType<typeof connect>>;
 
@@ -146,6 +147,7 @@ const MIGRATIONS: readonly string[] = [
   `ALTER TABLE character ADD COLUMN appearance TEXT`,
   `CREATE TABLE IF NOT EXISTS character_serial (serial INTEGER PRIMARY KEY AUTOINCREMENT)`,
   `DROP TABLE IF EXISTS reign`,
+  renameTileIdsSql(TILE_ID_PREFIX_RENAMES[0]!, "kv", "value"),
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {
