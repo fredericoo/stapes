@@ -629,8 +629,8 @@ water; they talk about runes as tools.
   - "The wolves come to the plots after midnight. Eighteen deaths, and they
     were half of them."
 - **Game support**: a guard's brain with a night patrol on `time_of_day` and a
-  day's sleep in a bed. A light that follows her needs a carried light, which
-  players have; whether an NPC can hold one needs checking.
+  day's sleep in a bed. Her Light rune is a carried light, which an NPC can
+  hold.
 
 ## The warriors' town
 
@@ -669,9 +669,10 @@ holds off magic.
   - "Iolanthe thinks we should wait and see what breaking it does. I've waited a
     hundred and thirty years. I've seen."
 - **Game support**: a dialog. She fights with a greataxe and the
-  `townsfolk-fight` trait. Keeping a list of players and matching them into a
-  group is not something a dialog can do; there is no group or party system,
-  so for now she says fixed lines about it.
+  `townsfolk-fight` trait. Her list of climbers may be possible with what the
+  game has now, for example a `tag` for each player who signs up. If telling
+  a player who else is on the list needs more than that, it is a new feature
+  to add later.
 
 ### Absalom Grieve
 
@@ -1177,8 +1178,8 @@ each would need.
   needs a skull spoil per animal, or one generic `animal-skull`.
 - **Sparring.** Absalom offering a fight from dialog that stops before death does
   not exist.
-- **Groups.** Ragna Holt matching players into groups for the lighthouse needs a
-  group or party system, which the game does not have.
+- **Ragna's list of climbers** may need a new feature if it has to tell a player
+  who else signed up; a `tag` per player may be enough.
 - **Waking at the inn.** Only the towns and the camp are places to wake in the
   canon. A bed at the inn as a place to wake is a proposal.
 - **A sprite per character.** Every named NPC is a tile and needs its own sprite;
