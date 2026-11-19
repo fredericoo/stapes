@@ -1778,6 +1778,63 @@ coat's north frames are its west frames mirrored across the screen
 diagonal (`northFromWest`), moved by whatever lays the west body on the
 north one.
 
+### Every wild creature drops a spoil, and two shops buy them for cash
+
+Every creature with a `respawn` drops a part of itself on most kills: a
+`rat-tail`, `snake-fang`, `bear-claw`, a slime's jelly, a wisp's ash, dew or
+spores, and so on, drawn by `generate:spoils`. Deer, wolves and skeletons
+already did, with `skin`, `wolf-skin` and `bone`. The point is income from
+hunting, so each spoil is an `artifact` that piles to 25 and does nothing but
+sell.
+
+- **A spoil is bag contents, never a hand.** A creature's death spills its
+  bag's contents onto the floor (`spilled` in `app/game/equipment.ts`), not
+  the bag, so the pattern is a `basic-bag` at 100% with the spoil rolled
+  inside it. A spoil in a hand would compete with the weapon and food
+  entries already there, since a slot takes the first entry that rolls.
+- **The bag's 100% is required.** Contents are only kept when their bag
+  rolls. The rabbit's bag used to roll 25% with its skin at 100%; it is now
+  100% with the skin at 25%, the same odds for the skin and a bag the foot
+  can be in.
+- **The spoil goes first in a crowded bag.** `fill` stops at the bag's size,
+  in the order the contents are listed. The bog imp's four-square bag lists
+  six other things, so its `imp-horn` is first, or a horn rolled after a
+  full bag would not be kept.
+- **Spawned slimes drop nothing.** The small slimes a slime splits into have
+  no `respawn` and no kit. Giving them a spoil would pay several times for
+  one kill.
+- **Every kit entry is a draw from the session's one random stream**, so
+  adding one moves every draw after it in every seeded test that spawns the
+  creature, whatever it carries. Two brain tests sat close enough to their
+  bounds on main to turn red from that alone, and have their own seeds.
+
+| creature | spoil | chance | buyer | gold each |
+| --- | --- | --- | --- | --- |
+| rat | `rat-tail` | 75% | tanner | 1 |
+| bat | `bat-wing` | 70% | tanner | 1 |
+| rabbit | `rabbit-foot` | 60% | tanner | 1 |
+| snake | `snake-fang` | 70% | tanner | 2 |
+| bog imp | `imp-horn` | 60% | tanner | 3 |
+| bear | `bear-claw` | 75% | tanner | 5 |
+| cave troll | `troll-tusk` | 60% | tanner | 6 |
+| yeti | `yeti-fur` | 80% | tanner | 20 |
+| cyclops | `cyclops-eye` | 80% | tanner | 25 |
+| the three slimes | `*-slime-jelly` | 75% | potion salesman | 1 |
+| the three wisps | `wisp-ash`, `wisp-dew`, `wisp-spore` | 70% | potion salesman | 3 |
+| deer, rabbit, bear | `skin` | 80%, 25%, 80% | tanner | 2 |
+| wolf, snow wolf | `wolf-skin` | 100% | tanner | 3 |
+| skeleton | `bone` | 100% | tanner | 1 |
+
+Prices follow what the creature costs to kill and how often it comes back:
+an apple sells for one gold, so a rat's tail does too. The yeti (1400 hp)
+and the cyclops (1800 hp) have more hit points than any other monster and
+come back only every 30 to 45 minutes, so theirs are the only spoils worth a
+trip on their own. Each shop's Sell menu is one
+`request_trade` per spoil that takes one and pays its price as `giveCash`,
+1 to 99 at a time, like the pie maker's apples. Selling `skin` and `wolf-skin` for cash
+does not undercut the tanner's leather prices: five skins sell for ten
+gold, and a leather cap costs those five skins.
+
 **A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
 `resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
 adopted, driven and reachable exactly like one that fights. Being a battler
@@ -17314,9 +17371,12 @@ completes a purchase or what it carries is worth stashing (below), and
 otherwise `hunt`. After
 `HUNT_SPELL_MS` (four minutes) of hunting it goes to `gather` for
 `GATHER_PULLS` pulls when it knows of a resource worth working, because
-hunting grows mastery and pays in skins but the shops want cash, and on the
-shipped content cash comes only from selling mined shards to the blacksmith
-and from selling berries and apples. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
+hunting grows mastery and pays in skins but the shops want cash. On the
+shipped content, cash comes from selling mined shards to the blacksmith,
+berries and apples to the pie maker, and what creatures drop to the tanner
+and the potion salesman (see *Every wild creature drops a spoil*). A spoil
+is worth 1 to 25 gold and a large crystal yields 2 to 4 shards a pull, so
+mining is still the steady income. A goal that failed is not chosen again for `FAILED_GOAL_MS`, so a bot
 does not spend its life looking for a seller nobody has found. It does not
 interrupt a `shop`, `sell` or `gather` on the timer.
 

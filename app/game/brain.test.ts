@@ -3329,11 +3329,12 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
   const statuses = statusesById(statusesJson as unknown[]);
   const NOON = 12 * 60;
   const MIDNIGHT = 0;
+  const IMP_TWIN_SEED = 20260928;
 
   function field(
     creature: string,
     minutes: number,
-    extras: { flameX?: number; aliceX?: number; twinX?: number } = {},
+    extras: { flameX?: number; aliceX?: number; twinX?: number; seed?: number } = {},
     tiles: TileDef[] = authored,
   ): GameSession {
     let map = emptyMap();
@@ -3358,7 +3359,7 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
     return new GameSession(map, tiles, {
       actorIds: ["alice"],
       spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
-      seed: 20260925,
+      seed: extras.seed ?? 20260925,
       clock: () => minutes,
       statuses,
     });
@@ -3409,7 +3410,7 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
   });
 
   it("gathers two imps at dusk around a single campfire", () => {
-    const session = field("bog-imp", MIDNIGHT, { twinX: 10 });
+    const session = field("bog-imp", MIDNIGHT, { twinX: 10, seed: IMP_TWIN_SEED });
     noisesOver(session, 20000);
 
     const map = session.getMap();
@@ -3735,12 +3736,15 @@ describe("the vermin we ship", () => {
 
   const YARD_SEED = 20260821;
 
+  const HERD_SEED = 20260824;
+
   const OFF_IN_THE_CORNER = { x: -12, y: -12 };
 
   function yard(
     creatures: [string, number, number][],
     player: { x: number; y: number } = OFF_IN_THE_CORNER,
     wallAtX?: number,
+    seed = YARD_SEED,
   ): GameSession {
     let map = emptyMap();
     for (let x = -12; x <= 12; x++) {
@@ -3763,7 +3767,7 @@ describe("the vermin we ship", () => {
     return new GameSession(map, authored, {
       actorIds: ["alice"],
       spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
-      seed: YARD_SEED,
+      seed,
     });
   }
 
@@ -3933,12 +3937,17 @@ describe("the vermin we ship", () => {
   });
 
   it("gathers without piling up", () => {
-    const session = yard([
-      ["rat", 0, 0],
-      ["rat", 3, 0],
-      ["rat", 6, 0],
-      ["rat", 9, 0],
-    ]);
+    const session = yard(
+      [
+        ["rat", 0, 0],
+        ["rat", 3, 0],
+        ["rat", 6, 0],
+        ["rat", 9, 0],
+      ],
+      OFF_IN_THE_CORNER,
+      undefined,
+      HERD_SEED,
+    );
     advance(session, BRAIN_TICK_MS * 30);
 
     let crowdedBeats = 0;

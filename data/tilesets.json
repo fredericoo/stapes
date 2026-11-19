@@ -318,5 +318,12 @@
     "file": "gold.png",
     "width": 16,
     "height": 8
+  },
+  {
+    "id": "spoils",
+    "name": "Spoils",
+    "file": "spoils.png",
+    "width": 64,
+    "height": 16
   }
 ]

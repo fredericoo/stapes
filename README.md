@@ -361,6 +361,12 @@ an agent drives", lists every call.
   element; an essence is a twinkling, floating star in its element's colours,
   faded with stepped opacity like the wisps, and lit in that colour. The
   glyphs, materials and colours are tables at the top of the script
+- `bun run generate:spoils` — draw `data/tilesets/spoils.png` and write the
+  parts a creature leaves when it dies: `rat-tail`, `bat-wing`, `bear-claw`,
+  the three slime jellies, the three wisp leavings and the rest. Each is an
+  8×8 drawing lying flat on the ground, given as rows of letters with a
+  palette index per letter, with a dark edge under every pixel that has
+  nothing below it. Their drop chances and prices are authored, not generated
 - `bun run generate:rune-temple` — draw `data/tilesets/rune-temple.png` and
   write the rune temple's props: `bone-forge`, `crystal-forge` and
   `obsidian-forge`, which are `stone-forge` recoloured for each material (the
