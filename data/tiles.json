@@ -14324,6 +14324,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 4,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Hungry? Eating is what mends you here."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 4,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -14758,6 +14789,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -15240,6 +15327,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Five skins for a cap! Boots before anything else!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -16519,6 +16637,62 @@
                 ]
               }
             }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -16995,6 +17169,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Stew's hot! Sit, eat!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -17333,6 +17538,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -17942,6 +18203,14 @@
               "snack": 1,
               "talk": "chatting"
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 6,
+              "spell": 2
+            }
           }
         ]
       },
@@ -18125,6 +18394,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -18606,6 +18931,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Fresh off the wreck! Lanterns and sacking!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 4,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -18876,6 +19232,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -19398,6 +19810,14 @@
               "snack": 1,
               "talk": "listening"
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 7,
+              "spell": 2
+            }
           }
         ]
       },
@@ -19799,6 +20219,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -21526,6 +22002,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Bring me a blank and an essence."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -21725,6 +22232,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -22207,6 +22770,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Light and Spark, ready-carved!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -22594,6 +23188,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -23074,6 +23724,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Robes that hold a spell!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -23517,6 +24198,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -23997,6 +24734,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 7,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Potions! Bottles bought!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -24529,6 +25297,62 @@
                 ]
               }
             }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -25001,6 +25825,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 14,
+              "to": 21,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Bread off a Flame rune! Pies!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -25339,6 +26194,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -25819,6 +26730,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Apples, a gold each!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 4,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -26118,6 +27060,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -26771,6 +27769,18 @@
               "snack": 1,
               "talk": "listening"
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 8,
+              "to": 16,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -26959,6 +27969,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -27539,6 +28605,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "A gold for every rat tail!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -27795,6 +28892,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -29157,6 +30310,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Mind the scaffolding!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 3,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -29336,6 +30520,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -29816,6 +31056,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 20,
+              "to": 8,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Have I told you about Maren?"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 3,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -30047,6 +31318,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -31019,6 +32346,14 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 5
+            }
           }
         ]
       },
@@ -31304,6 +32639,62 @@
               "height": 2
             },
             "name": "Thorns"
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -32183,6 +33574,33 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 8,
+              "to": 16,
+              "spell": 5
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Stay under the lamps."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 6,
+              "near": 1
+            }
           }
         ]
       },
@@ -32473,6 +33891,62 @@
               "height": 2
             },
             "name": "Thorns"
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -32945,6 +34419,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Want the tower? Nobody climbs it alone. Talk to me."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 3,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -33213,6 +34718,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -33688,6 +35249,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 5,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Up at dawn! Train it!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 2
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 4,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -33924,6 +35516,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -34399,6 +36047,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Swords! Axes! Don't touch the hot ones."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -35296,6 +36975,62 @@
                 ]
               }
             }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -35766,6 +37501,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Bows! If you can see it, you can hit it."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -36149,6 +37915,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -36625,6 +38447,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 7,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Old weapons bought! Something for anything!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -37227,6 +39080,62 @@
                 ]
               }
             }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -37697,6 +39606,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Armour that makes a spell miss!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -38269,6 +40209,62 @@
                 ]
               }
             }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -38739,6 +40735,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 5,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Smoked meat! Eat before the waste!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -39091,6 +41118,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -39571,6 +41654,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 9,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Claws, tusks, furs! I buy the lot!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -40069,6 +42183,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -40722,6 +42892,18 @@
               "snack": 1,
               "talk": "listening"
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 8,
+              "to": 16,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -40906,6 +43088,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -41486,6 +43724,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Rope, flint, torches!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -41769,6 +44038,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -42701,6 +45026,14 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 3
+            }
           }
         ]
       },
@@ -42962,6 +45295,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -43445,6 +45834,31 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 6,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -43615,6 +46029,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -44089,6 +46559,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Keep your feet under you!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -44325,6 +46826,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -45166,6 +47723,33 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Waste is quiet today. That means nothing."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
           }
         ]
       },
@@ -45416,6 +48000,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -47717,6 +50357,37 @@
                 "yeva-kostenko"
               ]
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 2,
+              "to": 9,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Ale's three gold! Fight outside!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -48064,6 +50735,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -48544,6 +51271,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 1,
+              "to": 8,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Best ale on the island!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -48826,6 +51584,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -49435,6 +52249,14 @@
               "snack": 1,
               "talk": "chatting"
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 2,
+              "to": 10,
+              "spell": 2
+            }
           }
         ]
       },
@@ -49614,6 +52436,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -50095,6 +52973,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 7,
+              "to": 15,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "No runes in this house."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 1
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 3,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -50430,6 +53339,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -50910,6 +53875,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Which ship was yours? I'll pray for her."
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 3
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 10,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -51137,6 +54133,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -52792,6 +55844,37 @@
             "with": {
               "snack": 1
             }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 22,
+              "to": 5,
+              "spell": 2
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Letters! Parcels!"
+            }
+          },
+          {
+            "trait": "potters",
+            "with": {
+              "steps": 3
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 10,
+              "near": 1
+            }
+          },
+          {
+            "trait": "shelters-from-rain",
+            "with": {}
           }
         ]
       },
@@ -52971,6 +56054,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }

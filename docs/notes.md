@@ -1642,6 +1642,43 @@ keep the brains written for it:
   staircase. A body off its home level still routes home, but `in_range home`
   never holds there, since `within` checks sight levels first.
 
+### The cast keeps hours, potters about and calls out
+
+Three traits in `data/traits.json` make the townsfolk look like people rather
+than counters. Every character's hours, steps and line are in their tile; the
+reasoning behind each value is in their profile in `docs/npcs.md`.
+
+- **`keeps-hours` puts a body to bed for the hours it is given.** It walks to
+  the nearest `bed` or `bed-2` within 16 cells and casts its own "Go to sleep",
+  a copy of the wolf's Curl up, so it heals, cannot act and is woken by any
+  blow. With no bed in reach, or after 45 seconds of walking, it sleeps where it
+  stands. Both triggers fire at `errand`, so bedtime never takes a body out of a
+  conversation (`serving` holds at `need`), a fright or a fight, while `abed`
+  holds at `rest`, so nothing below a blow gets it up. A sleeping shopkeeper
+  does not trade: the shop is shut at night. Hours differ by trade. Most sleep
+  from about 22:00 to 06:00. Pell Marrow sleeps from 14:00 to 21:00 and bakes
+  through the night, the lamplighters and night wardens sleep by day, and the
+  innkeepers and Rodrigo Vela go to bed in the small hours.
+- **`potters` takes a step or two about a post now and then**, every 15 to 40
+  seconds, only while no player is in sight within 6 cells and nobody is
+  talking to it. A shopkeeper keeps still for a customer. Every caller pairs
+  it with `returns-home` (leash 2 for a counter, up to 10 for the travellers),
+  which is also what brings a body back to its post from its bed in the
+  morning.
+- **`calls-out` says one line every 20 to 60 seconds to a player in sight
+  within 6 cells**, and never while somebody is talking to it. Its condition is
+  the opposite of `potters`'s, so the two never compete for the same idle
+  moment: a shopkeeper potters on an empty street and cries their wares to a
+  passer-by.
+- **Bots do not read any of this as noticing them.** `noticeCells` reads every
+  `in_los` of the player tile in a brain, and both traits have one, but bots
+  never count a body with a dialog as a creature (`creaturesAround`).
+- **The stand-ins that inherited a written routine do not call these.**
+  Iolanthe Sarno and Rosalind Peake keep the hall's two-leg walk to bed, Liv
+  Sandvik keeps the patrol, Hamid Sarraf keeps the crier's round, and the
+  guards who warn at a gate keep their warning brain with only `keeps-hours`
+  added.
+
 ### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
 Several things on each side, counted, because a price is a number and a
