@@ -212,6 +212,8 @@ const tiles: TileDef[] = [
     [
       "potion-salesman",
       "arcane-shard",
+      "gold",
+      "gold-bar",
       "luminous-potion",
       "empty-bottle",
       "blacksmith",
@@ -461,7 +463,7 @@ describe("trading through the panel", () => {
 describe("the potion salesman, as authored", () => {
   it("sells two potions, buys three bottles, and refuses when short", () => {
     let map = fieldWith("potion-salesman");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 28 }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 28 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle", count: 3 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
@@ -478,7 +480,7 @@ describe("the potion salesman, as authored", () => {
     press(session, 1);
     trade(session, 3);
     expect(lastLine(session)).toContain("Ta.");
-    expect(bagOf(session)).toEqual(["luminous-potionx2", "arcane-shardx6"]);
+    expect(bagOf(session)).toEqual(["luminous-potionx2", "goldx6"]);
 
     press(session, 0);
     trade(session, 1);
@@ -490,11 +492,37 @@ describe("the potion salesman, as authored", () => {
   });
 });
 
+describe("paying an authored shop in cash", () => {
+  it("breaks a gold bar for a potion and gives the change in gold", () => {
+    let map = fieldWith("potion-salesman");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold-bar", count: 1 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "potion-salesman");
+    press(session, 0);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["goldx86", "luminous-potion"]);
+  });
+
+  it("buys arcane shards at the blacksmith for gold", () => {
+    let map = fieldWith("blacksmith");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 12 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "blacksmith");
+    press(session, 5);
+    trade(session, 12);
+    expect(bagOf(session)).toEqual(["goldx12"]);
+  });
+});
+
 describe("the blacksmith, as authored", () => {
   it("sells off one rack, comes back to it, and refuses when short", () => {
     let map = fieldWith("blacksmith");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 95 }]);
-    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 20 }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 95 }]);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 20 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
@@ -506,7 +534,7 @@ describe("the blacksmith, as authored", () => {
     expect(lastLine(session)).toContain("Blades.");
     press(session, 0);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["arcane-shardx95", "iron-sword"]);
+    expect(bagOf(session)).toEqual(["goldx95", "iron-sword"]);
 
     press(session, 3);
     press(session, 3);
@@ -527,7 +555,7 @@ describe("the blacksmith, as authored", () => {
 
   it("sells a shield off the fifth rack", () => {
     let map = fieldWith("blacksmith");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 20 }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 20 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
 
@@ -541,10 +569,10 @@ describe("the blacksmith, as authored", () => {
 });
 
 describe("the tanner, as authored", () => {
-  it("sells a helm for skins and shards off the head rack and comes back to it", () => {
+  it("sells a helm for skins and gold off the head rack and comes back to it", () => {
     let map = fieldWith("tanner");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "skin", count: 12 }]);
-    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 35 }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 35 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
@@ -556,17 +584,17 @@ describe("the tanner, as authored", () => {
     expect(lastLine(session)).toContain("Caps and helms.");
     press(session, 1);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["skinx7", "arcane-shardx5", "iron-helm"]);
+    expect(bagOf(session)).toEqual(["skinx7", "goldx5", "iron-helm"]);
 
     press(session, 0);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["skinx2", "arcane-shardx5", "iron-helm", "leather-cap"]);
+    expect(bagOf(session)).toEqual(["skinx2", "goldx5", "iron-helm", "leather-cap"]);
   });
 
-  it("sells the wolfskin coat for wolf skins and shards off the body rack", () => {
+  it("sells the wolfskin coat for wolf skins and gold off the body rack", () => {
     let map = fieldWith("tanner");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "wolf-skin", count: 7 }]);
-    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 45 }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 45 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.pickUp({ x: 0, y: -1, z: 0, stackIndex: 1 });
@@ -576,7 +604,7 @@ describe("the tanner, as authored", () => {
     expect(lastLine(session)).toContain("Only one coat");
     press(session, 0);
     trade(session, 1);
-    expect(bagOf(session)).toEqual(["wolf-skinx2", "arcane-shardx5", "wolfskin-coat"]);
+    expect(bagOf(session)).toEqual(["wolf-skinx2", "goldx5", "wolfskin-coat"]);
   });
 });
 

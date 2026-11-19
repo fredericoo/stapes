@@ -42,7 +42,7 @@ const NOON_MS = 12 * 60 * 60 * 1000;
 const FRAME_MS = 50;
 const GIVE_UP_MS = 120_000;
 /** Well over `KIT_MIN_WORTH`, so a bag holding this many is fetched from anywhere in a test world. */
-const SHARDS_WORTH_THE_WALK = 20;
+const GOLD_WORTH_THE_WALK = 20;
 
 function tutorialWorld(): FlatMapFile {
   const levels: Record<string, Record<string, PlacedTile[]>> = {};
@@ -58,7 +58,7 @@ function tutorialWorld(): FlatMapFile {
 }
 
 /**
- * An open field with the bot at its west end, a pile of shards on the way
+ * An open field with the bot at its west end, a pile of gold on the way
  * and the blacksmith at the east end.
  */
 function marketWorld(): FlatMapFile {
@@ -67,7 +67,7 @@ function marketWorld(): FlatMapFile {
     for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
   }
   cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
-  cells["5,3"]!.push({ tileId: "arcane-shard", itemId: "shards", count: 30 });
+  cells["5,3"]!.push({ tileId: "gold", itemId: "gold", count: 30 });
   cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
@@ -97,7 +97,7 @@ function armouryWorld(): FlatMapFile {
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
 
-/** A field with the bot and, a few cells east, a dropped bag like the one it wears, holding shards. */
+/** A field with the bot and, a few cells east, a dropped bag like the one it wears, holding gold. */
 function droppedBagWorld(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 12; x++) {
@@ -107,7 +107,7 @@ function droppedBagWorld(): FlatMapFile {
   cells["5,3"]!.push({
     tileId: "basic-bag",
     itemId: "dropped",
-    contents: [{ id: "shards", tileId: "arcane-shard", count: 12 }],
+    contents: [{ id: "gold", tileId: "gold", count: 12 }],
   });
   return { version: MAP_FILE_VERSION, levels: { "0": cells } };
 }
@@ -125,17 +125,17 @@ function forgeWorld(rewards: string[]): FlatMapFile {
 }
 
 /**
- * A field with the bot, a pile of `shards` beside it, the town's depot a few
+ * A field with the bot, a pile of `gold` beside it, the town's depot a few
  * cells east, and, when the test wants sellers, the blacksmith at the far end
  * with the pie maker beside him.
  */
-function depotWorld(shards: number, { sellers = false } = {}): FlatMapFile {
+function depotWorld(gold: number, { sellers = false } = {}): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 16; x++) {
     for (let y = 0; y < 7; y++) cells[`${x},${y}`] = [{ tileId: "grass-2" }];
   }
   cells["1,3"]!.push({ tileId: PLAYER_TILE_ID, direction: "e" });
-  cells["2,3"]!.push({ tileId: "arcane-shard", itemId: "found", count: shards });
+  cells["2,3"]!.push({ tileId: "gold", itemId: "found", count: gold });
   cells["6,2"]!.push({ tileId: "silver-chest", depotTag: "town" });
   if (sellers) {
     cells["14,3"]!.push({ tileId: "blacksmith", direction: "w" });
@@ -231,7 +231,7 @@ async function play(bot: Bot, remote: RemoteSession, until: () => boolean, clock
   }
 }
 
-it("picks up shards it walks past, buys a hammer from the blacksmith, and wields it", async () => {
+it("picks up gold it walks past, buys a hammer from the blacksmith, and wields it", async () => {
   await harness.blobs.put("map.json", JSON.stringify(marketWorld()), JSON_TYPE);
   const pair = new Pair();
   pair.onClientMessage = (data) => void harness.server.webSocketMessage(pair.server, data);
@@ -387,11 +387,11 @@ class Recorder implements Planner {
 async function bagToldAfterDying(
   dread: number,
   before: (remote: RemoteSession, clock: { ms: number }, bot: Bot) => Promise<void>,
-  shards = SHARDS_WORTH_THE_WALK,
+  gold = GOLD_WORTH_THE_WALK,
 ) {
   const world = armouryWorld();
-  if (shards > 0) {
-    world.levels["0"]!["14,15"]!.push({ tileId: "arcane-shard", itemId: "shards", count: shards });
+  if (gold > 0) {
+    world.levels["0"]!["14,15"]!.push({ tileId: "gold", itemId: "gold", count: gold });
   }
   await harness.blobs.put("map.json", JSON.stringify(world), JSON_TYPE);
   const pair = new Pair();
@@ -406,8 +406,7 @@ async function bagToldAfterDying(
   });
   const askedAfterDying = () => planner.asked.find((ask) => ask.reason === "died");
   const packed = () =>
-    remote.getSnapshot().equipment.bag !== null &&
-    (shards === 0 || carried(remote).includes("arcane-shard"));
+    remote.getSnapshot().equipment.bag !== null && (gold === 0 || carried(remote).includes("gold"));
   await play(bot, remote, packed, clock);
   await before(remote, clock, bot);
 
@@ -544,7 +543,7 @@ function carried(remote: RemoteSession): string[] {
   return carriedInstances(equipment).map((instance) => instance.tileId);
 }
 
-it("takes the shards out of a dropped bag when it already wears one like it", async () => {
+it("takes the gold out of a dropped bag when it already wears one like it", async () => {
   await harness.blobs.put("map.json", JSON.stringify(droppedBagWorld()), JSON_TYPE);
   const { remote, clock } = await joinBot();
   const bot = new Bot(
@@ -555,17 +554,17 @@ it("takes the shards out of a dropped bag when it already wears one like it", as
     { random: () => 0.5, temperament: { ...DEFAULT_TEMPERAMENT, wanderChance: 0 } },
   );
 
-  await play(bot, remote, () => carried(remote).includes("arcane-shard"), clock);
+  await play(bot, remote, () => carried(remote).includes("gold"), clock);
 
   expect(remote.getSnapshot().equipment.bag?.tileId).toBe("basic-bag");
-  expect(carried(remote)).toContain("arcane-shard");
+  expect(carried(remote)).toContain("gold");
 });
 
 function stashed(remote: RemoteSession): Array<{ tileId: string; count?: number }> {
   return (remote.getSnapshot().depots.town ?? []).map(({ tileId, count }) => ({ tileId, count }));
 }
 
-it("stashes shards it cannot spend yet in the depot, where a death does not take them", async () => {
+it("stashes gold it cannot spend yet in the depot, where a death does not take it", async () => {
   await harness.blobs.put("map.json", JSON.stringify(depotWorld(12)), JSON_TYPE);
   const { remote, clock } = await joinBot();
   const bot = new Bot(remote, new ProgressPlanner([]), tilesById, statuses, {
@@ -575,14 +574,14 @@ it("stashes shards it cannot spend yet in the depot, where a death does not take
 
   await play(bot, remote, () => stashed(remote).length > 0, clock);
 
-  expect(stashed(remote)).toEqual([{ tileId: "arcane-shard", count: 12 }]);
-  expect(carried(remote)).not.toContain("arcane-shard");
+  expect(stashed(remote)).toEqual([{ tileId: "gold", count: 12 }]);
+  expect(carried(remote)).not.toContain("gold");
 });
 
 it("takes its savings out of the depot once they complete a price, and spends them on the weapon, not on food", async () => {
   await harness.blobs.put("map.json", JSON.stringify(depotWorld(10, { sellers: true })), JSON_TYPE);
   await harness.store.put("depot:bot", {
-    depots: { town: [{ id: "saved", tileId: "arcane-shard", count: 10 }] },
+    depots: { town: [{ id: "saved", tileId: "gold", count: 10 }] },
     savedAt: 0,
   });
   const { remote, clock } = await joinBot();
