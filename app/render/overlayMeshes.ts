@@ -338,6 +338,50 @@ export function makeFollowingSpriteOutline(
   return mesh;
 }
 
+const QUAD_VERTS = 4;
+
+/**
+ * One ring per sprite of a moving pile, each told where its siblings are, as
+ * `makeSpriteOutline` is for a pile at rest. Sprite `i` is the `i`th quad of
+ * `source`, so `rings` must be in the order the pile's geometry was built in.
+ */
+export function makeFollowingPileOutlines(
+  source: THREE.Mesh,
+  rings: readonly { peers: OutlinePeers }[],
+  color: number,
+  materials: OutlineMaterials,
+): THREE.Mesh[] {
+  const texture = (source.material as THREE.MeshBasicMaterial).map;
+  const uvPerPx = uvPerWorldPx(source.geometry);
+  const pos = source.geometry.attributes.position;
+  const uv = source.geometry.attributes.uv;
+  if (!texture || !uvPerPx || !pos || !uv) return [];
+
+  return rings.slice(0, pos.count / QUAD_VERTS).map(({ peers }, i) => {
+    const first = i * QUAD_VERTS;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(
+        (pos.array as Float32Array).slice(first * 3, (first + QUAD_VERTS) * 3),
+        3,
+      ),
+    );
+    geo.setAttribute(
+      "uv",
+      new THREE.BufferAttribute(
+        (uv.array as Float32Array).slice(first * 2, (first + QUAD_VERTS) * 2),
+        2,
+      ),
+    );
+    geo.setIndex([0, 2, 1, 2, 3, 1]);
+    const mesh = outlineMesh(geo, { texture, uvPerPx }, color, materials, peers);
+    mesh.matrix.copy(source.matrixWorld);
+    mesh.matrixWorld.copy(source.matrixWorld);
+    return mesh;
+  });
+}
+
 function uvPerWorldPx(geo: THREE.BufferGeometry): THREE.Vector2 | null {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;

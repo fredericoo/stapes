@@ -10857,11 +10857,17 @@ somebody is pointing at changes how many rings are right.
 Two constraints the code has to keep. Offsets are **whole pixels**, because a
 merged static quad at a fractional offset samples off the pixel grid forever —
 a walker gets to be between pixels because it is going somewhere. And a tile
-with a **mesh of its own draws once** whatever its count says: `tileKey` and
+with a **mesh of its own is one mesh** whatever its count says: `tileKey` and
 `anim` each name one mesh, so a second copy carrying either would collide in
-`movableMeshes` or strand an entry in the animated list. Nothing that piles is
-animated or mobile, so that is an invariant kept rather than a limit anybody
-meets.
+`movableMeshes` or strand an entry in the animated list. A pile that only moves
+— anything `affectedByGravity`, which is most food, bones, skins and stones —
+is one mesh carrying every sprite (`buildSpreadQuadGeometry`), so a fall or a
+wade moves the whole heap. Its geometry keeps each sprite's depth nudge,
+because `writeBoxAttr` rewrites the depth of every quad on every motion frame,
+and its outline is one ring per quad (`makeFollowingPileOutlines`) in the order
+the geometry was built in. A pile that is *animated*, or forming under a
+transition, still draws one sprite: `writeFrameUvs` writes four vertices, and a forming
+transition is drawn on one quad. Nothing that piles is animated today.
 
 One deliberate gap: **a rolled kit's contents do not pour** — what a body is
 born carrying is written straight into the bag. (A recipe's outputs used to be

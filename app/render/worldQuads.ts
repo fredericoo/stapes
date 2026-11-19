@@ -412,6 +412,43 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   return geo;
 }
 
+export type SpreadSprite = { dx: number; dy: number; stackNudge: number };
+
+const STACK_NUDGES = "stackNudges";
+
+function stackNudgesOf(geo: THREE.BufferGeometry): readonly number[] | undefined {
+  return geo.userData[STACK_NUDGES] as readonly number[] | undefined;
+}
+
+/**
+ * The sprites of a pile that moves, as one geometry centred where a single
+ * sprite would be, so a fall or a wade moves the whole heap with one mesh. Each
+ * sprite's depth nudge is kept on the geometry because `writeBoxAttr` rewrites
+ * every quad's depth while the pile is moving.
+ */
+export function buildSpreadQuadGeometry(
+  q: Omit<Quad, "x" | "y">,
+  sprites: readonly SpreadSprite[],
+): THREE.BufferGeometry {
+  const geo = buildMergedQuadGeometry(
+    sprites.map((sprite) => ({
+      ...q,
+      x: sprite.dx - q.w / 2,
+      y: sprite.dy - q.h / 2,
+      stackBias: q.stackBias + sprite.stackNudge,
+    })),
+  );
+  geo.setAttribute(
+    "aWade",
+    new THREE.BufferAttribute(
+      new Float32Array(sprites.length * VERTS_PER_QUAD * WADE_COMPONENTS),
+      WADE_COMPONENTS,
+    ),
+  );
+  geo.userData[STACK_NUDGES] = sprites.map((sprite) => sprite.stackNudge);
+  return geo;
+}
+
 export function writeLightUvAttr(
   geo: THREE.BufferGeometry,
   lightX0: number,
@@ -437,7 +474,7 @@ export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx:
   if (!attr) return false;
   const arr = attr.array as Float32Array;
   if (arr[0] === sinkPx && arr[1] === edgePx) return false;
-  for (let v = 0; v < VERTS_PER_QUAD; v++) {
+  for (let v = 0; v < attr.count; v++) {
     arr[v * WADE_COMPONENTS] = sinkPx;
     arr[v * WADE_COMPONENTS + 1] = edgePx;
   }
@@ -449,14 +486,17 @@ export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias
   const boxAttr = geo.getAttribute("aBox") as THREE.BufferAttribute;
   const stackAttr = geo.getAttribute("aStack") as THREE.BufferAttribute;
   const spanAttr = geo.getAttribute("aSpan") as THREE.BufferAttribute;
-  writeQuadBox(
-    boxAttr.array as Float32Array,
-    stackAttr.array as Float32Array,
-    spanAttr.array as Float32Array,
-    0,
-    box,
-    stackBias,
-  );
+  const nudges = stackNudgesOf(geo);
+  for (let i = 0; i < boxAttr.count / VERTS_PER_QUAD; i++) {
+    writeQuadBox(
+      boxAttr.array as Float32Array,
+      stackAttr.array as Float32Array,
+      spanAttr.array as Float32Array,
+      i,
+      box,
+      stackBias + (nudges?.[i] ?? 0),
+    );
+  }
   boxAttr.needsUpdate = true;
   stackAttr.needsUpdate = true;
   spanAttr.needsUpdate = true;
