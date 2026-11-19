@@ -26,7 +26,6 @@ import { TextByLists } from "./textByLists";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
-  isSpawnFilled,
   presentItemIds,
   type SpawnPoint,
   withMigratedItemIds,
@@ -35,7 +34,7 @@ import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/death
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
-import { listActorOwners, spawnPoint } from "../app/game/actors";
+import { spawnPoint } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -985,11 +984,9 @@ export class GameServer {
     );
 
     const nowMs = this.now();
-    const map = session.getMap();
-    const owners = listActorOwners(map);
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
-      if (isSpawnFilled(map, point, owners)) continue;
+      if (session.isSpawnFilled(point)) continue;
       this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     }
     this.persistRespawnPending();
@@ -1145,7 +1142,7 @@ export class GameServer {
       for (const point of points) {
         if (this.forgetDepartedItems(point)) this.persistRespawnItems(point);
         if (this.respawnPending.has(point.key)) continue;
-        if (isSpawnFilled(session.getMap(), point)) continue;
+        if (session.isSpawnFilled(point)) continue;
         this.armRespawn(point, nowMs);
       }
     }
