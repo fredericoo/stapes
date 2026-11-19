@@ -39,6 +39,7 @@
     "generate:runes": "bun scripts/generate-runes.ts",
     "generate:spoils": "bun scripts/generate-spoils.ts",
     "generate:rune-temple": "bun scripts/generate-rune-temple.ts",
+    "generate:lighthouse": "bun scripts/generate-lighthouse.ts",
     "generate:bear": "bun scripts/generate-bear.ts",
     "generate:gold": "bun scripts/generate-gold.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
