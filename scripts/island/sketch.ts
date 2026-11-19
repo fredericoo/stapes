@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { components, distanceTo, type Grid } from "./grid";
 
 export const SKETCH_PATH = "docs/lore-map.webp";
 
@@ -66,4 +67,42 @@ export async function readSketch(path = SKETCH_PATH): Promise<Sketch> {
     }
   }
   return { width, height, marks };
+}
+
+function morph(grid: Grid, mask: Uint8Array, radius: number, grow: boolean): Uint8Array {
+  const d = distanceTo(grid, (i) => mask[i] === (grow ? 1 : 0));
+  const out = new Uint8Array(mask.length);
+  for (let i = 0; i < mask.length; i++) out[i] = (grow ? d[i]! <= radius : d[i]! > radius) ? 1 : 0;
+  return out;
+}
+
+/**
+ * The sketch's coastline as a land mask, one entry per sketch pixel. Rivers
+ * are drawn as blue lines up to about ten pixels wide, so the water is opened
+ * by more than that before the sea is found; lakes are left to the generator.
+ */
+export function sketchLand(sketch: Sketch): Uint8Array {
+  const grid = { width: sketch.width, height: sketch.height };
+  const n = sketch.width * sketch.height;
+  let wet: Uint8Array = new Uint8Array(n);
+  for (let i = 0; i < n; i++)
+    wet[i] = sketch.marks[i] === Mark.Water || sketch.marks[i] === Mark.Sea ? 1 : 0;
+  wet = morph(grid, morph(grid, wet, 6, false), 7, true);
+  const water = components(grid, (i) => wet[i] === 1);
+  const border = new Set<number>();
+  for (let x = 0; x < sketch.width; x++) {
+    border.add(water.labels[x]!);
+    border.add(water.labels[n - 1 - x]!);
+  }
+  for (let y = 0; y < sketch.height; y++) {
+    border.add(water.labels[y * sketch.width]!);
+    border.add(water.labels[y * sketch.width + sketch.width - 1]!);
+  }
+  border.delete(0);
+  const dry = components(grid, (i) => !border.has(water.labels[i]!));
+  let biggest = 1;
+  for (let l = 1; l < dry.sizes.length; l++) if (dry.sizes[l]! > dry.sizes[biggest]!) biggest = l;
+  const land = new Uint8Array(n);
+  for (let i = 0; i < n; i++) land[i] = dry.labels[i] === biggest ? 1 : 0;
+  return morph(grid, morph(grid, land, 3, false), 3, true);
 }

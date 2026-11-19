@@ -16,9 +16,14 @@ const cellsPerPixel = Number(argValue("--scale") ?? 0.5);
 const zoom = Number(argValue("--zoom") ?? 2);
 const out = argValue("--out") ?? "island-preview.png";
 
-const sketch = await readSketch();
 const t0 = performance.now();
-const island = buildIsland(sketch, { seed, cellsPerPixel, peakLevel: 7, seaRing: 20 });
+const island = buildIsland({
+  sketch: await readSketch(),
+  seed,
+  cellsPerPixel,
+  peakLevel: 7,
+  seaRing: 20,
+});
 const ms = performance.now() - t0;
 await writeFile(out, PNG.sync.write(renderIsland(island, zoom)));
 
