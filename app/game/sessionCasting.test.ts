@@ -236,6 +236,16 @@ const props: TileDef[] = [
     cooldownMs: 10_000,
     reach: { cells: 3, height: 2 },
   }),
+  stoneTile("faint-brand-stone", {
+    effect: {
+      kind: "bolt",
+      damage: 1,
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 2 },
+  }),
   stoneTile("dud-brand-stone", {
     effect: {
       kind: "bolt",
@@ -1471,7 +1481,7 @@ describe("a bolt thrown at somebody", () => {
   });
 
   it("brands a body its damage could not get through", () => {
-    const { play, target, before } = boltAt("brand-bolt-stone", "walled-rat");
+    const { play, target, before } = boltAt("faint-brand-stone", "walled-rat");
     expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     expect(took(play, target, before)).toBe(0);
@@ -1479,7 +1489,7 @@ describe("a bolt thrown at somebody", () => {
   });
 
   it("floats resisted over a body its damage could not get through", () => {
-    const { play, target } = boltAt("brand-bolt-stone", "walled-rat");
+    const { play, target } = boltAt("faint-brand-stone", "walled-rat");
     expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     const over = play.getSnapshot().damage.filter((number) => number.targetId === target);

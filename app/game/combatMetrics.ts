@@ -1,6 +1,8 @@
 import type { FightingStats } from "../lib/battler";
 import { MAX_PERCENT_STAT, MAX_WEAPON_DAMAGE } from "../lib/item";
 import {
+  damageThroughGuard,
+  GUARD_WEIGHT,
   defenceAgainst,
   dodgeChanceAgainst,
   guardBand,
@@ -70,9 +72,13 @@ export const MEAN_GUARD_SHARE =
     guardFraction((i + 0.5) / MEAN_GUARD_STEPS),
   ).reduce((sum, share) => sum + share, 0) / MEAN_GUARD_STEPS;
 
-/** What a spell of `power` takes off on average once a guard of `guard` is rolled against it. */
+/**
+ * What a spell of `power` takes off once the mean draw of `guard` is weighed
+ * against it by the rule of `damageThroughGuard`, unrounded.
+ */
 export function meanThroughGuard(power: number, guard: number): number {
-  return Math.max(0, power - MEAN_GUARD_SHARE * guard);
+  if (power <= 0) return 0;
+  return (power * power) / (power + GUARD_WEIGHT * MEAN_GUARD_SHARE * Math.max(0, guard));
 }
 
 const BISECTION_STEPS = 60;
@@ -134,7 +140,7 @@ export function swingOdds(attacker: FightingStats, defender: FightingStats): Swi
     meanPotential += value * chance;
     for (const guard of guards) {
       const together = chance * guard.chance;
-      const landed = Math.max(0, value - guard.value);
+      const landed = damageThroughGuard(value, guard.value);
       meanConnectingDamage += landed * together;
       if (landed === 0) absorbedGivenConnect += together;
     }
@@ -149,8 +155,8 @@ export function swingOdds(attacker: FightingStats, defender: FightingStats): Swi
     connected,
     absorbed: connected * absorbedGivenConnect,
     wounded: connected * (1 - absorbedGivenConnect),
-    minDamage: Math.max(0, (band[0]?.value ?? 0) - (guards[guards.length - 1]?.value ?? 0)),
-    maxDamage: Math.max(0, (band[band.length - 1]?.value ?? 0) - (guards[0]?.value ?? 0)),
+    minDamage: damageThroughGuard(band[0]?.value ?? 0, guards[guards.length - 1]?.value ?? 0),
+    maxDamage: damageThroughGuard(band[band.length - 1]?.value ?? 0, guards[0]?.value ?? 0),
     meanConnectingDamage,
     meanSwingDamage: connected * meanConnectingDamage,
     mitigation: meanPotential > 0 ? 1 - meanConnectingDamage / meanPotential : 0,

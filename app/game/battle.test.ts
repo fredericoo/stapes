@@ -166,7 +166,7 @@ const tiles: TileDef[] = [
       battler: {
         baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: 2 },
-        naturalWeapon: claws({ def: 99 }),
+        naturalWeapon: claws({ def: 100_000 }),
       },
     },
   }),

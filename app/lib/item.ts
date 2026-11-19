@@ -245,8 +245,9 @@ export const DEFAULT_WEAPON_STATUS_CHANCE = 10;
 export const MAX_CONTAINER_SIZE = 12;
 
 /**
- * Equal to `MAX_WEAPON_DAMAGE` because armour is subtracted from damage. Changing
- * one alone changes whether armour can fully cancel the heaviest authored blow.
+ * Equal to `MAX_WEAPON_DAMAGE` because a blow is weighed against guard on the
+ * same scale. Changing one alone changes how much of the heaviest authored blow
+ * armour can take.
  */
 export const MAX_ARMOR_DEF = MAX_WEAPON_DAMAGE;
 

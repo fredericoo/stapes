@@ -30354,7 +30354,8 @@
                 "player"
               ],
               "sight": 7,
-              "cry": "eek!"
+              "cry": "eek!",
+              "below": 9
             }
           },
           {
@@ -30374,7 +30375,8 @@
               "within": 7,
               "fight": "gnawing",
               "target": "prey",
-              "calm": 10
+              "calm": 10,
+              "below": 9
             }
           },
           {
@@ -58208,22 +58210,17 @@
         "kit": [
           {
             "slot": "weapon",
-            "tileId": "knights-sword",
-            "chance": 25
-          },
-          {
-            "slot": "weapon",
-            "tileId": "broad-axe",
+            "tileId": "iron-sword",
             "chance": 33.34
           },
           {
             "slot": "weapon",
-            "tileId": "iron-mace",
+            "tileId": "simple-hammer",
             "chance": 50
           },
           {
             "slot": "weapon",
-            "tileId": "hunting-bow",
+            "tileId": "simple-bow",
             "chance": 100
           },
           {
@@ -58249,6 +58246,22 @@
               {
                 "tileId": "hand-lantern",
                 "chance": 100
+              },
+              {
+                "tileId": "knights-sword",
+                "chance": 25
+              },
+              {
+                "tileId": "broad-axe",
+                "chance": 25
+              },
+              {
+                "tileId": "iron-mace",
+                "chance": 25
+              },
+              {
+                "tileId": "hunting-bow",
+                "chance": 25
               },
               {
                 "tileId": "hand-lantern",
@@ -59793,7 +59806,7 @@
         ]
       },
       "battler": {
-        "baseHp": 20,
+        "baseHp": 30,
         "masteries": {
           "sharp": 33,
           "blunt": 33,
@@ -59832,7 +59845,7 @@
           },
           {
             "slot": "weapon",
-            "tileId": "broad-axe",
+            "tileId": "simple-axe",
             "chance": 25
           },
           {
@@ -59842,7 +59855,7 @@
           },
           {
             "slot": "weapon",
-            "tileId": "hunting-bow",
+            "tileId": "simple-bow",
             "chance": 50
           },
           {
@@ -59850,6 +59863,14 @@
             "tileId": "basic-bag",
             "chance": 100,
             "contents": [
+              {
+                "tileId": "broad-axe",
+                "chance": 20
+              },
+              {
+                "tileId": "hunting-bow",
+                "chance": 20
+              },
               {
                 "tileId": "bone",
                 "chance": 100

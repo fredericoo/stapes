@@ -5,7 +5,7 @@ import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib
 import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
-import { guardBand } from "./combat";
+import { damageThroughGuard, guardBand } from "./combat";
 import { TICK_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { FRAME, tile } from "../lib/testTile";
@@ -19,7 +19,13 @@ const DUMMY_TOUGHNESS = 100;
 const DUMMY_DEF = defFrom(DUMMY_TOUGHNESS);
 
 const DUMMY_GUARD = guardBand({ def: DUMMY_DEF, resist: {} }, { mastery: "fist" });
-const GUARD_SPREAD = DUMMY_GUARD.highest - DUMMY_GUARD.lowest;
+
+function worthBand(damage: number): { least: number; most: number } {
+  return {
+    least: damageThroughGuard(damage + DUMMY_DEF, DUMMY_GUARD.highest),
+    most: damageThroughGuard(damage + DUMMY_DEF, DUMMY_GUARD.lowest),
+  };
+}
 
 function firstBlow(session: GameSession): number {
   const hp = () => session.actorSnapshots().find((a) => a.tileId === "dummy")!.hp!;
@@ -34,14 +40,15 @@ function firstBlow(session: GameSession): number {
 
 const A_WHOLE_FIGHT_MS = 30_000;
 
-function expectWorth(dealt: number, floor: number): void {
-  expect(dealt).toBeGreaterThanOrEqual(floor);
-  expect(dealt).toBeLessThanOrEqual(floor + GUARD_SPREAD);
+function expectWorth(dealt: number, damage: number): void {
+  const { least, most } = worthBand(damage);
+  expect(dealt).toBeGreaterThanOrEqual(least);
+  expect(dealt).toBeLessThanOrEqual(most);
 }
 
 const BARE_DAMAGE = 5;
-const SWORD_DAMAGE = 10;
-const OFF_SWORD_DAMAGE = 6;
+const SWORD_DAMAGE = 20;
+const OFF_SWORD_DAMAGE = 1;
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
@@ -361,7 +368,7 @@ describe("a weapon reaches the blow", () => {
     const hit = firstBlow(heavy);
 
     expect(hit).toBeGreaterThanOrEqual(4);
-    expect(hit).toBeLessThanOrEqual(10 + GUARD_SPREAD);
+    expect(hit).toBeLessThanOrEqual(worthBand(SWORD_DAMAGE).most);
   });
 
   it("swings at its own speed rather than the body's", () => {
@@ -410,13 +417,16 @@ describe("a weapon reaches the blow", () => {
       const blows = blowsOver(session, 2000);
       expect(blows.length).toBeGreaterThan(3);
 
-      const main = blows.filter((blow) => blow >= SWORD_DAMAGE);
-      const off = blows.filter((blow) => blow < SWORD_DAMAGE);
+      const mainBand = worthBand(SWORD_DAMAGE);
+      const offBand = worthBand(OFF_SWORD_DAMAGE);
+      expect(offBand.most).toBeLessThan(mainBand.least);
+      const main = blows.filter((blow) => blow >= mainBand.least);
+      const off = blows.filter((blow) => blow < mainBand.least);
       expect(main.length).toBeGreaterThan(0);
       expect(off.length).toBeGreaterThan(0);
-      expect(main.length + off.length).toBe(blows.length);
-      expect(Math.max(...off)).toBeLessThan(Math.min(...main));
-      expect(Math.max(...off)).toBeGreaterThanOrEqual(OFF_SWORD_DAMAGE);
+      expect(Math.max(...main)).toBeLessThanOrEqual(mainBand.most);
+      expect(Math.min(...off)).toBeGreaterThanOrEqual(offBand.least);
+      expect(Math.max(...off)).toBeLessThanOrEqual(offBand.most);
     });
 
     it("does not take turns with a hand that cannot swing", () => {

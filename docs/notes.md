@@ -5535,13 +5535,10 @@ player rated 15 three times in four.
 with past `PLAYER_BASE_HP` as the Toughness that would have grown them.**
 `ratedToughness` inverts the curve `maxHpFrom` climbs, so a point of born hit
 points is rated at whatever a point of Toughness would have cost at that height
-on the curve, and no exchange rate is tuned. It is the only rating
-`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
-number experience is weighed against, and the one `rated_below_self` compares.
+on the curve, and no exchange rate is tuned. `computedRating` is that reading.
 
-- **Fewer than a player's is not marked down.** A rat is born with 8 and is
-  rated 8, which is what the rat's `hunts-the-weaker` and `flees-the-stronger`
-  were written around. Only a body born with more moves.
+- **Fewer than a player's is not marked down.** A body born with 8 is rated on
+  its masteries alone. Only a body born with more moves.
 - **A body that cannot hurt anybody is rated on its masteries alone**
   (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
@@ -5551,24 +5548,60 @@ number experience is weighed against, and the one `rated_below_self` compares.
   clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
   long before that, so the number only says how far out of reach it is.
 
-**How well it reads.** `bun run verify battle` was run for each creature
-against a player with Sharp, Toughness and Agility at one level and that
-level's sword, and the level bisected to where the player wins half the
-fights. The skeleton as it was then, born with 110, had an even level of 28
-and was rated 29 by this, against 13 before. The cave troll moved from 51 to
-61 against an even level of 38, and the cyclops from 61 to 150 against 75.
-For creatures born with 8 the rating already ran high — the wolf is rated 28
-against an even level of 15, a slime 15 against 5 — because `rating` counts a
-weapon mastery whatever weapon it is used with.
+#### A creature's rating can be authored
 
-**The skeleton's strength then moved from its hit points into its
-masteries.** It is born with 20 rather than 110, with Sharp, Blunt, Ranged
-and Arcane at 33 rather than 15, Toughness 22 rather than 10 and Agility 25
-rather than 10: 47 hit points rather than 121, rated 30, with an even level of
-26. In `verify battle --matrix` a player at level 15 still loses to it about
-three times in four, but a won fight takes 6.2s rather than 16.0s, and a
-player at level 33 wins 97% rather than 88%. Most of its danger is its kit:
-a sword, a broad axe, a mace or a bow from the level-15 rung, swung at 33.
+`battlerRating` returns the `rating` written on the battler block when there is
+one, and `computedRating` otherwise. It is the only rating
+`GameSession.ratingOf` reads, so it is the number a creature's star shows, the
+number experience is weighed against, and the one `rated_below` compares. The
+tile editor's Battle tab has the field.
+
+**No creature in `data/tiles.json` carries one.** The field is there for a
+creature whose computed rating is wrong in a way its stats cannot say.
+
+- **An authored rating does not follow the creature's stats.** After a change
+  to its masteries, hit points or spells, the number has to be written again.
+- **The player tile must not carry one.** A player's star is `rating` of what
+  they have trained; an authored number on the tile would show on every
+  player. `verify content` fails on it.
+
+**`bun run verify ratings` measures how far a rating is from how hard the
+creature is to fight.** For each creature it bisects the *even level*: the
+lowest level at which a player with Sharp, Toughness and Agility at that level,
+holding that level's sword and the kit a player is born with, wins at least as
+often as it loses in the Arena's `Duel`. The computed ratings run well above
+it: the wolf computes 31 and fights even at 15. The `Duel` casts no spells, so
+a caster's even level leaves its spells out.
+
+The report also prints each creature's heaviest blow: the most one swing of its
+natural weapon or any weapon its kit can roll is worth before armour, and that
+as a share of the hit points of a player whose Toughness is the creature's
+rating.
+
+#### The skeleton and the bog imp hold lighter weapons than they drop
+
+Both used to roll a broad axe or a hunting bow from the level-15 rung into the
+hand. A skeleton swinging the axe at Sharp 33 did up to 43 to a player rated 18
+with 33 hit points, and a bog imp did up to 37 to players with fewer. A player
+who could win the fight died to one blow of it.
+
+Their kits now put lighter weapons in the hand and the heavy ones in the bag:
+
+- **The skeleton** holds an iron sword, a simple axe, an iron mace or a simple
+  bow, one time in five each, and claws otherwise. Its heaviest blow is the
+  mace's 30. The broad axe and the hunting bow are in its bag one time in five
+  each, which is how often it used to hold them, so it drops them as often.
+  It is born with 30 hit points rather than 20. With the lighter kit alone a
+  player at level 15 won 36% of fights against it in `verify battle`; with 30
+  hit points that is 30%, against 27% before the change, and the level a player
+  fights it even at is 24, down from 28.
+- **The bog imp** holds an iron sword, a simple hammer or a simple bow, a third
+  of the time each. Its heaviest blow is the bow's 16. The knight's sword,
+  broad axe, iron mace and hunting bow are each in its bag one time in four.
+
+Bag contents are listed with the weapons ahead of the bones and the second
+lantern, because `fill` in `app/game/battlerKit.ts` stops at the bag's size and
+drops what is listed last.
 
 #### Arcane is added to the best held weapon
 
@@ -5725,7 +5758,7 @@ It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
 all read the same figure. `weaponHandling` is applied separately inside
 `fightingStats`; the two multiply.
 
-### Armour is a draw, and immunity is a rung rather than a threshold
+### Armour is a draw, and a blow is weighed against it
 
 `defenceAgainst` says how deep a body's guard is; **what a blow actually meets is
 a draw from it** (`guardFraction`, `guardBand`, `guardRolled` in
@@ -5737,67 +5770,77 @@ a draw from it** (`guardFraction`, `guardBand`, `guardRolled` in
 Between them the draw is **triangular** — rare at both ends, common around the
 peak — sampled by the inverse of a triangular CDF, so one uniform draw comes out
 humped with nothing resampled or rejected. The mean is the average of the three
-corners, `(0.25 + 0.6 + 1) / 3`, so armour is worth about **62% of its face
-value** on average.
+corners, `(0.25 + 0.6 + 1) / 3`, so the guard a blow meets is about **62% of the
+defence** on average.
 
-**Armour used to be a flat subtraction, and flat made it an on-off switch.** A
-creature's blow lives in a bounded band: a wolf is authored at damage 12 and
-variance 35, so its bite is *always* worth between 8 and 12, and `MAX_ARMOR_DEF`
-is deliberately the same scale as `MAX_WEAPON_DAMAGE`. Put those together and a
-defence of 12 was not "very good against wolves" — it was total immunity,
-reachable in the starting kit plus a bone charm. Measured before the change, a
-fresh player in cap, jerkin, boots and charm took **0.96** per landed wolf bite
-against thirteen hit points; with a shield on top, **0.03**. A rat never got
-through a cloth tunic.
+**The blow is then weighed against that guard, not reduced by it.**
+`damageThroughGuard` lets through
+`potential² / (potential + GUARD_WEIGHT × guard)`, rounded, and `GUARD_WEIGHT`
+is 2:
 
-**Being untouchable is still reachable and costs four times what it used to.** A
-blow is blocked outright when the guard it drew is worth the whole of it, so
-*always* blocking something takes a defence whose `MIN_GUARD_SHARE` already
-outweighs the blow — four times the blow rather than equal to it. That is the
-whole rule about what a well-armoured body can shrug off, and it is deliberately
-a rung on the ladder rather than a threshold anybody crosses by accident: the
-starting kit is now immune to rats where a cloth tunic used to be, and a wolf
-needs fifty Toughness *and* the best sharp armour in the world before it stops
-mattering.
+- A guard half the size of the blow halves it. A guard equal to the blow takes
+  two thirds, and a guard a quarter of the blow takes a third.
+- The same guard takes a large share of a small blow and a small share of a
+  heavy one. A guard of 8 takes four fifths of a blow of 4 and under a third of
+  a blow of 40.
+- Each point of guard is worth less than the one before it, at every size of
+  blow, so no amount of armour makes a blow stop mattering at a threshold.
+
+**Armour was a subtraction before, and subtraction decided fights by itself.**
+Once the guard was close to the blow, each further point removed a large share
+of what was left: measured on a player rated 18 with 33 hit points, a
+skeleton's claws (6 to 12) did 7.2 a blow against a tunic and 0.1 against plate
+and a shield, and its sword went from 11.8 to 0.9. The same player could not be
+hurt by a creature rated twelve above it, or died in two blows, depending only
+on what it wore. Under the rule above those two figures are 6.4 to 2.2 and
+10.7 to 4.3.
+
+**`GUARD_WEIGHT` is 2 because 1 tripled how often new characters died.** With
+the guard counted once, the rule let through more than subtraction did at every
+defence, and most of all for small blows against light armour, which is every
+fight a new character has. `bun run bench:bots` over three seeds of half a
+game-hour measured 7.6 deaths an hour against 2.4 on the subtraction it
+replaced. Counted twice, the rule equals subtraction when the guard is half the
+blow, lets through less than subtraction below that and more above it, and the
+same bench measured 2.1 deaths an hour against 2.3.
 
 Three things worth knowing before touching this:
 
+- **A blow is blocked only when it rounds to nothing**, which takes a guard of
+  more than `potential² − potential / 2`: 3 against a blow of 2, 14 against a
+  blow of 4. A rat's bite is still blocked by ordinary armour and nothing much
+  heavier is. `SwingOdds.absorbed` is the rate of that. A `MIN_DAMAGE_THROUGH`
+  floor of one hit point was tried under the old rule and taken out, because it
+  deletes blocking; rounding keeps it for the blows it suits.
 - **The peak is above the middle on purpose.** Armour that usually performs a
-  little better than halfway is armour that mostly does what it says; the
-  interest is in the tail below it rather than in a symmetric wobble around a
-  number nobody chose. A *flat* draw was the first version and it was worse to
-  play against — a mail shirt that turned nothing aside was exactly as common as
-  one that turned aside everything, which reads as noise rather than as armour.
+  little better than halfway is armour that mostly does what it says. A *flat*
+  draw was the first version and it was worse to play against — a mail shirt
+  that turned nothing aside was exactly as common as one that turned aside
+  everything, which reads as noise rather than as armour.
 - **The guard is whole numbers, and that is load-bearing.** Hit points are whole,
   and a small enumerable band is what lets `app/game/combatMetrics.ts` stay exact
   rather than sampled. It finds each rung's odds by **bisecting `guardRolled`**
   for where one whole number of guard becomes the next; the draw is uniform, so
-  the width of that stretch *is* how often the rung comes up, and the file never
-  has to know what shape the curve is. Move the peak and the Arena's table
-  follows on the next render.
-- **A `MIN_DAMAGE_THROUGH` floor was tried and taken out.** Guaranteeing every
-  landed blow at least one hit point does close immunity for good, but it also
-  deletes `absorbed` as a concept, flattens the top of the armour curve into
-  "everything chips you for one", and makes a rat's damage-per-second independent
-  of what you are wearing. Blocking is worth keeping; what was wrong was how
-  cheap it was.
+  the width of that stretch *is* how often the rung comes up. `swingOdds` then
+  puts every damage rung against every guard rung through `damageThroughGuard`,
+  the same function `rollAttack` calls.
 
 **The draw costs the swing one more roll**, taken with the damage band and before
-the status draws — `rollAttack` is five draws plus one per authored status now,
-not four. It is taken whether or not the blow gets far enough to meet armour, for
-the reason every other draw there is: what has to be constant is the count, never
-the reading.
+the status draws — `rollAttack` is five draws plus one per authored status. It
+is taken whether or not the blow gets far enough to meet armour, for the reason
+every other draw there is: what has to be constant is the count, never the
+reading.
 
-`SwingOdds.absorbed` survived the change and changed meaning: it used to be a
-property of the two stat blocks — this armour stops this weapon, yes or no — and
-is now a **rate**, because the same armour blocks a blow it drew well against and
-misses one it did not.
+**A spell is weighed the same way.** `damageAfterGuard` weighs a bolt against
+the draw of `spellGuard`, and `meanThroughGuard` in `combatMetrics.ts` is the
+closed form bots price a bolt with: the same rule at the mean guard, unrounded.
 
-Two consequences for authoring. Physical mitigation is worth roughly a third less
-than its face value suggests, so armour authored against the old arithmetic is
-weaker than it reads. And a resistance keyed to a mastery *every* creature in the
-world strikes with is not a choice, it is a strictly better piece of armour — see
-the note on creature masteries below.
+Two consequences for authoring. Armour worth more than half the blows it meets
+protects less than it did under subtraction, so the heaviest armour authored
+against the old arithmetic is weaker against the creatures it used to shut out.
+And a resistance keyed to a mastery
+*every* creature in the world strikes with is not a choice, it is a strictly
+better piece of armour — see the note on creature masteries below.
 
 ### A creature strikes with the mastery its attack actually is
 
@@ -12647,7 +12690,7 @@ apart from rows that could never be the first to hold.
   reach, so the bear charged at somebody standing beside it.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
-  own rows. See *A creature can hunt only what it outrates, and scavenge*.
+  own rows. See *A creature can hunt only what is rated below a number, and scavenge*.
 
 Neither townsfolk trait leaves its routine to triggers alone. Their tables ask
 a state's own way out before the rows every other state shares — someone
@@ -12718,25 +12761,28 @@ slime held still in plain view of an archer it could not get to until it
 died. The state holds at `danger`, so a blow from somebody it could reach does
 not pull it back for those five seconds.
 
-## A creature can hunt only what it outrates, and scavenge
+## A creature can hunt only what is rated below a number, and scavenge
 
-**`rated_below_self`** holds when the body its selector names has a rating
-under the asking creature's own, both read through `rating` in
-`app/lib/mastery.ts`. `rated_below` compares against a fixed number, which is
-right for a dialog about newcomers and wrong for a creature: a number written
-into the brain does not follow the creature when its masteries are retuned.
+**`rated_below`** holds when the body its selector names has a rating under a
+fixed number; **`rated_below_self`** compares against the asking creature's own
+rating instead. Both read `GameSession.ratingOf`.
 
-**`hunts-the-weaker`** is `hunts-on-sight` with `rated_below_self` of the
-nearest prey added to its `when`. It asks about the *nearest* prey only, the
-same body `in_los` asks about, so a strong player standing nearer hides a weak
-one behind them. It only decides whether a hunt starts: once the creature is
-in its fight it keeps after the target whatever the target's rating, and a
-blow from anybody still starts a fight through `fights-back`. The rat rates 9
-(sharp 4, arcane 2, toughness 3, agility 24), so it goes for a fresh character
+**`hunts-the-weaker`** is `hunts-on-sight` with `rated_below` of the nearest
+prey added to its `when`, against the trait's `below` parameter. It asks about
+the *nearest* prey only, the same body `in_los` asks about, so a strong player
+standing nearer hides a weak one behind them. It only decides whether a hunt
+starts: once the creature is in its fight it keeps after the target whatever
+the target's rating, and a blow from anybody still starts a fight through
+`fights-back`. The rat passes 9, which is what it rates, so it goes for a fresh character
 (rating 2) and runs from anyone who has reached 9.
 
+**The threshold is a parameter and not the creature's own rating**, so that
+whom a creature dares to attack does not move when its rating does. A rat rated
+as low as a fresh character, compared against itself, would hunt nobody and run
+from everybody. `below` is a `rating` parameter, a whole number of at least 0.
+
 **`flees-the-stronger`** is the other half: it runs from the nearest threat it
-can see when that one is *not* `rated_below_self`, and from an attacker who is
+can see when that one is *not* rated below `below`, and from an attacker who is
 not. Both triggers hold at `danger`, as `fights-back`'s does, so a tie between
 "hit by a strong body" and "hit by anybody" goes to the order of the calls. The
 rat calls it before `fights-back` for that reason; called after, the rat turns

@@ -12,6 +12,7 @@ import {
   attackIntervalMs,
   cappedToHealth,
   damageFraction,
+  damageThroughGuard,
   defenceAgainst,
   dodgeChance,
   guardBand,
@@ -297,7 +298,7 @@ describe("being outnumbered", () => {
 
   it("lets a blow through that one attacker could never land", () => {
     const attacker = battler({ damage: 6, accuracy: 100, hitChance: 1 });
-    const defender = battler({ def: 40, flee: 0 });
+    const defender = battler({ def: 200, flee: 0 });
 
     let aloneDrew = 0;
     let crowdDrew = 0;
@@ -312,13 +313,23 @@ describe("being outnumbered", () => {
 });
 
 describe("swinging", () => {
-  it("takes defence off the top and never heals", () => {
+  it("blocks a blow that defence far outweighs and never heals", () => {
     const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1 });
-    const defender = battler({ def: 100, flee: 0 });
-    expect(guardBand(defender, attacker).lowest).toBeGreaterThanOrEqual(5);
+    const defender = battler({ def: 1000, flee: 0 });
     for (let seed = 0; seed < 50; seed++) {
       expect(rollAttack(attacker, defender, new Rng(seed)).damage).toBe(0);
     }
+  });
+
+  it("halves a blow that meets a guard half its size", () => {
+    expect(damageThroughGuard(10, 5)).toBe(5);
+    expect(damageThroughGuard(10, 0)).toBe(10);
+    expect(damageThroughGuard(0, 10)).toBe(0);
+  });
+
+  it("takes a larger share of a small blow than of a heavy one", () => {
+    const guard = 8;
+    expect(damageThroughGuard(4, guard) / 4).toBeLessThan(damageThroughGuard(40, guard) / 40);
   });
 
   it("no longer makes armour worth the blow a wall against it", () => {
@@ -358,11 +369,11 @@ describe("swinging", () => {
       const outcome = rollAttack(attacker, defender, new Rng(seed));
       if (outcome.missed || outcome.dodged) continue;
       expect(outcome.potentialDamage).toBe(9);
-      expect(outcome.damage).toBeGreaterThanOrEqual(9 - highest);
-      expect(outcome.damage).toBeLessThanOrEqual(9 - lowest);
+      expect(outcome.damage).toBeGreaterThanOrEqual(damageThroughGuard(9, highest));
+      expect(outcome.damage).toBeLessThanOrEqual(damageThroughGuard(9, lowest));
       drawn.add(outcome.damage);
     }
-    expect([...drawn].sort((a, b) => a - b)).toEqual([5, 6, 7, 8]);
+    expect([...drawn].sort((a, b) => a - b)).toEqual([5, 6, 7]);
   });
 
   it("always dodges a defender nothing can touch", () => {
@@ -433,7 +444,7 @@ describe("resisting a kind of blow", () => {
 
   it("never heals, however much of it there is", () => {
     const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1, mastery: "arcane" });
-    const warded = battler({ def: 0, resist: { arcane: 100 }, flee: 0 });
+    const warded = battler({ def: 0, resist: { arcane: 1000 }, flee: 0 });
     for (let seed = 0; seed < 50; seed++) {
       expect(rollAttack(attacker, warded, new Rng(seed)).damage).toBe(0);
     }
@@ -487,7 +498,7 @@ describe("statuses a weapon inflicts", () => {
 
   it("still inflicts through armour that ate the whole blow", () => {
     const attacker = battler({ ...connects, damage: 5, statuses: [certain] });
-    const defender = battler({ def: 100, flee: 0 });
+    const defender = battler({ def: 1000, flee: 0 });
     let landed = 0;
     for (let seed = 0; seed < 50; seed++) {
       const outcome = rollAttack(attacker, defender, new Rng(seed));

@@ -433,6 +433,14 @@ an agent drives", lists every call.
     a temporary git worktree that borrows this checkout's `node_modules`,
     and prints the change in each figure: the balance evidence a content PR
     attaches
+  - `ratings` bisects, for every creature, the level at which a player with
+    Sharp, Toughness and Agility at that level and that level's sword wins at
+    least as often as it loses, and prints it beside the rating the creature
+    shows and whether that rating is authored. It also prints the creature's
+    heaviest blow and its share of the hit points of a player of the
+    creature's rating. It is the figure to compare a creature's rating
+    against. The Arena casts no spells, so a caster is harder than its even
+    level
 - `bun run scene <scene.json> --out <file.png>` — draw a few hand-written cells
   with the game's own renderer and no game behind it, and screenshot them. A
   scene lists tile stacks by cell, each tile with an optional facing, plus the

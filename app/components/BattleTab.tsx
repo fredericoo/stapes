@@ -1,12 +1,19 @@
 import { useMemo } from "react";
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BATTLER, fightingStats, MAX_BASE_HP, MIN_BASE_HP } from "../lib/battler";
+import {
+  computedRating,
+  DEFAULT_BATTLER,
+  fightingStats,
+  MAX_AUTHORED_RATING,
+  MAX_BASE_HP,
+  MIN_BASE_HP,
+} from "../lib/battler";
 import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { UNNAMED_WEAPON, resolveItem } from "../lib/item";
-import { MAX_MASTERY, type Mastery, masteryLevel, MIN_MASTERY } from "../lib/mastery";
+import { MAX_MASTERY, type Mastery, masteryLevel, MIN_MASTERY, MIN_RATING } from "../lib/mastery";
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
@@ -62,6 +69,9 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
   };
 
   const setBaseHp = (baseHp: number) => setBattler({ ...battler, baseHp });
+
+  const fromStats = computedRating(battler);
+  const setRating = (rating: number | undefined) => setBattler({ ...battler, rating });
 
   const setMastery = (mastery: Mastery, level: number) => {
     setBattler({
@@ -120,6 +130,25 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssu
             max={MAX_BASE_HP}
             onChange={setBaseHp}
           />
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <SwitchField
+            checked={battler.rating !== undefined}
+            onCheckedChange={(on) => setRating(on ? fromStats : undefined)}
+            label="Author the rating"
+            info="The star shown over this body, which experience and creature behaviour are weighed against. Off, it is worked out from masteries and Base HP, which counts no spells and no kit. `bun run verify ratings` prints the level a player fights it even at."
+          />
+          {battler.rating !== undefined ? (
+            <StatField
+              label="Rating"
+              hint={`From its stats it would be ${fromStats}.`}
+              value={battler.rating}
+              min={MIN_RATING}
+              max={MAX_AUTHORED_RATING}
+              onChange={setRating}
+            />
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
