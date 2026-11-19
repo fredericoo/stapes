@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Equipment } from "../game/equipment";
-import { slotIn, type ContainerRef, type ContainerView } from "../game/itemMoves";
+import { slotIn, type ContainerRef, type ContainerView, type SlotRef } from "../game/itemMoves";
 import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -10,6 +10,7 @@ import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
 import { HudWindow } from "./HudWindow";
 import { type HeldStatus, ItemSlot } from "./ItemSlot";
+import { PileSplitter } from "./PileSplitter";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
@@ -50,6 +51,11 @@ export function containerSlotGrid(availablePx: number): {
   return { columns, slotPx };
 }
 
+export type PileActions = {
+  canSplit: (slot: SlotRef, count: number) => boolean;
+  split: (slot: SlotRef, count: number) => void;
+};
+
 export function ContainerPanel({
   container,
   location,
@@ -62,6 +68,7 @@ export function ContainerPanel({
   masteryXp = {},
   statusDefs,
   statuses,
+  piles,
   className = "",
 }: {
   container: ContainerView;
@@ -75,6 +82,7 @@ export function ContainerPanel({
   masteryXp?: MasteryXp;
   statusDefs?: Record<string, StatusDef>;
   statuses?: readonly HeldStatus[];
+  piles?: PileActions;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -172,6 +180,16 @@ export function ContainerPanel({
           </div>
         ))}
       </div>
+      {piles ? (
+        <PileSplitter
+          location={location}
+          contents={contents}
+          name={(instance) => slotCaptionFor(instance, tilesById)}
+          drag={drag}
+          canSplit={piles.canSplit}
+          onSplit={piles.split}
+        />
+      ) : null}
     </HudWindow>
   );
 }

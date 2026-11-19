@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SlotRef } from "../game/itemMoves";
-import { releaseTo } from "./useItemDrag";
+import { countForModifiers, releaseTo } from "./useItemDrag";
 
 const BAG: SlotRef = { kind: "contents", index: 0 };
 const HAND: SlotRef = { kind: "weapon" };
@@ -25,5 +25,25 @@ describe("where a release goes", () => {
 
   it("does nothing when there is no position to release at", () => {
     expect(releaseTo(null, null, null)).toEqual({ kind: "nothing" });
+  });
+});
+
+describe("how many of a pile a drag carries", () => {
+  const PILE = { id: "itm_a", tileId: "bone", count: 5 };
+  const NO_KEYS = { shiftKey: false, altKey: false };
+
+  it("carries the whole pile with no key held", () => {
+    expect(countForModifiers(PILE, NO_KEYS)).toBeUndefined();
+  });
+
+  it("carries one with Shift and half, rounded down, with Alt", () => {
+    expect(countForModifiers(PILE, { ...NO_KEYS, shiftKey: true })).toBe(1);
+    expect(countForModifiers(PILE, { ...NO_KEYS, altKey: true })).toBe(2);
+  });
+
+  it("carries a single thing whole whatever is held", () => {
+    expect(
+      countForModifiers({ id: "itm_b", tileId: "bone" }, { shiftKey: true, altKey: true }),
+    ).toBeUndefined();
   });
 });

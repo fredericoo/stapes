@@ -10761,24 +10761,52 @@ and an artifact gets nothing until asked; `pileMax` is where both sentences are
 written, and `itemForSave` drops an artifact's pile of one so the file has one
 spelling of the default.
 
-**A pile arriving somewhere pours into the first pile of its kind with room for
-all of it, and otherwise takes a square of its own.** It never splits across two
-and never half-lands, because there is no interface for choosing an amount and a
-partial move would be the game deciding a number nobody was offered. Fusing is
-gated on an *allow-list* of fields — `tileId`, `id`/`itemId`, `count` — so a
+**A pile that lands somewhere on its own pours into the first pile of its kind
+with room for all of it, and otherwise takes a square of its own.** Picking up,
+a drop on the floor, a body dying and a stash item that falls through a hole
+never split across two and never half-land: that would be the game deciding a
+number nobody was offered.
+
+**A pile the player drags fills as much as there is room for**, and what does
+not fit stays where it came from. A drag is the player saying where it goes,
+so a remainder left behind is visible and is theirs to move again:
+
+- Onto a pile of its kind in the **same container**, or onto a **hand**
+  holding its kind, it fills *that* pile (`topUpSlot`). Before this, a move
+  inside one container was refused outright, so two piles in one bag could
+  never meet.
+- Into **another container** it fills that container's piles of its kind in
+  order and then takes a free square (`stowFilling`). It goes by the container
+  and not by the square, because the bag button, tap-to-put-away and a drink's
+  bottle all name the first square to mean "the bag".
+
+The player chooses a count in two places: Shift-drag carries one and Alt-drag
+carries half (`countForModifiers`, `app/components/useItemDrag.ts`), and
+dropping a pile on the split zone under its container asks how many to split
+off.
+
+Fusing is gated on an *allow-list* of fields — `tileId`, `id`/`itemId`, `count` — so a
 field added to either shape later makes two things stop fusing rather than
 quietly throwing one copy of it away. A berry somebody has written on is not one
 of a heap.
 
-Three verbs meet it, and the split between the first two is the interesting one:
+These verbs meet it, and the split between the first two is the interesting one:
 
-- **Moving takes the whole pile** — `clearSlot`, and every drag, drop and pickup
-  through it. This is also the one place in the game a move lands *on* something
-  rather than beside it: a hand holding berries will take more berries, which is
-  not a swap, because nothing comes back out.
+- **Moving takes the whole pile** unless a count was chosen — `takeFromSlot`,
+  and every drag, drop and pickup through it. This is also the one place in the
+  game a move lands *on* something rather than beside it: a hand holding
+  berries will take more berries, which is not a swap, because nothing comes
+  back out.
 - **Spending takes one** — `peelSlot` (`app/game/itemMoves.ts`), which a meal and
   a recipe's input go through and which falls through to `clearSlot` for the last
   of anything. Everything that is not food only ever reaches the fallback.
+- **Taking part of a pile** — a move or a drop with a `count` (`portionOf`,
+  `takeFromSlot`). The part taken gets a new id and the pile left keeps the
+  old one. It never trades places with what it is dropped on: a swap would
+  put the thing that was there back where only some of the pile left from.
+- **Splitting in place** — `splitPile`, a message of its own rather than a
+  move inside the container, which would only ever land on a pile or nowhere.
+  The new pile goes in the square after its source.
 - **Landing on a cell pours** — `appendItem` (`app/lib/piles.ts`), which a drop,
   a body dying and a pile falling down a hole all go through, and which
   `runTileCommand` does by hand for the one cell it writes. Those are the only
