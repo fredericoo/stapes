@@ -2678,6 +2678,30 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
+### An autotile varies from cell to cell through frames that never advance
+
+An autotile has one sprite per slice, so every cell with the same neighbours
+draws the same image, and a texture on it repeats every 8px. `lava-crust`
+and `basalt` each get 24 layouts of cracks or joints out of one tile by making
+them frames: each frame lasts
+2^30 ms (about twelve days), and the slice's `phase` (`{x: 1, y: 5}`) starts
+each cell on a different frame, so the frame a cell shows is fixed by where it
+is. `scripts/generate-lava.ts` draws the layouts so a line that leaves one
+across its east edge enters the layout `phase.x` frames on at the same place,
+and likewise south with `phase.y`, which is what makes the field seamless.
+
+- **The duration is a power of two on purpose.** The GPU looks the frame up
+  by comparing a float32 clock against each frame's end time
+  (`ANIM_GLSL_FUNCTION`). Multiples of 2^30 are exact in float32, so a cell's
+  start time never rounds below its frame boundary into the previous layout.
+- **The phase was chosen for distance, not taste.** With 24 frames, `{x: 1,
+  y: 5}` puts the nearest cell showing the same layout five cells away, the
+  most any phase reaches for that count.
+- **The frames do advance, every twelve days of one page's clock.** Every cell
+  steps on together, so the field changes all at once and stays seamless.
+- **The light has to be the same on every frame.** A frame-varying light turns
+  the phase off (`spritePhase`), and every cell would show layout 0.
+
 ### Deep water and swamp are laid over shallow water
 
 `deep-water` and `swamp` are autotiles meant to sit on top of `water` in the
