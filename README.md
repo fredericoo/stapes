@@ -261,6 +261,12 @@ an agent drives", lists every call.
   a frozen lake or over `deep-water` as a crossing, and walks 30% fast.
   `snowy-pine` and `snowy-rock` are models cast with `scripts/model-caster.ts`;
   `PREVIEW=<dir>` also writes each face cast four times larger
+- `bun run generate:cats` — draw `data/tilesets/cats.png` and write the
+  `cat-black`, `cat-grey`, `cat-white`, `cat-brown`, `cat-cream`,
+  `cat-tuxedo` and `cat-blue` tiles. Each is the `cat`'s own frames read out of
+  `animals.png` with its three fur shades swapped, and starts as a copy of the
+  `cat` tile, so its behaviour and stats are the cat's until edited.
+  `scripts/scenes/cats.json` shows every coat on grass
 - `bun run generate:snow-beasts` — redraw `data/tilesets/snow-beasts.png` and
   the sprites of `snow-wolf` and `yeti`. The snow wolf is the wolf's own
   frames read out of `animals.png` with its coat recoloured, so it follows any

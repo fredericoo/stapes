@@ -332,5 +332,12 @@
     "file": "lighthouse.png",
     "width": 160,
     "height": 192
+  },
+  {
+    "id": "cats",
+    "name": "Cats",
+    "file": "cats.png",
+    "width": 48,
+    "height": 448
   }
 ]
