@@ -115,7 +115,7 @@
     },
     {
       "at": [4, 8],
-      "tiles": ["grass", "rune-blank-deep-ore"]
+      "tiles": ["grass", "rune-blank-obsidian"]
     },
     {
       "at": [6, 8],

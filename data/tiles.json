@@ -120636,8 +120636,8 @@
     }
   },
   {
-    "id": "rune-blank-deep-ore",
-    "name": "Deep Ore Blank",
+    "id": "rune-blank-obsidian",
+    "name": "Obsidian Blank",
     "height": 0,
     "kind": "item",
     "attributes": {},

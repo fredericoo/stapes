@@ -334,7 +334,7 @@ an agent drives", lists every call.
   times larger
 - `bun run generate:runes` — draw `data/tilesets/runes.png` and point every
   `arcane-stone-*` item at it, and write the three blank runes and the three
-  essences. A rune is a slab in its material (bone, crystal or deep ore) with a
+  essences. A rune is a slab in its material (bone, crystal or obsidian) with a
   5×5 mark carved into it, coloured by its element; the glyphs, materials and
   colours are tables at the top of the script
 - `bun run seed` — copy `data/` into the `blob` table of the database in

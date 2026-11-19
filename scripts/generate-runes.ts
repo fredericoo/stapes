@@ -5,7 +5,7 @@ import { paint, writeTileset } from "./tileset-output";
 const CELL = 8;
 const COLUMNS = 8;
 
-type Material = "bone" | "crystal" | "ore";
+type Material = "bone" | "crystal" | "obsidian";
 type Essence = "fire" | "water" | "nature" | "neutral";
 
 /** `#` is the mark, on the 5×6 interior of a rune's face. */
@@ -65,7 +65,7 @@ const BASES: Record<Material, Base> = {
       },
     ],
   },
-  ore: {
+  obsidian: {
     mask: [
       ".#######",
       "########",
@@ -213,12 +213,12 @@ const CRYSTAL_TINTS: Record<Exclude<Essence, "neutral">, Pick<Base, "fill" | "li
 /**
  * Each element takes the shade of its colour that stands out most on the
  * material. No essence is carved as a bare groove: dark in bone and crystal,
- * bright in the dark ore.
+ * bright in the dark obsidian.
  */
 const MARK: Record<Material, Record<Essence, number>> = {
   bone: { fire: 9, water: 31, nature: 15, neutral: 4 },
   crystal: { fire: 28, water: 28, nature: 28, neutral: 0 },
-  ore: { fire: 12, water: 30, nature: 20, neutral: 28 },
+  obsidian: { fire: 12, water: 30, nature: 20, neutral: 28 },
 };
 
 const GLYPHS = {
@@ -263,15 +263,15 @@ const RUNES: Rune[][] = [
     { id: "cinder", essence: "fire", material: "bone", glyph: "dots" },
     { id: "ember", essence: "fire", material: "crystal", glyph: "diamond" },
     { id: "pyre", essence: "fire", material: "crystal", glyph: "logs" },
-    { id: "inferno", essence: "fire", material: "ore", glyph: "star" },
-    { id: "berserk", essence: "fire", material: "ore", glyph: "teeth" },
+    { id: "inferno", essence: "fire", material: "obsidian", glyph: "star" },
+    { id: "berserk", essence: "fire", material: "obsidian", glyph: "teeth" },
   ],
   [
     { id: "sleet", essence: "water", material: "bone", glyph: "slashes" },
     { id: "frost", essence: "water", material: "crystal", glyph: "cross" },
     { id: "rime", essence: "water", material: "crystal", glyph: "saltire" },
-    { id: "shatter", essence: "water", material: "ore", glyph: "zed" },
-    { id: "crystallise", essence: "water", material: "ore", glyph: "diamond" },
+    { id: "shatter", essence: "water", material: "obsidian", glyph: "zed" },
+    { id: "crystallise", essence: "water", material: "obsidian", glyph: "diamond" },
   ],
   [
     { id: "barbs", essence: "nature", material: "bone", glyph: "barbed" },
@@ -279,22 +279,22 @@ const RUNES: Rune[][] = [
     { id: "bramble", essence: "nature", material: "crystal", glyph: "fence" },
     { id: "verdance", essence: "nature", material: "crystal", glyph: "sprout" },
     { id: "bloom", essence: "nature", material: "crystal", glyph: "eye" },
-    { id: "overgrowth", essence: "nature", material: "ore", glyph: "trident" },
-    { id: "blossom", essence: "nature", material: "ore", glyph: "eight" },
+    { id: "overgrowth", essence: "nature", material: "obsidian", glyph: "trident" },
+    { id: "blossom", essence: "nature", material: "obsidian", glyph: "eight" },
   ],
   [
     { id: "light", essence: "neutral", material: "bone", glyph: "beam" },
     { id: "spark", essence: "neutral", material: "bone", glyph: "spark" },
     { id: "bolt", essence: "neutral", material: "crystal", glyph: "zigzag" },
     { id: "lance", essence: "neutral", material: "crystal", glyph: "spear" },
-    { id: "stomp", essence: "neutral", material: "ore", glyph: "impact" },
+    { id: "stomp", essence: "neutral", material: "obsidian", glyph: "impact" },
   ],
 ];
 
 const BLANKS: { id: string; name: string; material: Material }[] = [
   { id: "rune-blank-bone", name: "Bone Blank", material: "bone" },
   { id: "rune-blank-crystal", name: "Crystal Blank", material: "crystal" },
-  { id: "rune-blank-deep-ore", name: "Deep Ore Blank", material: "ore" },
+  { id: "rune-blank-obsidian", name: "Obsidian Blank", material: "obsidian" },
 ];
 
 /** Rows of palette indices; `.` is empty. Essences are lumps of a creature, so they are drawn, not built from a base. */
