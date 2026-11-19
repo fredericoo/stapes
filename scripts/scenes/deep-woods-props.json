@@ -1,0 +1,15 @@
+{
+  "time": "12:00",
+  "zoom": 8,
+  "look": [5, 4],
+  "cells": [
+    { "from": [-4, -4], "to": [14, 12], "tiles": ["grass-2"] },
+    { "at": [3, 3], "tiles": ["grass-2", "fallen-log"] },
+    { "at": [7, 5], "tiles": ["grass-2", "fallen-log"] },
+    { "at": [6, 2], "tiles": ["grass-2", "tree-stump"] },
+    { "at": [2, 6], "tiles": ["grass-2", "tree-stump"] },
+    { "at": [4, 6], "tiles": ["grass-2", "fern"] },
+    { "at": [8, 3], "tiles": ["grass-2", "tree"] },
+    { "at": [5, 7], "tiles": ["grass-2", "bush"] }
+  ]
+}

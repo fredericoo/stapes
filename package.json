@@ -34,6 +34,7 @@
     "generate:ledges": "bun scripts/generate-ledges.ts",
     "generate:brinks": "bun scripts/generate-brinks.ts",
     "generate:stalagmites": "bun scripts/generate-stalagmites.ts",
+    "generate:deep-woods": "bun scripts/generate-deep-woods.ts",
     "generate:mushrooms": "bun scripts/generate-mushrooms.ts",
     "generate:runes": "bun scripts/generate-runes.ts",
     "generate:rune-temple": "bun scripts/generate-rune-temple.ts",
