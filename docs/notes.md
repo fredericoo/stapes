@@ -3745,12 +3745,30 @@ the search the bots use, which also opens doors and uses ladders and portals.
   failed is not asked again for 5 seconds (`BRAIN_PLAN_MEMORY_MS`), wherever
   the body has moved since. A plan that drops, for a body that may not drop,
   or wades, for one that keeps dry, is refused.
+- **The search runs a slice a tick, never inside `walkTo`.** `planAround`
+  only starts a `RouteSearch` (`app/game/navigation.ts`, the resumable form
+  of `planRoute`) and keeps it in `GameSession.planSearches`. After the
+  brains have had their turn, `advancePlanSearches` shares
+  `BRAIN_PLAN_TICK_NODES` (64) between every search still running, an equal
+  part each, rotating who goes first. Until its search ends the body holds
+  still and `walkTo` answers `walking`, so a long route costs a wait of a few
+  ticks rather than one long tick. A search is dropped, unfinished, when its
+  body moves, dies, despawns or stops walking to that goal; the next walk to
+  it starts afresh. A finished search becomes `plan` or `failedPlan` before
+  bodies move in that tick.
+  The board is the one the search started on; a door shut since or a body in
+  the way shows up as a leg `followPlan` cannot take, which drops the plan.
 - **What it costs, measured on the generated island** with a player in each
-  town, over seven simulated minutes around bedtime and morning: 66 plans, 7ms
-  on average. The longest were Tobiah Marsh's walks home along the streets
-  from his last lamp, 50 to 70 steps, at up to about 50ms, which is longer
-  than a 33ms tick. A budget of 1,024 nodes did not bring the worst case down
-  and left him short of his lamps, so it stays at 4,096.
+  town, a minute at each of 20:00, 23:00, 06:00 and 08:00: about 52 plans, of
+  up to about 600 nodes, at about 36µs a node. Searched whole inside the
+  tick, the worst tick spent 26 to 31ms planning; in slices of 64 nodes it
+  spends about 5 to 8ms, and a plan waits 3 ticks at the median and 23 at most
+  (0.8s). 128 nodes a tick halved the longest wait and let the worst tick reach 11 to
+  14ms. Some nodes cost far more than the average, so a slice of 64 is not a
+  fixed 2ms. Tobiah Marsh's 50- to 70-step walks home from his last lamp
+  were the longest searched whole, at up to about 50ms. A budget of 1,024
+  nodes did not bring that down and left him short of his lamps, so the whole
+  search stays at 4,096.
 - **The legs out of a doorway are planned with the door open.** On the board as
   stored the door is shut, so a body in the doorway was read as standing on
   top of it. Under a storey, as at every house door, that left no way out of

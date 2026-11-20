@@ -24,6 +24,7 @@ export const NAVIGATION_MAX_NODES = 40_000;
 export const BRAIN_PLAN_MAX_NODES = 4_096;
 export const BRAIN_PLAN_DETOUR_SLACK = 48;
 export const BRAIN_PLAN_MEMORY_MS = 5_000;
+export const BRAIN_PLAN_TICK_NODES = 64;
 
 /**
  * A drop cannot be walked back up, so a route pays extra for one and takes it
@@ -318,11 +319,70 @@ export type NavOutcome =
   | { ok: true; legs: NavLeg[] }
   | { ok: false; why: "unreachable" | "budget"; explored: number };
 
+export type SearchStep = NavOutcome | { pending: true; explored: number };
+
 /**
+ * `planRoute` as an object that can stop and carry on: each `step` expands at
+ * most the nodes it is given and keeps the frontier for the next one.
  * `detourSlack` drops every node whose route would be more than that much
  * longer than the estimate from `from`, so a goal nobody can reach costs a
  * search the size of its neighbourhood rather than the whole budget.
  */
+export class RouteSearch {
+  private readonly frontier = new Frontier();
+  private readonly best = new Map<string, number>();
+  private readonly longest: number;
+  private expanded = 0;
+  private outcome: NavOutcome | null = null;
+
+  constructor(
+    private readonly world: NavWorld,
+    from: Coord,
+    private readonly goal: NavGoal,
+    private readonly maxNodes = NAVIGATION_MAX_NODES,
+    detourSlack = Infinity,
+  ) {
+    this.longest = goal.estimate(from) + detourSlack;
+    this.frontier.push({ at: from, g: 0, f: goal.estimate(from), cameFrom: null, leg: null });
+    this.best.set(cellKey(from), 0);
+  }
+
+  get explored(): number {
+    return this.expanded;
+  }
+
+  step(nodes: number): SearchStep {
+    if (this.outcome) return this.outcome;
+    const { frontier, best, goal, world } = this;
+    const stop = Math.min(this.maxNodes, this.expanded + nodes);
+    for (; this.expanded < stop; this.expanded++) {
+      const node = frontier.pop();
+      if (!node) return this.finish({ ok: false, why: "unreachable", explored: this.expanded });
+      if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
+      if (goal.reached(node.at)) return this.finish({ ok: true, legs: unwind(node) });
+
+      for (const leg of navigationLegs(world, node.at)) {
+        const key = cellKey(leg.to);
+        const g = node.g + costOf(world, node.at, leg);
+        if (g >= (best.get(key) ?? Infinity)) continue;
+        const f = g + goal.estimate(leg.to);
+        if (f > this.longest) continue;
+        best.set(key, g);
+        frontier.push({ at: leg.to, g, f, cameFrom: node, leg });
+      }
+    }
+    if (this.expanded >= this.maxNodes) {
+      return this.finish({ ok: false, why: "budget", explored: this.maxNodes });
+    }
+    return { pending: true, explored: this.expanded };
+  }
+
+  private finish(outcome: NavOutcome): NavOutcome {
+    this.outcome = outcome;
+    return outcome;
+  }
+}
+
 export function planRoute(
   world: NavWorld,
   from: Coord,
@@ -330,29 +390,9 @@ export function planRoute(
   maxNodes = NAVIGATION_MAX_NODES,
   detourSlack = Infinity,
 ): NavOutcome {
-  const frontier = new Frontier();
-  const best = new Map<string, number>();
-  const longest = goal.estimate(from) + detourSlack;
-  frontier.push({ at: from, g: 0, f: goal.estimate(from), cameFrom: null, leg: null });
-  best.set(cellKey(from), 0);
-
-  for (let expanded = 0; expanded < maxNodes; expanded++) {
-    const node = frontier.pop();
-    if (!node) return { ok: false, why: "unreachable", explored: expanded };
-    if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
-    if (goal.reached(node.at)) return { ok: true, legs: unwind(node) };
-
-    for (const leg of navigationLegs(world, node.at)) {
-      const key = cellKey(leg.to);
-      const g = node.g + costOf(world, node.at, leg);
-      if (g >= (best.get(key) ?? Infinity)) continue;
-      const f = g + goal.estimate(leg.to);
-      if (f > longest) continue;
-      best.set(key, g);
-      frontier.push({ at: leg.to, g, f, cameFrom: node, leg });
-    }
-  }
-  return { ok: false, why: "budget", explored: maxNodes };
+  const outcome = new RouteSearch(world, from, goal, maxNodes, detourSlack).step(maxNodes);
+  if ("pending" in outcome) throw new Error("a search given its whole budget cannot be pending");
+  return outcome;
 }
 
 /**
