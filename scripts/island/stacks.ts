@@ -139,6 +139,19 @@ function riverStack(kind: Kind): PlacedTile[] {
     : [tile(BASE[kind]), tile("water")];
 }
 
+/**
+ * The storeys of a raised column where a neighbour's ground lies, which are
+ * the only storeys whose wall needs ground under it: there the ground or brink
+ * beside it would otherwise draw its edge against the wall. A wall stacked on
+ * another wall stands on rock, and ground under it shows through the dents in
+ * the wall's foot.
+ */
+function storeysWithFoot(island: Island, i: number): Set<number> {
+  const feet = new Set<number>();
+  forNeighbours(island.width, island.height, i, N8, (j) => feet.add(island.level[j]!));
+  return feet;
+}
+
 /** The shallow edge of a lake, which is a shore and has no bank. */
 function shoreStack(kind: Kind): PlacedTile[] {
   return kind === "grass"
@@ -199,14 +212,18 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     if (g === Ground.Basalt && besideGrass[i]) ground[i] = Ground.Desert;
     const kind = kindAt(island, i);
     const base = BASE[kind];
+    const feet = storeysWithFoot(island, i);
     for (let z = 0; z < L; z++) {
+      const wall = [tile(WALL[kind])];
       board.set(
         x,
         y,
         z,
         heads.has(i) && z === L - 1
           ? [tile(base), tile(RAMP[kind].block), tile(RAMP[kind].block)]
-          : [...UNDER_WALL[kind].map((id) => tile(id)), tile(WALL[kind])],
+          : feet.has(z)
+            ? [...UNDER_WALL[kind].map((id) => tile(id)), ...wall]
+            : wall,
       );
     }
     let drop = false;
