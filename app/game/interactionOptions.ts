@@ -6,6 +6,7 @@ import {
   resolveRemoveStatus,
   resolveExtract,
   resolveRewardDef,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
   craftVerb,
@@ -14,7 +15,7 @@ import {
 import type { StatusDef } from "../lib/status";
 import { overLimitFor } from "./statuses";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
 import {
@@ -25,6 +26,7 @@ import {
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
+  canSetSpawnFrom,
   reachableRewardAt,
   rewardFits,
   rewardOfferedAt,
@@ -89,6 +91,7 @@ export type OptionBlock =
   | { kind: "working"; extraction: Extraction }
   | { kind: "noRoom" }
   | { kind: "taken" }
+  | { kind: "here" }
   | { kind: "needs"; rating: number }
   | { kind: "overLimit"; words: string };
 
@@ -107,6 +110,7 @@ const LABELS: Record<InteractionAction, string> = {
   teleport: "Enter",
   addStatus: "Touch",
   removeStatus: "Touch",
+  setSpawn: "Mark",
   extract: DEFAULT_EXTRACT_VERB,
   craft: DEFAULT_CRAFT_VERB,
 };
@@ -122,6 +126,7 @@ export function interactionText(option: InteractionOption): string {
 export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   if (blocked.kind === "taken") return "in use";
+  if (blocked.kind === "here") return null;
   if (blocked.kind === "needs") return `needs rating ${blocked.rating}`;
   if (blocked.kind === "overLimit") return blocked.words;
   return "no room";
@@ -154,12 +159,13 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   switch: 6,
   addStatus: 7,
   removeStatus: 8,
-  craft: 9,
-  extract: 10,
-  equip: 11,
-  open: 12,
-  pickUp: 13,
-  consume: 14,
+  setSpawn: 9,
+  craft: 10,
+  extract: 11,
+  equip: 12,
+  open: 13,
+  pickUp: 14,
+  consume: 15,
   push: 16,
 };
 
@@ -213,6 +219,7 @@ export function listInteractionOptions(
   nextBlow: Progress | null = null,
   craftingRef: ObjectRef | null = null,
   statusDefs: Record<string, StatusDef> = {},
+  spawnAt: Coord | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
   const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
@@ -232,6 +239,7 @@ export function listInteractionOptions(
       extracting,
       craftingRef,
       statusDefs,
+      spawnAt,
     ),
   ];
   const tiers = tiersBySubject(map, tilesById, self, options);
@@ -268,6 +276,7 @@ export type RefContext = {
   conversation: Conversation | null;
   craftingRef: ObjectRef | null;
   statusDefs: Record<string, StatusDef>;
+  spawnAt?: Coord | null;
 };
 
 /**
@@ -305,6 +314,7 @@ export function refOptionsFrom(
       context.extracting,
       context.craftingRef,
       context.statusDefs,
+      context.spawnAt ?? null,
     ),
   );
   return out;
@@ -526,6 +536,7 @@ function objectOptions(
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
   statusDefs: Record<string, StatusDef>,
+  spawnAt: Coord | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -553,6 +564,7 @@ function objectOptions(
               extracting,
               craftingRef,
               statusDefs,
+              spawnAt,
             ),
           );
         }
@@ -576,6 +588,7 @@ function slotOptions(
   extracting: Extraction | null,
   craftingRef: ObjectRef | null,
   statusDefs: Record<string, StatusDef>,
+  spawnAt: Coord | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -623,11 +636,17 @@ function slotOptions(
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
   const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
   if (action) {
+    const blocked =
+      action === "setSpawn"
+        ? spawnBlock(ref, spawnAt)
+        : actionBlock(action, map, tilesById, self, equipment, ref, extracting);
     add(
       action,
-      objectActionLabel(action, tilesById[placed.tileId]),
+      blocked?.kind === "here"
+        ? SPAWN_HERE_LABEL
+        : objectActionLabel(action, tilesById[placed.tileId]),
       false,
-      actionBlock(action, map, tilesById, self, equipment, ref, extracting),
+      blocked,
     );
   }
 
@@ -674,6 +693,14 @@ function actionBlock(
     return { kind: "noRoom" };
   }
   return null;
+}
+
+const SPAWN_HERE_LABEL = "You respawn here";
+
+function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
+  if (!spawnAt) return null;
+  const here = ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
+  return here ? { kind: "here" } : null;
 }
 
 function rewardBlock(
@@ -725,6 +752,7 @@ function objectAction(
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
   if (canRemoveStatusFrom(map, tilesById, self, ref)) return "removeStatus";
+  if (canSetSpawnFrom(map, tilesById, self, ref)) return "setSpawn";
   if (extractOfferedAt(map, tilesById, self, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
@@ -752,6 +780,9 @@ function objectActionLabel(action: InteractionAction, def: TileDef | undefined):
   }
   if (action === "removeStatus") {
     return resolveRemoveStatus(def)?.actionName?.trim() || LABELS.removeStatus;
+  }
+  if (action === "setSpawn") {
+    return resolveSetSpawn(def)?.actionName?.trim() || LABELS.setSpawn;
   }
   if (action === "extract") {
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;

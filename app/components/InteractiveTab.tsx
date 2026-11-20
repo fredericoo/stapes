@@ -13,6 +13,7 @@ import type {
   ReceiveInteraction,
   RemoveStatusInteraction,
   RewardInteraction,
+  SetSpawnInteraction,
   ShedInteraction,
   SignalMode,
   SignalValue,
@@ -36,6 +37,7 @@ import {
   DEFAULT_PUSH,
   DEFAULT_RECEIVE,
   DEFAULT_REMOVE_STATUS,
+  DEFAULT_SET_SPAWN,
   DEFAULT_REWARD,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
@@ -195,6 +197,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
   const removeStatus = draft.interactions?.removeStatus;
+  const setSpawn = draft.interactions?.setSpawn;
   const decay = draft.interactions?.decay;
   const shed = draft.interactions?.shed;
   const weather = draft.interactions?.weather;
@@ -312,6 +315,14 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const patchRemoveStatus = (patch: Partial<RemoveStatusInteraction>) => {
     if (!removeStatus) return;
     setRemoveStatus({ ...removeStatus, ...patch });
+  };
+
+  const setSetSpawn = (next: SetSpawnInteraction | undefined) => {
+    patchKind("setSpawn", next ?? null);
+  };
+  const patchSetSpawn = (patch: Partial<SetSpawnInteraction>) => {
+    if (!setSpawn) return;
+    setSetSpawn({ ...setSpawn, ...patch });
   };
 
   const statusOptions = Object.values(statusDefs).map((def) => ({
@@ -929,6 +940,38 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                 value={removeStatus.actionName}
                 fallback="Touch"
                 onChange={(actionName) => patchRemoveStatus({ actionName })}
+              />
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
+          on={Boolean(setSpawn)}
+          onToggle={(on) => setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)}
+          label="Set respawn"
+          info="Whoever triggers it comes back to this placement's cell after they die, instead of to the world's spawn. Kept per character, across deaths, until they mark another or the placement is gone. Players only. The row on the point they are anchored to reads 'You respawn here'."
+        />
+
+        {setSpawn ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-col gap-1 text-xs">
+              <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
+              <Segmented<ActivationTrigger>
+                value={setSpawn.trigger}
+                onChange={(trigger) => patchSetSpawn({ trigger })}
+                options={TRIGGER_OPTIONS}
+                size="sm"
+                ariaLabel="Respawn trigger"
+              />
+            </div>
+
+            {setSpawn.trigger === "step" ? null : (
+              <ActionLabelField
+                value={setSpawn.actionName}
+                fallback="Mark"
+                onChange={(actionName) => patchSetSpawn({ actionName })}
               />
             )}
           </div>

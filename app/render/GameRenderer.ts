@@ -294,6 +294,7 @@ export class GameRenderer {
   private masteriesSent: MasteryXp | null = null;
   private interactionsEquipment: Equipment | null = null;
   private interactionsTags: readonly string[] | null = null;
+  private interactionsSpawnAt: Coord | null = null;
   private interactionsExtracting: Extraction | null = null;
   private interactionsNextBlow: Progress | null = null;
   private onOpenedContainer: ((container: OpenedContainer | null) => void) | null = null;
@@ -1651,6 +1652,7 @@ export class GameRenderer {
       conversation: snap.conversation,
       craftingRef: this.craftingRef,
       statusDefs: this.statusDefs,
+      spawnAt: snap.spawnAt,
     };
   }
 
@@ -2246,6 +2248,7 @@ export class GameRenderer {
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
       snap.tags === this.interactionsTags &&
+      snap.spawnAt === this.interactionsSpawnAt &&
       snap.extracting === this.interactionsExtracting &&
       snap.nextBlow === this.interactionsNextBlow
     ) {
@@ -2255,6 +2258,7 @@ export class GameRenderer {
     this.interactionsNextBlow = snap.nextBlow;
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
+    this.interactionsSpawnAt = snap.spawnAt;
     this.interactionsExtracting = snap.extracting;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
@@ -2327,6 +2331,7 @@ export class GameRenderer {
       snap.nextBlow,
       this.craftingRef,
       this.statusDefs,
+      snap.spawnAt,
     );
   }
 

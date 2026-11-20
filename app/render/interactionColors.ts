@@ -24,6 +24,7 @@ export const INTERACTION_COLORS: Record<InteractionAction, InteractionColor> = {
   teleport: INTERACT,
   addStatus: INTERACT,
   removeStatus: INTERACT,
+  setSpawn: INTERACT,
   extract: INTERACT,
   craft: INTERACT,
 };

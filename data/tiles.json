@@ -63739,6 +63739,12 @@
       "x": 0,
       "y": 0
     },
+    "interactions": {
+      "setSpawn": {
+        "actionName": "Set respawn point",
+        "trigger": "interactOver"
+      }
+    },
     "sprite": {
       "frames": [
         {

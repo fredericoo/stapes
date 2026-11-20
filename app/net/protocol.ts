@@ -16,7 +16,7 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
-import type { PlacedTile } from "../lib/types";
+import type { Coord, PlacedTile } from "../lib/types";
 import {
   CRAFT_OUTCOMES,
   TRANSITION_SIDES,
@@ -397,6 +397,7 @@ export type ServerMessage =
       afflicted: AfflictedPatch[];
       equipment: Equipment;
       tags: string[];
+      spawnAt: Coord | null;
       extracting: Extraction | null;
       nextBlow: Progress | null;
       masteryXp: MasteryXp;
@@ -411,6 +412,7 @@ export type ServerMessage =
       spellCooldowns: Record<string, number>;
     }
   | { type: "tags"; tags: string[] }
+  | { type: "spawnPoint"; at: Coord }
   | { type: "conversation"; conversation: Conversation | null }
   | { type: "extracting"; extracting: Extraction | null }
   | { type: "nextBlow"; nextBlow: Progress | null }
@@ -679,6 +681,7 @@ const serverMessageSchema = v.variant("type", [
     afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
+    spawnAt: v.optional(v.nullable(coordSchema), () => null),
     extracting: v.optional(v.nullable(extractionSchema), () => null),
     nextBlow: v.optional(v.nullable(nextBlowSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
@@ -698,6 +701,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("spawnPoint"),
+    at: coordSchema,
   }),
   v.object({
     type: v.literal("conversation"),
@@ -965,7 +972,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 41;
+export const PROTOCOL_VERSION = 42;
 
 export const MAX_STEPS_AHEAD = 5;
 
