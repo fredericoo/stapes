@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { IconArrowBackUp, IconArrowForwardUp, IconBraces } from "@tabler/icons-react";
+import { useEffect, useMemo, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap } from "../../editor/compose/build";
@@ -22,12 +23,14 @@ import {
   type Layout,
   type Placement,
 } from "../../editor/compose/layout";
+import { JsonDialog } from "../../editor/compose/JsonDialog";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
+import { useDocHistory } from "../../editor/compose/useDocHistory";
 import { fetchBootstrap } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import { baseCellWorldOrigin } from "../../lib/geometry";
 import { tilesByIdFromList } from "../../lib/validation";
-import { ScrollArea } from "../../ui";
+import { Button, ScrollArea, Tooltip } from "../../ui";
 
 export async function clientLoader() {
   await requireAdmin();
@@ -85,8 +88,9 @@ function pointsOf(layout: Layout, placement: Placement) {
 export default function ComposePage() {
   const { tiles, tilesets } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
-  const [doc, setDoc] = useState(demoDoc);
+  const { doc, commit, preview, settle, undo, redo, canUndo, canRedo } = useDocHistory(demoDoc);
   const [view, setView] = useState(() => viewOf(doc));
+  const [jsonOpen, setJsonOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => branchKeys(doc.root));
   const built = useMemo(() => buildMap(doc, tilesById, COMPONENTS), [doc, tilesById]);
@@ -94,8 +98,61 @@ export default function ComposePage() {
   const placement = selected ? built.layout.placements.get(selected) : undefined;
   const selectedNode = selected ? findNode(doc.root, selected) : null;
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable]")) return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
   return (
-    <AdminShell>
+    <AdminShell
+      trailing={
+        <div className="flex items-center gap-1">
+          <Tooltip content="Undo (⌘Z)">
+            <Button
+              size="icon"
+              variant="ghost-inverse"
+              aria-label="Undo"
+              disabled={!canUndo}
+              onClick={undo}
+            >
+              <IconArrowBackUp size={18} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+          <Tooltip content="Redo (⌘⇧Z)">
+            <Button
+              size="icon"
+              variant="ghost-inverse"
+              aria-label="Redo"
+              disabled={!canRedo}
+              onClick={redo}
+            >
+              <IconArrowForwardUp size={18} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+          <Tooltip content="The tree as JSON, to copy out or paste in">
+            <Button
+              size="icon"
+              variant="ghost-inverse"
+              aria-label="Edit as JSON"
+              onClick={() => setJsonOpen(true)}
+            >
+              <IconBraces size={18} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+          <Button size="sm" variant="ghost-inverse" onClick={() => commit(demoDoc())}>
+            Start from the demo
+          </Button>
+        </div>
+      }
+    >
       <div className="grid h-full min-h-0 grid-cols-[16rem_1fr_25rem]">
         <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
           <h2 className="border-b-2 border-border px-3 py-2 text-xs font-bold uppercase tracking-wide">
@@ -131,14 +188,14 @@ export default function ComposePage() {
                       z={placement.z}
                       projection={projection}
                       onBounds={(bounds) =>
-                        setDoc((d) =>
+                        preview((d) =>
                           updateNode(d, placement.node.key, (n) => ({
                             ...n,
                             frame: frameFor(n.frame!, bounds, placement.parent),
                           })),
                         )
                       }
-                      onEnd={() => {}}
+                      onEnd={settle}
                     />
                   ) : (
                     <Outline placement={placement} projection={projection} />
@@ -151,14 +208,14 @@ export default function ComposePage() {
                       z={placement.z}
                       projection={projection}
                       onCell={(next) =>
-                        setDoc((d) =>
+                        preview((d) =>
                           updateNode(d, placement.node.key, (n) => ({
                             ...n,
                             props: { ...n.props, [name]: pointFor(point, next, frame) },
                           })),
                         )
                       }
-                      onEnd={() => {}}
+                      onEnd={settle}
                     />
                   ))}
                 </>
@@ -176,7 +233,7 @@ export default function ComposePage() {
                 isRoot={selectedNode === doc.root}
                 components={COMPONENTS}
                 problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}
-                onChange={setDoc}
+                onChange={commit}
                 onRenamed={setSelected}
               />
             ) : (
@@ -185,6 +242,7 @@ export default function ComposePage() {
           </ScrollArea>
         </aside>
       </div>
+      <JsonDialog open={jsonOpen} onOpenChange={setJsonOpen} doc={doc} onApply={commit} />
       <datalist id={TILE_LIST_ID}>
         {tiles.map((t) => (
           <option key={t.id} value={t.id}>
