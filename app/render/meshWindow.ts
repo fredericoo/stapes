@@ -1,5 +1,5 @@
 import { chunkKeyAt } from "../lib/mapData";
-import { CHUNK_SIZE, levelKey } from "../lib/types";
+import { CHUNK_SIZE, levelKey, parseCoordKey } from "../lib/types";
 import type { MapFile } from "../lib/types";
 import type { WorldRect } from "../lib/lightingChunks";
 import { type LevelRange, MESH_WINDOW_MARGIN } from "../lib/view";
@@ -68,4 +68,37 @@ export function visibleChunkKeys(
 export function parseChunkAddress(key: string): ChunkAddress {
   const at = key.indexOf(":");
   return { z: Number(key.slice(0, at)), chunk: key.slice(at + 1) };
+}
+
+/** A quarter of the 8.3ms a frame has at 120fps. */
+export const CHUNK_BUILD_BUDGET_MS = 2;
+
+/**
+ * Builds the queued chunks nearest the window first, until the frame's budget
+ * is spent, and always at least one so the queue drains on a slow machine too.
+ * Each built chunk is taken off `queue`.
+ */
+export function buildQueuedNearestFirst(
+  queue: Set<string>,
+  window: WorldRect,
+  build: (key: string, z: number, chunk: string) => void,
+  budgetMs = CHUNK_BUILD_BUDGET_MS,
+) {
+  const midX = (window.x0 + window.x1) / 2;
+  const midY = (window.y0 + window.y1) / 2;
+  const order = [...queue].map((key) => {
+    const { z, chunk } = parseChunkAddress(key);
+    const { x, y } = parseCoordKey(chunk);
+    const dx = (x + 0.5) * CHUNK_SIZE - z - midX;
+    const dy = (y + 0.5) * CHUNK_SIZE - z - midY;
+    return { key, z, chunk, distance: dx * dx + dy * dy };
+  });
+  order.sort((a, b) => a.distance - b.distance);
+
+  const deadline = performance.now() + budgetMs;
+  for (const { key, z, chunk } of order) {
+    queue.delete(key);
+    build(key, z, chunk);
+    if (performance.now() >= deadline) break;
+  }
 }

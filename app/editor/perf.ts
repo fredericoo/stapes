@@ -1,7 +1,7 @@
 export const PERF_BUDGETS = {
   maxDrawCalls: 120,
   maxTrianglesPerQuad: 4.5,
-  maxWorldMeshes: 140,
+  maxWorldMeshes: 98,
   maxMeshToQuadRatio: 0.05,
   frameMsP95: 1,
   frameMsP95Ci: 8,
@@ -19,6 +19,8 @@ export type EditorPerfSnapshot = {
   worldMeshes: number;
   animated: number;
   placedQuads: number;
+  meshedQuads: number;
+  meshedChunks: number;
   showOtherLevels: boolean;
   currentLevel: number;
   previewMode: boolean;
@@ -35,6 +37,8 @@ export type EditorPerfMeasure = {
   worldMeshes: number;
   animated: number;
   placedQuads: number;
+  meshedQuads: number;
+  meshedChunks: number;
 };
 
 export type EditorPerfProbe = {

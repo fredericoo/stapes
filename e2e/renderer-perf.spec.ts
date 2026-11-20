@@ -43,8 +43,8 @@ test.describe("editor renderer perf", () => {
     }, 60);
 
     expect(
-      result.placedQuads,
-      "the authored map should have enough quads to make this a real budget",
+      result.meshedQuads,
+      "the window over the camera should hold enough quads to make this a real budget",
     ).toBeGreaterThan(500);
 
     expect(
@@ -52,15 +52,15 @@ test.describe("editor renderer perf", () => {
       `draw calls ${result.calls} exceeded budget ${PERF_BUDGETS.maxDrawCalls}`,
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxDrawCalls);
 
-    const triangleBudget = Math.round(result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad);
-    const perQuad = result.triangles / result.placedQuads;
+    const triangleBudget = Math.round(result.meshedQuads * PERF_BUDGETS.maxTrianglesPerQuad);
+    const perQuad = result.triangles / result.meshedQuads;
 
     expect(
       result.triangles,
       `triangles ${result.triangles} exceeded ${triangleBudget} — ` +
-        `${perQuad.toFixed(2)} per quad over ${result.placedQuads} quads, ` +
+        `${perQuad.toFixed(2)} per quad over ${result.meshedQuads} meshed quads, ` +
         `against a ceiling of ${PERF_BUDGETS.maxTrianglesPerQuad}. ` +
-        `The map cannot cause this: the budget is a multiple of the map. ` +
+        `The map cannot cause this: the budget is a multiple of what was meshed. ` +
         `Something is drawing extra geometry per tile — an unmerged overlay, ` +
         `a second pass, a ghost drawn solid.`,
     ).toBeLessThanOrEqual(triangleBudget);
@@ -71,8 +71,8 @@ test.describe("editor renderer perf", () => {
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxWorldMeshes);
 
     expect(
-      result.worldMeshes / result.placedQuads,
-      `mesh/quad ratio ${result.worldMeshes}/${result.placedQuads} — merged path regressed?`,
+      result.worldMeshes / result.meshedQuads,
+      `mesh/quad ratio ${result.worldMeshes}/${result.meshedQuads} — merged path regressed?`,
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxMeshToQuadRatio);
 
     const msLimit = frameMsBudget();

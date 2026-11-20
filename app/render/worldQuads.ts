@@ -271,6 +271,48 @@ function writeQuadBox(
   }
 }
 
+function quadIndexArray(n: number): Uint16Array | Uint32Array {
+  const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+  for (let i = 0; i < n; i++) {
+    const base = i * VERTS_PER_QUAD;
+    const ib = i * 6;
+    indices[ib] = base;
+    indices[ib + 1] = base + 2;
+    indices[ib + 2] = base + 1;
+    indices[ib + 3] = base + 2;
+    indices[ib + 4] = base + 3;
+    indices[ib + 5] = base + 1;
+  }
+  return indices;
+}
+
+/**
+ * One geometry holding every quad of `geos`, each of which came from
+ * {@link buildMergedQuadGeometry}. The attributes are copied end to end, and
+ * the index is written afresh because every quad's six indices follow the
+ * same pattern from its first vertex.
+ */
+export function concatQuadGeometries(geos: readonly THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const first = geos[0];
+  const geo = new THREE.BufferGeometry();
+  if (!first) return geo;
+  let vertices = 0;
+  for (const g of geos) vertices += g.getAttribute("position").count;
+  for (const name of Object.keys(first.attributes)) {
+    const itemSize = first.getAttribute(name).itemSize;
+    const array = new Float32Array(vertices * itemSize);
+    let offset = 0;
+    for (const g of geos) {
+      const src = g.getAttribute(name).array as Float32Array;
+      array.set(src, offset);
+      offset += src.length;
+    }
+    geo.setAttribute(name, new THREE.BufferAttribute(array, itemSize));
+  }
+  geo.setIndex(new THREE.BufferAttribute(quadIndexArray(vertices / VERTS_PER_QUAD), 1));
+  return geo;
+}
+
 export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const n = quads.length;
   const positions = new Float32Array(n * VERTS_PER_QUAD * 3);
@@ -283,7 +325,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
   const reflects = new Float32Array(n * VERTS_PER_QUAD);
-  const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+  const indices = quadIndexArray(n);
 
   for (let i = 0; i < n; i++) {
     const q = quads[i]!;
@@ -339,15 +381,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
       anims[ub + v * 2] = row;
       anims[ub + v * 2 + 1] = phase;
     }
-
-    const base = i * VERTS_PER_QUAD;
-    const ib = i * 6;
-    indices[ib] = base;
-    indices[ib + 1] = base + 2;
-    indices[ib + 2] = base + 1;
-    indices[ib + 3] = base + 2;
-    indices[ib + 4] = base + 3;
-    indices[ib + 5] = base + 1;
   }
 
   const geo = new THREE.BufferGeometry();
