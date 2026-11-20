@@ -41,11 +41,13 @@ import {
 import { JsonDialog } from "../../editor/compose/JsonDialog";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { useDocHistory } from "../../editor/compose/useDocHistory";
-import { fetchBootstrap } from "../../lib/api";
+import { findPlayers } from "../../game/player";
+import { fetchBootstrap, saveMapText } from "../../lib/api";
+import { serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import { baseCellWorldOrigin } from "../../lib/geometry";
 import { tilesByIdFromList } from "../../lib/validation";
-import { Button, ScrollArea, Select, Tooltip } from "../../ui";
+import { Button, Dialog, ScrollArea, Select, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
   await requireAdmin();
@@ -106,12 +108,38 @@ export default function ComposePage() {
   const { doc, commit, preview, settle, undo, redo, canUndo, canRedo } = useDocHistory(demoDoc);
   const [view, setView] = useState(() => viewOf(doc));
   const [jsonOpen, setJsonOpen] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const { show: showToast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => branchKeys(doc.root));
   const built = useMemo(() => buildMap(doc, tilesById, COMPONENTS), [doc, tilesById]);
   const problemKeys = useMemo(() => new Set(built.problems.map((p) => p.key)), [built]);
   const placement = selected ? built.layout.placements.get(selected) : undefined;
   const selectedNode = selected ? findNode(doc.root, selected) : null;
+
+  const spawns = useMemo(() => findPlayers(built.map).length, [built]);
+
+  const play = async () => {
+    setPlaying(true);
+    try {
+      const removed = await saveMapText(serializeMap(built.map));
+      setPlayOpen(false);
+      showToast(
+        "The world now plays this map",
+        removed.length
+          ? `${removed.length} tiles did not fit and were left out. Open Play or Game to walk it.`
+          : "Open Play or Game to walk it.",
+        { untilDismissed: true },
+      );
+    } catch (err) {
+      showToast("The world kept its map", err instanceof Error ? err.message : String(err), {
+        untilDismissed: true,
+      });
+    } finally {
+      setPlaying(false);
+    }
+  };
 
   const addNode = (type: string) => {
     const component = COMPONENTS[type];
@@ -195,6 +223,9 @@ export default function ComposePage() {
           </Tooltip>
           <Button size="sm" variant="ghost-inverse" onClick={() => commit(demoDoc())}>
             Start from the demo
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => setPlayOpen(true)}>
+            Play this map
           </Button>
         </div>
       }
@@ -321,6 +352,41 @@ export default function ComposePage() {
           </ScrollArea>
         </aside>
       </div>
+      <Dialog
+        open={playOpen}
+        onOpenChange={setPlayOpen}
+        title="Play this map"
+        footer={
+          <div className="flex w-full justify-end gap-2">
+            <Button onClick={() => setPlayOpen(false)}>Keep the world's map</Button>
+            <Button variant="danger" disabled={spawns !== 1 || playing} onClick={() => void play()}>
+              Replace the world's map
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-2 p-4 text-sm">
+          <p>
+            This replaces the map of the world this server runs with the one built here, for
+            everybody on it. Players keep their positions, so anybody standing where the new map has
+            sea is in the sea. The tree itself is not saved on the server.
+          </p>
+          {spawns !== 1 ? (
+            <p className="text-danger">
+              {spawns === 0
+                ? "The map has no spawn. Add a Spawn layer so new players have somewhere to start."
+                : `The map has ${spawns} spawns and a world takes exactly one.`}
+            </p>
+          ) : null}
+          {built.problems.length ? (
+            <p className="text-muted">
+              {built.problems.length === 1
+                ? "1 layer could not be built and is left out."
+                : `${built.problems.length} layers could not be built and are left out.`}
+            </p>
+          ) : null}
+        </div>
+      </Dialog>
       <JsonDialog open={jsonOpen} onOpenChange={setJsonOpen} doc={doc} onApply={commit} />
       <datalist id={TILE_LIST_ID}>
         {tiles.map((t) => (
