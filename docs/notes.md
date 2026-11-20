@@ -2954,7 +2954,16 @@ picture:
   - Over a 36,903-tick day with four players spread over the island (camp,
     both towns, the inn), the board settled on 7,838 ticks. `settleBoardNow`
     went from 471–515µs a tick (31% of tick time) to 156–161µs with the plate
-    groups.
+    groups. Grouping `looseGravityCells` the same way (below) brought it to
+    78–80µs (8%). Mean tick went from 1.52–1.62ms to 1.00–1.07ms, and p99
+    from 6.5–7.2ms to 3.6–3.8ms.
+- **Loose gravity cells are grouped the same way, reaching one level down.**
+  There are 65 on the map at load and about 830 after a day of shed fruit.
+  `isSupported` reads a body's own stack and the one below it, so a group
+  whose two chunks are unchanged stays where it is. A body that is
+  unsupported but has nowhere lower to land marks its group `restless`, and
+  that group is read on every pass, because a landing can appear anywhere
+  down the column.
 
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:

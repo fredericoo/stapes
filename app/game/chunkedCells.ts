@@ -5,6 +5,8 @@ import { coordKey } from "../lib/types";
 export type ChunkSettle = {
   map: MapFile;
   changed: Coord[];
+  /** Something in the group could still change while every chunk it reads stays the same. */
+  restless?: boolean;
 };
 
 type ChunkStamp = { chunk: ChunkCells | undefined; writes: number };
@@ -76,7 +78,8 @@ export class ChunkedCells<T> {
       const result = settleGroup(next, group.entries.values());
       next = result.map;
       changed.push(...result.changed);
-      group.stamps = result.changed.length === 0 ? this.stampsOf(next, group) : null;
+      group.stamps =
+        result.changed.length === 0 && !result.restless ? this.stampsOf(next, group) : null;
     }
     return { map: next, changed };
   }
