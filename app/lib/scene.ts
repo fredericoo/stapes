@@ -5,7 +5,7 @@ import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef
 
 export type ScenePlacement =
   | string
-  | { tile: string; facing?: Direction; variant?: string; count?: number };
+  | { tile: string; facing?: Direction; variant?: string; count?: number; foot?: number };
 
 export type SceneCells =
   | { at: [number, number] | [number, number, number]; tiles: ScenePlacement[] }
@@ -104,11 +104,15 @@ function placed(placement: ScenePlacement, tilesById: Record<string, TileDef>): 
   if (spec.facing !== undefined && !DIRECTIONS.includes(spec.facing)) {
     throw new Error(`"${spec.facing}" is not a facing. Use one of ${DIRECTIONS.join(", ")}`);
   }
+  if (spec.foot !== undefined && !(Number.isInteger(spec.foot) && spec.foot >= 0)) {
+    throw new Error(`"${spec.foot}" is not a foot. Use a whole number of height units`);
+  }
   return {
     tileId: spec.tile,
     ...(spec.facing ? { direction: spec.facing } : {}),
     ...(spec.variant ? { variant: spec.variant } : {}),
     ...(spec.count !== undefined && spec.count > 1 ? { count: spec.count } : {}),
+    ...(spec.foot ? { foot: spec.foot } : {}),
   };
 }
 
