@@ -10,6 +10,8 @@ import {
 } from "../../editor/compose/ComposeCanvas";
 import demo from "../../editor/compose/demo.json";
 import { parseMapDoc, type MapDoc } from "../../editor/compose/doc";
+import { findNode } from "../../editor/compose/edit";
+import { Inspector, TILE_LIST_ID } from "../../editor/compose/Inspector";
 import type { Placement } from "../../editor/compose/layout";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { fetchBootstrap } from "../../lib/api";
@@ -50,17 +52,18 @@ function Outline({ placement, projection }: { placement: Placement; projection: 
 export default function ComposePage() {
   const { tiles, tilesets } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
-  const [doc] = useState(demoDoc);
+  const [doc, setDoc] = useState(demoDoc);
   const [view, setView] = useState(() => viewOf(doc));
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => branchKeys(doc.root));
   const built = useMemo(() => buildMap(doc, tilesById, COMPONENTS), [doc, tilesById]);
   const problemKeys = useMemo(() => new Set(built.problems.map((p) => p.key)), [built]);
   const placement = selected ? built.layout.placements.get(selected) : undefined;
+  const selectedNode = selected ? findNode(doc.root, selected) : null;
 
   return (
     <AdminShell>
-      <div className="grid h-full min-h-0 grid-cols-[16rem_1fr]">
+      <div className="grid h-full min-h-0 grid-cols-[16rem_1fr_25rem]">
         <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
           <h2 className="border-b-2 border-border px-3 py-2 text-xs font-bold uppercase tracking-wide">
             Layers
@@ -90,7 +93,32 @@ export default function ComposePage() {
             }
           />
         </div>
+        <aside className="flex min-h-0 flex-col border-l-2 border-border bg-paper">
+          <ScrollArea className="min-h-0 flex-1">
+            {selectedNode ? (
+              <Inspector
+                doc={doc}
+                node={selectedNode}
+                placement={placement}
+                isRoot={selectedNode === doc.root}
+                components={COMPONENTS}
+                problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}
+                onChange={setDoc}
+                onRenamed={setSelected}
+              />
+            ) : (
+              <p className="p-3 text-sm text-muted">Select a layer to edit it.</p>
+            )}
+          </ScrollArea>
+        </aside>
       </div>
+      <datalist id={TILE_LIST_ID}>
+        {tiles.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </datalist>
     </AdminShell>
   );
 }
