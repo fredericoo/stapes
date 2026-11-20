@@ -1,5 +1,47 @@
 # the-last-stones
 
+## 0.26.0
+
+### Minor Changes
+
+- You can now make your own runes. Shape bone, crystal shards or obsidian shards into a blank at the rune temple's forges, then ask Hesper Vaun to carve it, with an essence for a fire, water or nature rune or without one for a plain rune; which rune you get is chance. Every creature of an element now sometimes drops that element's essence, and creatures no longer drop runes. Craft windows show each recipe's name, cost and possible results on their own lines, and a craft with a fee takes any coin, gold bars included, and gives change.
+- Cats now come in seven more coats: black, grey, white, brown, cream, tuxedo and blue.
+- Most creatures you kill now leave something behind: rat tails, bat wings, snake fangs, bear claws, slime jelly, wisp dust and more. Sell them for gold: animal parts and hides to the tanner, and jelly and wisp dust to the potion salesman.
+- The world editor has new deep-woods pieces: a broad old tree with a dark crown and roots, a fallen tree with its roots torn up, a tree stump, ferns that lie flat when you walk through them, and undergrowth and tree roots that slow you down.
+- Shops now trade in gold instead of arcane shards. Gold coins pile up to 100, and a gold bar is worth 100 gold; you pay with your largest coins first and get change back in gold. The blacksmith buys the arcane shards you mine for one gold each.
+- Lanterns and candles can be placed in the world and lit or put out by hand. A lantern stands on the floor or hangs on a wall, and a candle sits on a table or a barrel. Townsfolk can be given lights to look after: they light the ones near them at dusk and put them out when their hours end.
+- Lava has arrived. It glows in the dark, slows you to half speed and sets you burning while you stand in it. Black cooling crust and dark basalt are added for the ground around it.
+- The lighthouse can now be built as a tower many storeys high: rubble and limewashed stone walls with arrow slits and doorways, ledges where it narrows, pedestals that open doors when something is set on them, an open arcade and a crenellated parapet for the top, a stone roof, and Wyrd itself, a crimson rune that beats like a heart on its plinth.
+- Old ruins can now be overgrown: hanging vines, climbing ivy and moss can be added to stone walls and pillars, flagstone floors can have moss and grass breaking through, and piles of rubble lie where walls have collapsed.
+- Cliffs can now be built from frosted rock with snow on its ledges, from banded desert sandstone, or from near-black basalt columns, as well as the red rock every hill has today. Caves leave each of them through a mouth cut in the same rock.
+- Respawn points work again: stand on one and choose Set respawn point, and every life after that starts there until you pick another. The one you are bound to glows bright for you; the rest stay dim.
+- The people of Rune Isle now live in its towns, the camp, the roadside inn and the witch's house. Each one keeps their own hours at their post, and many walk home to bed at night. Biscuit, Soot, Ghee, Captain and Nettle live with their owners.
+- Rune Isle has its wildlife back. Rats, deer, rabbits and bats live round the camp, and each elemental land starts with weak creatures at its edge and keeps the strongest for its centre: slimes on the beaches, the desert edge and the forest edge, wolves and wisps further in, snow wolves and a yeti up the mountain, bears in their caves and imps in the bog. The caves get harder the deeper you go. Trolls keep to their own cave and the deepest floors of the Ember deeps, and the road from the beach to the camp is still safe.
+- Grass now grows over the ground instead of being a ground of its own. It spreads over sand and snow with a ragged, shaded edge, and paths, yards and river banks are simply bare ground where the grass stops. Little tufts of grass are dotted about the meadows. The snow starts higher up a much steeper peak, a river plunges three storeys off it in one great waterfall, and forest paths are one tile wide and run straight onto the middle of every bridge. Cliffs stacked on cliffs are solid rock, with no ground showing between them.
+- The world is Rune Isle: you wake on the beach beside a wreck below a snow-capped peak, with the Greenwood and its bog to the west, the Red Waste and its lava gorge to the east, and Wreckers' Bay in the south. A safe path leads up from the beach to the camp, and roads run on to the druids' town round the rune temple, the walled warriors' town, a roadside inn on the lake, the witch's house by the bog, and the lighthouse above the drowned ruins of the old harbour.
+- The townsfolk keep hours now: most go to bed at night and their shops are shut until morning, the baker sleeps through the afternoon, and the lamplighters and night wardens sleep by day. They step about their posts and call out to you as you pass. Cats chase rats, eat scraps they find, come when you say "psps", and run from you if you are stronger than them, but fight back if you are not.
+- The townsfolk are now the people of Rune Isle. Each has a name, a trade and a life from before the curse, and will tell you about it, including how many times they have died. Shops have new keepers: Brannoc Hale forges swords, axes and maces, Selin Arslan sells bows, Halina Brzeska sells armour and Idris Kaya sells leather. Nobody buys arcane shards any more.
+- Rune Isle now has caves to explore, six floors deep. Each land has its own way down: the frost caves and the frozen lake under the White Peak, the rootways under the deep woods, the barrow and the flooded caves in the heartland, a sea grotto under the beach, and the Ember deeps under the Red Waste, which end in a lava cavern. A long tunnel deep underground joins them all, and smaller caves by the camp, in the woods and at the desert edge are waiting for the creatures that will live in them.
+- The rune temple has new art: a bone forge, a crystal forge and an obsidian forge, obsidian veins for the deepest dungeon floors, and the runemaster, an elder druid in a green robe and hood.
+- Arcane stones now look like runes: the material shows how strong one is (bone, crystal or obsidian), its colour shows its element, and a carved mark tells each one apart. Each rune, blank and essence now says on its item card what it is.
+- Shelves are now bookshelves, filled with books in three arrangements and turned to face the room. Open one to see the books on it, and take one down to read what is written in it.
+- The beach has a wreck to wake beside: a broken hull, a ship's ribs in the shallows, a snapped mast with its torn sail, planks, driftwood and a coil of rope, on beach sand the tide has left damp.
+- Rivers now run down cliffs as waterfalls where they drop a level. Ramps on the snowfields are covered in snow, and basalt hilltops stay dark rock right to the cliff edge instead of ending in a ring of sand.
+- Drag a pile onto another pile of the same thing to fill it up, even in the same bag; whatever does not fit stays where it was. To split a pile, drag it onto the space that appears under its bag and choose how many to take off. On a computer, Shift-drag moves one and Alt-drag moves half.
+- The people of Rune Isle now go to their own beds at night, upstairs and across town included. They open doors and climb ladders on the way, and shut the door behind them. Iolanthe and Rosalind now go to bed too.
+- Armour no longer decides a fight by itself. A blow is now weighed against your defence instead of having it subtracted: light armour takes most of a small bite and only a little of a heavy swing, and no amount of armour makes a creature harmless. Light armour protects a little more than it did. Heavy armour no longer shuts out creatures entirely, so expect to take some damage from things you used to shrug off.
+  
+  Skeletons and bog imps no longer swing broad axes or shoot hunting bows, which could kill in one blow. They fight with lighter weapons and still drop the heavy ones as often as before. Skeletons have more health to make up for it.
+
+### Patch Changes
+
+- Everybody wakes on the wreck beach of Rune Isle the first time they come back, with everything they carried and everything they had learnt.
+- A pile of bones, apples, bread, meat, cheese, mushrooms, skins or arcane stones on the ground now shows as a heap, the way berries already did, instead of a single one.
+- Clicking the respawn point you are already bound to now says "You already respawn here." instead of a garbled no-room message.
+- The world no longer hitches when a tree, bush or creature grows back, and it no longer freezes for several seconds after a restart while everything that was due grows back at once.
+- Rune Isle's rivers now run unbroken, and on grass they run between sandy banks with no grass under the water. In the snow and the desert they run on bare snow and sand. Swamps, towns and ruins fade into the land round them instead of ending in neat ovals and rectangles. The stray patches of snow are gone, and the desert and the snowfields are mostly open ground, with only a few cacti, dunes and pines.
+- Townsfolk working out a long way home through doors and up ladders no longer make the world stall for a moment; they may stand still for up to a second before they set off.
+
 ## 0.25.0
 
 ### Minor Changes
