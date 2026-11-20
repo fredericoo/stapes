@@ -2033,6 +2033,24 @@ so a resumed checkpoint is always more recent than a memory of one. Both
 body was in — `replaceWorld` drops the checkpoint — and without it those players
 came back from the next wake standing at spawn.
 
+**A new island forgets every position once.** Rune Isle replaced the old map
+outright, so a saved cell names a place on an island that no longer exists, and
+`findEntryCell` would only find the nearest cell that fits on the new one. The
+order on a real deploy is: the old server drains and `saveEveryActor` writes a
+`pos:` row for everybody connected; the new image boots and runs `MIGRATIONS`;
+the world loads the old checkpoint, and players reconnecting in those seconds
+stand on the old board; then the deploy's `POST /api/seed` runs `World.reseed`.
+A migration that only deleted `pos:` rows would miss both the players online at
+the reseed, whose positions `keepPositions` reads off the old board, and the
+rows written between boot and reseed. So the migration (`FORGET_POSITIONS_SQL`
+in `server/db.ts`) writes a `forgetPositions` row instead, and only in a world
+that already has a `pos:` row or a checkpoint. `replaceWorld` with
+`keepPositions` that finds the row ignores `keepPositions`, deletes every `pos:`
+row and the marker, and seats everybody present on the new spawn. Kit, tags,
+masteries, statuses and HP are kept as on any reseed. A migration runs once per
+database, so the move happens once per world; an editor save (`POST /api/map`,
+no `keepPositions`) leaves the marker for the reseed.
+
 The store is capped (`MAX_SAVED_POSITIONS`, least-recently-saved evicted, pruned
 on load) for the same reason the chat log is: it grows with *visitors* rather
 than with activity, and identity here is a cookie anybody can mint.

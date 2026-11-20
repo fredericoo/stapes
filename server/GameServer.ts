@@ -365,6 +365,13 @@ const MAX_QUEUED_INTENTS = MAX_QUEUED_STEPS * 2;
 
 const POSITION_KEY_PREFIX = "pos:";
 
+/**
+ * Written by `FORGET_POSITIONS_SQL` in `server/db.ts`, which spells the key out
+ * because a migration's text never changes. The reseed that finds it drops
+ * every saved position and deletes it.
+ */
+export const FORGET_POSITIONS_KEY = "forgetPositions";
+
 const EQUIPMENT_KEY_PREFIX = "equip:";
 
 const TAGS_KEY_PREFIX = "tags:";
@@ -2454,6 +2461,11 @@ export class GameServer {
      */
     spawnPoint(map);
 
+    const forgetPositions =
+      options.keepPositions === true &&
+      (await this.ctx.storage.get(FORGET_POSITIONS_KEY)) !== undefined;
+    const keepPositions = options.keepPositions === true && !forgetPositions;
+
     const carried = new Map<string, Equipment>();
     const taken = new Map<string, string[]>();
     const learnt = new Map<string, MasteryXp>();
@@ -2463,7 +2475,7 @@ export class GameServer {
     const fighting = new Set<string>();
     const present = this.presentActorIds();
     for (const actorId of present) {
-      if (options.keepPositions) {
+      if (keepPositions) {
         const position = this.session?.actorPosition(actorId);
         if (position) standing.set(actorId, position);
       }
@@ -2513,6 +2525,10 @@ export class GameServer {
     await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
     await this.deleteCheckpointedBoard();
+    if (forgetPositions) {
+      const positions = await this.ctx.storage.list({ prefix: POSITION_KEY_PREFIX });
+      await this.ctx.storage.delete([...positions.keys(), FORGET_POSITIONS_KEY]);
+    }
 
     this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
     this.respawnPending.clear();
