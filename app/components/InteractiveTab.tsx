@@ -951,7 +951,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
           on={Boolean(setSpawn)}
           onToggle={(on) => setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)}
           label="Set respawn"
-          info="Whoever triggers it comes back to this placement's cell after they die, instead of to the world's spawn. Kept per character, across deaths, until they mark another or the placement is gone. Players only. The row on the point they are anchored to reads 'You respawn here'."
+          info="Whoever triggers it comes back to this placement's cell after they die, instead of to the world's spawn. Kept per character, across deaths, until they mark another or the placement is gone. Players only. The point they are anchored to glows brighter for them, and its row reads 'You respawn here'."
         />
 
         {setSpawn ? (

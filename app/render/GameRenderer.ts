@@ -89,6 +89,7 @@ import type { EmitterOverride } from "../lib/lighting";
 import type { WeatherKind } from "../lib/weather";
 import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
+import { resolveSetSpawn } from "../lib/interactions";
 import { DWELL_MS } from "../lib/useDwell";
 import { elevationAt, getStack, removeTileAt, stackHeight } from "../lib/mapData";
 import { conjuredName } from "../game/conjured";
@@ -158,6 +159,14 @@ function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
 }
 
 const DROP_GHOST_ALPHA = 0.55;
+
+/**
+ * A respawn point is authored with a dim light that everybody sees; the one
+ * this player is anchored to adds this much more of its own light on top, for
+ * them alone, so an activated point reads bright and every other one dim.
+ */
+const ACTIVE_SPAWN_INTENSITY_SCALE = 2.5;
+const ACTIVE_SPAWN_EXTRA_RADIUS = 2;
 
 const TARGET_COLOR = 0xffffff;
 
@@ -2615,7 +2624,33 @@ export class GameRenderer {
       if (carried) overrides.push({ ...at, lights: carried });
       if (fromStatuses) overrides.push({ ...at, lights: fromStatuses });
     }
+    const spawnGlow = this.activeSpawnGlow(snap);
+    if (spawnGlow) overrides.push(spawnGlow);
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  private activeSpawnGlow(snap: GameSnapshot): EmitterOverride | null {
+    const at = snap.spawnAt;
+    if (!at) return null;
+    const stack = getStack(snap.map, at.x, at.y, at.z);
+    for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
+      const def = this.tilesById[stack[stackIndex]!.tileId];
+      if (!def || !resolveSetSpawn(def)) continue;
+      const light = resolveLight(def, { map: snap.map, ...at }, 0);
+      if (!light) continue;
+      return {
+        ...at,
+        ...emitterCenter(at.x, at.y, at.z, stack, stackIndex, this.tilesById),
+        lights: [
+          {
+            ...light,
+            radius: light.radius + ACTIVE_SPAWN_EXTRA_RADIUS,
+            intensity: light.intensity * ACTIVE_SPAWN_INTENSITY_SCALE,
+          },
+        ],
+      };
+    }
+    return null;
   }
 
   private withFlightLights(

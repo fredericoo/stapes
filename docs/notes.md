@@ -2052,7 +2052,10 @@ in-memory `spawns` so every mark is checked against the new board.
 
 The mark reaches the client in `hello.spawnAt` and the `spawnPoint` message.
 The row on the point you are anchored to reads "You respawn here" and is
-grey.
+grey. The point itself glows for you alone: the tile authors a dim light that
+everybody sees, and `GameRenderer.activeSpawnGlow` adds an emitter override of
+the same light, wider and brighter (`ACTIVE_SPAWN_*`), on the cell `spawnAt`
+names. An override is per viewer and additive, so nobody else's view changes.
 
 **The write must not gate the broadcast.** The platform used to hold outgoing
 messages until preceding writes were durable, which was right for anything the
