@@ -11046,6 +11046,44 @@ pull and 6.75 before it is mined out, so an obsidian blank is most of a vein
 and 20 gold at Dagny Rook's buying price. The material is the cost that rises
 with the tier; the runemaster's fee rises with it too.
 
+### The runemaster carves a blank into a random rune
+
+Hesper Vaun (`hesper-vaun`) is the only carver, and the carving is a `craft`
+on her own tile with the verb Carve: a battler resolves a craft like any
+other tile, so her Nearby row offers Talk to and Carve side by side. Each
+recipe is named for what it makes, "Fire Bone Rune", since the verb already
+says carve. Her dialog teaches the forges and the fees, and "Which runes can
+you carve?" names every rune each blank can become as `{item:...}` mentions,
+so a player can open each one's card before paying. Each of her twelve recipes takes one blank, one essence (none
+for a plain rune) and her fee as `takeCash`, and gives one rune from its pool by a
+`one` output, every rune at weight 1. Like every craft, it is listed only once
+the player can hold whichever rune comes out.
+
+| blank    | fee     | plain        | fire             | water                | nature                           |
+| -------- | ------- | ------------ | ---------------- | -------------------- | -------------------------------- |
+| bone     | 10 gold | Light, Spark | Flame, Cinder    | Sleet                | Barbs                            |
+| crystal  | 30 gold | Bolt, Lance  | Ember, Pyre      | Frost, Rime          | Thorns, Bramble, Verdance, Bloom |
+| obsidian | 60 gold | Stomp        | Inferno, Berserk | Shatter, Crystallise | Overgrowth, Blossom              |
+
+- **`RUNE_KINDS` in `app/lib/runes.ts` is the table.** It gives each rune its
+  material and essence. `generate:runes` draws each rune's base and mark from
+  it, and `runeCrafting.test.ts` fails unless Hesper's recipes hold exactly
+  the runes the table puts in each pool, every rune tile is in the table, and
+  a rune under an element needs that element to cast. Moving a rune to another
+  pool is an edit to the table, the matching move in her recipes, and a
+  `bun run generate:runes`.
+- **The tiers follow what a rune needs to cast.** Bone runes need at most 10
+  Arcane and 1 of an element; crystal runes 15 to 38 Arcane and up to 10 of
+  an element (Bloom 15); obsidian runes are the area runes at 45 Arcane and
+  15 of an element, and the Toughness 40 runes. Verdance and Bloom need
+  water and nature; they are under nature.
+- **A pool of one is not random.** Bone with water essence is always Sleet,
+  bone with nature essence always Barbs, and plain obsidian always Stomp.
+- **The fee follows the tier**: 10, 30 and 60 gold. Dagny Rook sells a
+  ready-carved Light for 25 and Spark for 40, so carving your own bone blank
+  (3 bone and 10 gold) is cheaper and a gamble; the material makes most of
+  the price of the higher tiers.
+
 ## Food piles, and so does an artifact that is only ever counted
 
 A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).

@@ -345,11 +345,10 @@ water; they talk about runes as tools.
     tomorrow."
   - "Seven deaths. Each time I check my hands afterwards, to see if they still
     know the marks."
-- **Game support**: a dialog for teaching. The carving itself gives a random rune
-  from a pool, which a dialog `request_trade` cannot do (it gives fixed items);
-  a `craft` with a `one` output does roll by weight. Either her tile carries a
-  craft, which needs checking that a battler tile can, or the carving table
-  beside her is the crafter and she explains it.
+- **Game support**: a dialog that teaches the forges and essences, and a Carve
+  craft on her tile that takes a blank, an essence or none, and a fee, and
+  gives a rune picked at random from that blank's and essence's pool (see
+  `docs/notes.md`, *The runemaster carves a blank into a random rune*).
 
 ### Dagny Rook
 
@@ -1161,9 +1160,6 @@ each would need.
   kills them, the dialog needs to read the NPC's own death count.
 - **Rosalind cannot read a player's deaths.** The server keeps a `death` row for
   each character death, but dialog cannot see it.
-- **The runemaster's carve is random.** A dialog trade gives fixed items. A
-  `craft` with a `one` output rolls by weight; whether an NPC battler tile can
-  also carry a craft needs checking.
 - **Cats.** Each named cat is its own tile, copied from the shared cat and drawn
   in one of the coats from `bun run generate:cats`: Biscuit in the shared cat's
   ginger, Soot black, Ghee cream, Captain grey and Nettle tuxedo.

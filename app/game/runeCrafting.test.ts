@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { ELEMENTS } from "../lib/element";
+import { resolveCraft, type CraftRecipe } from "../lib/interactions";
+import { resolveStone } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { BLANK_OF, ESSENCE_OF, RUNE_KINDS, type RuneKind } from "../lib/runes";
 import type { MapFile } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { shippedTiles } from "./testShippedTiles";
+import { tilesByIdFromList } from "../lib/validation";
 
 const tiles = shippedTiles();
 
@@ -71,5 +76,79 @@ describe("shaping a blank at a rune forge", () => {
     });
 
     expect(session.craft(AT_THE_PROP, 0, "shaper")).toBe(false);
+  });
+});
+
+const tilesById = tilesByIdFromList(tiles);
+const carving = resolveCraft(tilesById["hesper-vaun"]!)!;
+
+function kindOf(recipe: CraftRecipe): RuneKind {
+  const taken = recipe.inputs.map((input) => input.tileId);
+  const material = (Object.keys(BLANK_OF) as RuneKind["material"][]).find((m) =>
+    taken.includes(BLANK_OF[m]),
+  )!;
+  const essence = ELEMENTS.find((element) => taken.includes(ESSENCE_OF[element])) ?? "neutral";
+  return { material, essence };
+}
+
+describe("the runemaster's carving pools", () => {
+  it("carve every rune from the one blank and essence the rune table gives it", () => {
+    expect(carving.recipes).toHaveLength(12);
+    const carvedFrom = new Map<string, RuneKind>();
+    for (const recipe of carving.recipes) {
+      expect(recipe.output.kind, recipe.name).toBe("one");
+      for (const { tileId } of recipe.output.items) {
+        expect(carvedFrom.has(tileId), `${tileId} is in two pools`).toBe(false);
+        carvedFrom.set(tileId, kindOf(recipe));
+      }
+    }
+    const runes = tiles.filter((t) => resolveStone(t) && t.id.startsWith("rune-"));
+    expect(Object.fromEntries(carvedFrom)).toEqual(RUNE_KINDS);
+    expect(runes.map((t) => t.id).sort()).toEqual(Object.keys(RUNE_KINDS).sort());
+  });
+
+  it("put a rune under an element only when casting it needs that element", () => {
+    for (const [tileId, { essence }] of Object.entries(RUNE_KINDS)) {
+      const needs = ELEMENTS.filter(
+        (e) => (resolveStone(tilesById[tileId]!)?.requirements?.[e] ?? 0) > 0,
+      );
+      if (essence === "neutral") expect(needs, tileId).toEqual([]);
+      else expect(needs, tileId).toContain(essence);
+    }
+  });
+});
+
+describe("carving at the runemaster", () => {
+  const boneWithFire = carving.recipes.findIndex(
+    (recipe) => kindOf(recipe).material === "bone" && kindOf(recipe).essence === "fire",
+  );
+
+  function atHesper(kit: Record<string, number>): GameSession {
+    const session = new GameSession(boardWith("hesper-vaun"), tiles);
+    session.spawn("carver", { at: BESIDE, carrying: carrying(kit) });
+    return session;
+  }
+
+  function hesperRef(session: GameSession): ObjectRef {
+    const at = session.actorSnapshots().find((a) => a.tileId === "hesper-vaun")!;
+    return { x: at.x, y: at.y, z: at.z, stackIndex: at.stackIndex };
+  }
+
+  it("takes a bone blank, a fire essence and ten gold for one crude fire rune", () => {
+    const session = atHesper({ "rune-blank-bone": 1, "essence-fire": 1, gold: 15 });
+
+    expect(session.craft(hesperRef(session), boneWithFire, "carver")).toBe(true);
+    const left = piles(session.equipmentOf("carver"));
+    const rune = Object.keys(left).find((id) => id.startsWith("rune-"))!;
+    expect(RUNE_KINDS[rune]).toEqual({ material: "bone", essence: "fire" });
+    expect(left).toEqual({ gold: 5, [rune]: 1 });
+  });
+
+  it("refuses a carving the player cannot pay for, and keeps the blank", () => {
+    const kit = { "rune-blank-bone": 1, "essence-fire": 1, gold: 9 };
+    const session = atHesper(kit);
+
+    expect(session.craft(hesperRef(session), boneWithFire, "carver")).toBe(false);
+    expect(piles(session.equipmentOf("carver"))).toEqual(kit);
   });
 });

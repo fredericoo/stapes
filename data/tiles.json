@@ -22062,11 +22062,15 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Bone takes the first forge, crystal the second, deep ore the third."
+                    "text": "Bone takes the first forge, crystal the second, deep ore the third. Shape it there, and bring it here."
                   },
                   {
                     "kind": "say",
-                    "text": "Shape your material into a blank there, then bring the blank to me."
+                    "text": "Three bones make a bone blank. Four crystal shards make a crystal one, and five of obsidian the last."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Bone gives a crude rune, crystal a better one. Obsidian takes the strongest marks I can cut."
                   },
                   {
                     "kind": "goto",
@@ -22075,11 +22079,19 @@
                 ]
               },
               {
-                "label": "What do you do with a blank?",
+                "label": "How do I get a rune carved?",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I carve the mark. Bring an essence with it and the rune takes that element. Bring none and it stays plain."
+                    "text": "Bring me the blank and ask me to carve it. Ten gold for bone, thirty for crystal, sixty for obsidian."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Bring an essence with the blank and the rune takes its element: fire, water or nature. Bring none and it stays plain."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Every creature carries a little of its own element. Hunt enough of them and one will leave you its essence."
                   },
                   {
                     "kind": "say",
@@ -22088,6 +22100,120 @@
                   {
                     "kind": "goto",
                     "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Which runes can you carve?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Name a blank and I will tell you what it can become. Which one comes out is chance."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "runes"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "{item:rune-blank-bone}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Bone takes the plainest marks."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With no essence, {item:rune-light} or {item:rune-spark}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With fire, {item:rune-flame} or {item:rune-cinder}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With water, {item:rune-sleet}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With nature, {item:rune-barbs}."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "runes"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:rune-blank-crystal}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Crystal holds more."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With no essence, {item:rune-bolt} or {item:rune-lance}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With fire, {item:rune-ember} or {item:rune-pyre}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With water, {item:rune-frost} or {item:rune-rime}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With nature, {item:rune-thorns}, {item:rune-bramble}, {item:rune-verdance} or {item:rune-bloom}."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "runes"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:rune-blank-obsidian}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Obsidian takes the strongest marks I can cut."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With no essence, {item:rune-stomp}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With fire, {item:rune-inferno} or {item:rune-berserk}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With water, {item:rune-shatter} or {item:rune-crystallise}."
+                          },
+                          {
+                            "kind": "say",
+                            "text": "With nature, {item:rune-overgrowth} or {item:rune-blossom}."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "runes"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -22306,6 +22432,319 @@
       "respawn": {
         "fromMs": 1800000,
         "toMs": 3600000
+      },
+      "craft": {
+        "actionName": "Carve",
+        "recipes": [
+          {
+            "name": "Neutral Bone Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-bone",
+                "count": 1
+              }
+            ],
+            "takeCash": 10,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-light",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-spark",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Fire Bone Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-bone",
+                "count": 1
+              },
+              {
+                "tileId": "essence-fire",
+                "count": 1
+              }
+            ],
+            "takeCash": 10,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-flame",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-cinder",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Water Bone Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-bone",
+                "count": 1
+              },
+              {
+                "tileId": "essence-water",
+                "count": 1
+              }
+            ],
+            "takeCash": 10,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-sleet",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Nature Bone Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-bone",
+                "count": 1
+              },
+              {
+                "tileId": "essence-nature",
+                "count": 1
+              }
+            ],
+            "takeCash": 10,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-barbs",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Neutral Crystal Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-crystal",
+                "count": 1
+              }
+            ],
+            "takeCash": 30,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-bolt",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-lance",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Fire Crystal Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-crystal",
+                "count": 1
+              },
+              {
+                "tileId": "essence-fire",
+                "count": 1
+              }
+            ],
+            "takeCash": 30,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-ember",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-pyre",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Water Crystal Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-crystal",
+                "count": 1
+              },
+              {
+                "tileId": "essence-water",
+                "count": 1
+              }
+            ],
+            "takeCash": 30,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-frost",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-rime",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Nature Crystal Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-crystal",
+                "count": 1
+              },
+              {
+                "tileId": "essence-nature",
+                "count": 1
+              }
+            ],
+            "takeCash": 30,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-thorns",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-bramble",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-verdance",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-bloom",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Neutral Obsidian Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-obsidian",
+                "count": 1
+              }
+            ],
+            "takeCash": 60,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-stomp",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Fire Obsidian Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-obsidian",
+                "count": 1
+              },
+              {
+                "tileId": "essence-fire",
+                "count": 1
+              }
+            ],
+            "takeCash": 60,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-inferno",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-berserk",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Water Obsidian Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-obsidian",
+                "count": 1
+              },
+              {
+                "tileId": "essence-water",
+                "count": 1
+              }
+            ],
+            "takeCash": 60,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-shatter",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-crystallise",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Nature Obsidian Rune",
+            "inputs": [
+              {
+                "tileId": "rune-blank-obsidian",
+                "count": 1
+              },
+              {
+                "tileId": "essence-nature",
+                "count": 1
+              }
+            ],
+            "takeCash": 60,
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "rune-overgrowth",
+                  "weight": 1
+                },
+                {
+                  "tileId": "rune-blossom",
+                  "weight": 1
+                }
+              ]
+            }
+          }
+        ]
       }
     },
     "states": {
