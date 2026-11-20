@@ -5,6 +5,7 @@ export type Placement = {
   readonly node: MapNode;
   readonly bounds: Bounds;
   readonly clip: Bounds;
+  readonly parent: Bounds | null;
   readonly z: number;
   readonly seed: number;
   readonly depth: number;
@@ -53,6 +54,42 @@ export function frameBounds(frame: Frame, parent: Bounds | null): Bounds {
   return { minX, minY, maxX: minX + frame.w - 1, maxY: minY + frame.h - 1 };
 }
 
+/** The inverse of `along`: the offset that puts a span of `size` at `at` under `pin`. */
+function offsetAlong(min: number, max: number, at: number, pin: PinX | PinY, size: number): number {
+  const span = max - min + 1;
+  if (pin === "right" || pin === "bottom") return max - (size - 1) - at;
+  if (pin === "center") return at - min - Math.floor((span - size) / 2);
+  if (pin === "scale") return span === size ? 0 : (at - min) / (span - size);
+  return at - min;
+}
+
+/** The frame that resolves to `bounds`, keeping the frame's pins, so dragging a box keeps what it is pinned to. */
+export function frameFor(frame: Frame, bounds: Bounds, parent: Bounds | null): Frame {
+  const w = bounds.maxX - bounds.minX + 1;
+  const h = bounds.maxY - bounds.minY + 1;
+  if (frame.absolute || !parent) return { ...frame, x: bounds.minX, y: bounds.minY, w, h };
+  return {
+    ...frame,
+    x: offsetAlong(parent.minX, parent.maxX, bounds.minX, frame.pinX ?? "left", w),
+    y: offsetAlong(parent.minY, parent.maxY, bounds.minY, frame.pinY ?? "top", h),
+    w,
+    h,
+  };
+}
+
+/** The point, keeping its frame and pins, that resolves to `cell`. */
+export function pointFor(point: Point, cell: { x: number; y: number }, frame: Bounds): Point {
+  return {
+    ...point,
+    x: offsetAlong(frame.minX, frame.maxX, cell.x, point.pinX ?? "left", 1),
+    y: offsetAlong(frame.minY, frame.maxY, cell.y, point.pinY ?? "top", 1),
+  };
+}
+
+export function pointFrame(layout: Layout, placement: Placement, point: Point): Bounds | null {
+  return point.in ? (layout.placements.get(point.in)?.bounds ?? null) : placement.bounds;
+}
+
 function intersect(a: Bounds, b: Bounds): Bounds {
   return {
     minX: Math.max(a.minX, b.minX),
@@ -97,6 +134,7 @@ export function layOut(doc: MapDoc): Layout {
       node,
       bounds,
       clip: parent ? intersect(parent.clip, parent.bounds) : bounds,
+      parent: parent?.bounds ?? null,
       z,
       seed: seedFor(doc.seed, node),
       depth,

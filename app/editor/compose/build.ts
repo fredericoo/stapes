@@ -3,7 +3,7 @@ import { MapDraft, emptyMap, getStack, setStacks, type StackEdit } from "../../l
 import type { MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { MapDoc, MapNode, Point } from "./doc";
-import { layOut, pointIn, type Layout, type Placement } from "./layout";
+import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
 export type BuildContext = {
   readonly map: MapFile;
@@ -63,7 +63,7 @@ export function buildMap(
     seed: placement.seed,
     stackAt: (x, y, z = placement.z) => getStack(map, x, y, z),
     point: (point) => {
-      const frame = point.in ? layout.placements.get(point.in)?.bounds : placement.bounds;
+      const frame = pointFrame(layout, placement, point);
       return frame ? pointIn(point, frame) : null;
     },
   });

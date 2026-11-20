@@ -11,6 +11,9 @@ export const TILE_LIST_ID = "compose-tile-ids";
 const UINT32 = 4294967296;
 const DEFAULT_FRAME_SPAN = 16;
 
+/** The select's value for "this node's frame"; an empty string reads as no selection. */
+const OWN_FRAME = "@own";
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="grid grid-cols-[7.5rem_1fr] items-center gap-2 text-sm">
@@ -102,13 +105,13 @@ function PointEditor({
     <div className="flex flex-col gap-1">
       <Select
         ariaLabel={`${label}: measured in`}
-        value={point.in ?? ""}
+        value={point.in ?? OWN_FRAME}
         onValueChange={(value) => {
           const { in: _in, ...rest } = point;
-          onChange(value ? { ...rest, in: value } : rest);
+          onChange(value && value !== OWN_FRAME ? { ...rest, in: value } : rest);
         }}
         options={[
-          { value: "", label: "this node's frame" },
+          { value: OWN_FRAME, label: "this node's frame" },
           ...keys.map((k) => ({ value: k, label: k })),
         ]}
       />

@@ -8,13 +8,21 @@ export type ComposeView = { cx: number; cy: number; zoom: number };
 export type Projection = {
   readonly zoom: number;
   cellToScreen(x: number, y: number, z: number): { x: number; y: number };
-  screenToCell(px: number, py: number, z: number): { x: number; y: number };
+  clientToCell(clientX: number, clientY: number, z: number): { x: number; y: number };
 };
 
 const NOON = 12 * 60;
 const ZOOMS = [0.5, 1, 2, 3, 4, 6, 8];
 
-function projection(view: ComposeView, width: number, height: number): Projection {
+/** A press that moves less than this many pixels is a click, which picks, rather than a pan. */
+const CLICK_SLOP = 4;
+
+function projection(
+  view: ComposeView,
+  width: number,
+  height: number,
+  host: () => DOMRect | undefined,
+): Projection {
   const left = view.cx - width / view.zoom / 2;
   const top = view.cy - height / view.zoom / 2;
   return {
@@ -24,11 +32,12 @@ function projection(view: ComposeView, width: number, height: number): Projectio
       return { x: (o.x - left) * view.zoom, y: (o.y - top) * view.zoom };
     },
     /** Inverts `cellToScreen` through the origin of cell 0,0 on level `z`, so the level's oblique shift is undone. */
-    screenToCell(px, py, z) {
+    clientToCell(clientX, clientY, z) {
+      const rect = host();
       const zero = baseCellWorldOrigin(0, 0, z, 0);
       const one = baseCellWorldOrigin(1, 1, z, 0);
-      const wx = px / view.zoom + left;
-      const wy = py / view.zoom + top;
+      const wx = (clientX - (rect?.left ?? 0)) / view.zoom + left;
+      const wy = (clientY - (rect?.top ?? 0)) / view.zoom + top;
       return {
         x: Math.floor((wx - zero.x) / (one.x - zero.x)),
         y: Math.floor((wy - zero.y) / (one.y - zero.y)),
@@ -51,7 +60,7 @@ export function ComposeCanvas({
   onViewChange,
   lighting,
   overlay,
-  onBackgroundPointerDown,
+  onPick,
 }: {
   map: MapFile;
   tilesById: Record<string, TileDef>;
@@ -60,7 +69,7 @@ export function ComposeCanvas({
   onViewChange: (view: ComposeView) => void;
   lighting: boolean;
   overlay?: (projection: Projection) => ReactNode;
-  onBackgroundPointerDown?: () => void;
+  onPick?: (cell: { x: number; y: number }) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -135,20 +144,27 @@ export function ComposeCanvas({
     return () => host.removeEventListener("wheel", onWheel);
   }, [onViewChange]);
 
+  const proj = projection(view, size.width, size.height, () =>
+    hostRef.current?.getBoundingClientRect(),
+  );
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
-    onBackgroundPointerDown?.();
     const start = { x: e.clientX, y: e.clientY, view: viewRef.current };
+    let moved = false;
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const move = (m: PointerEvent) => {
+      if (Math.hypot(m.clientX - start.x, m.clientY - start.y) > CLICK_SLOP) moved = true;
+      if (!moved) return;
       onViewChange({
         ...start.view,
         cx: start.view.cx - (m.clientX - start.x) / start.view.zoom,
         cy: start.view.cy - (m.clientY - start.y) / start.view.zoom,
       });
     };
-    const up = () => {
+    const up = (u: PointerEvent) => {
+      if (!moved && u.type === "pointerup") onPick?.(proj.clientToCell(u.clientX, u.clientY, 0));
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
       target.removeEventListener("pointercancel", up);
@@ -158,7 +174,6 @@ export function ComposeCanvas({
     target.addEventListener("pointercancel", up);
   };
 
-  const proj = projection(view, size.width, size.height);
   return (
     <div
       ref={hostRef}

@@ -9,10 +9,19 @@ import {
   type Projection,
 } from "../../editor/compose/ComposeCanvas";
 import demo from "../../editor/compose/demo.json";
-import { parseMapDoc, type MapDoc } from "../../editor/compose/doc";
-import { findNode } from "../../editor/compose/edit";
+import { parseMapDoc, type MapDoc, type Point } from "../../editor/compose/doc";
+import { findNode, updateNode } from "../../editor/compose/edit";
+import { fieldsOf } from "../../editor/compose/fields";
+import { FrameHandles, PointHandle } from "../../editor/compose/Handles";
 import { Inspector, TILE_LIST_ID } from "../../editor/compose/Inspector";
-import type { Placement } from "../../editor/compose/layout";
+import {
+  frameFor,
+  pointFor,
+  pointFrame,
+  pointIn,
+  type Layout,
+  type Placement,
+} from "../../editor/compose/layout";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { fetchBootstrap } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
@@ -47,6 +56,30 @@ function Outline({ placement, projection }: { placement: Placement; projection: 
       style={{ left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y }}
     />
   );
+}
+
+/** The node drawn on top at a cell: the last in build order whose own frame holds it. */
+function pick(layout: Layout, cell: { x: number; y: number }): string | null {
+  for (let i = layout.order.length - 1; i >= 0; i--) {
+    const placement = layout.placements.get(layout.order[i]!)!;
+    const { bounds } = placement;
+    if (!placement.node.frame || placement.node.hidden) continue;
+    if (cell.x < bounds.minX || cell.x > bounds.maxX) continue;
+    if (cell.y < bounds.minY || cell.y > bounds.maxY) continue;
+    return placement.node.key;
+  }
+  return null;
+}
+
+function pointsOf(layout: Layout, placement: Placement) {
+  const component = COMPONENTS[placement.node.type];
+  if (!component) return [];
+  return fieldsOf(component.schema).flatMap(({ name, field }) => {
+    const point = placement.node.props?.[name] as Point | undefined;
+    if (field.kind !== "point" || !point) return [];
+    const frame = pointFrame(layout, placement, point);
+    return frame ? [{ name, point, frame, cell: pointIn(point, frame) }] : [];
+  });
 }
 
 export default function ComposePage() {
@@ -88,8 +121,48 @@ export default function ComposePage() {
             view={view}
             onViewChange={setView}
             lighting={false}
+            onPick={(cell) => setSelected(pick(built.layout, cell))}
             overlay={(projection) =>
-              placement ? <Outline placement={placement} projection={projection} /> : null
+              placement && selectedNode ? (
+                <>
+                  {selectedNode.frame ? (
+                    <FrameHandles
+                      bounds={placement.bounds}
+                      z={placement.z}
+                      projection={projection}
+                      onBounds={(bounds) =>
+                        setDoc((d) =>
+                          updateNode(d, placement.node.key, (n) => ({
+                            ...n,
+                            frame: frameFor(n.frame!, bounds, placement.parent),
+                          })),
+                        )
+                      }
+                      onEnd={() => {}}
+                    />
+                  ) : (
+                    <Outline placement={placement} projection={projection} />
+                  )}
+                  {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
+                    <PointHandle
+                      key={name}
+                      label={name}
+                      cell={cell}
+                      z={placement.z}
+                      projection={projection}
+                      onCell={(next) =>
+                        setDoc((d) =>
+                          updateNode(d, placement.node.key, (n) => ({
+                            ...n,
+                            props: { ...n.props, [name]: pointFor(point, next, frame) },
+                          })),
+                        )
+                      }
+                      onEnd={() => {}}
+                    />
+                  ))}
+                </>
+              ) : null
             }
           />
         </div>
