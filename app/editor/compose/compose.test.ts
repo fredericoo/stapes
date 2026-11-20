@@ -538,3 +538,66 @@ describe("layer masks and clearing", () => {
     expect(bushes.some((x) => x < 20)).toBe(true);
   });
 });
+
+describe("fill and scatter", () => {
+  it("lays its edge stack in a band round its middle", () => {
+    const { map } = build(
+      doc(
+        field([
+          {
+            type: "fill",
+            key: "pond",
+            frame: { x: 10, y: 10, w: 10, h: 10 },
+            props: {
+              tiles: ["water", "deep-water"],
+              edge: ["water"],
+              edgeWidth: 2,
+              mode: "replace",
+            },
+          },
+        ]),
+      ),
+    );
+    expect([topAt(map, 9, 15), topAt(map, 10, 15), topAt(map, 11, 15), topAt(map, 12, 15)]).toEqual(
+      ["sand", "water", "water", "deep-water"],
+    );
+    expect(getStack(map, 15, 15, 0).map((p) => p.tileId)).toEqual(["sand", "water", "deep-water"]);
+  });
+
+  it("scatters only on its ground and never two within its spacing", () => {
+    const { map } = build(
+      doc(
+        field([
+          {
+            type: "ground",
+            key: "meadow",
+            frame: { x: 0, y: 0, w: 20, h: 30 },
+            props: { tile: "grass-2" },
+          },
+          {
+            type: "scatter",
+            key: "flowers",
+            props: {
+              tiles: [{ tile: "red-flowers", weight: 1 }],
+              density: 100,
+              clumping: 0,
+              spacing: 2,
+              onlyOn: ["sand"],
+            },
+          },
+        ]),
+      ),
+    );
+    const placedAt = cellsWith(map, "red-flowers", 40, 30).map(
+      (c) => c.split(",").map(Number) as [number, number],
+    );
+    expect(placedAt.length).toBeGreaterThan(10);
+    expect(placedAt.every(([x]) => x >= 20)).toBe(true);
+    for (const [ax, ay] of placedAt) {
+      for (const [bx, by] of placedAt) {
+        if (ax === bx && ay === by) continue;
+        expect(Math.max(Math.abs(ax - bx), Math.abs(ay - by))).toBeGreaterThan(2);
+      }
+    }
+  });
+});

@@ -1,5 +1,6 @@
 import type { Component, ComponentRegistry } from "../build";
 import { clear } from "./clear";
+import { fill } from "./fill";
 import { forest } from "./forest";
 import { group } from "./group";
 import { house } from "./house";
@@ -7,6 +8,7 @@ import { island } from "./island";
 import { mask } from "./mask";
 import { river } from "./river";
 import { road } from "./road";
+import { scatter } from "./scatter";
 import { tile } from "./tile";
 
 const all: ReadonlyArray<Component<never>> = [
@@ -17,6 +19,8 @@ const all: ReadonlyArray<Component<never>> = [
   road,
   river,
   tile,
+  fill,
+  scatter,
   mask,
   clear,
 ] as never;
