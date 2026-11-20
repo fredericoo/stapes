@@ -23,6 +23,7 @@ import {
   updatePlacedReward,
   updatePlacedDepotTag,
   updatePlacedTeleport,
+  updatePlacedSpawnRadius,
   updatePlacedDirection,
   updatePlacedFoot,
   type RewardDraft,
@@ -184,6 +185,7 @@ export type EditorStore = {
   setStackReward: (stackIndex: number, draft: RewardDraft) => void;
   setStackDepotTag: (stackIndex: number, tag: string) => void;
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
+  setStackSpawnRadius: (stackIndex: number, radius: number | null) => void;
   setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
 };
 
@@ -690,6 +692,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!selected) return;
     get().commitMap(
       updatePlacedTeleport(map, selected.x, selected.y, currentLevel, stackIndex, to),
+    );
+  },
+
+  setStackSpawnRadius: (stackIndex, radius) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedSpawnRadius(map, selected.x, selected.y, currentLevel, stackIndex, radius),
     );
   },
 

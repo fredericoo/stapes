@@ -344,6 +344,12 @@ export type PlacedTile = {
    * brain's `spot` target. They stay with the placement as the body moves.
    */
   spots?: Record<string, Coord>;
+  /**
+   * On a creature that respawns: it comes back on a random free cell of the
+   * square this many cells around its authored cell, on the same level, rather
+   * than on the authored cell itself.
+   */
+  spawnRadius?: number;
   owner?: string;
   castBy?: string;
   castElements?: Element[];

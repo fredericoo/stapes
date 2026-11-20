@@ -5,6 +5,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { parseTileTransitions } from "../lib/tileTransition";
 import { tilesByIdFromList } from "../lib/validation";
+import { findActorAnywhere } from "./actors";
 import { GameSession } from "./GameSession";
 import {
   findSpawnPoints,
@@ -438,6 +439,64 @@ describe("GameSession.respawnAt", () => {
       placed: { tileId: "nope" },
     };
     expect(session.respawnAt(orphan).kind).toBe("done");
+  });
+});
+
+describe("GameSession.respawnAt, with a respawn area", () => {
+  const SIDE = 5;
+  const CENTRE = 2;
+  const RADIUS = 2;
+  const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
+
+  function field(walled: readonly { x: number; y: number }[] = []): MapFile {
+    let map = emptyMap();
+    for (let y = 0; y < SIDE; y++) {
+      for (let x = 0; x < SIDE; x++) {
+        const wall = walled.some((cell) => cell.x === x && cell.y === y);
+        map = replaceStack(map, x, y, 0, [{ tileId: wall ? "wall" : "grass" }]);
+      }
+    }
+    return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+  }
+
+  const point = pointFor(
+    replaceStack(field(), CENTRE, CENTRE, 0, [
+      { tileId: "grass" },
+      { tileId: "gnome", owner: GNOME_OWNER, spawnRadius: RADIUS },
+    ]),
+    GNOME_OWNER,
+  );
+
+  function respawnedAt(map: MapFile, seed: number): { x: number; y: number } | "blocked" {
+    const session = new GameSession(map, tiles, { seed });
+    if (session.respawnAt(point).kind === "blocked") return "blocked";
+    const body = findActorAnywhere(session.getMap(), GNOME_OWNER);
+    expect(body).not.toBeNull();
+    return { x: body!.x, y: body!.y };
+  }
+
+  it("brings the creature back on a shuffled cell of its area, never on somebody", () => {
+    const landed = SEEDS.map((seed) => respawnedAt(field(), seed));
+
+    for (const cell of landed) {
+      expect(cell).not.toBe("blocked");
+      expect(cell).not.toEqual({ x: 0, y: 0 });
+    }
+    const distinct = new Set(landed.map((cell) => JSON.stringify(cell)));
+    expect(distinct.size).toBeGreaterThan(3);
+  });
+
+  it("reshuffles past the cells it cannot stand in, and is blocked only when none is left", () => {
+    const open = { x: 4, y: 3 };
+    const everyOtherCell = Array.from({ length: SIDE * SIDE }, (_, i) => ({
+      x: i % SIDE,
+      y: Math.floor(i / SIDE),
+    })).filter((cell) => !(cell.x === open.x && cell.y === open.y) && (cell.x || cell.y));
+
+    for (const seed of SEEDS) {
+      expect(respawnedAt(field(everyOtherCell), seed)).toEqual(open);
+    }
+    expect(respawnedAt(field([...everyOtherCell, open]), 1)).toBe("blocked");
   });
 });
 

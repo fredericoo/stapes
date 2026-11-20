@@ -1169,6 +1169,29 @@ export function updatePlacedTeleport(
   return setStack(map, x, y, z, stack);
 }
 
+export function updatePlacedSpawnRadius(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  radius: number | null,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const next = radius !== null && radius > 0 ? radius : undefined;
+  if (placed.spawnRadius === next) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { spawnRadius: _radius, ...rest } = p;
+    return next ? { ...rest, spawnRadius: next } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
 function sameCoord(a: Coord | undefined, b: Coord | undefined): boolean {
   if (a === b) return true;
   if (!a || !b) return false;

@@ -352,7 +352,15 @@ import {
   type ProjectileFlight,
 } from "./projectile";
 import { pushDropUnits, pushedColumn, slideDurationMs, slideStillShoving } from "./push";
-import { isSpawnFilled, rollRespawnDelayMs, type RespawnOutcome, type SpawnPoint } from "./respawn";
+import {
+  canSpawnBodyAt,
+  isSpawnFilled,
+  rollRespawnDelayMs,
+  spawnAreaCells,
+  spawnRadiusOf,
+  type RespawnOutcome,
+  type SpawnPoint,
+} from "./respawn";
 import {
   capacityOf,
   portionOf,
@@ -1451,10 +1459,9 @@ export class GameSession implements PlaySession {
     if (this.isSpawnFilled(point)) return { kind: "done" };
     const def = this.tilesById[point.placed.tileId];
     if (!def) return { kind: "done" };
-    const { x, y, z } = point.cell;
-    if (!canPlace(this.map, x, y, z, def, this.tilesById, point.placed.direction).ok) {
-      return { kind: "blocked" };
-    }
+    const cell = this.respawnCell(point, def);
+    if (!cell) return { kind: "blocked" };
+    const { x, y, z } = cell;
 
     const itemId = isItem(def) ? mintItemId() : undefined;
     const stackIndex = getStack(this.map, x, y, z).length;
@@ -1463,13 +1470,38 @@ export class GameSession implements PlaySession {
       ...(itemId ? { itemId } : {}),
       ...(point.ownerId ? { owner: point.ownerId } : {}),
     });
-    this.noteTransition("appear", def.id, point.cell, stackIndex);
+    this.noteTransition("appear", def.id, cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
-      this.residentHomes.set(point.ownerId, point.cell);
+      this.residentHomes.set(point.ownerId, cell);
       this.addResident(point.ownerId, point.placed.tileId, { x, y, z, stackIndex });
     }
-    this.reindexCells([point.cell]);
+    this.reindexCells([cell]);
     return { kind: "done", ...(itemId ? { itemId } : {}) };
+  }
+
+  /**
+   * An area is drawn from one cell at a time, a partial Fisher-Yates shuffle,
+   * so a cell that does not hold the body is replaced by another the area has
+   * not tried yet, and the point is blocked only once none of them hold it.
+   */
+  private respawnCell(point: SpawnPoint, def: TileDef): Coord | null {
+    const direction = point.placed.direction;
+    const radius = spawnRadiusOf(point);
+    if (radius === 0) {
+      const { x, y, z } = point.cell;
+      return canPlace(this.map, x, y, z, def, this.tilesById, direction).ok ? point.cell : null;
+    }
+    const cells = spawnAreaCells(point.cell, radius);
+    for (let i = 0; i < cells.length; i++) {
+      const j = i + this.rng.int(cells.length - i);
+      const picked = cells[j]!;
+      cells[j] = cells[i]!;
+      cells[i] = picked;
+      if (canSpawnBodyAt(this.map, picked, def, this.tilesById, this.statusDefs, direction)) {
+        return picked;
+      }
+    }
+    return null;
   }
 
   actorIds(): string[] {

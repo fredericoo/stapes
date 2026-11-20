@@ -10,6 +10,7 @@ import {
 } from "../lib/engraving";
 import { MAX_REWARD_ITEMS, MIN_REWARD_COUNT } from "../lib/interactions";
 import { MIN_RATING } from "../lib/mastery";
+import { MAX_SPAWN_RADIUS } from "../game/respawn";
 import { useEditorStore } from "../editor/store";
 import {
   Button,
@@ -62,6 +63,7 @@ export function PlacementSettingsDialog({
   gives,
   stashes,
   teleports,
+  scatters,
   holds,
   giveable,
   stowable,
@@ -77,6 +79,7 @@ export function PlacementSettingsDialog({
   gives: boolean;
   stashes: boolean;
   teleports: boolean;
+  scatters: boolean;
   holds: number | null;
   giveable: TileDef[];
   stowable: TileDef[];
@@ -101,6 +104,7 @@ export function PlacementSettingsDialog({
   const [teleportTo, setTeleportTo] = useState<TeleportDraft>(() =>
     draftFromCoord(placed.teleportTo),
   );
+  const [spawnRadius, setSpawnRadius] = useState<number | undefined>(placed.spawnRadius);
   const [contents, setContents] = useState<ItemInstance[]>(() => placed.contents ?? []);
 
   const engravable = isEngravable(def.name);
@@ -120,6 +124,7 @@ export function PlacementSettingsDialog({
     if (teleports) {
       store.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
+    if (scatters) store.setStackSpawnRadius(stackIndex, spawnRadius ?? null);
     if (holds !== null) store.setStackContents(stackIndex, contents);
     store.setStackInscription(stackIndex, inscription);
     store.setStackDescription(stackIndex, description);
@@ -283,6 +288,22 @@ export function PlacementSettingsDialog({
               onChange={setContents}
             />
           </div>
+        ) : null}
+
+        {scatters ? (
+          <label className="flex flex-col gap-1 border-t-2 border-border pt-4 text-xs">
+            <FieldLabel info="It comes back on a random free cell this many cells around this one, on this level. A cell it cannot stand on is skipped for another. Blank or 0 brings it back here.">
+              Respawn area radius
+            </FieldLabel>
+            <OptionalNumberInput
+              min={0}
+              max={MAX_SPAWN_RADIUS}
+              step={1}
+              placeholder="This cell"
+              value={spawnRadius}
+              onChange={setSpawnRadius}
+            />
+          </label>
         ) : null}
 
         {teleports ? (

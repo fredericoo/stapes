@@ -12658,6 +12658,40 @@ equal ends are refused, since that window would never open.
   After a restart a held deadline is still right, unless the clock was moved
   while the world was down.
 
+## A creature can respawn anywhere in an area
+
+`PlacedTile.spawnRadius` on a creature that has a `respawn` makes it come back
+on a random cell of the square that many cells around its authored cell, on the
+same level, instead of always on the authored cell. It is set in the editor's
+placement settings ("Respawn area radius"), and the editor outlines the square
+while the cell is selected. Several creatures placed close together with the
+same radius share most of one area.
+
+- **Only a creature's point scatters.** An object's point is answered by
+  counting what is still in its own cell (`isSpawnFilled`), so a mushroom that
+  grew back one cell over would read as missing and grow again. `spawnRadiusOf`
+  is 0 for any point without an `ownerId`.
+- **The area is shuffled one cell at a time.** `GameSession.respawnCell` runs a
+  partial Fisher-Yates over the square with the session's `Rng`, testing each
+  cell as it is drawn. A cell that cannot hold the body is passed over for one
+  the area has not tried, so a mostly walled area still finds its one open
+  cell. Only when no cell holds the body is the point `blocked`, and the server
+  retries it after `RESPAWN_RETRY_MS` as it does for an authored cell.
+- **A drawn cell is asked more than an authored one.** Without an area the
+  authored cell only has to pass `canPlace`; somebody chose it. A drawn cell is
+  chosen by nobody, so `canSpawnBodyAt` also wants a supported, walkable
+  surface, no body already in it, nothing harmful underfoot
+  (`unsafeToStepOn`), and no water unless the tile `swims`. Those are the same
+  refusals a conjured body's area landing makes.
+- **Its home is the cell it came back on.** `respawnAt` records the drawn cell
+  in `residentHomes`, so a leashed creature returns to where it appeared. After
+  a restart the home is the authored cell again, from the stored spawn point,
+  which is inside the area.
+- **The first body is where it was placed.** The authored map's own body is
+  adopted on its cell; only the respawns are shuffled.
+- **`MAX_SPAWN_RADIUS` is 12**, a 25 by 25 square. A fully blocked area tests
+  all 625 cells on every retry, which is the cost that bound keeps small.
+
 ## A ranged `after` staggers creatures that decide on the same round
 
 `after` takes an optional `toMs`. With it, the wait is somewhere from `ms` to
