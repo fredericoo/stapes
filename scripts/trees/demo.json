@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "seed": 20261120,
+  "root": {
+    "type": "island",
+    "key": "isle",
+    "frame": {
+      "x": -48,
+      "y": -36,
+      "w": 96,
+      "h": 72
+    },
+    "props": {
+      "fill": "sand",
+      "shore": 2,
+      "roughness": 45
+    },
+    "children": [
+      {
+        "type": "forest",
+        "key": "north-wood",
+        "frame": {
+          "x": 14,
+          "y": 10,
+          "w": 34,
+          "h": 22
+        },
+        "props": {
+          "onlyOn": ["sand"],
+          "density": 50,
+          "path": null
+        }
+      },
+      {
+        "type": "river",
+        "key": "brook",
+        "props": {
+          "from": {
+            "x": 0.55,
+            "y": 0,
+            "pinX": "scale"
+          },
+          "to": {
+            "x": 0.7,
+            "y": 0,
+            "pinX": "scale",
+            "pinY": "bottom"
+          },
+          "width": 2
+        }
+      },
+      {
+        "type": "house",
+        "key": "cottage",
+        "frame": {
+          "x": 24,
+          "y": 42,
+          "w": 7,
+          "h": 6
+        },
+        "props": {
+          "roofPitch": "low",
+          "doorRow": "south"
+        }
+      },
+      {
+        "type": "road",
+        "key": "cottage-to-east",
+        "props": {
+          "from": {
+            "in": "cottage",
+            "x": 0,
+            "y": -1,
+            "pinX": "center",
+            "pinY": "bottom"
+          },
+          "to": {
+            "x": 14,
+            "y": 0,
+            "pinX": "right",
+            "pinY": "center"
+          },
+          "tile": "cobblestone"
+        }
+      }
+    ]
+  }
+}

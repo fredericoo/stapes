@@ -285,6 +285,12 @@ an agent drives", lists every call.
   launches; `PREVIEW=<dir>` also writes a 4× copy there. One frame of the same
   crystal becomes `public/favicon.ico` (32 and 64 px) and
   `public/apple-touch-icon.png` (180 px, on the ink background)
+- `bun run build:map <tree.json> [--out map.json] [--scene scene.json]` — build
+  a map from a map tree (`app/editor/compose/`): a JSON tree of components such
+  as an island, a forest, a house, a road and a river, each in a frame relative
+  to its parent. `--scene` writes the same cells for `bun run scene` to draw.
+  Exits 1 after listing every node that could not be built.
+  `scripts/trees/demo.json` is a small example
 - `bun run generate:island` — write Rune Isle to `data/map.json` from
   `scripts/island/`: the reference generator's height, lakes and rivers inside
   the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,

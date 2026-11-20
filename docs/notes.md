@@ -15776,6 +15776,75 @@ in (`app/editor/proceduralSettings.ts`) and checked against the tile catalogue:
 a saved wall tile that no longer exists reads as "no saved settings" instead of
 arming the tool with an id nothing can draw.
 
+## A map tree is a JSON document of components, built in order
+
+`app/editor/compose/` builds a map from a tree instead of from a script. A
+document is `{ version, seed, root }`, and every node is
+`{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
+component in `COMPONENTS` (`app/editor/compose/components/`): `island`,
+`forest`, `house`, `road` and `river` so far. `bun run build:map <tree.json>`
+builds one, and `scripts/trees/demo.json` is the example. Rune Isle is still
+`generate:island`; nothing ships from a tree yet.
+
+**A component is a valibot schema and a plan.** `build(ctx, props)` returns a
+`GeneratedPlan`, the same `{ ok, edits } | { ok: false, reason }` the editor's
+procedural tools return, and the house component is `planHouse` with its config
+renamed. The schema validates the node's props, supplies their defaults and
+gives the props their type. A tile id field is `TileIdSchema` and a point is
+`PointSchema`; both carry `v.metadata({ field })` so a form built from the
+schema can give them a picker instead of a text box.
+
+**The tree is built depth first, and each node reads the map every node before
+it left.** That is the whole of the layering: a forest grows only on the tiles
+in its `onlyOn`, so on an island it grows on the island's sand, and a later
+sibling draws over an earlier one. Order is behaviour, not presentation. A
+road drawn after a river finds water and lays `wooden-floor` with a `fence` on
+each side; a river drawn after a road keeps each cell's bottom tile, replaces
+the rest with a bed and `water`, and so cuts the road. A node that cannot be
+built writes nothing, is listed with its key in `problems`, and its children
+and siblings are still built.
+
+**A node's seed comes from the document's seed and its own key, never from its
+parent's seed or its position.** Re-rolling the island (giving it a `seed`)
+then does not re-roll the forest on it, and moving a node to another parent or
+another place among its siblings keeps its randomness. The trees can still move
+when the island is re-rolled, because the sand they grow on did; a tree that
+stays on sand stays where it was, since `growForest` picks per cell from
+`randomAt`. This is why every key in a tree must be unique, not only among
+siblings: points name other nodes by key, so a duplicate is refused.
+
+**Every frame is resolved before anything is built**, so a road can name a node
+that comes after it. A frame is `{ x, y, w, h, z?, pinX?, pinY?, absolute? }`,
+measured in its parent's frame; the root's is in world cells. `pinX` is
+`left`, `right`, `center` or `scale` and `pinY` is `top`, `bottom`, `center`
+or `scale`, the way Figma's constraints are: `right` counts cells in from the
+right edge, `center` cells off the middle, and `scale` is a fraction where 0 is
+flush left or top and 1 flush right or bottom. A node with no frame fills its
+parent, which is what a road or a river usually wants. `z` is levels above the
+parent's.
+
+**A point can be measured in another node's frame**, by naming it in `in`:
+`{ in: "harbour", x: 0, y: -1, pinX: "center", pinY: "top" }` is the cell just
+north of the middle of the harbour's north edge, wherever the harbour is and
+however tall. That is what lets a road keep to a town's north gate while the
+town grows north. A point knows only the other node's rectangle, not its
+doors.
+
+**A node writes only inside its parent's frame**, and that frame is itself
+clipped to its own parent's, so a child dragged half off its parent loses the
+half that is off. The root writes inside its own frame.
+
+**One build is one `MapDraft`.** Every node's edits go through `setStacks` with
+the same draft, so a chunk the island copied is written in place by the forest
+rather than copied again. The draft is sealed before the map is returned. A
+component is handed the map and must not keep it: `planHouse` builds a
+provisional copy of its own, which is fine because it is discarded.
+
+What a tree does not do yet: a road stays on its own level and does not climb
+(Rune Isle's ramps are `planIsland`'s), a road goes round nothing and leaves a
+cell where anything but the plants in `clears` stands, and there is no editor
+for it. The demo builds 96×72 cells in about 150ms.
+
 ## A cave is rock you take away from
 
 The cave generator (`app/editor/cave.ts`) blocks the dragged rectangle out as
