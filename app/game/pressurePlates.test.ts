@@ -6,7 +6,8 @@ import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { findPlateCells, loadAbove, settlePlates } from "./pressurePlates";
+import { findPlateCells, loadAbove, plateCell, plateIndex, settlePlates } from "./pressurePlates";
+import type { PlateCell } from "./pressurePlates";
 import { plateTriggers, resolvePressurePlate } from "../lib/interactions";
 import { tile } from "../lib/testTile";
 
@@ -148,14 +149,17 @@ describe("findPlateCells", () => {
 });
 
 describe("settlePlates", () => {
+  const settle = (map: MapFile, plates: Iterable<PlateCell>) =>
+    settlePlates(map, plates, tilesById);
+
   it("presses under a load and releases without one", () => {
     const loaded = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate" }, { tileId: "crate" }]);
-    const pressed = settlePlates(loaded, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const pressed = settlePlates(loaded, [plateCell({ x: 0, y: 0, z: 0 })], tilesById);
     expect(stackIds(pressed.map, 0, 0)).toEqual(["plate-pressed", "crate"]);
     expect(pressed.changed).toEqual([{ x: 0, y: 0, z: 0 }]);
 
     const bare = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate-pressed" }]);
-    const released = settlePlates(bare, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const released = settlePlates(bare, [plateCell({ x: 0, y: 0, z: 0 })], tilesById);
     expect(stackIds(released.map, 0, 0)).toEqual(["plate"]);
   });
 
@@ -164,7 +168,7 @@ describe("settlePlates", () => {
       { tileId: "plate-pressed" },
       { tileId: "crate" },
     ]);
-    const result = settlePlates(map, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const result = settlePlates(map, [plateCell({ x: 0, y: 0, z: 0 })], tilesById);
     expect(result.changed).toEqual([]);
     expect(result.map).toBe(map);
   });
@@ -174,7 +178,7 @@ describe("settlePlates", () => {
       { tileId: "plate", direction: "e" },
       { tileId: "crate" },
     ]);
-    const result = settlePlates(map, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const result = settlePlates(map, [plateCell({ x: 0, y: 0, z: 0 })], tilesById);
     expect(getStack(result.map, 0, 0, 0)[0]).toEqual({
       tileId: "plate-pressed",
       direction: "e",
@@ -183,16 +187,31 @@ describe("settlePlates", () => {
 
   it("refuses a swap that would not fit under its own load", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "swell" }, { tileId: "crate" }]);
-    const result = settlePlates(map, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const result = settlePlates(map, [plateCell({ x: 0, y: 0, z: 0 })], tilesById);
     expect(stackIds(result.map, 0, 0)).toEqual(["swell", "crate"]);
   });
 
   it("does one pass, so a self-triggering pair cannot spin", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "flip-a" }]);
-    const once = settlePlates(map, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const plates = plateIndex();
+    plates.add({ x: 0, y: 0, z: 0 });
+    const once = plates.settle(map, settle);
     expect(stackIds(once.map, 0, 0)).toEqual(["flip-b"]);
-    const twice = settlePlates(once.map, [{ x: 0, y: 0, z: 0 }], tilesById);
+    const twice = plates.settle(once.map, settle);
     expect(stackIds(twice.map, 0, 0)).toEqual(["flip-a"]);
+  });
+
+  it("settles a plate again when the level below it changes", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }, { tileId: "crate" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "plate" }, { tileId: "crate" }]);
+    const plates = plateIndex();
+    plates.add({ x: 0, y: 0, z: 1 });
+    const blocked = plates.settle(map, settle);
+    expect(stackIds(blocked.map, 0, 0, 1)).toEqual(["plate", "crate"]);
+
+    const cleared = replaceStack(blocked.map, 0, 0, 0, [{ tileId: "wall" }]);
+    const pressed = plates.settle(cleared, settle);
+    expect(stackIds(pressed.map, 0, 0, 1)).toEqual(["plate-pressed", "crate"]);
   });
 });
 
