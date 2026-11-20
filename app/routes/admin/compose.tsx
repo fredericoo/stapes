@@ -82,6 +82,25 @@ function Outline({ placement, projection }: { placement: Placement; projection: 
   );
 }
 
+/** A mask's shape, dashed, so an oval reads as an oval inside its square frame. */
+function MaskOutline({ placement, projection }: { placement: Placement; projection: Projection }) {
+  const { bounds, z } = placement;
+  const a = projection.cellToScreen(bounds.minX, bounds.minY, z);
+  const b = projection.cellToScreen(bounds.maxX + 1, bounds.maxY + 1, z);
+  const shape = (placement.node.props?.shape as string | undefined) ?? "oval";
+  const op = (placement.node.props?.op as string | undefined) ?? "subtract";
+  return (
+    <div
+      className={[
+        "pointer-events-none absolute border-2 border-dashed",
+        op === "subtract" ? "border-danger-on-ink" : "border-mend",
+        shape === "oval" ? "mask-oval" : "",
+      ].join(" ")}
+      style={{ left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y }}
+    />
+  );
+}
+
 /** The node drawn on top at a cell: the last in build order whose own frame holds it. */
 function pick(layout: Layout, cell: { x: number; y: number }): string | null {
   for (let i = layout.order.length - 1; i >= 0; i--) {
@@ -421,6 +440,18 @@ export default function ComposePage() {
                   ) : null}
                   {placement && selectedNode ? (
                     <>
+                      {[selectedNode, ...(selectedNode.children ?? [])]
+                        .filter((n) => n.type === "mask" && !n.hidden)
+                        .map((n) => {
+                          const p = built.layout.placements.get(n.key);
+                          return p ? (
+                            <MaskOutline
+                              key={`mask-${n.key}`}
+                              placement={p}
+                              projection={projection}
+                            />
+                          ) : null;
+                        })}
                       {selectedNode.frame ? (
                         <FrameHandles
                           bounds={placement.bounds}

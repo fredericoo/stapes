@@ -385,3 +385,69 @@ describe("routes", () => {
     expect(bent.filter((c) => !straight.includes(c)).length).toBeGreaterThan(5);
   });
 });
+
+describe("masks", () => {
+  const thicket = (masks: MapNode[], props: Record<string, unknown> = {}): MapDoc =>
+    doc(
+      field([
+        {
+          type: "forest",
+          key: "wood",
+          frame: { x: 0, y: 0, w: 40, h: 30 },
+          props: { onlyOn: ["sand"], path: null, density: 100, undergrowthDensity: 0, ...props },
+          children: masks,
+        },
+      ]),
+    );
+  const oval = (op: string): MapNode => ({
+    type: "mask",
+    key: `oval-${op}`,
+    frame: { x: 10, y: 8, w: 20, h: 14 },
+    props: { shape: "oval", op },
+  });
+  const everything: MapNode = {
+    type: "mask",
+    key: "all",
+    props: { shape: "rect", op: "subtract" },
+  };
+  const inOval = (cell: string) => {
+    const [x, y] = cell.split(",").map(Number) as [number, number];
+    return Math.hypot((x + 0.5 - 20) / 10, (y + 0.5 - 15) / 7) <= 1;
+  };
+  const treesAt = (tree: MapDoc) => {
+    const trees = cellsWith(build(tree).map, "tree", 40, 30);
+    return {
+      inside: trees.some((c) => inOval(c)),
+      outside: trees.some((c) => !inOval(c)),
+    };
+  };
+
+  it.each([
+    ["subtracting an oval clears it", [oval("subtract")], { inside: false, outside: true }],
+    ["intersecting an oval keeps only it", [oval("intersect")], { inside: true, outside: false }],
+    [
+      "adding an oval back after subtracting all",
+      [everything, oval("add")],
+      { inside: true, outside: false },
+    ],
+  ])("%s", (_, masks, expected) => {
+    expect(treesAt(thicket(masks as MapNode[]))).toEqual(expected);
+  });
+
+  it("removes only the tiles it lists and leaves the ground the layer was built on", () => {
+    const tree = thicket(
+      [{ type: "mask", key: "no-trees", props: { shape: "rect", only: ["tree"] } }],
+      { undergrowthDensity: 100 },
+    );
+    const { map } = build(tree);
+    expect(cellsWith(map, "tree", 40, 30)).toEqual([]);
+    expect(cellsWith(map, "small-bush", 40, 30).length).toBeGreaterThan(0);
+    expect(getStack(map, 20, 15, 0)[0]).toEqual({ tileId: "sand" });
+  });
+
+  it("rebuilds its layer when it moves, even though it comes after it", () => {
+    const at = (x: number) => thicket([{ ...oval("subtract"), frame: { x, y: 8, w: 20, h: 14 } }]);
+    const resumed = buildMap(at(16), tilesById, registry, undefined, build(at(4)));
+    expect(serializeMap(resumed.map)).toBe(serializeMap(build(at(16)).map));
+  });
+});

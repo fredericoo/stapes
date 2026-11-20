@@ -196,7 +196,7 @@
 /* House style: every rectangle in this interface is hard-cornered.
    `!important` because it has to beat a component library rounding its own
    widgets, which means anything that is genuinely round has to say so at the
-   same weight — the two exceptions below. */
+   same weight, as the exceptions below do. */
 * {
   border-radius: 0 !important;
 }
@@ -208,6 +208,11 @@
 
 .spell-disc {
   border-radius: 9999px !important;
+}
+
+/* A map tree mask's outline in /admin/compose, drawn as the oval it cuts. */
+.mask-oval {
+  border-radius: 50% !important;
 }
 
 html,

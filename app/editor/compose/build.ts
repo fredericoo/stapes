@@ -3,6 +3,7 @@ import { emptyMap, getStack, setStacks } from "../../lib/mapData";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
+import { MASK_TYPE, applyMasks, mask, maskShape, type MaskProps } from "./components/mask";
 import { wrongTile } from "./field";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
@@ -87,7 +88,11 @@ function inputsOf(placement: Placement, layout: Layout): string {
   const named: Record<string, unknown> = {};
   namedFrames(placement.node.props, layout, named);
   const { node, seed, bounds, clip, z } = placement;
-  return JSON.stringify([node.type, node.props ?? null, seed, bounds, clip, z, named]);
+  const masks = masksOf(node).map((m) => {
+    const p = layout.placements.get(m.key);
+    return [m.props ?? null, p?.seed, p?.bounds];
+  });
+  return JSON.stringify([node.type, node.props ?? null, seed, bounds, clip, z, named, masks]);
 }
 
 function sameStack(a: readonly PlacedTile[] | undefined, b: readonly PlacedTile[] | undefined) {
@@ -126,6 +131,19 @@ function keepUnchanged(previous: MapFile, next: MapFile): MapFile {
     }
   }
   return levels ? { ...next, levels } : next;
+}
+
+function masksOf(node: MapNode): MapNode[] {
+  return (node.children ?? []).filter((c) => c.type === MASK_TYPE && !c.hidden);
+}
+
+function shapesFor(node: MapNode, layout: Layout, area: Bounds) {
+  return masksOf(node).flatMap((m) => {
+    const placement = layout.placements.get(m.key);
+    const parsed = v.safeParse(mask.schema, m.props ?? {});
+    if (!placement || !parsed.success) return [];
+    return [maskShape(parsed.output as MaskProps, placement.bounds, placement.seed, area)];
+  });
 }
 
 function visibleOrder(doc: MapDoc, layout: Layout): Placement[] {
@@ -218,7 +236,13 @@ export function buildMap(
         );
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
         else {
-          const kept = plan.edits.filter((e) => inside(placement.clip, e.x, e.y));
+          const area = boundsOf(plan.edits);
+          const masked = area
+            ? applyMasks(plan.edits, shapesFor(node, layout, area), (x, y, z) =>
+                getStack(current, x, y, z),
+              )
+            : plan.edits;
+          const kept = masked.filter((e) => inside(placement.clip, e.x, e.y));
           map = setStacks(map, kept);
           written = boundsOf(kept);
         }
