@@ -17,6 +17,15 @@ import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/type
 export const NAVIGATION_MAX_NODES = 40_000;
 
 /**
+ * A brain plans with every leg only after a walk alone has failed, gives up on
+ * a route this many steps longer than the plan distance, and does not ask
+ * again for a goal it failed to plan for this long.
+ */
+export const BRAIN_PLAN_MAX_NODES = 4_096;
+export const BRAIN_PLAN_DETOUR_SLACK = 48;
+export const BRAIN_PLAN_MEMORY_MS = 5_000;
+
+/**
  * A drop cannot be walked back up, so a route pays extra for one and takes it
  * only when the way round is longer than this many steps.
  */
@@ -233,8 +242,26 @@ function useLegs(world: NavWorld, at: Coord): NavLeg[] {
   return out;
 }
 
+/**
+ * A body can only stand in a doorway with the door open, so the legs out of
+ * one are planned with it open. On the board as stored the door is shut, and
+ * the body would be standing on top of it, under the storey above.
+ */
+function throughDoorway(world: NavWorld, at: Coord): NavWorld {
+  for (const z of [at.z, at.z + 1]) {
+    const stack = getStack(world.board, at.x, at.y, z);
+    const index = stack.findIndex((placed) => opensToIntangible(placed, world.tilesById));
+    if (index < 0) continue;
+    const openId = opensToIntangible(stack[index]!, world.tilesById)!;
+    const next = stack.map((p, i) => (i === index ? { ...p, tileId: openId } : p));
+    return { ...world, board: replaceStack(world.board, at.x, at.y, z, next) };
+  }
+  return world;
+}
+
 export function navigationLegs(world: NavWorld, at: Coord): NavLeg[] {
-  return [...walkLegs(world, at), ...useLegs(world, at)];
+  const open = throughDoorway(world, at);
+  return [...walkLegs(open, at), ...useLegs(open, at)];
 }
 
 function costOf(world: NavWorld, from: Coord, leg: NavLeg): number {
@@ -291,14 +318,21 @@ export type NavOutcome =
   | { ok: true; legs: NavLeg[] }
   | { ok: false; why: "unreachable" | "budget"; explored: number };
 
+/**
+ * `detourSlack` drops every node whose route would be more than that much
+ * longer than the estimate from `from`, so a goal nobody can reach costs a
+ * search the size of its neighbourhood rather than the whole budget.
+ */
 export function planRoute(
   world: NavWorld,
   from: Coord,
   goal: NavGoal,
   maxNodes = NAVIGATION_MAX_NODES,
+  detourSlack = Infinity,
 ): NavOutcome {
   const frontier = new Frontier();
   const best = new Map<string, number>();
+  const longest = goal.estimate(from) + detourSlack;
   frontier.push({ at: from, g: 0, f: goal.estimate(from), cameFrom: null, leg: null });
   best.set(cellKey(from), 0);
 
@@ -312,8 +346,10 @@ export function planRoute(
       const key = cellKey(leg.to);
       const g = node.g + costOf(world, node.at, leg);
       if (g >= (best.get(key) ?? Infinity)) continue;
+      const f = g + goal.estimate(leg.to);
+      if (f > longest) continue;
       best.set(key, g);
-      frontier.push({ at: leg.to, g, f: g + goal.estimate(leg.to), cameFrom: node, leg });
+      frontier.push({ at: leg.to, g, f, cameFrom: node, leg });
     }
   }
   return { ok: false, why: "budget", explored: maxNodes };

@@ -21100,24 +21100,6 @@
               }
             ]
           },
-          "retiring": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "thing",
-                  "data": {
-                    "tileIds": [
-                      "bed"
-                    ]
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
           "snacking": {
             "do": [
               {
@@ -21250,24 +21232,6 @@
                 "action": "hold"
               }
             ]
-          },
-          "climbing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "thing",
-                  "data": {
-                    "tileIds": [
-                      "stone-stairs"
-                    ]
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
@@ -21276,8 +21240,6 @@
               "standing",
               "pacing",
               "returning",
-              "climbing",
-              "retiring",
               "snacking",
               "listening"
             ],
@@ -21335,8 +21297,6 @@
               "standing",
               "pacing",
               "returning",
-              "climbing",
-              "retiring",
               "snacking"
             ],
             "if": {
@@ -21393,73 +21353,6 @@
             "if": {
               "cond": "status",
               "id": "fed"
-            },
-            "to": "standing"
-          },
-          {
-            "from": [
-              "standing",
-              "pacing",
-              "returning"
-            ],
-            "if": {
-              "cond": "time_of_day",
-              "fromHour": 21,
-              "toHour": 6
-            },
-            "to": "climbing"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "time_of_day",
-                  "fromHour": 21,
-                  "toHour": 6
-                }
-              ]
-            },
-            "to": "standing"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "thing",
-                "data": {
-                  "tileIds": [
-                    "stone-stairs"
-                  ]
-                }
-              },
-              "cells": 1
-            },
-            "to": "retiring"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "retiring"
-          },
-          {
-            "from": "retiring",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "time_of_day",
-                  "fromHour": 21,
-                  "toHour": 6
-                }
-              ]
             },
             "to": "standing"
           },
@@ -21532,6 +21425,14 @@
               "fight": "dueling",
               "target": "threat",
               "calm": 12
+            }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 6,
+              "spell": 7
             }
           }
         ]
@@ -21922,6 +21823,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -29770,42 +29727,6 @@
                 "action": "hold"
               }
             ]
-          },
-          "resting": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "thing",
-                  "data": {
-                    "tileIds": [
-                      "bed"
-                    ]
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "climbing": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "thing",
-                  "data": {
-                    "tileIds": [
-                      "stone-stairs"
-                    ]
-                  }
-                }
-              },
-              {
-                "action": "hold"
-              }
-            ]
           }
         },
         "transitions": [
@@ -29817,73 +29738,6 @@
               "rules": [
                 {
                   "cond": "talking"
-                }
-              ]
-            },
-            "to": "tidying"
-          },
-          {
-            "from": [
-              "tidying",
-              "pausing",
-              "homing"
-            ],
-            "if": {
-              "cond": "time_of_day",
-              "fromHour": 21,
-              "toHour": 6
-            },
-            "to": "climbing"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "time_of_day",
-                  "fromHour": 21,
-                  "toHour": 6
-                }
-              ]
-            },
-            "to": "tidying"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "thing",
-                "data": {
-                  "tileIds": [
-                    "stone-stairs"
-                  ]
-                }
-              },
-              "cells": 1
-            },
-            "to": "resting"
-          },
-          {
-            "from": "climbing",
-            "if": {
-              "cond": "after",
-              "ms": 20000
-            },
-            "to": "resting"
-          },
-          {
-            "from": "resting",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "time_of_day",
-                  "fromHour": 21,
-                  "toHour": 6
                 }
               ]
             },
@@ -30010,6 +29864,14 @@
               "cry": "Corvin! Corvin, help!",
               "snack": 1,
               "talk": "listening"
+            }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 21,
+              "to": 6,
+              "spell": 2
             }
           }
         ]
@@ -30230,6 +30092,62 @@
                   {
                     "at": 1,
                     "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
                   }
                 ]
               }
@@ -32404,6 +32322,13 @@
               "from": 23,
               "to": 6,
               "spell": 5
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
             }
           }
         ]
@@ -45084,6 +45009,13 @@
               "from": 23,
               "to": 6,
               "spell": 3
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
             }
           }
         ]

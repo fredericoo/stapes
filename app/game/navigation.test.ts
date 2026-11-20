@@ -56,4 +56,20 @@ describe("planRoute", () => {
     if (!route.ok) return;
     expect(route.legs[0]).toMatchObject({ kind: "walk", opens: { x: 1, y: 0, z: 0 } });
   });
+
+  it("walks on out of a doorway with a storey above it", () => {
+    const door: PlacedTile = { tileId: "door-closed", direction: "e" };
+    const world = worldOf([
+      [0, 0, 0, floor()],
+      [1, 0, 0, floor(door)],
+      [1, 0, 1, [{ tileId: "wooden-floor" }]],
+      [2, 0, 0, floor()],
+    ]);
+
+    const route = planRoute(world, { x: 0, y: 0, z: 0 }, cellGoal({ x: 2, y: 0, z: 0 }));
+
+    expect(route.ok).toBe(true);
+    if (!route.ok) return;
+    expect(kinds(route.legs)).toEqual(["open"]);
+  });
 });

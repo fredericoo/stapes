@@ -96,9 +96,8 @@ export function mapDoc(
     const a = w(bd.rect.x0, bd.rect.y0, bd.z);
     const c = w(bd.rect.x1, bd.rect.y1, bd.z);
     const d = w(bd.door.x, bd.door.y, bd.z);
-    const open = b.board.get(bd.door.x, bd.door.y, bd.z)?.at(-1)?.tileId === "door-open";
     lines.push(
-      `| ${bd.label} | ${a.x}, ${a.y} | ${c.x}, ${c.y} | ${bd.z} | ${bd.storeys} | ${d.x}, ${d.y} (${bd.door.wall}${open ? ", open" : ""}) |`,
+      `| ${bd.label} | ${a.x}, ${a.y} | ${c.x}, ${c.y} | ${bd.z} | ${bd.storeys} | ${d.x}, ${d.y} (${bd.door.wall}) |`,
     );
   }
   lines.push("", "## The lamplighters' routes", "");

@@ -61,6 +61,8 @@ export type BrainContext = {
   rng: Rng;
   self: Coord;
   home: Coord | null;
+  /** A cell this body's placement names, such as its `bed`. */
+  spot(name: string): Coord | null;
   nearestOnTile(tileIds: readonly string[]): string | null;
   nearestThing(tileIds: readonly string[]): FoundThing | null;
   positionOf(actorId: string): Coord | null;
@@ -201,6 +203,7 @@ function identify(selector: Selector, memory: BrainMemory, ctx: BrainContext): B
       return found === null ? null : { kind: "thing", at: found.at, tileId: found.tileId };
     }
     case "home":
+    case "spot":
       return null;
     case "wanted":
       return asBody(ctx.nearestWanted());
@@ -213,6 +216,7 @@ function asBody(id: string | null): Bound | null {
 
 function locate(selector: Selector, memory: BrainMemory, ctx: BrainContext): Coord | null {
   if (selector.type === "home") return ctx.home;
+  if (selector.type === "spot") return ctx.spot(selector.data.name);
   return whereIs(identify(selector, memory, ctx), ctx);
 }
 
@@ -225,6 +229,10 @@ function whereIs(bound: Bound | null, ctx: BrainContext): Coord | null {
 function aim(selector: Selector, memory: BrainMemory, ctx: BrainContext): WalkGoal | null {
   if (selector.type === "home") {
     return ctx.home ? { of: "cell", at: ctx.home, arrive: "on" } : null;
+  }
+  if (selector.type === "spot") {
+    const at = ctx.spot(selector.data.name);
+    return at ? { of: "cell", at, arrive: "on" } : null;
   }
   const bound = identify(selector, memory, ctx);
   if (!bound) return null;
@@ -243,6 +251,17 @@ export function withinSightLevels(self: Coord, other: Coord, sight: SightLevels)
 
 export function within(self: Coord, other: Coord, cells: number, sight: SightLevels): boolean {
   return withinSightLevels(self, other, sight) && stepsApart(self, other) <= cells;
+}
+
+/**
+ * A spot is a place the body knows rather than sees, so its range counts a
+ * level as a step and ignores the levels the body can see.
+ */
+function inRange(of: Selector, cells: number, memory: BrainMemory, ctx: BrainContext): boolean {
+  const at = locate(of, memory, ctx);
+  if (at === null) return false;
+  if (of.type === "spot") return stepsApart(ctx.self, at) + Math.abs(ctx.self.z - at.z) <= cells;
+  return within(ctx.self, at, cells, ctx.sight);
 }
 
 function inSight(at: Coord | null, cells: number, ctx: BrainContext): at is Coord {
@@ -333,14 +352,10 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       return memory.msInState >= afterMs(condition, memory, ctx);
     case "stuck":
       return memory.stuck;
-    case "in_range": {
-      const at = locate(condition.of, memory, ctx);
-      return at !== null && within(ctx.self, at, condition.cells, ctx.sight);
-    }
-    case "out_of_range": {
-      const at = locate(condition.of, memory, ctx);
-      return at === null || !within(ctx.self, at, condition.cells, ctx.sight);
-    }
+    case "in_range":
+      return inRange(condition.of, condition.cells, memory, ctx);
+    case "out_of_range":
+      return !inRange(condition.of, condition.cells, memory, ctx);
     case "in_los":
       return inSight(locate(condition.of, memory, ctx), condition.cells, ctx);
     case "out_of_los":

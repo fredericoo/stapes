@@ -1925,6 +1925,7 @@ describe("a deer that yelps", () => {
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
       home: null,
+      spot: () => null,
       nearestOnTile: () => null,
       nearestThing: () => null,
       thingStillThere: () => false,

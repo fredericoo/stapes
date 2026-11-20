@@ -332,6 +332,11 @@ export type PlacedTile = {
   rewardRequires?: RewardRequirements;
   depotTag?: string;
   teleportTo?: Coord;
+  /**
+   * Named cells a body placed here belongs to, such as its `bed`, read by a
+   * brain's `spot` target. They stay with the placement as the body moves.
+   */
+  spots?: Record<string, Coord>;
   owner?: string;
   castBy?: string;
   castElements?: Element[];

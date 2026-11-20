@@ -3097,7 +3097,7 @@
   {
     "id": "keeps-hours",
     "name": "Keeps hours",
-    "hint": "Goes to bed for the hours given: walks to the nearest bed within reach and puts itself to sleep with one of its own spells, or sleeps where it stands when no bed is in reach or the walk takes too long. Gets up when the hours end. Bedtime never takes it out of a conversation, a fright or a fight.",
+    "hint": "Goes to bed for the hours given: walks to its own bed (the `bed` spot its placement names) or else the nearest bed within reach, and puts itself to sleep with one of its own spells, or sleeps where it stands when no bed is in reach or the walk takes too long. Gets up when the hours end. Bedtime never takes it out of a conversation, a fright or a fight.",
     "params": {
       "from": {
         "kind": "hour",
@@ -3116,6 +3116,11 @@
         "default": ["bed", "bed-2"],
         "label": "beds"
       },
+      "ownWithin": {
+        "kind": "cells",
+        "default": 48,
+        "label": "walks to its own bed from within"
+      },
       "within": {
         "kind": "cells",
         "default": 16,
@@ -3128,6 +3133,23 @@
       }
     },
     "states": {
+      "to-own-bed": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "spot",
+              "data": {
+                "name": "bed"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
       "to-bed": {
         "band": "errand",
         "do": [
@@ -3180,6 +3202,54 @@
             {
               "cond": "in_range",
               "of": {
+                "type": "spot",
+                "data": {
+                  "name": "bed"
+                }
+              },
+              "cells": {
+                "arg": "ownWithin"
+              }
+            }
+          ]
+        },
+        "to": "to-own-bed"
+      },
+      {
+        "band": "errand",
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "spot",
+                    "data": {
+                      "name": "bed"
+                    }
+                  },
+                  "cells": {
+                    "arg": "ownWithin"
+                  }
+                }
+              ]
+            },
+            {
+              "cond": "in_range",
+              "of": {
                 "type": "thing",
                 "data": {
                   "tileIds": {
@@ -3216,6 +3286,24 @@
                 {
                   "cond": "in_range",
                   "of": {
+                    "type": "spot",
+                    "data": {
+                      "name": "bed"
+                    }
+                  },
+                  "cells": {
+                    "arg": "ownWithin"
+                  }
+                }
+              ]
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
                     "type": "thing",
                     "data": {
                       "tileIds": {
@@ -3235,6 +3323,56 @@
       }
     ],
     "transitions": [
+      {
+        "from": "to-own-bed",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            }
+          ]
+        },
+        "to": "rest"
+      },
+      {
+        "from": "to-own-bed",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "spot",
+            "data": {
+              "name": "bed"
+            }
+          },
+          "cells": 1
+        },
+        "to": "abed"
+      },
+      {
+        "from": "to-own-bed",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "abed"
+      },
+      {
+        "from": "to-own-bed",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "abed"
+      },
       {
         "from": "to-bed",
         "if": {

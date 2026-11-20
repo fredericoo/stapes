@@ -10,6 +10,7 @@ import {
   nearest,
   needsExpansion,
   slot,
+  spot,
   slotTiles,
   thing,
   tilesNamedBy,
@@ -218,6 +219,7 @@ export function selectorVocabulary(
     { key: "speaker", label: "speaker", make: () => SPEAKER_SELECTOR, tiles: [] },
     { key: "attacker", label: "attacker", make: () => ATTACKER_SELECTOR, tiles: [] },
     { key: "home", label: "home", make: () => HOME_SELECTOR, tiles: [] },
+    { key: "spot", label: "own bed", make: () => spot("bed"), tiles: [] },
     { key: "wanted", label: "wanted", make: () => WANTED_SELECTOR, tiles: [] },
   ];
 
