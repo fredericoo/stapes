@@ -1169,16 +1169,9 @@ each would need.
   ginger, Soot black, Ghee cream, Captain grey and Nettle tuxedo.
 - **Travellers.** A brain finds a goal only as far as its furthest distance
   (`brainReach`), and the towns are about 340 cells apart by road. A traveller needs a
-  chain of waypoint markers along the road, each a distinct tile, with a brain
-  state per leg, or a new action that follows a named route. Routing does not
-  open doors, so routes should not cross one.
-- **Going to one's own bed.** `keeps-hours` walks to the nearest `bed` within
-  16 cells on the levels a body sees, and the walk opens no door and climbs no
-  ladder. A character whose bed is upstairs, behind a closed door, further
-  than 16 cells from their post, or further than a neighbour's, sleeps at
-  their post instead. Each of those needs a bed that names its sleeper, read by
-  `keeps-hours`, and brain routes that open doors and climb ladders. Who that
-  is today is in `docs/notes.md`, *The cast is placed at work*.
+  chain of spots along the road on its placement (`PlacedTile.spots`), with a
+  brain state per leg, each leg short enough for a planned route (4,096
+  nodes), or a new action that follows a named route.
 - **Animal skulls do not exist.** No creature drops a skull today. Magda's trade
   needs a skull spoil per animal, or one generic `animal-skull`.
 - **Sparring.** Absalom offering a fight from dialog that stops before death does

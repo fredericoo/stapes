@@ -75,7 +75,7 @@ that is the work cell for most of them. No wild creature is placed.
 | `halina-brzeska` | Halina Brzeska | Armoury | 104, -180, L1 | Armoury | 104, -183, L1 | 104, -183, L1, facing n |
 | `bertha-oyelaran` | Bertha Oyelaran | Smokehouse by the south gate | 100, -168, L1 | Smokehouse | 97, -169, L1 | 97, -169, L1, facing w |
 | `magda-fenwick` | Magda Fenwick | Trophy shed outside the north gate | 97, -216, L1 | Trophy shed | 97, -217, L1 | 96, -218, L1, facing w |
-| `tobiah-marsh` | Tobiah Marsh | Tobiah's house by the south gate | 87, -160, L1 | The streets: lamplighter | 84, -196, L1 | 88, -160, L1, facing e |
+| `tobiah-marsh` | Tobiah Marsh | Tobiah's house by the south gate | 87, -160, L1 | The streets: lamplighter | 84, -196, L1 | 83, -197, L1, facing s |
 | `rukmini-desai` | Rukmini Desai | Storehouse by the drill yard | 81, -178, L1 | Storehouse | 84, -179, L1 | 84, -179, L1, facing n |
 | `edda-kell` | Edda Kell | North gatehouse | 87, -215, L1 | North gate | 92, -211, L1 | 92, -211, L1, facing n |
 | `aurelio-benedetti` | Aurelio Benedetti | Cooperage by the smokehouse | 97, -175, L1 | Cooperage | 97, -177, L1 | 97, -177, L1, facing w |
@@ -113,8 +113,8 @@ Beds nobody in the cast sleeps in:
 | Idris's awning beside the path | -5, -85 | 0, -81 | 1 | 1 | -3, -85 (n) |
 | Ifeoma's cook tent at the cookfire | -19, -85 | -15, -80 | 1 | 1 | -17, -85 (n) |
 | Peregrine's tent and trap bench | -21, -93 | -17, -88 | 1 | 1 | -19, -88 (s) |
-| Wenna's shack at the salvage pile | 2, -85 | 6, -80 | 1 | 1 | 4, -85 (n, open) |
-| Jory's lean-to by his barrow | -15, -94 | -11, -90 | 1 | 1 | -13, -90 (s, open) |
+| Wenna's shack at the salvage pile | 2, -85 | 6, -80 | 1 | 1 | 4, -85 (n) |
+| Jory's lean-to by his barrow | -15, -94 | -11, -90 | 1 | 1 | -13, -90 (s) |
 | Rune temple | -180, -231 | -166, -221 | 1 | 1 | -173, -221 (s) |
 | Council house | -190, -225 | -183, -215 | 1 | 2 | -187, -215 (s) |
 | Wardens' house | -199, -221 | -194, -215 | 1 | 1 | -197, -215 (s) |
@@ -130,7 +130,7 @@ Beds nobody in the cast sleeps in:
 | Longhall | 82, -211 | 90, -196 | 1 | 1 | 86, -196 (s) |
 | Smithy | 101, -199 | 107, -191 | 1 | 2 | 104, -191 (s) |
 | Armoury | 101, -187 | 107, -179 | 1 | 1 | 104, -187 (n) |
-| Absalom's house beside the drill yard | 69, -195 | 74, -191 | 1 | 1 | 71, -191 (s, open) |
+| Absalom's house beside the drill yard | 69, -195 | 74, -191 | 1 | 1 | 71, -191 (s) |
 | Barracks by the drill yard | 55, -187 | 60, -178 | 1 | 1 | 57, -187 (n) |
 | Spear shed by the drill yard | 85, -174 | 90, -170 | 1 | 1 | 90, -172 (e) |
 | Storehouse by the drill yard | 80, -182 | 88, -176 | 1 | 1 | 84, -182 (n) |
@@ -139,7 +139,7 @@ Beds nobody in the cast sleeps in:
 | North gatehouse | 86, -218 | 90, -214 | 1 | 1 | 90, -216 (e) |
 | Smokehouse by the south gate | 94, -172 | 101, -166 | 1 | 1 | 94, -169 (w) |
 | Cooperage by the smokehouse | 94, -180 | 99, -174 | 1 | 1 | 94, -177 (w) |
-| Tobiah's house by the south gate | 86, -163 | 90, -159 | 1 | 1 | 90, -161 (e, open) |
+| Tobiah's house by the south gate | 86, -163 | 90, -159 | 1 | 1 | 90, -161 (e) |
 | Trophy shed outside the north gate | 94, -219 | 99, -215 | 1 | 1 | 94, -217 (w) |
 | Roadside inn | -23, -243 | -10, -234 | 1 | 2 | -17, -234 (s) |
 | Stable | -6, -242 | 0, -234 | 1 | 2 | -3, -234 (s) |

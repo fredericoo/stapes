@@ -19,6 +19,8 @@ export type Resident = {
   workCell: { x: number; y: number; z: number } | null;
   /** Which way they look at their work cell, where the post itself does not say. */
   faces?: Direction;
+  /** Where they stand to get into bed, their `bed` spot. */
+  bedside?: { x: number; y: number; z: number };
   post?: { x: number; y: number; z: number; facing: Direction };
 };
 
@@ -177,23 +179,34 @@ export class Builder {
   }
 
   /** Puts a character's tile on the board, standing on free floor at `at` (map coordinates). */
-  stand(r: Resident, at: { x: number; y: number; z: number }, facing: Direction) {
+  stand(r: Resident, at: { x: number; y: number; z: number }, facing: Direction): PlacedTile {
     const x = at.x - this.board.ox;
     const y = at.y - this.board.oy;
-    if (!this.put(x, y, at.z, r.tileId, facing))
+    if (!this.isFree(x, y, at.z))
       throw new Error(`${r.name}: no free floor at ${at.x}, ${at.y}, L${at.z}`);
+    const placed = tile(r.tileId, facing);
+    this.board.push(x, y, at.z, placed);
     r.post = { ...at, facing };
+    return placed;
   }
 
   /**
-   * Leaves a building's door open, for a resident whose walk between bed and
-   * work goes through it: a brain's route never opens a door.
+   * The free floor beside a bed whose foot is at `bed` (map coordinates), where
+   * somebody stands to get into it, or null when every side is taken.
    */
-  openDoor(b: Building) {
-    const stack = this.board.get(b.door.x, b.door.y, b.z);
-    const door = stack?.at(-1);
-    if (door?.tileId !== "door-closed") throw new Error(`${b.label} has no closed door`);
-    door.tileId = "door-open";
+  bedside(bed: { x: number; y: number; z: number }) {
+    for (const [dx, dy] of [
+      [-1, 0],
+      [1, 0],
+      [0, 1],
+      [-1, -1],
+      [1, -1],
+      [0, -2],
+    ] as const) {
+      const at = { x: bed.x + dx, y: bed.y + dy, z: bed.z };
+      if (this.isFree(at.x - this.board.ox, at.y - this.board.oy, at.z)) return at;
+    }
+    return null;
   }
 
   /** A ladder from storey `z` to the floor above it. */

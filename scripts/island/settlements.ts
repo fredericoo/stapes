@@ -455,7 +455,6 @@ export function buildWarriors(b: Builder, site: Site) {
     ...t("Absalom Grieve", "Drill yard"),
     workCell: b.world(drillCentre.x, drillCentre.y, z),
   });
-  b.openDoor(absalom);
   settle(b, smithy, t("Brannoc Hale", "Smithy"), smithy, smithy.z + 1);
   settle(b, bowyer, t("Selin Arslan", "Bowyer's shop"), bowyer);
   settle(b, spear, t("Mateo Ferran", "Spear shed; the longhall at night"), spear);
@@ -466,7 +465,6 @@ export function buildWarriors(b: Builder, site: Site) {
     ...t("Tobiah Marsh", "The streets: lamplighter"),
     workCell: b.world(square.x0, square.y0 - 1, z),
   });
-  b.openDoor(tobiah);
   settle(b, store, t("Rukmini Desai", "Storehouse"), store);
   b.bedFor(northGate, {
     ...t("Edda Kell", "North gate"),
@@ -615,7 +613,6 @@ export function buildCamp(b: Builder, site: Site) {
   }
   settle(b, wenna, P("Wenna Pascoe", "The salvage pile and the wreck beach"), null);
   b.residents[b.residents.length - 1]!.workCell = b.world(pile.x, pile.y + 3, z);
-  b.openDoor(wenna);
 
   const jory = town.place(
     "jory-lean-to",
@@ -632,7 +629,6 @@ export function buildCamp(b: Builder, site: Site) {
     workCell: seat,
     faces,
   });
-  b.openDoor(jory);
   b.put(c.x - 1, c.y + 2, z, "respawn-point");
 }
 

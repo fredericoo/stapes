@@ -1,14 +1,10 @@
-import type { Direction } from "../../app/lib/types";
+import type { Direction, PlacedTile } from "../../app/lib/types";
 import type { Builder, Building, Resident } from "./build";
 
 type Cell = { x: number; y: number; z: number };
 
-/**
- * Who stands beside their bed rather than at their work cell. The
- * lamplighter's work is the round his brain walks from home, and the
- * travellers have no work cell.
- */
-const BY_THE_BED = new Set(["tobiah-marsh", "hamid-sarraf", "anselm-quaye", "yeva-kostenko"]);
+/** Who stands beside their bed rather than at their work cell: the travellers have no work cell. */
+const BY_THE_BED = new Set(["hamid-sarraf", "anselm-quaye", "yeva-kostenko"]);
 
 /** Which way somebody at an outdoor post looks; indoors they face the door. */
 const LOOKS: Record<string, Direction> = {
@@ -41,16 +37,19 @@ const CATS: Record<string, string> = {
 /**
  * Puts every character's tile on the board. A placement is the body's home:
  * `returns-home` walks it back there each morning, and `keeps-hours` walks
- * from there at bedtime to the nearest bed within 16 cells on its own level,
- * without opening a door or climbing a ladder (`docs/notes.md`, *The cast is
- * placed at work*).
+ * from there at bedtime to its `bed` spot, the floor beside its own bed,
+ * which is placed last so that no body starts on it. It opens doors and
+ * climbs ladders on the way (`docs/notes.md`, *The cast
+ * is placed at work*).
  */
 export function placeCast(b: Builder) {
+  const placed = new Map<Resident, PlacedTile>();
   for (const r of b.residents) {
     if (!r.tileId) continue;
-    const post = BY_THE_BED.has(r.tileId) || !r.workCell ? besideBed(b, r) : free(b, r.workCell);
+    const post = BY_THE_BED.has(r.tileId) || !r.workCell ? b.bedside(r.bed!) : free(b, r.workCell);
+    if (!post) throw new Error(`${r.name}: no free floor beside the bed`);
     const inside = buildingAt(b, post);
-    b.stand(r, post, r.faces ?? LOOKS[r.tileId] ?? inside?.door.wall ?? "s");
+    placed.set(r, b.stand(r, post, r.faces ?? LOOKS[r.tileId] ?? inside?.door.wall ?? "s"));
   }
   for (const [cat, owner] of Object.entries(CATS)) {
     const by = b.residents.find((r) => r.tileId === owner)?.post;
@@ -61,22 +60,12 @@ export function placeCast(b: Builder) {
     b.put(x, y, at.z, cat, "s");
     b.cats.push({ tileId: cat, owner, ...at });
   }
-}
-
-function besideBed(b: Builder, r: Resident): Cell {
-  const bed = r.bed!;
-  for (const [dx, dy] of [
-    [-1, 0],
-    [1, 0],
-    [-1, -1],
-    [1, -1],
-    [0, 1],
-    [0, -2],
-  ] as const) {
-    const at = { x: bed.x + dx, y: bed.y + dy, z: bed.z };
-    if (b.isFree(at.x - b.board.ox, at.y - b.board.oy, at.z)) return at;
+  for (const [r, tile] of placed) {
+    const bed = r.bed && b.bedside(r.bed);
+    if (!bed) throw new Error(`${r.name}: no free floor beside the bed`);
+    tile.spots = { bed };
+    r.bedside = bed;
   }
-  throw new Error(`${r.name}: no free floor beside the bed`);
 }
 
 /** The free floor cell nearest `at`, `at` itself if it is free, skipping the first `skip` rings. */

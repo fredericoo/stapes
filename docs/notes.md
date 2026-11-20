@@ -1594,10 +1594,6 @@ is one tile, with the character's name in kebab case as its id.
   do not hurt each other until both have asked to*.
 - **Bots do not see them** (`creaturesAround` in `bots/combat.ts`). Otherwise
   a bot would hunt the weakest shopkeepers and flee from the rest.
-- **Taavi Kask crosses his door by hand.** Brain routing does not open
-  doors, so on the current map the guardhouse door at 5,8 is a `switch` in
-  his own state each way, and his home is the cell inside it. He keeps the
-  south gate guard's brain, which this was written for.
 - **Iolanthe Sarno fights with runes, and is meant to scare players off.**
   She has rating 67, 35 of it from Arcane 70, between the smiths and the
   guards. Her spells are Lance, Ember, Frost and Thorns. Arcane 70 is more than
@@ -1615,32 +1611,10 @@ is one tile, with the character's name in kebab case as its id.
   `cast 1` and `cast 2` still mean Second wind and the snack, and their
   `fighting` and `hunting` states try `cast 3` and `cast 4` before `attack`.
 
-On the current map, Iolanthe and Rosalind stand in the old alderman's hall and
-keep the brains written for it:
-
-- **At night both walk up to the double bed in two legs, and the second leg
-  only works because of the first.** `climbing` steps toward
-  `thing(stone-stairs)` until it is within a cell; `retiring` (Iolanthe) and
-  `resting` (Rosalind) then step toward `thing(bed)`. A single leg is refused
-  from the west end of the hall: a route may be at most `PATH_DETOUR_SLACK`
-  (16) steps longer than the plan distance, and the trip east to the stairs
-  and back west upstairs is longer than that from where Rosalind spends her
-  day. Both have `sight.up` 1, because `nearestThing` searches only the levels
-  a body can see. The cellar stairs and the cellar bed are below them, so
-  neither is picked.
-- **The double bed stands out from the wall, at (0..1, -30..-29) on L1.** A
-  `thing` goal arrives on a square one step from the bed square the search
-  picked, on the same level. A bed square against a wall can have one free
-  square beside it or none; whoever arrives first takes it and the other body
-  gives up. Away from the wall every bed square has free floor beside it, and
-  none of that floor is (3, -31) or (3, -30), the way off the stair landing,
-  so a body standing by the bed never blocks the stairs.
-- **Both have leashes of three cells.** A wandering brain steps into a
-  stairwell, because a stair two units down is inside the climb band and
-  `stepLeavesGround` does not count it as a drop. Their homes, (1, -27) and
-  (-1, -27), are more than three steps from the square in front of either
-  staircase. A body off its home level still routes home, but `in_range home`
-  never holds there, since `within` checks sight levels first.
+Iolanthe and Rosalind go to bed through `keeps-hours`, as the rest of the cast
+does, with the same "Go to sleep" spell. Their brains were written for the old
+alderman's hall, whose two-leg walk to bed by its stone stairs went with it,
+and both keep the `sight.up` 1 and leash of three that walk needed.
 
 ### The cast keeps hours, potters about and calls out
 
@@ -1674,12 +1648,12 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   `in_los` of the player tile in a brain, and both traits have one, but bots
   never count a body with a dialog as a creature (`creaturesAround`).
 - **The stand-ins that inherited a written routine do not call these.**
-  Iolanthe Sarno and Rosalind Peake keep the hall's two-leg walk to bed, Liv
-  Sandvik keeps the patrol, Hamid Sarraf keeps the crier's round, and the
-  guards who warn at a gate keep their warning brain with only `keeps-hours`
-  added.
+  Liv Sandvik keeps the patrol and Hamid Sarraf the crier's round, and neither
+  goes to bed. The guards who warn at a gate, Taavi Kask and Edda Kell, keep
+  their warning brain with `keeps-hours` and `returns-home` added, and Jory
+  Thistlewood's sitting brain has the same two.
 
-### The cast is placed at work
+### The cast is placed at work, and each body knows its bed
 
 `scripts/island/cast.ts` puts each character's tile on the island, and the cell
 it picks is the body's home: `returns-home` and every brain's own `home` goal
@@ -1688,40 +1662,31 @@ post by day, walk to a bed at night, and back to the post in the morning.
 
 - **The post is the work cell.** `returns-home` is what brings a body back in
   the morning, so a body placed beside its bed would spend the day there. The
-  exceptions are Tobiah Marsh, whose work is the lamp round his brain walks out
-  from home, and the three travellers, whose home is their inn guest bed.
-- **`keeps-hours` walks to the nearest `bed`, not the body's own.** It searches
-  rings of Manhattan distance out to 16 cells, only on the levels the body
-  sees (`sight`, 0 up and 0 down for most of the cast). It then routes there by
-  walking only: a brain's route never opens a door or climbs a ladder. If the
-  route fails it sleeps where it stands.
-- **So a body sleeps in its own bed only when that bed is the nearest one from
-  its post and a walk reaches it.** That holds for everybody whose post and bed
-  are in one room, and for Wenna Pascoe, Absalom Grieve, Jory Thistlewood and
-  Tobiah Marsh, whose doors the generator leaves open
-  (`Builder.openDoor`) because only the door was in the way.
-- **A door is opened only where nobody else's nearest bed is behind it.** The
-  wardens' house stays shut because it is the nearest bed from Suvi Kallio's
-  garden, and Idris Kaya's awning because it is the nearest from the cookfire.
-  Jory's lean-to stands north-west of the cookfire for the same reason: due
-  north of it, its bed was nearer the cookfire than Idris's. Jory calls
-  `returns-home` with a leash of one cell; his written brain only sits, and
-  without it he stayed in the lean-to after his first night.
-  The north gatehouse stays shut for a different reason: Edda Kell has no
-  `returns-home`, so a body put to bed indoors never goes back to the gate.
-- **Everybody else sleeps at their post**, which is the same outcome as before
-  the island had beds. That is Tove Arnesdatter, Ifeoma Nwachukwu, Suvi Kallio
-  and Gideon Okafor, whose nearest bed is a neighbour's behind a closed door,
-  and Edda Kell, whose own bed is behind hers. It
-  is Amaru Quispe, Brannoc Hale, Casimir Wren and Fen Achterberg, who sleep
-  upstairs (a ladder, and a level they do not see). And it is Hesper Vaun,
-  Dagny Rook, Taavi Kask, Nadia Ferreira and Sigrun Halde, whose beds are
-  further than 16 cells from their posts. Kofi Asante and Rodrigo Vela
-  sleep beside Margit Oslund's bed, the nearest one on the inn's ground floor.
-- **The written routines are kept.** Iolanthe Sarno's walk to bed looks for
-  `stone-stairs` and the council house has a ladder, so she stays at her post
-  all night. Rosalind Peake walks to her bed and stands by it, as her brain was
-  written to. Liv Sandvik and Hamid Sarraf have no bedtime.
+  three travellers stand beside their inn guest beds instead, because they
+  have no work cell.
+- **The placement names the body's bed as a spot.** `PlacedTile.spots.bed` is
+  the floor beside the character's own bed, where they stand to get into it.
+  It is not the bed itself: a bed's foot can be boxed in by a wall, a barrel
+  and a sack, as Ifeoma's is, and a walk to beside it can never arrive. The
+  generator picks it after every body and cat is placed, so no body starts on
+  it.
+- **`keeps-hours` walks to the `bed` spot first.** Its range counts a level as
+  a step and ignores the levels a body sees, because the body knows where its
+  bed is rather than seeing it, and it reaches 48 cells (`ownWithin`): Sigrun
+  Halde's walk from the drill yard to the smokehouse is 30. A body with no
+  spot, or one too far from it, still goes to the nearest bed within 16 cells
+  that it sees, which is every creature and townsperson placed by hand.
+- **The walk opens doors and climbs ladders.** See *A brain walk falls back to
+  `planRoute`*. Every door on the island is shut, and nobody's routine needs
+  one open.
+- **A body whose brain does not walk home in the morning gets `returns-home`.**
+  Before this, those characters slept at their posts and never left them.
+  Once they could reach a bed indoors, Jory Thistlewood, Taavi Kask and Edda
+  Kell stayed in it all day, so each calls `returns-home` with a short leash.
+
+On the generated island every character with `keeps-hours` sleeps in their own
+bed and is back at their post by morning. Liv Sandvik and Hamid Sarraf have no
+bedtime.
 
 ### A cat is judged by who hits it
 
