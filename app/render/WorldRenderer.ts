@@ -21,11 +21,8 @@ import {
   overlayEmitterOverridesPacked,
   VOID_BACKGROUND,
   type EmitterOverride,
-  type PackedLevelLight,
   type PackedLightGrid,
-  type SunLight,
 } from "../lib/lighting";
-import { SUN_SPAN_NEVER_HI, SUN_SPAN_NEVER_LO } from "../lib/sunSpan";
 import { sampleIllumination } from "../lib/clock";
 import { ruleSelectsCell } from "../lib/particleRule";
 import { fogHidesAt, illuminationUnder, type WeatherKind } from "../lib/weather";
@@ -42,6 +39,7 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import {
+  buildQueuedNearestFirst,
   cellInMeshWindow,
   chunkAddressKey,
   type MeshWindow,
@@ -123,6 +121,7 @@ import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
+import { LevelLights } from "./levelLights";
 import { PalettePass } from "./palettePass";
 import {
   NEIGHBOURHOOD,
@@ -157,7 +156,6 @@ import {
   depthOriginUniforms,
   noAnimUniforms,
   noCutUniforms,
-  noSunUniforms,
   setDepthOrigin,
   writeBoxAttr,
   buildSpreadQuadGeometry,
@@ -220,9 +218,6 @@ type AnimatedInstance = {
 const VERTS_PER_SPRITE = 4;
 
 const PROJECTILE_STACK_BIAS = 32;
-
-/** A quarter of the 8.3ms a frame has at 120fps. */
-const CHUNK_BUILD_BUDGET_MS = 2;
 
 const WADING_RENDER_ORDER = 0.5;
 
@@ -415,8 +410,6 @@ function keepVisiblePlumes(
 }
 
 const EMPTY_TINTS: ReadonlyMap<string, StatusTint> = new Map();
-
-const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 export type TileInstanceKey = {
   x: number;
@@ -736,9 +729,7 @@ export class WorldRenderer {
   private disposed = false;
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
-  private lightTextures = new Map<number, THREE.DataTexture>();
-  private sunTextures = new Map<number, THREE.DataTexture>();
-  private lightUniformsByZ = new Map<number, LevelLightUniforms>();
+  private lights: LevelLights;
   private readonly depthUniforms = depthOriginUniforms();
   private readonly weatherUniforms = weatherUniforms();
   /** Shared by every world material, so setting a define and recompiling them switches the weather code on or off. */
@@ -752,8 +743,6 @@ export class WorldRenderer {
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
   private shownLightGrid: PackedLightGrid | null = null;
-  private pendingAmbient: [number, number, number] | null = null;
-  private pendingSun: SunLight | null = null;
   private gpuLighting = new GpuLighting();
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
   private lightBaker: WorkerChunkBaker | null = null;
@@ -839,6 +828,7 @@ export class WorldRenderer {
     this.whiteTex.minFilter = THREE.LinearFilter;
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
+    this.lights = new LevelLights(this.whiteTex);
 
     this.particles = new ParticleLayer(
       (z) => this.ensureLightUniforms(z),
@@ -953,9 +943,7 @@ export class WorldRenderer {
     if (enabled === this.lightingEnabled) return;
     this.lightingEnabled = enabled;
     this.shownLightGrid = null;
-    for (const u of this.lightUniformsByZ.values()) {
-      u.uLightingEnabled.value = enabled ? 1 : 0;
-    }
+    this.lights.setEnabled(enabled);
     if (enabled) {
       this.lighting.invalidateAll();
       this.staticLightGrid = null;
@@ -965,15 +953,9 @@ export class WorldRenderer {
   }
 
   isCellPitchBlack(x: number, y: number, z: number): boolean {
-    if (!this.lightingEnabled || !this.shownLightGrid || !this.pendingAmbient) return false;
-    return isPitchBlack(
-      this.shownLightGrid,
-      this.pendingAmbient,
-      x,
-      y,
-      z,
-      this.pendingSun ?? undefined,
-    );
+    const ambient = this.lights.ambient;
+    if (!this.lightingEnabled || !this.shownLightGrid || !ambient) return false;
+    return isPitchBlack(this.shownLightGrid, ambient, x, y, z, this.lights.sun ?? undefined);
   }
 
   quadAssets(): SpriteQuadAssets {
@@ -1561,8 +1543,7 @@ export class WorldRenderer {
     this.humans.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
-    for (const tex of this.lightTextures.values()) tex.dispose();
-    for (const tex of this.sunTextures.values()) tex.dispose();
+    this.lights.dispose();
     for (const tex of this.cutTextures.values()) tex.dispose();
     for (const table of this.animTablesByZ.values()) table.dispose();
     this.magentaTex.dispose();
@@ -1958,19 +1939,7 @@ export class WorldRenderer {
   }
 
   private ensureLightUniforms(z: number): LevelLightUniforms {
-    let u = this.lightUniformsByZ.get(z);
-    if (!u) {
-      u = {
-        uLightMap: { value: this.whiteTex },
-        uLightOrigin: { value: new THREE.Vector2(0, 0) },
-        uLightSize: { value: new THREE.Vector2(1, 1) },
-        uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
-        uAmbient: { value: new THREE.Vector3(0, 0, 0) },
-        ...noSunUniforms(this.whiteTex),
-      };
-      this.lightUniformsByZ.set(z, u);
-    }
-    return u;
+    return this.lights.uniformsFor(z);
   }
 
   private materialFor(
@@ -2090,9 +2059,7 @@ export class WorldRenderer {
       FOG_BASE + ambient[1] * FOG_FROM_SKY,
       FOG_BASE + ambient[2] * FOG_FROM_SKY,
     );
-    this.pendingAmbient = ambient;
-    this.pendingSun = { color: sun, arc: sunArc };
-    for (const u of this.lightUniformsByZ.values()) this.applyIllumination(u);
+    this.lights.setIllumination(ambient, { color: sun, arc: sunArc });
 
     const base = this.lighting.packedGridFor(view.map, this.lightWindow(view), this.animClock);
 
@@ -2119,92 +2086,7 @@ export class WorldRenderer {
 
   private uploadPackedGrid(grid: PackedLightGrid) {
     this.shownLightGrid = grid;
-    const seen = new Set<number>();
-    for (const [z, level] of grid.levels) {
-      seen.add(z);
-      this.uploadPackedLevel(z, level);
-    }
-    for (const z of this.lightUniformsByZ.keys()) {
-      if (seen.has(z)) continue;
-      this.uploadDarkLevel(z);
-    }
-  }
-
-  private uploadDarkLevel(z: number) {
-    const u = this.ensureLightUniforms(z);
-    const data = new Uint8Array([0, 0, 0, 0]);
-    let tex = this.lightTextures.get(z);
-    if (!tex || tex.image.width !== 1) {
-      tex?.dispose();
-      tex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      tex.colorSpace = THREE.NoColorSpace;
-      tex.needsUpdate = true;
-      this.lightTextures.set(z, tex);
-    } else {
-      (tex.image.data as Uint8Array).set(data);
-      tex.needsUpdate = true;
-    }
-    u.uLightMap.value = tex;
-    u.uLightOrigin.value.set(0, 0);
-    u.uLightSize.value.set(1, 1);
-    this.uploadSunSpans(z, new Uint8Array([SUN_SPAN_NEVER_LO, SUN_SPAN_NEVER_HI]), 1, 1);
-  }
-
-  private applyIllumination(u: LevelLightUniforms) {
-    const a = this.pendingAmbient;
-    if (a) u.uAmbient.value.set(a[0], a[1], a[2]);
-    const sun = this.pendingSun;
-    if (!sun) return;
-    u.uSunColor.value.set(sun.color[0], sun.color[1], sun.color[2]);
-    u.uSunArc.value = sun.arc;
-  }
-
-  private uploadSunSpans(z: number, spans: Uint8Array, w: number, h: number) {
-    const u = this.ensureLightUniforms(z);
-    let tex = this.sunTextures.get(z);
-    if (!tex || tex.image.width !== w || tex.image.height !== h) {
-      tex?.dispose();
-      tex = new THREE.DataTexture(spans.slice(), w, h, THREE.RGFormat);
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      tex.flipY = false;
-      tex.colorSpace = THREE.NoColorSpace;
-      tex.needsUpdate = true;
-      this.sunTextures.set(z, tex);
-    } else {
-      (tex.image as { data: Uint8Array }).data.set(spans);
-      tex.needsUpdate = true;
-    }
-    u.uSunMap.value = tex;
-  }
-
-  private uploadPackedLevel(z: number, level: PackedLevelLight) {
-    const u = this.ensureLightUniforms(z);
-    this.applyIllumination(u);
-    this.uploadSunSpans(z, level.sun, level.w, level.h);
-    u.uLightOrigin.value.set(level.x0 - LIGHT_MAP_CELL_OFFSET, level.y0 - LIGHT_MAP_CELL_OFFSET);
-    u.uLightSize.value.set(level.w, level.h);
-
-    let tex = this.lightTextures.get(z);
-    if (!tex || tex.image.width !== level.w || tex.image.height !== level.h) {
-      tex?.dispose();
-      tex = new THREE.DataTexture(level.rgba.slice(), level.w, level.h, THREE.RGBAFormat);
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      tex.flipY = false;
-      tex.colorSpace = THREE.NoColorSpace;
-      tex.needsUpdate = true;
-      this.lightTextures.set(z, tex);
-    } else {
-      (tex.image as { data: Uint8Array }).data.set(level.rgba);
-      tex.needsUpdate = true;
-    }
-    u.uLightMap.value = tex;
+    this.lights.upload(grid);
   }
 
   private discardGeometry() {
@@ -2286,31 +2168,12 @@ export class WorldRenderer {
     this.meshedWindow = window;
   }
 
-  /**
-   * Builds the queued chunks nearest the window first, until the frame's
-   * budget is spent, and always at least one so the queue drains on a slow
-   * machine too.
-   */
   private buildQueuedChunks(window: WorldRect) {
     const map = this.prevMap;
     if (this.chunksToBuild.size === 0 || !map) return;
-    const midX = (window.x0 + window.x1) / 2;
-    const midY = (window.y0 + window.y1) / 2;
-    const queue = [...this.chunksToBuild].map((key) => {
-      const { z, chunk } = parseChunkAddress(key);
-      const { x, y } = parseCoordKey(chunk);
-      const dx = (x + 0.5) * CHUNK_SIZE - z - midX;
-      const dy = (y + 0.5) * CHUNK_SIZE - z - midY;
-      return { key, z, chunk, distance: dx * dx + dy * dy };
-    });
-    queue.sort((a, b) => a.distance - b.distance);
-
-    const deadline = performance.now() + CHUNK_BUILD_BUDGET_MS;
-    for (const { key, z, chunk } of queue) {
-      this.chunksToBuild.delete(key);
+    buildQueuedNearestFirst(this.chunksToBuild, window, (key, z, chunk) => {
       if (!this.chunkGeometry.has(key)) this.buildChunk(map, z, chunk);
-      if (performance.now() >= deadline) break;
-    }
+    });
     this.rebuildAnimatedIndex();
     this.world.updateMatrixWorld(true);
     this.needsRender = true;
