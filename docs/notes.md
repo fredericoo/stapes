@@ -14512,6 +14512,14 @@ that burns whoever steps in it does not also start eating its own floor. It is
 independent of `trigger`, which is about a body arriving or reaching, and a
 tile does neither.
 
+The sweep reads each cell's sources and sufferers only when the cell's stack is
+a different array from last tick (`AfflictCell` in `GameSession`). The board is
+copy-on-write, so the same array is the same stack. This matters because of the
+lava: on the generated island 2,365 of the 2,367 afflicting cells are
+`dirt`/`sand-dunes`, `basalt`, `lava-crust`, `lava`, and nothing in them burns.
+Reading them all again every tick was about 40% of all tick time. **A stack must
+never be changed in place**: the cache would keep the old answer.
+
 ### A flame cast at a tree goes in under it
 
 A tree or a bush cannot be walked into, so the cell in front of a caster facing

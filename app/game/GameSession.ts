@@ -29,6 +29,7 @@ import {
 } from "../lib/mapData";
 import {
   resolveRespawn,
+  type EndureInteraction,
   type ExtractInteraction,
   type RespawnInteraction,
 } from "../lib/interactions";
@@ -516,6 +517,7 @@ import {
   flameLives,
   neighboursOf,
   type Ember,
+  type GroundSource,
   type Kindling,
   FIRE_REACH_CELLS,
 } from "./endure";
@@ -828,6 +830,18 @@ type PlannedRoute = {
 
 type DoorBehind = { door: Coord; openedTileId: string };
 
+type AfflictHold = {
+  source: GroundSource;
+  def: StatusDef;
+  sufferer: { tileId: string; endure: EndureInteraction };
+};
+
+type AfflictCell = {
+  cell: Coord;
+  stack: readonly PlacedTile[] | null;
+  holds: AfflictHold[];
+};
+
 type PlanSearch = {
   actor: ActorRuntime;
   key: string;
@@ -1066,7 +1080,7 @@ export class GameSession implements PlaySession {
   private readonly weathering: Weathering;
   private readonly shedding: Shedding;
   private sky: Sky = CLEAR_SKY;
-  private readonly afflictCells = new Map<string, Coord>();
+  private readonly afflictCells = new Map<string, AfflictCell>();
   private readonly endure: EndureIndex;
   private readonly statusDefs: Record<string, StatusDef>;
   private readonly statusesChanged = new Set<string>();
@@ -1181,7 +1195,7 @@ export class GameSession implements PlaySession {
       this.looseGravityCells.set(cellKey(cell), cell);
     }
     for (const cell of findAfflictCells(this.map, this.tilesById)) {
-      this.afflictCells.set(cellKey(cell), cell);
+      this.afflictCells.set(cellKey(cell), { cell, stack: null, holds: [] });
     }
     for (const cell of findDecayCells(this.map, this.tilesById)) {
       this.decay.armCell(this.map, cell, this.tilesById);
@@ -1552,7 +1566,8 @@ export class GameSession implements PlaySession {
         this.looseGravityCells.delete(key);
       }
       if (cellAfflicts(this.map, cell, this.tilesById)) {
-        this.afflictCells.set(key, cell);
+        if (!this.afflictCells.has(key))
+          this.afflictCells.set(key, { cell, stack: null, holds: [] });
       } else {
         this.afflictCells.delete(key);
       }
@@ -1833,28 +1848,48 @@ export class GameSession implements PlaySession {
 
   private tickAfflictions(tickMs: number) {
     if (this.afflictCells.size === 0) return;
-    for (const cell of this.afflictCells.values()) {
-      const held = new Set<string>();
-      for (const source of afflictionsFrom(this.map, cell, this.tilesById)) {
-        if (held.has(source.statusId)) continue;
-        held.add(source.statusId);
-        const def = this.statusDefs[source.statusId];
-        if (!def) continue;
-        for (const sufferer of sufferersIn(this.map, cell, source.statusId, this.tilesById)) {
-          this.endure.hold(
-            cell,
-            sufferer.tileId,
-            sufferer.endure,
-            def,
-            tickMs,
-            STANDING_STATUS_EVERY_MS,
-            source.causedBy,
-            source.elements,
-            source.fades ? { flame: cell, hopsLeft: FIRE_REACH_CELLS } : undefined,
-          );
-        }
+    for (const entry of this.afflictCells.values()) {
+      const { cell } = entry;
+      const stack = getStack(this.map, cell.x, cell.y, cell.z);
+      if (stack !== entry.stack) {
+        entry.stack = stack;
+        entry.holds = this.afflictionHolds(cell);
+      }
+      for (const { source, def, sufferer } of entry.holds) {
+        this.endure.hold(
+          cell,
+          sufferer.tileId,
+          sufferer.endure,
+          def,
+          tickMs,
+          STANDING_STATUS_EVERY_MS,
+          source.causedBy,
+          source.elements,
+          source.fades ? { flame: cell, hopsLeft: FIRE_REACH_CELLS } : undefined,
+        );
       }
     }
+  }
+
+  /**
+   * What `tickAfflictions` holds in a cell, worked out again only when the
+   * cell's stack is a different array: the board is copy-on-write, so an
+   * unchanged array is an unchanged stack. Almost every afflicting cell is
+   * lava with nothing in it that burns, so most of these lists are empty.
+   */
+  private afflictionHolds(cell: Coord): AfflictHold[] {
+    const holds: AfflictHold[] = [];
+    const held = new Set<string>();
+    for (const source of afflictionsFrom(this.map, cell, this.tilesById)) {
+      if (held.has(source.statusId)) continue;
+      held.add(source.statusId);
+      const def = this.statusDefs[source.statusId];
+      if (!def) continue;
+      for (const sufferer of sufferersIn(this.map, cell, source.statusId, this.tilesById)) {
+        holds.push({ source, def, sufferer });
+      }
+    }
+    return holds;
   }
 
   private spreadFire(tickMs: number) {
