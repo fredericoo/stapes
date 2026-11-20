@@ -11017,6 +11017,28 @@ player from a quest chest (`troll-stone`) where the troll's own forge used to
 stand. A first-timer who kills the troll with friends still gets a stone; more
 trolls still yield more, just rarely.
 
+### The rune forges shape blanks
+
+The rune temple has one forge per material (`bone-forge`, `crystal-forge`,
+`obsidian-forge`), each a `craft` with the verb Shape and one recipe that turns
+its material into its blank. A blank is not a rune: only the runemaster carves
+one (see *The runemaster carves a blank into a random rune*).
+
+| forge            | spends              | gives                 |
+| ---------------- | ------------------- | --------------------- |
+| `bone-forge`     | 3 `bone`            | `rune-blank-bone`     |
+| `crystal-forge`  | 4 `arcane-shard`    | `rune-blank-crystal`  |
+| `obsidian-forge` | 5 `obsidian-shard`  | `rune-blank-obsidian` |
+
+Each price is about one trip's worth of its material. A skeleton drops two
+bones on average and the temple buys bone at 1 gold, so a bone blank is a
+skeleton and a half or 3 gold of bone. A large crystal on -3 pays about three
+shards a pull, so a crystal blank is a little over one pull there, or a whole
+medium crystal on -2. An obsidian vein pays about 1.35 shards a twenty-second
+pull and 6.75 before it is mined out, so an obsidian blank is most of a vein
+and 20 gold at Dagny Rook's buying price. The material is the cost that rises
+with the tier; the runemaster's fee rises with it too.
+
 ## Food piles, and so does an artifact that is only ever counted
 
 A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).

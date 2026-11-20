@@ -206310,6 +206310,31 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "craft": {
+        "actionName": "Shape",
+        "recipes": [
+          {
+            "name": "Bone Blank",
+            "inputs": [
+              {
+                "tileId": "bone",
+                "count": 3
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "rune-blank-bone",
+                  "chance": 100
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   {
@@ -206368,6 +206393,31 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "craft": {
+        "actionName": "Shape",
+        "recipes": [
+          {
+            "name": "Crystal Blank",
+            "inputs": [
+              {
+                "tileId": "arcane-shard",
+                "count": 4
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "rune-blank-crystal",
+                  "chance": 100
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   {
@@ -206426,6 +206476,31 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "craft": {
+        "actionName": "Shape",
+        "recipes": [
+          {
+            "name": "Obsidian Blank",
+            "inputs": [
+              {
+                "tileId": "obsidian-shard",
+                "count": 5
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "rune-blank-obsidian",
+                  "chance": 100
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   {
