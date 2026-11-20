@@ -3,11 +3,10 @@ import type { StackEdit } from "../../../lib/mapData";
 import { placed } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
-import { across, bandOffsets, isWet, lineCells } from "./line";
+import { ROUTE_PROPS, bandOffsets, isWet, routeOf } from "./line";
 
 const RiverSchema = v.object({
-  from: field.point(),
-  to: field.point(),
+  ...ROUTE_PROPS,
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
   bed: v.optional(field.tile(TILES.ground), "dirt"),
 });
@@ -27,19 +26,14 @@ export const river: Component<RiverProps> = {
   build(ctx, props) {
     if (!ctx.tilesById[props.bed])
       return { ok: false, reason: `There is no tile called ${props.bed}` };
-    const a = ctx.point(props.from);
-    const b = ctx.point(props.to);
-    if (!a || !b) {
-      const missing = (a ? props.to.in : props.from.in) ?? "";
-      return { ok: false, reason: `There is no node called ${missing} to measure from` };
-    }
-    const side = across(a, b);
+    const cells = routeOf(ctx, props);
+    if ("reason" in cells) return { ok: false, reason: cells.reason };
     const seen = new Set<string>();
     const edits: StackEdit[] = [];
-    for (const c of lineCells(a, b)) {
+    for (const c of cells) {
       for (const o of bandOffsets(props.width)) {
-        const x = c.x + side.x * o;
-        const y = c.y + side.y * o;
+        const x = c.x + c.side.x * o;
+        const y = c.y + c.side.y * o;
         if (seen.has(`${x},${y}`)) continue;
         seen.add(`${x},${y}`);
         const stack = ctx.stackAt(x, y);

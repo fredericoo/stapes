@@ -356,3 +356,32 @@ describe("grouping", () => {
     expect(serializeMap(build(tree).map)).toBe(expected);
   });
 });
+
+describe("routes", () => {
+  const river = (props: Record<string, unknown>): MapNode => ({
+    type: "river",
+    key: "brook",
+    props: {
+      from: { x: 0, y: 15 },
+      via: [{ x: 20, y: 5 }],
+      to: { x: 39, y: 15 },
+      width: 1,
+      ...props,
+    },
+  });
+  const wet = (map: MapFile, x: number, y: number) => topAt(map, x, y) === "water";
+
+  it.each([0, 60, 100])(
+    "passes through its start, every via point and its end at wander %i",
+    (wander) => {
+      const { map } = build(doc(field([river({ wander })])));
+      expect([wet(map, 0, 15), wet(map, 20, 5), wet(map, 39, 15)]).toEqual([true, true, true]);
+    },
+  );
+
+  it("bends away from the straight line when it wanders", () => {
+    const straight = cellsWith(build(doc(field([river({ wander: 0 })]))).map, "water", 40, 30);
+    const bent = cellsWith(build(doc(field([river({ wander: 80 })]))).map, "water", 40, 30);
+    expect(bent.filter((c) => !straight.includes(c)).length).toBeGreaterThan(5);
+  });
+});

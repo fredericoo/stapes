@@ -173,12 +173,10 @@ function rebase(node: MapNode, from: Bounds, to: Bounds): MapNode {
       if (child.frame.absolute) return child;
       return { ...child, frame: frameFor(child.frame, frameBounds(child.frame, from), to) };
     }
+    const moved = (v: unknown): unknown =>
+      Array.isArray(v) ? v.map(moved) : isPoint(v) && !v.in ? pointFor(v, pointIn(v, from), to) : v;
     const props = child.props
-      ? Object.fromEntries(
-          Object.entries(child.props).map(([k, v]) =>
-            isPoint(v) && !v.in ? [k, pointFor(v, pointIn(v, from), to)] : [k, v],
-          ),
-        )
+      ? Object.fromEntries(Object.entries(child.props).map(([k, v]) => [k, moved(v)]))
       : undefined;
     return rebase({ ...child, ...(props ? { props } : {}) }, from, to);
   });

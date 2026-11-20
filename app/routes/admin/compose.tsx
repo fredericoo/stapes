@@ -6,7 +6,7 @@ import {
   IconFolder,
   IconTrash,
 } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
@@ -30,7 +30,7 @@ import {
   wrapInGroup,
 } from "../../editor/compose/edit";
 import { fieldsOf } from "../../editor/compose/fields";
-import { FrameHandles, PointHandle } from "../../editor/compose/Handles";
+import { FrameHandles, InsertHandle, PointHandle } from "../../editor/compose/Handles";
 import { Inspector, type PickCell } from "../../editor/compose/Inspector";
 import { TileCatalogue } from "../../editor/compose/TilePicker";
 import {
@@ -48,6 +48,7 @@ import { findPlayers } from "../../game/player";
 import { fetchBootstrap, saveMapText } from "../../lib/api";
 import { changedChunks, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
+import type { Bounds } from "../../editor/generator";
 import { baseCellWorldOrigin } from "../../lib/geometry";
 import { tilesByIdFromList } from "../../lib/validation";
 import { Button, Dialog, ScrollArea, Select, Tooltip, useToast } from "../../ui";
@@ -94,14 +95,73 @@ function pick(layout: Layout, cell: { x: number; y: number }): string | null {
   return null;
 }
 
-function pointsOf(layout: Layout, placement: Placement) {
+type Props = Record<string, unknown>;
+
+type PointHandleSpec = {
+  key: string;
+  glyph: string;
+  title: string;
+  point: Point;
+  frame: Bounds;
+  cell: { x: number; y: number };
+  write: (props: Props, point: Point) => Props;
+  remove?: (props: Props) => Props;
+  /** Where a via point inserted just before this one goes in the via list, for a route's "+" handles. */
+  insertAt?: { name: string; index: number };
+};
+
+/**
+ * Every point a node's props hold, in schema order, so a route's `from`, its
+ * `via` points and its `to` come out as the chain the route is drawn through.
+ */
+function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
   const component = COMPONENTS[placement.node.type];
   if (!component) return [];
-  return fieldsOf(component.schema).flatMap(({ name, field }) => {
-    const point = placement.node.props?.[name] as Point | undefined;
+  const props = placement.node.props ?? {};
+  const entries = fieldsOf(component.schema);
+  const via = entries.find((e) => e.field.kind === "points")?.name;
+  const viaCount = via ? ((props[via] as Point[] | undefined) ?? []).length : 0;
+  let pastVia = false;
+  return entries.flatMap(({ name, field }): PointHandleSpec[] => {
+    if (field.kind === "points") {
+      pastVia = true;
+      return ((props[name] as Point[] | undefined) ?? []).flatMap((point, i) => {
+        const frame = pointFrame(layout, placement, point);
+        if (!frame) return [];
+        return [
+          {
+            key: `${name}.${i}`,
+            glyph: String(i + 1),
+            title: `${name} ${i + 1} (double-click to remove)`,
+            point,
+            frame,
+            cell: pointIn(point, frame),
+            write: (p, next) => ({
+              ...p,
+              [name]: (p[name] as Point[]).map((q, j) => (j === i ? next : q)),
+            }),
+            remove: (p) => ({ ...p, [name]: (p[name] as Point[]).filter((_, j) => j !== i) }),
+            insertAt: { name, index: i },
+          },
+        ];
+      });
+    }
+    const point = props[name] as Point | undefined;
     if (field.kind !== "point" || !point) return [];
     const frame = pointFrame(layout, placement, point);
-    return frame ? [{ name, point, frame, cell: pointIn(point, frame) }] : [];
+    if (!frame) return [];
+    return [
+      {
+        key: name,
+        glyph: name.slice(0, 1),
+        title: name,
+        point,
+        frame,
+        cell: pointIn(point, frame),
+        write: (p, next) => ({ ...p, [name]: next }),
+        ...(via && pastVia ? { insertAt: { name: via, index: viaCount } } : {}),
+      },
+    ];
   });
 }
 
@@ -379,24 +439,70 @@ export default function ComposePage() {
                       ) : (
                         <Outline placement={placement} projection={projection} />
                       )}
-                      {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
-                        <PointHandle
-                          key={name}
-                          label={name}
-                          cell={cell}
-                          z={placement.z}
-                          projection={projection}
-                          onCell={(next) =>
-                            preview((d) =>
-                              updateNode(d, placement.node.key, (n) => ({
-                                ...n,
-                                props: { ...n.props, [name]: pointFor(point, next, frame) },
-                              })),
-                            )
-                          }
-                          onEnd={settle}
-                        />
-                      ))}
+                      {pointsOf(built.layout, placement).map((spec, i, all) => {
+                        const before = all[i - 1];
+                        const insertAt = spec.insertAt;
+                        return (
+                          <Fragment key={spec.key}>
+                            {before && insertAt ? (
+                              <InsertHandle
+                                cell={{
+                                  x: Math.round((before.cell.x + spec.cell.x) / 2),
+                                  y: Math.round((before.cell.y + spec.cell.y) / 2),
+                                }}
+                                z={placement.z}
+                                projection={projection}
+                                onInsert={(cell) =>
+                                  commit((d) =>
+                                    updateNode(d, placement.node.key, (n) => {
+                                      const list = [
+                                        ...((n.props?.[insertAt.name] as Point[] | undefined) ??
+                                          []),
+                                      ];
+                                      list.splice(
+                                        insertAt.index,
+                                        0,
+                                        pointFor({ x: 0, y: 0 }, cell, placement.bounds),
+                                      );
+                                      return { ...n, props: { ...n.props, [insertAt.name]: list } };
+                                    }),
+                                  )
+                                }
+                              />
+                            ) : null}
+                            <PointHandle
+                              label={spec.glyph}
+                              title={spec.title}
+                              cell={spec.cell}
+                              z={placement.z}
+                              projection={projection}
+                              onCell={(next) =>
+                                preview((d) =>
+                                  updateNode(d, placement.node.key, (n) => ({
+                                    ...n,
+                                    props: spec.write(
+                                      n.props ?? {},
+                                      pointFor(spec.point, next, spec.frame),
+                                    ),
+                                  })),
+                                )
+                              }
+                              onEnd={settle}
+                              onRemove={
+                                spec.remove
+                                  ? () =>
+                                      commit((d) =>
+                                        updateNode(d, placement.node.key, (n) => ({
+                                          ...n,
+                                          props: spec.remove!(n.props ?? {}),
+                                        })),
+                                      )
+                                  : undefined
+                              }
+                            />
+                          </Fragment>
+                        );
+                      })}
                     </>
                   ) : null}
                 </>

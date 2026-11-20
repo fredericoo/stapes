@@ -1,4 +1,4 @@
-import { IconCrosshair } from "@tabler/icons-react";
+import { IconCrosshair, IconX } from "@tabler/icons-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, Input, NumberInput, Segmented, Select, Switch, Tooltip } from "../../ui";
 import type { ComponentRegistry } from "./build";
@@ -295,6 +295,52 @@ function FieldEditor({
           onChange={onChange}
         />
       );
+    case "points": {
+      const points = Array.isArray(value) ? (value as Point[]) : [];
+      return (
+        <span className="flex w-full flex-col gap-1">
+          {points.length === 0 ? (
+            <span className="text-xs text-muted">Straight from start to end</span>
+          ) : null}
+          {points.map((p, i) => (
+            <span key={i} className="flex items-center gap-1 text-xs tabular-nums">
+              <span className="w-5 text-muted">{i + 1}</span>
+              <Num
+                label={`${label} ${i + 1} x`}
+                value={p.x}
+                integer={p.pinX !== "scale"}
+                onChange={(x) => onChange(points.map((q, j) => (j === i ? { ...q, x } : q)))}
+              />
+              <Num
+                label={`${label} ${i + 1} y`}
+                value={p.y}
+                integer={p.pinY !== "scale"}
+                onChange={(y) => onChange(points.map((q, j) => (j === i ? { ...q, y } : q)))}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Remove ${label} point ${i + 1}`}
+                onClick={() => onChange(points.filter((_, j) => j !== i))}
+              >
+                <IconX size={14} aria-hidden="true" />
+              </Button>
+            </span>
+          ))}
+          <Button
+            size="sm"
+            onClick={() =>
+              pickCell((cell) => {
+                const frame = frameOf({ x: 0, y: 0 });
+                if (frame) onChange([...points, pointFor({ x: 0, y: 0 }, cell, frame)]);
+              })
+            }
+          >
+            Add a point on the map
+          </Button>
+        </span>
+      );
+    }
     case "placement":
       return (
         <PlacementField

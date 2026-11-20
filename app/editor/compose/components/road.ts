@@ -4,11 +4,10 @@ import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
-import { across, bandOffsets, isWet, lineCells } from "./line";
+import { ROUTE_PROPS, bandOffsets, isWet, routeOf } from "./line";
 
 const RoadSchema = v.object({
-  from: field.point(),
-  to: field.point(),
+  ...ROUTE_PROPS,
   tile: v.optional(field.tile(TILES.ground), "dirt"),
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(3)), 1),
   deck: v.optional(field.tile(TILES.ground), "wooden-floor"),
@@ -39,13 +38,8 @@ export const road: Component<RoadProps> = {
     for (const id of [props.tile, props.deck, props.rail, ...props.clears]) {
       if (id && !ctx.tilesById[id]) return { ok: false, reason: `There is no tile called ${id}` };
     }
-    const a = ctx.point(props.from);
-    const b = ctx.point(props.to);
-    if (!a || !b) {
-      const missing = (a ? props.to.in : props.from.in) ?? "";
-      return { ok: false, reason: `There is no node called ${missing} to measure from` };
-    }
-    const side = across(a, b);
+    const cells = routeOf(ctx, props);
+    if ("reason" in cells) return { ok: false, reason: cells.reason };
     const band = bandOffsets(props.width);
     const edges = [band[0]! - 1, band.at(-1)! + 1];
     const tile = (id: string) => placed(id, ctx.tilesById);
@@ -54,7 +48,8 @@ export const road: Component<RoadProps> = {
     const rails = new Map<string, { x: number; y: number }>();
     const at = (x: number, y: number) => `${x},${y}`;
 
-    for (const c of lineCells(a, b)) {
+    for (const c of cells) {
+      const side = c.side;
       let bridge = false;
       for (const o of band) {
         const x = c.x + side.x * o;

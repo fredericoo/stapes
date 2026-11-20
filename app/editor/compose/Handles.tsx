@@ -137,23 +137,31 @@ export function PointHandle({
   cell,
   z,
   label,
+  title,
   projection,
   onCell,
   onEnd,
+  onRemove,
 }: {
   cell: { x: number; y: number };
   z: number;
   label: string;
+  title?: string;
   projection: Projection;
   onCell: (cell: { x: number; y: number }) => void;
   onEnd: () => void;
+  onRemove?: () => void;
 }) {
   const a = projection.cellToScreen(cell.x, cell.y, z);
   const b = projection.cellToScreen(cell.x + 1, cell.y + 1, z);
   const size = Math.max(HANDLE_PX + 4, b.x - a.x);
   return (
     <span
-      title={label}
+      title={title ?? label}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onRemove?.();
+      }}
       className="absolute flex items-center justify-center rounded-full border-2 border-ink bg-interact text-[10px] font-bold text-ink"
       style={{
         left: (a.x + b.x) / 2,
@@ -169,5 +177,43 @@ export function PointHandle({
     >
       {label.slice(0, 1)}
     </span>
+  );
+}
+
+/** A "+" between two points of a route; pressing it adds a via point there, which can then be dragged. */
+export function InsertHandle({
+  cell,
+  z,
+  projection,
+  onInsert,
+}: {
+  cell: { x: number; y: number };
+  z: number;
+  projection: Projection;
+  onInsert: (cell: { x: number; y: number }) => void;
+}) {
+  const a = projection.cellToScreen(cell.x, cell.y, z);
+  const b = projection.cellToScreen(cell.x + 1, cell.y + 1, z);
+  return (
+    <button
+      type="button"
+      aria-label="Add a point here"
+      title="Add a point here"
+      className="absolute flex items-center justify-center rounded-full border-2 border-ink bg-paper text-[10px] leading-none font-bold text-ink opacity-70 hover:opacity-100"
+      style={{
+        left: (a.x + b.x) / 2,
+        top: (a.y + b.y) / 2,
+        width: HANDLE_PX + 2,
+        height: HANDLE_PX + 2,
+        transform: "translate(-50%, -50%)",
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onInsert(cell);
+      }}
+    >
+      +
+    </button>
   );
 }

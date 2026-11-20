@@ -56,6 +56,7 @@ export type FieldMeta =
   | { field: "tiles"; tiles: TileKind }
   | { field: "weighted"; tiles: TileKind }
   | { field: "point"; level: boolean }
+  | { field: "points" }
   | { field: "direction" }
   | { field: "percent" }
   | { field: "placement"; tileProp: string };
@@ -84,6 +85,8 @@ export const field = {
       PointObject,
       v.metadata({ field: "point", level: options.level ?? false } satisfies FieldMeta),
     ),
+  /** Points a route passes through on its way, in order; the editor draws each as a handle on the map. */
+  points: () => v.pipe(v.array(PointObject), v.metadata({ field: "points" } satisfies FieldMeta)),
   direction: () =>
     v.pipe(
       v.picklist(DIRECTIONS as [Direction, ...Direction[]]),
