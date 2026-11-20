@@ -3,6 +3,7 @@ import {
   IconArrowForwardUp,
   IconBraces,
   IconCopy,
+  IconFolder,
   IconTrash,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +27,7 @@ import {
   moveNode,
   removeNode,
   updateNode,
+  wrapInGroup,
 } from "../../editor/compose/edit";
 import { fieldsOf } from "../../editor/compose/fields";
 import { FrameHandles, PointHandle } from "../../editor/compose/Handles";
@@ -176,6 +178,15 @@ export default function ComposePage() {
     setSelected(parent?.key ?? null);
   };
 
+  const groupSelected = () => {
+    if (!selected || selected === doc.root.key) return;
+    const parent = findParent(doc.root, selected);
+    const grouped = wrapInGroup(doc, selected);
+    commit(grouped.doc);
+    setExpanded((keys) => [...keys, grouped.key, ...(parent ? [parent.key] : [])]);
+    setSelected(grouped.key);
+  };
+
   const duplicateSelected = () => {
     if (!selected || selected === doc.root.key) return;
     const copied = duplicateNode(doc, selected);
@@ -190,6 +201,11 @@ export default function ComposePage() {
       if ((e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         deleteSelected();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        groupSelected();
         return;
       }
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
@@ -250,6 +266,17 @@ export default function ComposePage() {
         <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
           <div className="flex items-center gap-1 border-b-2 border-border px-3 py-1.5">
             <h2 className="mr-auto text-xs font-bold uppercase tracking-wide">Layers</h2>
+            <Tooltip content="Put the selected layer in a group (⌘G)">
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Group layer"
+                disabled={!selected || selected === doc.root.key}
+                onClick={groupSelected}
+              >
+                <IconFolder size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
             <Tooltip content="Duplicate the selected layer">
               <Button
                 size="icon"
@@ -362,6 +389,7 @@ export default function ComposePage() {
                 doc={doc}
                 node={selectedNode}
                 placement={placement}
+                built={built}
                 isRoot={selectedNode === doc.root}
                 components={COMPONENTS}
                 problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}

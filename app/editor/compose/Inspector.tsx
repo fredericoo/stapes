@@ -2,9 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Button, Input, NumberInput, Select, Switch } from "../../ui";
 import type { ComponentRegistry } from "./build";
 import { PIN_X, PIN_Y, type Frame, type MapDoc, type MapNode, type Point } from "./doc";
-import { allKeys, renameNode, updateNode } from "./edit";
+import { allKeys, reframeNode, renameNode, updateNode } from "./edit";
 import { fieldsOf, type Field } from "./fields";
-import type { Placement } from "./layout";
+import type { Bounds } from "../generator";
+import type { Layout, Placement } from "./layout";
 
 export const TILE_LIST_ID = "compose-tile-ids";
 
@@ -258,6 +259,7 @@ export function Inspector({
   doc,
   node,
   placement,
+  built,
   isRoot,
   components,
   problems,
@@ -267,6 +269,7 @@ export function Inspector({
   doc: MapDoc;
   node: MapNode;
   placement: Placement | undefined;
+  built: { layout: Layout; written: ReadonlyMap<string, Bounds> };
   isRoot: boolean;
   components: ComponentRegistry;
   problems: string[];
@@ -379,12 +382,7 @@ export function Inspector({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() =>
-                    update((n) => {
-                      const { frame: _frame, ...rest } = n;
-                      return rest;
-                    })
-                  }
+                  onClick={() => onChange(reframeNode(doc, built, node.key, null))}
                 >
                   Fill the parent instead
                 </Button>
@@ -397,13 +395,21 @@ export function Inspector({
             <Button
               size="sm"
               onClick={() =>
-                update((n) => ({
-                  ...n,
-                  frame: { x: 0, y: 0, w: DEFAULT_FRAME_SPAN, h: DEFAULT_FRAME_SPAN },
-                }))
+                onChange(
+                  reframeNode(
+                    doc,
+                    built,
+                    node.key,
+                    node.children?.some((c) => c.frame)
+                      ? "fit"
+                      : { x: 0, y: 0, w: DEFAULT_FRAME_SPAN, h: DEFAULT_FRAME_SPAN },
+                  ),
+                )
               }
             >
-              Give it its own frame
+              {node.children?.some((c) => c.frame)
+                ? "Frame round its children"
+                : "Give it its own frame"}
             </Button>
           </>
         )}

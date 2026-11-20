@@ -1,4 +1,6 @@
-import type { MapDoc, MapNode, Point } from "./doc";
+import type { Bounds } from "../generator";
+import type { Frame, MapDoc, MapNode, Point } from "./doc";
+import { frameBounds, frameFor, pointFor, pointIn, type Layout } from "./layout";
 
 function mapNodes(node: MapNode, fn: (node: MapNode) => MapNode): MapNode {
   const next = fn(node);
@@ -131,4 +133,99 @@ export function duplicateNode(doc: MapDoc, key: string): { doc: MapDoc; key: str
   }));
   const index = parent.children!.findIndex((c) => c.key === key);
   return { doc: insertNode(doc, parent.key, index + 1, copy), key: copy.key };
+}
+
+/** Puts a node inside a new group without a frame where it stood, which changes nothing it builds. */
+export function wrapInGroup(doc: MapDoc, key: string): { doc: MapDoc; key: string } {
+  const node = findNode(doc.root, key);
+  const parent = findParent(doc.root, key);
+  if (!node || !parent) return { doc, key };
+  const groupKey = freeKey(doc.root, "group");
+  const index = parent.children!.findIndex((c) => c.key === key);
+  const wrapped = insertNode(removeNode(doc, key), parent.key, index, {
+    type: "group",
+    key: groupKey,
+    children: [node],
+  });
+  return { doc: wrapped, key: groupKey };
+}
+
+function union(boxes: Bounds[]): Bounds | null {
+  if (boxes.length === 0) return null;
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  };
+}
+
+/**
+ * Rewrites what is measured in a frame that moves from `from` to `to` so it
+ * stays where it is: a child's frame keeps its pins and gets new offsets, and
+ * a child without a frame, which fills the moving one, has its own points
+ * rewritten and its children rebased in turn. Absolute frames and points
+ * measured in another node's frame are left alone.
+ */
+function rebase(node: MapNode, from: Bounds, to: Bounds): MapNode {
+  const children = node.children?.map((child) => {
+    if (child.frame) {
+      if (child.frame.absolute) return child;
+      return { ...child, frame: frameFor(child.frame, frameBounds(child.frame, from), to) };
+    }
+    const props = child.props
+      ? Object.fromEntries(
+          Object.entries(child.props).map(([k, v]) =>
+            isPoint(v) && !v.in ? [k, pointFor(v, pointIn(v, from), to)] : [k, v],
+          ),
+        )
+      : undefined;
+    return rebase({ ...child, ...(props ? { props } : {}) }, from, to);
+  });
+  return children ? { ...node, children } : node;
+}
+
+/**
+ * Gives a node a frame, or takes it away so it fills its parent, without
+ * moving anything inside it. "fit" sizes the frame round its children's
+ * frames and every cell its subtree wrote in the last build, so nothing it
+ * builds ends up clipped by the new frame.
+ */
+export function reframeNode(
+  doc: MapDoc,
+  built: { layout: Layout; written: ReadonlyMap<string, Bounds> },
+  key: string,
+  frame: Frame | "fit" | null,
+): MapDoc {
+  const { layout } = built;
+  const placement = layout.placements.get(key);
+  if (!placement?.parent) return doc;
+  const parent = placement.parent;
+  let to: Bounds;
+  let nextFrame: Frame | undefined;
+  if (frame === null) {
+    to = parent;
+  } else {
+    const fitted =
+      frame === "fit"
+        ? union([
+            ...(placement.node.children ?? []).flatMap((c) => {
+              const b = layout.placements.get(c.key);
+              return b && c.frame ? [b.bounds] : [];
+            }),
+            ...allKeys(placement.node).flatMap((k) => {
+              const b = built.written.get(k);
+              return b ? [b] : [];
+            }),
+          ])
+        : null;
+    to = fitted ?? (frame === "fit" ? placement.bounds : frameBounds(frame, parent));
+    nextFrame = frameFor(frame === "fit" ? { x: 0, y: 0, w: 1, h: 1 } : frame, to, parent);
+  }
+  return updateNode(doc, key, (node) => {
+    const rebased = rebase(node, placement.bounds, to);
+    if (nextFrame) return { ...rebased, frame: nextFrame };
+    const { frame: _frame, ...rest } = rebased;
+    return rest;
+  });
 }

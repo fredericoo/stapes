@@ -8,6 +8,7 @@ import { tilesByIdFromList } from "../../lib/validation";
 import { buildMap, type Component, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
 import type { Frame, MapDoc, MapNode } from "./doc";
+import { moveNode, reframeNode, wrapInGroup } from "./edit";
 
 const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
 
@@ -279,5 +280,38 @@ describe("rebuilding after an edit", () => {
     const forestChunk = chunkKeyFor(8, 8);
     expect(resumed.reused).toBe(1);
     expect(resumed.map.levels["0"]![forestChunk]).toBe(previous.map.levels["0"]![forestChunk]);
+  });
+});
+
+describe("grouping", () => {
+  it("moves nothing when layers are grouped, framed round their contents, and unframed", () => {
+    const original = doc(
+      field([
+        {
+          type: "ground",
+          key: "yard",
+          frame: { x: 22, y: 6, w: 10, h: 8, pinX: "right" },
+          props: { tile: "dirt" },
+        },
+        {
+          type: "road",
+          key: "lane",
+          props: {
+            tile: "cobblestone",
+            from: { x: 2, y: 25 },
+            to: { x: 0.8, y: 4, pinX: "scale", pinY: "bottom" },
+          },
+        },
+      ]),
+    );
+    const expected = serializeMap(build(original).map);
+    let tree = wrapInGroup(original, "yard").doc;
+    tree = moveNode(tree, "lane", "group", 1);
+    expect(serializeMap(build(tree).map)).toBe(expected);
+    tree = reframeNode(tree, build(tree), "group", "fit");
+    expect(tree.root.children![0]!.frame).toBeDefined();
+    expect(serializeMap(build(tree).map)).toBe(expected);
+    tree = reframeNode(tree, build(tree), "group", null);
+    expect(serializeMap(build(tree).map)).toBe(expected);
   });
 });

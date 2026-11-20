@@ -30,12 +30,20 @@ export type ComponentRegistry = Record<string, Component<never>>;
 
 export type BuildProblem = { key: string; reason: string };
 
-type Step = { key: string; inputs: string; map: MapFile; problems: BuildProblem[] };
+type Step = {
+  key: string;
+  inputs: string;
+  map: MapFile;
+  problems: BuildProblem[];
+  written: Bounds | null;
+};
 
 export type BuildResult = {
   map: MapFile;
   layout: Layout;
   problems: BuildProblem[];
+  /** The cells each node wrote, as a box, for nodes that wrote any. */
+  written: ReadonlyMap<string, Bounds>;
   /** How many nodes were reused from the previous build rather than built again. */
   reused: number;
   readonly steps: readonly Step[];
@@ -46,6 +54,18 @@ const EMPTY = emptyMap();
 
 function inside(b: Bounds, x: number, y: number): boolean {
   return x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+}
+
+function boundsOf(edits: readonly { x: number; y: number }[]): Bounds | null {
+  if (edits.length === 0) return null;
+  const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const { x, y } of edits) {
+    b.minX = Math.min(b.minX, x);
+    b.minY = Math.min(b.minY, y);
+    b.maxX = Math.max(b.maxX, x);
+    b.maxY = Math.max(b.maxY, y);
+  }
+  return b;
 }
 
 function namedFrames(value: unknown, layout: Layout, into: Record<string, unknown>) {
@@ -159,6 +179,7 @@ export function buildMap(
     }
     resuming = false;
     const problems: BuildProblem[] = [];
+    let written: Bounds | null = null;
     const { node } = placement;
     const component = components[node.type];
     if (!component) {
@@ -190,14 +211,14 @@ export function buildMap(
           parsed.output as never,
         );
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
-        else
-          map = setStacks(
-            map,
-            plan.edits.filter((e) => inside(placement.clip, e.x, e.y)),
-          );
+        else {
+          const kept = plan.edits.filter((e) => inside(placement.clip, e.x, e.y));
+          map = setStacks(map, kept);
+          written = boundsOf(kept);
+        }
       }
     }
-    steps.push({ key: node.key, inputs, map, problems });
+    steps.push({ key: node.key, inputs, map, problems, written });
   }
 
   const reused = steps.filter((step, i) => step === usable[i]).length;
@@ -206,6 +227,7 @@ export function buildMap(
     map: unchanged ? previous.map : previous ? keepUnchanged(previous.map, map) : map,
     layout,
     problems: [...layout.problems, ...steps.flatMap((s) => s.problems)],
+    written: new Map(steps.flatMap((s) => (s.written ? [[s.key, s.written] as const] : []))),
     reused,
     steps,
     from: { base, tilesById, components },
