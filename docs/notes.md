@@ -15783,7 +15783,7 @@ document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `island`,
 `forest`, `house`, `road` and `river` so far. `bun run build:map <tree.json>`
-builds one, and `scripts/trees/demo.json` is the example. Rune Isle is still
+builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is still
 `generate:island`; nothing ships from a tree yet.
 
 **A component is a valibot schema and a plan.** `build(ctx, props)` returns a
