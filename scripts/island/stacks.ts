@@ -38,7 +38,7 @@ const BRINK: Record<Kind, string> = {
   grass: "grass-brink",
   sand: "sand-brink",
   snow: "snow-brink",
-  basalt: "sand-brink",
+  basalt: "basalt-brink",
 };
 
 /** What a ramp is made of on each ground: the slope, and the half-height block the top half of the climb stands on. */

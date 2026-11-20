@@ -18501,14 +18501,18 @@ the floor, so its side is on the line of a face at every height.
 every open side, since ground fills its whole cell.
 
 **A brink is the ground tile cut to that outline.** `bun run generate:brinks`
-(`../scripts/generate-brinks.ts`) draws `grass-brink`, `sand-brink` and
-`snow-brink` from
+(`../scripts/generate-brinks.ts`) draws `grass-brink`, `sand-brink`,
+`snow-brink` and `basalt-brink` from
 `footprint` in `../scripts/cave-wall-outline.ts` at `HILL_CROWN`, the call the
 wall's top layer is drawn from, one slice per neighbourhood. A brink reads its
 neighbours on its own level and the wall reads its own on the level below, so
 the two outlines agree only while the two levels hold the same cells: ground or
 a brink above exactly where rock is below. A hill is built that way. The rim
-and tufts are the ledge's, drawn along the outline.
+and tufts are the ledge's, drawn along the outline. `basalt` has no ledge, so
+`basalt-brink` takes its rim and tufts from `hill-wall-basalt`'s bevel and
+treads. `basalt` is an autotile, so a brink is cut from its fully joined
+slice, and `basalt` lists `basalt-brink` in `connectsTo` or it would draw its
+sandy edge against every brink round a basalt hilltop.
 
 **Where a brink goes.** On every cell above a `hill-wall` that has a cell
 without rock among the eight around it on the wall's level. That is every cell
