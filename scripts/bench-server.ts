@@ -29,19 +29,23 @@ const SCALE_SEED = 1;
 const SCALE_SPREAD_CELLS = 6;
 const SCALE_ATTEMPTS = 40;
 
+/**
+ * Where the bench's players stand, on Rune Isle (`docs/map.md`). `null` is
+ * the world's spawn on the wreck beach, where nothing hostile is placed.
+ */
 const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
   empty: [],
   town: [null],
-  mouth: [{ x: 10, y: 20, z: 0 }],
-  den1: [{ x: -10, y: 23, z: -1 }],
-  den3: [{ x: -10, y: 19, z: -3 }],
+  mouth: [{ x: -43, y: -50, z: 0 }],
+  den1: [{ x: -94, y: -150, z: -1 }],
+  den3: [{ x: 168, y: -172, z: -3 }],
   spread: [
     null,
-    { x: 10, y: 20, z: 0 },
-    { x: -10, y: 23, z: -1 },
-    { x: -14, y: 5, z: -2 },
-    { x: -10, y: 19, z: -3 },
-    { x: -14, y: 72, z: -3 },
+    { x: -43, y: -50, z: 0 },
+    { x: -94, y: -150, z: -1 },
+    { x: -89, y: -193, z: -1 },
+    { x: 168, y: -172, z: -3 },
+    { x: -5, y: -292, z: -3 },
   ],
 };
 
