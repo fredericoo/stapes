@@ -482,7 +482,9 @@ async function compare() {
   const hours = positiveArg("--hours", DEFAULT_HOURS);
   const seeds = wholeArg("--seeds", DEFAULT_SEEDS, 2);
   const jobs = wholeArg("--jobs", Math.max(1, availableParallelism() - 1), 1);
-  const mapPath = resolve(argValue("--map") ?? MAP_PATH);
+  /** A map change is benched with one ref on both sides and a map each, `--map-a` and `--map-b`. */
+  const mapA = resolve(argValue("--map-a") ?? argValue("--map") ?? MAP_PATH);
+  const mapB = resolve(argValue("--map-b") ?? argValue("--map") ?? MAP_PATH);
   const root = await mkdtemp(join(tmpdir(), "stapes-bench-bots-"));
   const sides: Side[] = [];
   try {
@@ -493,11 +495,15 @@ async function compare() {
     }
     warnOnLockfileChange(sides[0]!.sha, sides[1]!.sha);
     console.error(
-      `${bots} bots, ${hours} game-hours, seeds 1-${seeds}, ${jobs} at once, map ${mapPath}`,
+      `${bots} bots, ${hours} game-hours, seeds 1-${seeds}, ${jobs} at once, ${
+        mapA === mapB ? `map ${mapA}` : `map A ${mapA}, map B ${mapB}`
+      }`,
     );
     const seedList = Array.from({ length: seeds }, (_, i) => i + 1);
     const tasks = sides.flatMap((side) =>
-      seedList.map((seed) => () => runOne(side, seed, bots, hours, mapPath)),
+      seedList.map(
+        (seed) => () => runOne(side, seed, bots, hours, side.name === "A" ? mapA : mapB),
+      ),
     );
     const runs = await pool(tasks, jobs);
     await printTable(runs.slice(0, seeds), runs.slice(seeds), sides);
