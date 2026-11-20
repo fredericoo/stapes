@@ -3,13 +3,14 @@ import { IconSettings, IconTrash } from "@tabler/icons-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
-import { isDirectional } from "../lib/types";
+import { isDirectional, resolveActor } from "../lib/types";
 import { elevationAt, getStack, listChannels } from "../lib/mapData";
 import { footRange } from "../lib/validation";
 import {
   resolveDepotDef,
   resolveEmit,
   resolveReceive,
+  resolveRespawn,
   resolveRewardDef,
   resolveTeleportDef,
 } from "../lib/interactions";
@@ -76,6 +77,10 @@ function isDepot(def: TileDef): boolean {
 
 function needsDestination(def: TileDef): boolean {
   return resolveTeleportDef(def)?.destination.kind === "absolute";
+}
+
+function respawnsAsCreature(def: TileDef): boolean {
+  return resolveActor(def) && resolveRespawn(def) != null;
 }
 
 function isGiveable(def: TileDef): boolean {
@@ -319,6 +324,7 @@ function SortableStackItem({
           gives={isGiver(def)}
           stashes={isDepot(def)}
           teleports={needsDestination(def)}
+          scatters={respawnsAsCreature(def)}
           holds={holdsCount(def)}
           giveable={giveable}
           stowable={stowable}

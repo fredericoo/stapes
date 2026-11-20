@@ -80,6 +80,7 @@ import {
 } from "../render/worldQuads";
 import { noTintUniforms } from "../render/spriteTint";
 import { SINGLE_PASS_DOUBLE_SIDE } from "../render/doubleSided";
+import { MAX_SPAWN_RADIUS } from "../game/respawn";
 import { createLevelFadeCompositeMaterial, PalettePass } from "../render/palettePass";
 import {
   OVERLAY_RENDER_ORDER,
@@ -127,6 +128,7 @@ const BACKGROUND_COLOR = 0xb8b09e;
 const GHOST_OPACITY = 0.55;
 
 const WEATHER_AREA_SELECTED = 0xffcc00;
+const SPAWN_AREA_COLOR = 0xff6644;
 const WEATHER_AREA_COLORS = { both: 0xaffcdb, rain: 0x4d9be6, fog: 0x9babb2, neither: 0xfb6b1d };
 
 function weatherAreaColor(area: WeatherArea): number {
@@ -925,6 +927,14 @@ export class EditorRenderer {
 
         elev += terrainHeight(placed, s.tilesById);
       });
+
+      for (const placed of brush) {
+        if (!placed.spawnRadius || placed.spawnRadius <= 0) continue;
+        const radius = Math.min(placed.spawnRadius, MAX_SPAWN_RADIUS);
+        const side = (radius * 2 + 1) * CELL_SIZE;
+        const origin = baseCellWorldOrigin(x - radius, y - radius, z, 0);
+        addRectOutline(origin.x, origin.y, side, side, SPAWN_AREA_COLOR, true);
+      }
     }
 
     if (s.tool === "weather") {
