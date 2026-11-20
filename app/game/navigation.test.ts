@@ -4,7 +4,15 @@ import { fixtureTutorial, type FixtureCell } from "../lib/fixtureTutorial";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { normalizeTileDef, type MapFile, type PlacedTile, type TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { cellGoal, levelGoal, planRoute, type NavLeg, type NavWorld } from "./navigation";
+import {
+  cellGoal,
+  levelGoal,
+  planRoute,
+  RouteSearch,
+  type NavLeg,
+  type NavWorld,
+  type SearchStep,
+} from "./navigation";
 
 const tilesById = tilesByIdFromList((tilesJson as TileDef[]).map(normalizeTileDef));
 
@@ -32,6 +40,19 @@ describe("planRoute", () => {
     if (!route.ok) return;
     expect(kinds(route.legs)).toEqual(["drop", "use"]);
     expect(route.legs.at(-1)!.to.z).toBe(0);
+  });
+
+  it("finds the same route when searched a few nodes at a time", () => {
+    const world = worldOf(fixtureTutorial());
+    const from = { x: 0, y: 0, z: -1 };
+    const search = new RouteSearch(world, from, levelGoal(0));
+
+    const steps: SearchStep[] = [];
+    do steps.push(search.step(2));
+    while ("pending" in steps.at(-1)!);
+
+    expect(steps.length).toBeGreaterThan(2);
+    expect(steps.at(-1)).toEqual(planRoute(world, from, levelGoal(0)));
   });
 
   it("does not climb back up a drop", () => {

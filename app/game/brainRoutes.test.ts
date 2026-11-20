@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import traitsJson from "../../data/traits.json";
@@ -9,6 +9,7 @@ import type { MapFile, PlacedTile } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+import { BRAIN_PLAN_TICK_NODES, RouteSearch, type SearchStep } from "./navigation";
 
 const tiles = normalizeTiles(tilesJson as unknown[]);
 const traits = traitsById(traitsJson as unknown[]);
@@ -129,5 +130,115 @@ describe("a townsperson's bedtime", () => {
     clock.minutes = 7 * 60;
     run(session, 30_000);
     expect(body(session, "brannoc-hale")).toMatchObject({ x: 0, y: 0, z: 0 });
+  });
+});
+
+/**
+ * A field `half` cells each way, walled down `x = 2` with the only door near
+ * the far end, so the way from one side to the other is a long search.
+ */
+function longWayRound(half: number): MapFile {
+  let map: MapFile = emptyMap();
+  for (let x = -half; x <= half; x++) {
+    for (let y = -half; y <= half; y++) {
+      const wall =
+        y === -7 ? { tileId: "door-closed", direction: "e" as const } : { tileId: "stone-wall" };
+      map = put(map, x, y, 0, { tileId: "grass" }, ...(x === 2 ? [wall] : []));
+    }
+  }
+  return put(map, -half, -half, 0, { tileId: "grass" }, { tileId: "player", direction: "e" });
+}
+
+type Slice = { search: RouteSearch; tick: number; nodes: number; step: SearchStep };
+
+function watchSlices(clock: { tick: number }): Slice[] {
+  const slices: Slice[] = [];
+  const step = RouteSearch.prototype.step;
+  vi.spyOn(RouteSearch.prototype, "step").mockImplementation(function (this: RouteSearch, n) {
+    const before = this.explored;
+    const out = step.call(this, n);
+    slices.push({ search: this, tick: clock.tick, nodes: this.explored - before, step: out });
+    return out;
+  });
+  return slices;
+}
+
+describe("a plan searched over several ticks", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("holds the body still within the tick budget, then walks the route", () => {
+    const half = 16;
+    const map = put(
+      longWayRound(half),
+      5,
+      half - 1,
+      0,
+      { tileId: "grass" },
+      { tileId: "brannoc-hale", direction: "s" },
+    );
+    const session = world(map);
+    const id = body(session, "brannoc-hale").id;
+    expect(session.runCommand(`/goto -1 ${half - 1} 0 ${id}`).ok).toBe(true);
+
+    const clock = { tick: 0 };
+    const slices = watchSlices(clock);
+    const seen: { x: number; y: number }[] = [];
+    for (; clock.tick < 900; clock.tick++) {
+      session.tick(TICK_MS);
+      seen.push(body(session, "brannoc-hale"));
+    }
+
+    const search = slices[0]!.search;
+    const own = slices.filter((slice) => slice.search === search);
+    expect(new Set(own.map((slice) => slice.tick)).size).toBeGreaterThan(2);
+    expect(own.at(-1)!.step).toMatchObject({ ok: true });
+    for (const tick of new Set(slices.map((slice) => slice.tick))) {
+      const spent = slices.filter((slice) => slice.tick === tick).reduce((n, s) => n + s.nodes, 0);
+      expect(spent).toBeLessThanOrEqual(BRAIN_PLAN_TICK_NODES);
+    }
+    for (const slice of own.slice(0, -1)) {
+      expect(seen[slice.tick]).toMatchObject({ x: -1, y: half - 1 });
+    }
+    expect(body(session, "brannoc-hale")).toMatchObject({ x: 5, y: half - 1 });
+  });
+
+  it("drops the search when bedtime gives the body a different goal", () => {
+    const half = 16;
+    const minutes = { now: MORNING };
+    let map = put(longWayRound(half), -4, half - 1, 0, { tileId: "grass" }, { tileId: "bed" });
+    map = put(
+      map,
+      5,
+      half - 1,
+      0,
+      { tileId: "grass" },
+      {
+        tileId: "brannoc-hale",
+        direction: "s",
+        spots: { bed: { x: -3, y: half - 1, z: 0 } },
+      },
+    );
+    const session = new GameSession(map, tiles, {
+      actorIds: [LOCAL_ACTOR_ID],
+      statuses,
+      traits,
+      clock: () => minutes.now,
+    });
+    const id = body(session, "brannoc-hale").id;
+    expect(session.runCommand(`/goto -1 ${half - 1} 0 ${id}`).ok).toBe(true);
+
+    const clock = { tick: 0 };
+    const slices = watchSlices(clock);
+    for (; clock.tick < 900; clock.tick++) {
+      if (slices.length > 0) minutes.now = 22 * 60 + 30;
+      session.tick(TICK_MS);
+    }
+
+    const search = slices[0]!.search;
+    const own = slices.filter((slice) => slice.search === search);
+    expect(own.at(-1)!.step).toMatchObject({ pending: true });
+    const abed = body(session, "brannoc-hale");
+    expect(Math.abs(abed.x + 3) + Math.abs(abed.y - (half - 1))).toBeLessThanOrEqual(1);
+    expect(abed.statuses.map((s) => s.defId)).toContain("sleep");
   });
 });

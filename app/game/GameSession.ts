@@ -418,10 +418,12 @@ import {
   BRAIN_PLAN_DETOUR_SLACK,
   BRAIN_PLAN_MAX_NODES,
   BRAIN_PLAN_MEMORY_MS,
+  BRAIN_PLAN_TICK_NODES,
   cellGoal,
   opensToIntangible,
-  planRoute,
+  RouteSearch,
   type NavLeg,
+  type NavOutcome,
 } from "./navigation";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog, type SwitchTo } from "../lib/dialog";
@@ -826,6 +828,18 @@ type PlannedRoute = {
 
 type DoorBehind = { door: Coord; openedTileId: string };
 
+type PlanSearch = {
+  actor: ActorRuntime;
+  key: string;
+  from: Coord;
+  to: Coord;
+  arrive: "beside" | "on";
+  allowDrops: boolean | undefined;
+  board: MapFile;
+  keepsDry: boolean;
+  search: RouteSearch;
+};
+
 type RouteAsked = {
   from: string;
   to: string;
@@ -1007,6 +1021,12 @@ export class GameSession implements PlaySession {
    */
   private readonly draft = new MapDraft();
   private readonly actors = new Map<string, ActorRuntime>();
+  /**
+   * Plans still being searched, advanced by `advancePlanSearches` within
+   * `BRAIN_PLAN_TICK_NODES` a tick. Its order is the queue the budget is
+   * shared in, so it is rotated rather than rebuilt.
+   */
+  private readonly planSearches = new Map<string, PlanSearch>();
   private readonly residentIds = new ResidentIds((id) => this.actors.has(id));
   private readonly residentHomes = new Map<string, Coord>();
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
@@ -1384,6 +1404,7 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(leaving);
     this.cancelCasting(leaving);
     this.forgetWalk(leaving);
+    this.planSearches.delete(id);
     this.actors.delete(id);
     this.pendingHurt.delete(id);
     this.pendingAlerts.delete(id);
@@ -1691,6 +1712,7 @@ export class GameSession implements PlaySession {
 
     this.tickConversations();
     this.tickBrains(tickMs);
+    this.advancePlanSearches();
 
     this.runAutoAttacks();
 
@@ -3387,6 +3409,7 @@ export class GameSession implements PlaySession {
     this.cancelCasting(target);
 
     this.forgetWalk(target);
+    this.planSearches.delete(target.id);
     this.actors.delete(target.id);
     this.forgetTileIndex();
     if (loc && !target.hidden) {
@@ -4656,6 +4679,8 @@ export class GameSession implements PlaySession {
    * Plans a route to a cell with every leg a player has: doors opened by
    * hand, ladders and portals used. Only asked once `findPath`, which walks,
    * has failed, so the larger search is paid for the routes that need it.
+   * True once a search is under way; it runs in `advancePlanSearches`, and
+   * the body holds still until it ends.
    */
   private planAround(
     actor: ActorRuntime,
@@ -4663,7 +4688,9 @@ export class GameSession implements PlaySession {
     at: Coord,
     order: { allowDrops: boolean | undefined; arrive: "beside" | "on" },
   ): boolean {
+    this.planSearches.delete(actor.id);
     const key = `${walkKey(at)}>${order.arrive}`;
+    const from = { x: loc.x, y: loc.y, z: loc.z };
     const failed = actor.failedPlan;
     if (failed?.key === key && !reached(this.elapsedMs - failed.atMs, BRAIN_PLAN_MEMORY_MS))
       return false;
@@ -4678,42 +4705,100 @@ export class GameSession implements PlaySession {
     }
     const def = this.defFor(actor);
     const board = removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex);
-    const from = { x: loc.x, y: loc.y, z: loc.z };
-    const outcome = planRoute(
-      {
-        board,
-        traveller: def,
-        tilesById: this.tilesById,
-        statusDefs: this.statusDefs,
-        who: actor.id,
-      },
+    const world = {
+      board,
+      traveller: def,
+      tilesById: this.tilesById,
+      statusDefs: this.statusDefs,
+      who: actor.id,
+    };
+    this.planSearches.set(actor.id, {
+      actor,
+      key,
       from,
-      cellGoal(at, order.arrive),
-      BRAIN_PLAN_MAX_NODES,
-      BRAIN_PLAN_DETOUR_SLACK,
+      to: at,
+      arrive: order.arrive,
+      allowDrops: order.allowDrops,
+      board,
+      keepsDry: !def.swims && !wadesIn(board, from, this.tilesById),
+      search: new RouteSearch(
+        world,
+        from,
+        cellGoal(at, order.arrive),
+        BRAIN_PLAN_MAX_NODES,
+        BRAIN_PLAN_DETOUR_SLACK,
+      ),
+    });
+    return true;
+  }
+
+  private planning(actor: ActorRuntime, loc: Coord, at: Coord, arrive: "beside" | "on"): boolean {
+    const running = this.planSearches.get(actor.id);
+    return (
+      running !== undefined &&
+      running.arrive === arrive &&
+      sameCoord(running.to, at) &&
+      sameCoord(running.from, loc)
     );
-    const keepsDry = !def.swims && !wadesIn(board, from, this.tilesById);
+  }
+
+  /**
+   * Shares `BRAIN_PLAN_TICK_NODES` between the plans being searched, an equal
+   * part each. A search whose body has moved, died or stopped walking to that
+   * goal is dropped first, so it is not paid for. Every search served goes to
+   * the back of the queue, so one a rounded-up part left without nodes goes
+   * first next tick.
+   */
+  private advancePlanSearches() {
+    for (const [id, pending] of this.planSearches) {
+      if (!this.stillPlanning(pending)) this.planSearches.delete(id);
+    }
+    let left = BRAIN_PLAN_TICK_NODES;
+    const share = Math.ceil(BRAIN_PLAN_TICK_NODES / Math.max(1, this.planSearches.size));
+    for (const [id, pending] of [...this.planSearches]) {
+      if (left <= 0) break;
+      const { search } = pending;
+      const spent = search.explored;
+      const step = search.step(Math.min(share, left));
+      left -= search.explored - spent;
+      this.planSearches.delete(id);
+      if ("pending" in step) this.planSearches.set(id, pending);
+      else this.settlePlan(pending, step);
+    }
+  }
+
+  private stillPlanning(pending: PlanSearch): boolean {
+    const { actor } = pending;
+    if (this.actors.get(actor.id) !== actor) return false;
+    const order = actor.walkOrder;
+    if (order?.goal.of !== "cell" || order.arrive !== pending.arrive) return false;
+    if (!sameCoord(order.goal.at, pending.to)) return false;
+    const loc = this.tryLocate(actor);
+    return loc !== null && sameCoord(loc, pending.from);
+  }
+
+  private settlePlan(pending: PlanSearch, outcome: NavOutcome) {
+    const { actor, board, keepsDry } = pending;
     const usable =
       outcome.ok &&
       outcome.legs.length > 0 &&
       outcome.legs.every(
         (leg) =>
-          (leg.kind === "use" || !leg.drop || order.allowDrops === true) &&
+          (leg.kind === "use" || !leg.drop || pending.allowDrops === true) &&
           !(keepsDry && wadesIn(board, leg.to, this.tilesById)),
       );
-    if (!usable) {
-      actor.failedPlan = { key, atMs: this.elapsedMs };
-      return false;
+    if (!outcome.ok || !usable) {
+      actor.failedPlan = { key: pending.key, atMs: this.elapsedMs };
+      return;
     }
     actor.failedPlan = null;
     actor.plan = {
-      to: walkKey(at),
-      arrive: order.arrive,
-      start: from,
+      to: walkKey(pending.to),
+      arrive: pending.arrive,
+      start: pending.from,
       legs: outcome.legs,
       next: 0,
     };
-    return true;
   }
 
   /**
@@ -4931,6 +5016,7 @@ export class GameSession implements PlaySession {
     if (order.goal.of === "cell") {
       const planned = this.followPlan(actor, loc, at, order.arrive);
       if (planned) return planned;
+      if (this.planning(actor, loc, at, order.arrive)) return "walking";
     }
     const step = this.routeStep(actor, loc, at, {
       allowDrops: order.allowDrops,
@@ -4939,8 +5025,7 @@ export class GameSession implements PlaySession {
       maxNodes: order.maxNodes,
     });
     if (step === null && order.goal.of === "cell" && this.planAround(actor, loc, at, order)) {
-      const planned = this.followPlan(actor, loc, at, order.arrive);
-      if (planned) return planned;
+      return "walking";
     }
     if (step === null || step === "arrived") {
       actor.walkOrder = null;
