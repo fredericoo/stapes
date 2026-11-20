@@ -37,24 +37,31 @@ const GROWTH: Partial<Record<number, readonly Chance[]>> = {
     ["cattails", 0.04],
   ],
   [Ground.Desert]: [
-    ["saguaro", 0.01],
-    ["barrel-cactus", 0.008],
-    ["prickly-pear", 0.008],
-    ["bleached-bones", 0.005],
-    ["dead-tree", 0.002],
+    ["saguaro", 0.003],
+    ["barrel-cactus", 0.002],
+    ["prickly-pear", 0.002],
+    ["bleached-bones", 0.0015],
+    ["dead-tree", 0.0005],
   ],
-  [Ground.Basalt]: [["bleached-bones", 0.004]],
+  [Ground.Basalt]: [["bleached-bones", 0.002]],
   [Ground.Snow]: [
-    ["snowy-pine", 0.05],
-    ["snowy-rock", 0.03],
-    ["ice-spike", 0.008],
+    ["snowy-pine", 0.014],
+    ["snowy-rock", 0.007],
+    ["ice-spike", 0.002],
   ],
   [Ground.Rock]: [
-    ["snowy-rock", 0.06],
-    ["snowy-pine", 0.03],
+    ["snowy-rock", 0.018],
+    ["snowy-pine", 0.008],
   ],
   [Ground.Beach]: [["driftwood", 0.004]],
 };
+
+/** Dunes cover several cells each, so their share is of the cells a dune may start on. */
+const DUNES: ReadonlyArray<{ id: string; w: number; d: number; share: number }> = [
+  { id: "sand-dune", w: 3, d: 2, share: 0.0012 },
+  { id: "sand-dune-crescent", w: 4, d: 3, share: 0.0006 },
+];
+const DUNE_SALT = 3;
 
 const SWAMP_GROWTH: readonly Chance[] = [
   ["reeds", 0.12],
@@ -62,6 +69,14 @@ const SWAMP_GROWTH: readonly Chance[] = [
   ["duckweed", 0.1],
   ["swamp-lily", 0.04],
 ];
+
+/** Every tile this plants, so a later pass can tell growth from anything built. */
+export const GROWN = new Set<string>([
+  ...Object.values(GROWTH).flatMap((chances) => chances!.map(([id]) => id)),
+  ...SWAMP_GROWTH.map(([id]) => id),
+  ...DUNES.map((dune) => dune.id),
+  "old-tree",
+]);
 
 const hash = (x: number, y: number, salt: number) => {
   let h = (x * 374761393 + y * 668265263 + salt * 2147483647) | 0;
@@ -81,14 +96,15 @@ function pick(chances: readonly Chance[], roll: number): string | null {
 /**
  * Plants every open cell by its ground, from a hash of its position so a
  * regenerated map grows the same woods. Roads, ramps, bridges and every site
- * are left bare, with a cell's margin round each so nothing walls them in.
+ * are left bare, with a cell's margin round each so nothing walls them in,
+ * except the cells of a site `wild` gives back to the land round it.
  */
-export function plant(b: Builder) {
+export function plant(b: Builder, wild: Uint8Array) {
   const { island, plan, board } = b;
   const { width: w, height: h } = island;
   const clear = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
-    if (!plan.road[i] && !plan.reserved[i] && !plan.siteOf[i]) continue;
+    if (!plan.road[i] && !plan.reserved[i] && (!plan.siteOf[i] || wild[i])) continue;
     const x = i % w;
     const y = (i - x) / w;
     for (let dy = -1; dy <= 1; dy++)
@@ -110,8 +126,11 @@ export function plant(b: Builder) {
         if (id) stack.push(tile(id));
         continue;
       }
-      const bare = stack.length === 1 || (stack.length === 2 && stack[1]!.tileId === "mud");
+      const bare =
+        stack.length === 1 ||
+        (stack.length === 2 && stack[1]!.tileId === "mud" && g === Ground.Bog);
       if (!bare) continue;
+      if (g === Ground.Desert && placeDune(b, x, y, z, clear)) continue;
       if (g === Ground.DeepWoods && roll < 0.012 && fits2x2(b, x, y, z, clear)) {
         footprint(b, { x, y }, z, "old-tree", 2, 2);
         for (const [dx, dy] of [
@@ -146,23 +165,52 @@ function besideDrop(b: Builder, x: number, y: number, z: number): boolean {
 }
 
 function fits2x2(b: Builder, x: number, y: number, z: number, clear: Uint8Array): boolean {
+  return fits(b, x, y, z, 2, 2, Ground.DeepWoods, clear);
+}
+
+/** Whether a `w` × `d` footprint from `x`, `y` lies on bare `ground`, on one level, away from any drop. */
+function fits(
+  b: Builder,
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  d: number,
+  ground: number,
+  clear: Uint8Array,
+): boolean {
   const { island, board } = b;
-  for (const [dx, dy] of [
-    [0, 0],
-    [1, 0],
-    [0, 1],
-    [1, 1],
-  ] as const) {
-    const i = (y + dy) * island.width + x + dx;
-    if (
-      clear[i] ||
-      island.level[i] !== z ||
-      island.ground[i] !== Ground.DeepWoods ||
-      besideDrop(b, x + dx, y + dy, z)
-    )
-      return false;
-    const stack = board.get(x + dx, y + dy, z);
-    if (!stack || stack.length !== 1) return false;
+  for (let dy = 0; dy < d; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const i = (y + dy) * island.width + x + dx;
+      if (
+        clear[i] ||
+        island.level[i] !== z ||
+        island.ground[i] !== ground ||
+        besideDrop(b, x + dx, y + dy, z)
+      )
+        return false;
+      const stack = board.get(x + dx, y + dy, z);
+      if (!stack || stack.length !== 1) return false;
+    }
   }
   return true;
+}
+
+function placeDune(b: Builder, x: number, y: number, z: number, clear: Uint8Array): boolean {
+  const dune = pickDune(hash(x, y, DUNE_SALT));
+  if (!dune || !fits(b, x, y, z, dune.w, dune.d, Ground.Desert, clear)) return false;
+  footprint(b, { x, y }, z, dune.id, dune.w, dune.d);
+  for (let dy = 0; dy < dune.d; dy++)
+    for (let dx = 0; dx < dune.w; dx++) clear[(y + dy) * b.island.width + x + dx] = 1;
+  return true;
+}
+
+function pickDune(roll: number) {
+  let sum = 0;
+  for (const dune of DUNES) {
+    sum += dune.share;
+    if (roll < sum) return dune;
+  }
+  return null;
 }

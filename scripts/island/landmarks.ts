@@ -1,7 +1,7 @@
 import type { Direction, PlacedTile } from "../../app/lib/types";
 import { tile } from "./board";
 import type { Builder } from "./build";
-import { N4, mulberry32 } from "./grid";
+import { N4, fbm, mulberry32, perlin } from "./grid";
 import type { Site } from "./plan";
 import { Ground } from "./terrain";
 import { Town, type Point } from "./town";
@@ -251,6 +251,29 @@ export function footprint(
  * broken wall, moss on the flagstones, rubble, ivy, and the waterfront under
  * the shallows. Nobody lives here.
  */
+const HARBOUR_SAND_SALT = 0x5a4d;
+/** The waterfront is sand this far up from the sea at least, and up to the spread further where the noise is high. */
+const HARBOUR_SAND_MIN_CELLS = 4;
+const HARBOUR_SAND_SPREAD_CELLS = 6;
+const HARBOUR_SAND_SCALE_CELLS = 8;
+
+/** A ruin and the cell round it stand on the ground of its middle, so no line between sand and grass runs under its floor. */
+function oneGroundUnder(
+  b: Builder,
+  r: { x0: number; y0: number; x1: number; y1: number },
+  z: number,
+) {
+  const { island } = b;
+  const g = island.ground[((r.y0 + r.y1) >> 1) * island.width + ((r.x0 + r.x1) >> 1)]!;
+  for (let y = r.y0 - 1; y <= r.y1 + 1; y++) {
+    for (let x = r.x0 - 1; x <= r.x1 + 1; x++) {
+      island.ground[y * island.width + x] = g;
+      const stack = b.board.get(x, y, z);
+      if (stack) stack[0] = tile(b.base(x, y));
+    }
+  }
+}
+
 export function buildHarbour(b: Builder, site: Site) {
   const { island } = b;
   const z = site.level;
@@ -274,10 +297,18 @@ export function buildHarbour(b: Builder, site: Site) {
     }
     return false;
   };
+  const sandNoise = perlin(HARBOUR_SAND_SALT);
   for (let y = site.y0; y <= site.y1; y++) {
     for (let x = site.x0; x <= site.x1; x++) {
       if (!land(x, y)) continue;
-      island.ground[y * island.width + x] = Ground.Beach;
+      const reach =
+        HARBOUR_SAND_MIN_CELLS +
+        Math.round(
+          HARBOUR_SAND_SPREAD_CELLS *
+            (0.5 +
+              0.5 * fbm(sandNoise, x / HARBOUR_SAND_SCALE_CELLS, y / HARBOUR_SAND_SCALE_CELLS, 3)),
+        );
+      if (seaNear(x, y, reach)) island.ground[y * island.width + x] = Ground.Beach;
       b.clear(x, y, z);
       if (seaNear(x, y, 2)) b.board.set(x, y, z, [tile(b.base(x, y)), tile("water")]);
     }
@@ -306,6 +337,7 @@ export function buildHarbour(b: Builder, site: Site) {
     for (let y = r.y0 - 1; y <= r.y1 + 1; y++)
       for (let x = r.x0 - 1; x <= r.x1 + 1; x++) taken[local(x, y)] = 1;
   }
+  for (const r of ruins) oneGroundUnder(b, r, z);
   const decor = ["vines-south", "moss-top", "vines-corner", "vines-east"];
   for (const r of ruins) {
     for (let y = r.y0; y <= r.y1; y++) {

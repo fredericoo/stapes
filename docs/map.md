@@ -27,8 +27,8 @@ that is the work cell for most of them. No wild creature is placed.
 | Frost caves | -98, -247 | 1 |
 | Bear caves | -127, -257 | 2 |
 | Deep woods | -236, -263 | 1 |
-| The bog | -249, -93 | 0 |
-| Witch's house | -182, -147 | 0 |
+| The bog | -231, -88 | 0 |
+| Witch's house | -182, -146 | 0 |
 | Roadside inn | -14, -227 | 1 |
 | The lake | 30, -213 | 1 |
 | The warriors' town | 81, -192 | 1 |
@@ -55,7 +55,7 @@ that is the work cell for most of them. No wild creature is placed.
 | `jory-thistlewood` | Jory Thistlewood | Jory's lean-to by his barrow | -14, -92, L1 | His barrow at the path's fork towards the two towns | -12, -89, L1 | -12, -89, L1, facing s |
 | `iolanthe-sarno` | Iolanthe Sarno | Council house | -184, -223, L2 | Council house | -187, -220, L1 | -187, -220, L1, facing s |
 | `hesper-vaun` | Hesper Vaun | Hesper's cell behind the temple | -190, -208, L1 | Rune temple, the carving table between the forges | -173, -225, L1 | -173, -225, L1, facing n |
-| `dagny-rook` | Dagny Rook | Dagny's house | -173, -202, L1 | Rune temple, the clerk's desk by the door | -170, -224, L1 | -170, -224, L1, facing s |
+| `dagny-rook` | Dagny Rook | Dagny's house | -167, -195, L1 | Rune temple, the clerk's desk by the door | -170, -224, L1 | -170, -224, L1, facing s |
 | `amaru-quispe` | Amaru Quispe | Weaving house | -162, -220, L2 | Weaving house | -160, -219, L1 | -160, -219, L1, facing s |
 | `noor-halabi` | Noor Halabi | Apothecary | -155, -205, L1 | Apothecary | -155, -208, L1 | -155, -208, L1, facing n |
 | `pell-marrow` | Pell Marrow | Bakehouse | -162, -202, L1 | Bakehouse | -165, -203, L1 | -165, -203, L1, facing n |
@@ -88,7 +88,7 @@ that is the work cell for most of them. No wild creature is placed.
 | `hamid-sarraf` | Hamid Sarraf | Roadside inn, a guest bed | -22, -241, L2 | The roads between the towns and the camp (pedlar) | — | -21, -241, L2, facing s |
 | `anselm-quaye` | Anselm Quaye | Roadside inn, a guest bed (assumed) | -11, -239, L2 | A circuit of the island's roads (pilgrim) | — | -12, -239, L2, facing s |
 | `yeva-kostenko` | Yeva Kostenko | Roadside inn, a guest bed; or either town at dusk | -22, -239, L2 | The roads between the towns (courier) | — | -21, -239, L2, facing s |
-| `morwen-teague` | Morwen Teague | The witch's house on stilts at the bog's edge | -180, -159, L0 | Her house and the bog by night | -182, -159, L0 | -182, -159, L0, facing s |
+| `morwen-teague` | Morwen Teague | The witch's house on stilts at the bog's edge | -180, -158, L0 | Her house and the bog by night | -182, -158, L0 | -182, -158, L0, facing s |
 
 The named cats live with their owners:
 
@@ -96,7 +96,7 @@ The named cats live with their owners:
 - `cat-soot` with Mina Dross, at -153, -220, L1
 - `cat-ghee` with Rukmini Desai, at 83, -180, L1
 - `cat-captain` with Margit Oslund, at -20, -241, L1
-- `cat-nettle` with Morwen Teague, at -183, -160, L0
+- `cat-nettle` with Morwen Teague, at -183, -159, L0
 
 Beds nobody in the cast sleeps in:
 
@@ -126,7 +126,7 @@ Beds nobody in the cast sleeps in:
 | Hesper's cell behind the temple | -191, -211 | -187, -207 | 1 | 1 | -189, -211 (n) |
 | Long house | -204, -211 | -193, -206 | 1 | 1 | -199, -211 (n) |
 | Suvi's cottage by the garden plots | -207, -219 | -202, -215 | 1 | 1 | -205, -215 (s) |
-| Dagny's house | -174, -206 | -170, -201 | 1 | 1 | -172, -206 (n) |
+| Dagny's house | -171, -198 | -166, -194 | 1 | 1 | -171, -196 (w) |
 | Longhall | 82, -211 | 90, -196 | 1 | 1 | 86, -196 (s) |
 | Smithy | 101, -199 | 107, -191 | 1 | 2 | 104, -191 (s) |
 | Armoury | 101, -187 | 107, -179 | 1 | 1 | 104, -187 (n) |
@@ -143,8 +143,8 @@ Beds nobody in the cast sleeps in:
 | Trophy shed outside the north gate | 94, -219 | 99, -215 | 1 | 1 | 94, -217 (w) |
 | Roadside inn | -23, -243 | -10, -234 | 1 | 2 | -17, -234 (s) |
 | Stable | -6, -242 | 0, -234 | 1 | 2 | -3, -234 (s) |
-| The witch's house on stilts at the bog's edge | -184, -162 | -179, -156 | 0 | 1 | -182, -156 (s) |
-| The harbour ruins (7 roofless buildings, the first the chapel) | 34, -51 | 89, -28 | 0 | 1 | 34, -51 (s) |
+| The witch's house on stilts at the bog's edge | -184, -161 | -179, -155 | 0 | 1 | -182, -155 (s) |
+| The harbour ruins (7 roofless buildings, the first the chapel) | 32, -51 | 87, -28 | 0 | 1 | 32, -51 (s) |
 | The lighthouse | 97, -37 | 113, -21 | 0 | 14 | 105, -37 (n) |
 
 ## The lamplighters' routes
@@ -153,27 +153,27 @@ Each town's lamp posts are `lamppost-off` beside its streets, and only the two
 towns have them, because only they have a lamplighter. The posts are listed in
 the order a walk from the first one reaches them, nearest next.
 
-- **Casimir Wren · druids' town streets**, 15 posts: -210, -242; -208, -233; -208, -224; -208, -215; -193, -215; -184, -211; -182, -220; -171, -220; -175, -206; -156, -215; -147, -215; -136, -218; -137, -209; -137, -200; -137, -191.
-- **Tobiah Marsh · warriors' town streets**, 19 posts: 53, -219; 55, -210; 55, -201; 55, -192; 64, -191; 80, -183; 89, -182; 98, -182; 94, -173; 94, -163; 83, -158; 74, -158; 83, -195; 94, -200; 94, -209; 91, -218; 108, -191; 121, -191; 131, -194.
+- **Casimir Wren · druids' town streets**, 17 posts: -208, -246; -208, -237; -208, -228; -208, -219; -193, -215; -184, -211; -182, -220; -171, -220; -175, -206; -175, -197; -175, -188; -166, -185; -157, -185; -148, -185; -147, -215; -156, -215; -136, -219.
+- **Tobiah Marsh · warriors' town streets**, 19 posts: 53, -221; 53, -212; 53, -203; 53, -194; 63, -191; 80, -183; 89, -182; 98, -182; 94, -173; 94, -163; 83, -158; 74, -158; 83, -195; 94, -200; 94, -209; 91, -218; 108, -191; 121, -191; 131, -194.
 
 ## Roads
 
 | From | To | Cells | Walk |
 | --- | --- | --- | --- |
 | Wreck beach | The camp | 95 | 19 s |
-| The camp | The druids' town | 259 | 52 s |
+| The camp | The druids' town | 277 | 55 s |
 | The camp | The warriors' town | 198 | 40 s |
-| The druids' town | Roadside inn | 206 | 41 s |
+| The druids' town | Roadside inn | 198 | 40 s |
 | Roadside inn | The warriors' town | 131 | 26 s |
-| The warriors' town | The lighthouse | 210 | 42 s |
-| The camp | Old harbour ruins | 158 | 32 s |
+| The warriors' town | The lighthouse | 208 | 42 s |
+| The camp | Old harbour ruins | 180 | 36 s |
 | Old harbour ruins | The lighthouse | 36 | 7 s |
 | The warriors' town | Ember deeps | 171 | 34 s |
 | The druids' town | Deep woods | 150 | 30 s |
 | The druids' town | Frost caves | 108 | 22 s |
 
-3 bridges carry roads over rivers; elsewhere a road wades the river at a ford.
-46 ramps join the terraces, and every cell a player can reach has a way back.
+4 bridges carry roads over rivers; elsewhere a road wades the river at a ford.
+56 ramps join the terraces, and every cell a player can reach has a way back.
 
 ## Underground
 
@@ -182,12 +182,12 @@ from its own entrances and gets harder the deeper it goes; the deep way on
 level -4 joins every descent, and the Ember heart on -6 is the lowest floor.
 Floors are joined by `stone-stairs`, ladders and holes, and every hole has a
 way back up. Nothing lives in them yet. No cave runs under a chunk of either
-town. The underground adds 57,635 cells to the map.
+town. The underground adds 57,643 cells to the map.
 
 | Place | Levels | Where | What |
 | --- | --- | --- | --- |
-| Bat cave | 0 | -46, -57, L0 | a lair behind a cliff mouth |
-| The barrow | -1 | -93, -147, L-1 | four halls of flagstone and bone round an entrance hall |
+| Bat cave | 0 | -43, -57, L0 | a lair behind a cliff mouth |
+| The barrow | -1 | -94, -146, L-1 | four halls of flagstone and bone round an entrance hall |
 | Wolf den | -1 | -89, -193, L-1 | a lair under the field |
 | The flooded caves | -1, -2 | -40, -178, L-1 | standing water between the lakes |
 | Sea grotto | -1 | 20, -34, L-1 | pools and sand under the beach |
@@ -207,8 +207,8 @@ town. The underground adds 57,635 cells to the map.
 
 | Into | By | Where |
 | --- | --- | --- |
-| Bat cave | `hill-cave-mouth` facing s | -46, -47, L0 |
-| The barrow | `stone-stairs` down from the field | -93, -138, L0 |
+| Bat cave | `hill-cave-mouth` facing s | -43, -47, L0 |
+| The barrow | `stone-stairs` down from the field | -94, -137, L0 |
 | Wolf den | `stone-stairs` down from the field | -89, -185, L0 |
 | The flooded caves | a ladder down from the lake shore | -60, -164, L0 |
 | Sea grotto | a ladder down from the beach | 12, -40, L0 |

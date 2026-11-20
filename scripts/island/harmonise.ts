@@ -14,6 +14,8 @@ const SEAMED = new Set([
   "wooden-floor",
 ]);
 const PASSES = 40;
+/** Covers that may be lifted off a cell left on a seam, last first: a road first, then bare mud or lava rock, which only thin a bank or a lava field. */
+const CUTS = [new Set(["dirt"]), new Set(["dirt", "mud", "basalt"])];
 
 /**
  * An autotile draws its edge towards a neighbour that holds neither it nor
@@ -26,13 +28,13 @@ const PASSES = 40;
  * many seams are left.
  */
 export function harmoniseGround(board: Board, tilesById: Record<string, TileDef>): number {
-  let left = settle(board, tilesById, false);
-  if (left) left = settle(board, tilesById, true);
+  let left = settle(board, tilesById, new Set());
+  for (const cut of CUTS) if (left) left = settle(board, tilesById, cut);
   return left;
 }
 
-/** With `cutRoads`, a cell of road still on a seam loses its road and stays bare ground, which draws no edge. */
-function settle(board: Board, tilesById: Record<string, TileDef>, cutRoads: boolean): number {
+/** A cell still on a seam whose only cover is in `cut` loses it and stays bare ground, which draws no edge. */
+function settle(board: Board, tilesById: Record<string, TileDef>, cut: Set<string>): number {
   let left = 0;
   for (let pass = 0; pass < PASSES; pass++) {
     left = 0;
@@ -51,7 +53,7 @@ function settle(board: Board, tilesById: Record<string, TileDef>, cutRoads: bool
           const g = other[0]?.tileId;
           if (!g || !FULL_GROUND.has(g) || g === stack[0]!.tileId) continue;
           left++;
-          if (cutRoads && auto === "dirt" && stack.length === 2) {
+          if (cut.has(auto) && stack.length === 2) {
             stack.length = 1;
             break;
           }

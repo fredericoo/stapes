@@ -18816,7 +18816,8 @@ walking round to a ramp somewhere else.
 the ground most of it had, because a floor or a street over the line between
 two grounds draws that line through it (`verify content` warns). Outside
 the sites `harmoniseGround` moves each such line off the autotiles that would
-draw it, and gives up on a cell of road, which is left as bare ground.
+draw it, and gives up on a cell of road, bare mud or lava rock, which is
+left as bare ground.
 
 **Buildings come from the editor's own house generator** (`planHouse`), so a
 house the generator wrote and one an author draws in `/admin/map` are the same
@@ -18831,6 +18832,67 @@ of it, and every house of one storey would look sealed.
 harbour ruins and the lighthouse, widened until the crop cuts no hill off from
 its ramps and ringed with sea. It is seeded where `SEED_MAP=map-staging.json`
 (`docs/deploy.md`) and needs about 180 MB.
+
+
+## `verify landscape` holds the rules a generated island is drawn by
+
+`bun run verify landscape` (`app/verify/landscape.ts`) reads the top of the
+ground in every column and fails a map that breaks any of these rules.
+`generate:island` runs the same check and writes nothing when it fails, so
+a change to the generator cannot quietly bring the old shapes back.
+
+- **A river one cell wide joins at a side, never only at a corner.** Two
+  water cells that touch only at a corner draw two puddles with a gap
+  between them. `fourWayLine` rasterises river segments so every step is to
+  a side, and `joinRiverCorners` fills the cell beside any pair the plan
+  still leaves.
+- **A river on grass has a bed and a one-cell bank of dirt.** No grass shows
+  round the water. Dirt rather than mud: mud is dark against the grass and
+  slows whoever walks on it, so it stays the swamp's, and no cell by open
+  water outside a swamp has any. A river through snow or sand is laid on
+  that ground with no bank.
+- **A shore has no bank.** Open water is any cell of a 4×4 block that is all
+  water, swamps aside, and its shore is that water plus the water next to
+  it. Banks stop two cells from it, so a river's mouth opens onto the beach
+  as a lake's edge does. The generator (`shoreOf` in
+  `scripts/island/stacks.ts`) and the check use the same 4×4 rule. The sea is
+  laid at level 0 whatever level the ground plan gave it, so the generator
+  reads it there.
+- **A river keeps one ground per level.** A stretch is the river and lake on
+  one level, and it takes the ground most of the land in a ring 3–5 cells
+  round it had, with lava counted as the sand it stands on. Dirt and water
+  draw an edge towards a cell of another ground, so a river that changed
+  ground mid-level would leave a cell `harmoniseGround` pulls both ways. It
+  changes ground only where it drops a level.
+- **Where the land beside a river changes ground, the bank stops.** Dirt
+  joins sand but not snow, so a bank beside a cell of another ground stays
+  bare rather than leave a seam that `verify content --strict` reports.
+- **No ground piece smaller than 16 cells, and no snow off the peak.** Snow
+  and rock bodies under 1,000 cells in the ground plan, and snow fields under
+  200 on the map, are given the ground round them: they are low hilltops
+  that caught the rock line, not places. `mergeSpecks` gives a small
+  piece the ground round it. Three kinds are left: a beach, a piece that
+  meets only water, and a strip beside water laid on its own ground. That
+  strip is the bank `harmoniseGround` draws, and merging it would only be
+  undone next pass.
+- **No border runs straight for more than 12 cells**, unless it is within 8
+  cells of a shore or follows a river's bank. Swamps, the snow line, site
+  aprons and clearings all have noise on their edges for this reason
+  (`scripts/island/fray.ts`, `plan.ts`, `terrain.ts`).
+- **A desert or a snowfield is mostly open ground.** In any 32-cell window,
+  things that stand may cover at most 4% of the open sand or 5% of the open
+  snow. Walls and lamps within two cells of a floor, a street or a bank are
+  not counted. The woods have no limit.
+
+A cell shut in by cliff on three sides with a waterfall on the fourth
+cannot be left, since a fall is not walked through, so `raiseFallPockets`
+raises it into the cliff. `verify stranded` is what catches one.
+
+The generator runs harmonise, river corners, beds and specks in a loop until
+a pass changes nothing. Each pass can open a seam
+the next one closes. Any two of these steps that disagree about a cell make
+the loop cycle, and that is how a mismatch between the generator's rules and
+the check's tends to show up.
 
 
 ## Rune Isle's underground is dug by the generator, a cell of rock at a time

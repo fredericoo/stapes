@@ -61,7 +61,90 @@ const UNDER_WALL: Record<Kind, string[]> = {
   basalt: ["sand-dunes", "basalt"],
 };
 
-export const kindAt = (island: Island, i: number): Kind => KIND[island.ground[i]!] ?? "grass";
+const KINDS: readonly Kind[] = ["grass", "sand", "snow", "basalt"];
+/** How far out a river looks for the land it runs through, past the cells its own banks may have changed. */
+const BANK_RING_INNER_CELLS = 2;
+const BANK_RING_OUTER_CELLS = 5;
+const bankKinds = new WeakMap<Island, Uint8Array>();
+
+const isRiverWater = (g: number) => g === Ground.River || g === Ground.Lake;
+
+/**
+ * The kind of land each river and lake cell runs through: the kind most of
+ * the dry land in a ring round its stretch had before the rivers were cut,
+ * so a river through the snow has snow banks rather than a strip of meadow.
+ * A stretch is the river and lake on one level. Mud and water draw an edge
+ * in the ground under them towards a cell of another ground, so where a
+ * river changed ground within one level the cells at the change would be
+ * pulled to both and show a line of one; at a drop to another level nothing
+ * joins across, so a river changes ground only where it falls.
+ */
+function bankKindsOf(island: Island): Uint8Array {
+  const known = bankKinds.get(island);
+  if (known) return known;
+  const { width: w, height: h, ground, level } = island;
+  const out = new Uint8Array(w * h);
+  const seen = new Uint8Array(w * h);
+  const counts = new Int32Array(KINDS.length);
+  for (let start = 0; start < w * h; start++) {
+    if (seen[start] || !isRiverWater(ground[start]!)) continue;
+    const stretch = [start];
+    seen[start] = 1;
+    counts.fill(0);
+    for (let k = 0; k < stretch.length; k++) {
+      const i = stretch[k]!;
+      countRing(island, i, counts);
+      forNeighbours(w, h, i, N4, (j) => {
+        if (seen[j] || !isRiverWater(ground[j]!) || level[j] !== level[i]) return;
+        seen[j] = 1;
+        stretch.push(j);
+      });
+    }
+    let best = 0;
+    for (let k = 1; k < KINDS.length; k++) if (counts[k]! > counts[best]!) best = k;
+    for (const i of stretch) out[i] = best;
+  }
+  bankKinds.set(island, out);
+  return out;
+}
+
+function countRing(island: Island, i: number, counts: Int32Array) {
+  const { width: w, height: h, biome } = island;
+  const x = i % w;
+  const y = (i - x) / w;
+  for (let dy = -BANK_RING_OUTER_CELLS; dy <= BANK_RING_OUTER_CELLS; dy++) {
+    for (let dx = -BANK_RING_OUTER_CELLS; dx <= BANK_RING_OUTER_CELLS; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const inside = Math.max(Math.abs(dx), Math.abs(dy)) <= BANK_RING_INNER_CELLS;
+      if (inside || nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const g = biome[ny * w + nx]!;
+      if (isRiverWater(g) || g === Ground.DeepSea || g === Ground.Shallows) continue;
+      const kind = KIND[g];
+      /** A lava field stands on sand, so a river through one runs on sand, as `verify landscape` reads it. */
+      if (kind) counts[KINDS.indexOf(kind === "basalt" ? "sand" : kind)]!++;
+    }
+  }
+}
+
+export const kindAt = (island: Island, i: number): Kind =>
+  isRiverWater(island.ground[i]!)
+    ? KINDS[bankKindsOf(island)[i]!]!
+    : (KIND[island.ground[i]!] ?? "grass");
+
+/** River water over the ground it runs through: on grass a bed of dirt, so no grass shows round the water. */
+function riverStack(kind: Kind): PlacedTile[] {
+  return kind === "grass"
+    ? [tile("grass-2"), tile("dirt"), tile("water")]
+    : [tile(BASE[kind]), tile("water")];
+}
+
+/** The shallow edge of a lake, which is a shore and has no bank. */
+function shoreStack(kind: Kind): PlacedTile[] {
+  return kind === "grass"
+    ? [tile("grass-2"), tile("dirt"), tile("water")]
+    : [tile(BASE[kind]), tile("water")];
+}
 export const baseTile = (island: Island, i: number) => BASE[kindAt(island, i)];
 
 /**
@@ -77,6 +160,7 @@ export function writeTerrain(island: Island, plan: Plan): Board {
   const board = new Board(w, h, -beach.x, -beach.y);
   const heads = new Set(plan.ramps.map((r) => r.head));
   const lakeDepth = depthIn(island, (i) => ground[i] === Ground.Lake);
+  const shore = shoreOf(island);
   const lavaNear = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
     if (ground[i] !== Ground.Lava) continue;
@@ -134,13 +218,10 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     let top: PlacedTile[];
     switch (ground[i]) {
       case Ground.River:
-        top = [tile("grass-2"), tile("dirt"), tile("water")];
+        top = besideShore(island, shore, i) ? shoreStack(kind) : riverStack(kind);
         break;
       case Ground.Lake:
-        top =
-          lakeDepth[i]! <= 1
-            ? [tile("grass-2"), tile("dirt"), tile("water")]
-            : [tile("water"), tile("deep-water")];
+        top = lakeDepth[i]! <= 1 ? shoreStack(kind) : [tile("water"), tile("deep-water")];
         break;
       case Ground.Bog:
         top = bogPond(island, i)
@@ -162,6 +243,8 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     }
     board.set(x, y, L, top);
   }
+
+  bedRivers(island, board);
 
   for (const r of plan.ramps) {
     const z = level[r.low]!;
@@ -186,7 +269,7 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     const x = i % w;
     const y = (i - x) / w;
     const stack = board.get(x, y, level[i]!);
-    if (!stack || stack.length !== 1) continue;
+    if (!stack || !(stack.length === 1 || (stack.length === 2 && isBank(stack)))) continue;
     board.set(x, y, level[i]!, [tile(baseTile(island, i)), tile("dirt")]);
   }
 
@@ -249,6 +332,280 @@ function fallsInto(island: Island, x: number, y: number, z: number): boolean {
   if (x < 0 || y < 0 || x >= island.width || y >= island.height) return false;
   const i = y * island.width + x;
   return FALLING_WATER.has(island.ground[i]!) && island.level[i] === z + 1;
+}
+
+/** The stack of a bare cell of the ground `island` has at `i`, as the terrain lays it away from any edge. */
+export function plainGround(island: Island, i: number): PlacedTile[] {
+  const base = tile(baseTile(island, i));
+  switch (island.ground[i]) {
+    case Ground.Bog:
+      return [base, tile("mud")];
+    case Ground.Basalt:
+      return [tile("sand-dunes"), tile("basalt")];
+    default:
+      return [base];
+  }
+}
+
+const isBank = (stack: readonly PlacedTile[]) => stack.length === 2 && stack[1]?.tileId === "dirt";
+
+/**
+ * A bed of dirt under every river on grass and a cell of dirt on every side
+ * of it, level with it, so the water lies in a sandy bed rather than cut into
+ * the meadow. Dirt rather than mud: mud is dark against the grass and slows
+ * whoever walks on it. A pond too small to be open water is treated as river;
+ * open water, and the water beside it, is a shore and gets no bank.
+ * `harmoniseGround` can turn a river's ground to grass after the terrain is
+ * laid, so this runs again after it, when a bank may already have grown
+ * something: anything in `grown` there gives way to the dirt. Returns how
+ * many cells it changed.
+ */
+export function bedRivers(
+  island: Island,
+  board: Board,
+  grown: ReadonlySet<string> = new Set(),
+): number {
+  const { width: w, height: h, level, ground } = island;
+  const shore = shoreOf(island, board);
+  let changed = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (!isRiverWater(ground[i]!)) continue;
+    const stack = board.get(i % w, Math.floor(i / w), level[i]!);
+    if (!stack) continue;
+    if (!besideShore(island, shore, i))
+      changed += bedAndBank(island, board, grown, shore, i, stack);
+  }
+  return changed;
+}
+
+function bedAndBank(
+  island: Island,
+  board: Board,
+  grown: ReadonlySet<string>,
+  shore: Uint8Array,
+  i: number,
+  stack: PlacedTile[],
+): number {
+  const { width: w, height: h, level, ground } = island;
+  if (stack[0]?.tileId !== "grass-2") return 0;
+  let changed = 0;
+  if (stack[1]?.tileId === "water") {
+    stack.splice(1, 0, tile("dirt"));
+    changed++;
+  }
+  const z = level[i]!;
+  forNeighbours(w, h, i, N8, (j) => {
+    if (level[j] !== z || isRiverWater(ground[j]!) || besideShore(island, shore, j)) return;
+    const bank = board.get(j % w, Math.floor(j / w), z);
+    if (bank?.[0]?.tileId !== "grass-2") return;
+    if (besideOtherGround(island, board, j)) return;
+    if (isBank(bank) || !bank.slice(1).every((p) => grown.has(p.tileId) && !p.span)) return;
+    bank.splice(1, bank.length - 1, tile("dirt"));
+    changed++;
+  });
+  return changed;
+}
+
+/**
+ * A cell with ground of another kind beside it, where the land changes
+ * ground at the river. Dirt joins sand but not snow, and a bank there would
+ * be pulled to both grounds by `harmoniseGround`, so it keeps the land's own
+ * ground.
+ */
+function besideOtherGround(island: Island, board: Board, i: number): boolean {
+  const { width: w, height: h, level } = island;
+  const z = level[i]!;
+  const own = board.get(i % w, Math.floor(i / w), z)?.[0]?.tileId;
+  let other = false;
+  forNeighbours(w, h, i, N8, (j) => {
+    const base = board.get(j % w, Math.floor(j / w), z)?.[0]?.tileId;
+    if (level[j] === z && base && FULL_GROUNDS.has(base) && base !== own) other = true;
+  });
+  return other;
+}
+
+const FULL_GROUNDS = new Set(["grass-2", "snow", "sand-dunes"]);
+
+/** A river's bank stops this far from a shore, so a river's mouth opens onto the beach as a lake's edge does. */
+const SHORE_CLEAR_CELLS = 2;
+
+/** A cell this near the shore of the sea or a lake, where a bank would be on the shore. */
+function besideShore(island: Island, shore: Uint8Array, i: number): boolean {
+  const { width: w, height: h } = island;
+  const x = i % w;
+  const y = (i - x) / w;
+  for (let dy = -SHORE_CLEAR_CELLS; dy <= SHORE_CLEAR_CELLS; dy++) {
+    for (let dx = -SHORE_CLEAR_CELLS; dx <= SHORE_CLEAR_CELLS; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < w && ny < h && shore[ny * w + nx]) return true;
+    }
+  }
+  return false;
+}
+
+const FALL_SEGMENTS: ReadonlySet<string> = new Set(FALLS.flatMap((f) => f.segments));
+
+/**
+ * A cell shut in by cliff on every side but one, where a fall comes down,
+ * cannot be left: a fall is not walked through and the cliffs are a storey
+ * up. It is raised into the cliff, given the column of the lowest cliff
+ * beside it. Returns how many cells it raised.
+ */
+export function raiseFallPockets(island: Island, board: Board): number {
+  const { width: w, height: h, level, ground } = island;
+  let raised = 0;
+  for (let j = 0; j < w * h; j++) {
+    const z = level[j]!;
+    const x = j % w;
+    const y = (j - x) / w;
+    if (!board.get(x, y, z)?.length) continue;
+    const cliff = shutInBesideFall(island, board, j);
+    if (cliff === null) continue;
+    for (let at = z; at <= level[cliff]!; at++) {
+      const column = board.get(cliff % w, Math.floor(cliff / w), at);
+      board.set(
+        x,
+        y,
+        at,
+        (column ?? []).map((p) => ({ ...p })),
+      );
+    }
+    level[j] = level[cliff]!;
+    ground[j] = ground[cliff]!;
+    raised++;
+  }
+  return raised;
+}
+
+/** The lowest cliff beside `j` when every side of it is a cliff or a fall and one is a fall, else null. */
+function shutInBesideFall(island: Island, board: Board, j: number): number | null {
+  const { width: w, height: h, level } = island;
+  const z = level[j]!;
+  let cliff: number | null = null;
+  let fall = false;
+  let open = false;
+  forNeighbours(w, h, j, N4, (k) => {
+    if (level[k]! > z) {
+      if (cliff === null || level[k]! < level[cliff]!) cliff = k;
+      return;
+    }
+    const side = level[k] === z ? board.get(k % w, Math.floor(k / w), z) : undefined;
+    if (side?.some((p) => FALL_SEGMENTS.has(p.tileId))) fall = true;
+    else open = true;
+  });
+  return fall && !open ? cliff : null;
+}
+
+/**
+ * Where two river cells meet only at a corner, the cell beside both that is
+ * open ground is made river, with the stack of the cell it joins. A site
+ * levelled over a river, or a lake drawn after it, can leave such a corner
+ * after the terrain's own pass. Returns how many cells it joined.
+ */
+export function joinRiverCorners(island: Island, board: Board, grown: ReadonlySet<string>): number {
+  const { width: w, height: h, ground } = island;
+  let joined = 0;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!isRiverWater(ground[i]!)) continue;
+      for (const dx of [-1, 1]) joined += joinCorner(island, board, grown, i, x + dx);
+    }
+  }
+  return joined;
+}
+
+function joinCorner(
+  island: Island,
+  board: Board,
+  grown: ReadonlySet<string>,
+  i: number,
+  nx: number,
+): number {
+  const { width: w, level, ground } = island;
+  const x = i % w;
+  const y = (i - x) / w;
+  if (nx < 0 || nx >= w) return 0;
+  const j = (y + 1) * w + nx;
+  const sides = [y * w + nx, (y + 1) * w + x];
+  if (!isRiverWater(ground[j]!) || sides.some((k) => isRiverWater(ground[k]!))) return 0;
+  const from = board.get(x, y, level[i]!);
+  if (!from?.some((p) => p.tileId === "water")) return 0;
+  for (const k of sides) {
+    if (level[k] !== level[i] && level[k] !== level[j]) continue;
+    const stack = board.get(k % w, Math.floor(k / w), level[k]!);
+    if (
+      !stack?.[0] ||
+      !stack.slice(1).every((p) => p.tileId === "dirt" || (grown.has(p.tileId) && !p.span))
+    )
+      continue;
+    ground[k] = Ground.River;
+    board.set(
+      k % w,
+      Math.floor(k / w),
+      level[k]!,
+      from.map((p) => ({ ...p })),
+    );
+    return 1;
+  }
+  return 0;
+}
+
+/** Water at least this wide both ways is a lake or the sea, since the widest river cut is three cells; `app/verify/landscape.ts` draws the same line. */
+const OPEN_WATER_CELLS = 4;
+
+const isOpenWet = (g: number) =>
+  g === Ground.River || g === Ground.Lake || g === Ground.Shallows || g === Ground.DeepSea;
+
+/**
+ * Open water and the water beside it: the sea, the lakes, and the mouths of
+ * the rivers that run into them, which are shores. With `board`, it reads
+ * the water laid on the board, as `verify landscape` does, which also counts
+ * the harbour's flooded streets; without, the water the ground plan has.
+ * The sea is laid at level 0 whatever level the ground plan gave it.
+ */
+export function shoreOf(island: Island, board?: Board): Uint8Array {
+  const { width: w, height: h, ground, level } = island;
+  const wet = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    if (board ? laidWet(board, i % w, Math.floor(i / w), level[i]!) : isOpenWet(ground[i]!))
+      wet[i] = 1;
+  }
+  const open = new Uint8Array(w * h);
+  for (let y = 0; y + OPEN_WATER_CELLS <= h; y++) {
+    for (let x = 0; x + OPEN_WATER_CELLS <= w; x++) {
+      if (!blockIsWet(wet, w, x, y)) continue;
+      for (let dy = 0; dy < OPEN_WATER_CELLS; dy++)
+        for (let dx = 0; dx < OPEN_WATER_CELLS; dx++) open[(y + dy) * w + x + dx] = 1;
+    }
+  }
+  const shore = open.slice();
+  for (let i = 0; i < w * h; i++) {
+    if (!open[i]) continue;
+    forNeighbours(w, h, i, N8, (j) => {
+      if (wet[j]) shore[j] = 1;
+    });
+  }
+  return shore;
+}
+
+const SEA_LEVEL = 0;
+
+function laidWet(board: Board, x: number, y: number, z: number): boolean {
+  return [z, SEA_LEVEL].some((at) => {
+    const stack = board.get(x, y, at);
+    return (
+      !!stack?.some((p) => p.tileId === "water" || p.tileId === "deep-water") &&
+      !stack.some((p) => p.tileId === "swamp")
+    );
+  });
+}
+
+function blockIsWet(wet: Uint8Array, w: number, x: number, y: number): boolean {
+  for (let dy = 0; dy < OPEN_WATER_CELLS; dy++)
+    for (let dx = 0; dx < OPEN_WATER_CELLS; dx++) if (!wet[(y + dy) * w + x + dx]) return false;
+  return true;
 }
 
 /** Open sea is bare `deep-water`; the cells next to the shallows have `water` under it, and the shallows foam where they meet dry sand. */
