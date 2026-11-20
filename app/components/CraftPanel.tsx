@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { CraftingWindow } from "../game/craft";
 import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
+import { splitCash } from "../lib/cash";
 import { craftRecipeName, type CraftInput, type CraftOutput } from "../lib/interactions";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -107,16 +108,23 @@ export function CraftPanel({
               </span>
               <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <span className="sr-only">Costs:</span>
-                {recipe.inputs.map((input, i) => (
-                  <RecipeInput
-                    key={i}
-                    input={input}
-                    def={tilesById[input.tileId]}
-                    tilesets={tilesets}
-                  />
-                ))}
+                {[...splitCash(tilesById, recipe.takeCash ?? 0), ...recipe.inputs].map(
+                  (input, i) => (
+                    <RecipeInput
+                      key={i}
+                      input={input}
+                      def={tilesById[input.tileId]}
+                      tilesets={tilesets}
+                    />
+                  ),
+                )}
               </span>
-              <RecipeOutputs output={recipe.output} tilesById={tilesById} tilesets={tilesets} />
+              <RecipeOutputs
+                output={recipe.output}
+                giveCash={recipe.giveCash ?? 0}
+                tilesById={tilesById}
+                tilesets={tilesets}
+              />
             </span>
           </PanelButton>
         ))}
@@ -173,17 +181,29 @@ function outputOdds(output: CraftOutput): OutputOdds[] {
 
 function RecipeOutputs({
   output,
+  giveCash,
   tilesById,
   tilesets,
 }: {
   output: CraftOutput;
+  giveCash: number;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
 }) {
+  const coins = splitCash(tilesById, giveCash);
   const items = outputOdds(output);
-  if (items.length === 0) return null;
+  if (items.length === 0 && coins.length === 0) return null;
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs tabular-nums text-paper/70">
+      {coins.length > 0 ? <span className="sr-only">Gives back:</span> : null}
+      {coins.map((coin, i) => (
+        <RecipeInput
+          key={`cash-${i}`}
+          input={coin}
+          def={tilesById[coin.tileId]}
+          tilesets={tilesets}
+        />
+      ))}
       <span className="sr-only">{output.kind === "one" ? "Makes one of:" : "Makes:"}</span>
       {items.map(({ tileId, odds }, i) => (
         <RecipeOutputItem

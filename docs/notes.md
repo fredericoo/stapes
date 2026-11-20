@@ -10956,6 +10956,12 @@ luck.
   and `one` picks exactly one item by relative `weight`. The union is there so
   that a weight on an `all` item cannot be left behind by the editor;
   `craftForSave` rebuilds the output by its arm.
+- **A recipe may also take and give cash**: `takeCash` and `giveCash`, an
+  amount of money paid or given in whatever tiles have a `worth`, exactly as
+  a dialog trade's are (see *Cash is a field on a trade*). A recipe and its
+  outcome become a `TradeTerms`, and `planDeal` pays the cash first, so a
+  gold bar is broken for change. A recipe must spend something: inputs, cash,
+  or both. Short of cash reads as "missing", like a short input.
 - **One row per crafter, and a window behind it.** The row is named by the
   tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears
   whenever the crafter is in reach, affordable or not, so a player learns the

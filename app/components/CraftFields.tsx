@@ -12,6 +12,7 @@ import {
   type CraftOutputKind,
   type CraftRecipe,
 } from "../lib/interactions";
+import { MAX_WORTH } from "../lib/item";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, FieldLabel, Input, NumberInput, Segmented } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
@@ -114,13 +115,54 @@ function RecipeCard({
         tilesets={tilesets}
       />
 
+      <CashField
+        label="Costs in cash"
+        info="Paid in whatever tiles have a worth, largest coins first, with change given back. 0 charges nothing."
+        value={recipe.takeCash}
+        onChange={(takeCash) => onChange({ ...recipe, takeCash })}
+      />
+
       <OutputFields
         output={recipe.output}
         onChange={(output) => onChange({ ...recipe, output })}
         giveable={giveable}
         tilesets={tilesets}
       />
+
+      <CashField
+        label="Gives cash"
+        info="Handed over in the fewest coins whatever the roll gives, on top of it. 0 gives none."
+        value={recipe.giveCash}
+        onChange={(giveCash) => onChange({ ...recipe, giveCash })}
+      />
     </div>
+  );
+}
+
+function CashField({
+  label,
+  info,
+  value,
+  onChange,
+}: {
+  label: string;
+  info: string;
+  value: number | undefined;
+  onChange: (next: number | undefined) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs">
+      <FieldLabel info={info}>{label}</FieldLabel>
+      <NumberInput
+        min={0}
+        max={MAX_WORTH}
+        step={1}
+        value={value ?? 0}
+        onChange={(next) => onChange(next > 0 ? next : undefined)}
+        className="w-24"
+        aria-label={label}
+      />
+    </label>
   );
 }
 

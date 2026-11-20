@@ -97,6 +97,35 @@ const tiles = [
     interactions: { item: { ...DEFAULT_CONTAINER, size: BAG_SIZE } },
   }),
   tile({ id: "forge", name: "Forge", interactions: { craft: FORGE_RECIPES } }),
+  tile({ id: "coin", name: "Coin", kind: "item", interactions: { item: { ...PILED, worth: 1 } } }),
+  tile({
+    id: "bar",
+    name: "Bar",
+    kind: "item",
+    interactions: { item: { ...PILED, worth: 100 } },
+  }),
+  tile({
+    id: "paid-forge",
+    name: "Paid Forge",
+    interactions: {
+      craft: {
+        recipes: [
+          {
+            name: "Ember for a fee",
+            inputs: [{ tileId: "cinder", count: 1 }],
+            takeCash: 30,
+            output: { kind: "all", items: [{ tileId: "ember", chance: 100 }] },
+          },
+          {
+            name: "Cook and be paid",
+            inputs: [{ tileId: "raw-meat", count: 1 }],
+            giveCash: 3,
+            output: { kind: "all", items: [{ tileId: "cooked-meat", chance: 100 }] },
+          },
+        ],
+      },
+    },
+  }),
   tile({
     id: "showy-forge",
     name: "Showy Forge",
@@ -176,13 +205,19 @@ describe("resolving a crafter", () => {
     ]);
   });
 
-  it("drops a malformed recipe and keeps the rest", () => {
+  it("drops a malformed recipe and keeps the rest, where a cash price alone is spending", () => {
     const patchy = tile({
       id: "patchy",
       interactions: {
         craft: {
           recipes: [
             { name: "No inputs", inputs: [], output: FORGE_RECIPES.recipes[1]!.output },
+            {
+              name: "Cash alone",
+              inputs: [],
+              takeCash: 5,
+              output: FORGE_RECIPES.recipes[1]!.output,
+            },
             {
               name: "Bad chance",
               inputs: [{ tileId: "a", count: 1 }],
@@ -193,7 +228,7 @@ describe("resolving a crafter", () => {
         },
       },
     });
-    expect(resolveCraft(patchy)?.recipes.map((r) => r.name)).toEqual(["Forge Ember"]);
+    expect(resolveCraft(patchy)?.recipes.map((r) => r.name)).toEqual(["Cash alone", "Forge Ember"]);
   });
 
   it("is not a crafter once every recipe has been dropped", () => {
@@ -446,6 +481,50 @@ describe("running a recipe", () => {
     expect(session.craft(FORGE, RECIPE.ember, "smith")).toBe(false);
     expect(session.craft(FAR, RECIPE.ember, "smith")).toBe(false);
     expect(bagTiles(session.equipmentOf("smith"))).toEqual(["cinder"]);
+  });
+});
+
+describe("a recipe priced in cash", () => {
+  const PAID: ObjectRef = FORGE;
+
+  function holding(contents: Array<{ tileId: string; count?: number }>): Equipment {
+    return {
+      ...emptyEquipment(),
+      bag: {
+        id: "itm_bag",
+        tileId: BAG_TILE_ID,
+        contents: contents.map((item, i) => ({ id: `itm_${i}`, ...item })),
+      },
+    };
+  }
+
+  function counted(equipment: Equipment | null | undefined): string[] {
+    return (equipment?.bag?.contents ?? []).map((i) => `${i.tileId}x${i.count ?? 1}`);
+  }
+
+  it("pays with any coin, breaking a larger one for change", () => {
+    const session = new GameSession(board("paid-forge"), tiles);
+    session.spawn("smith", {
+      at: BESIDE,
+      carrying: holding([{ tileId: "cinder" }, { tileId: "bar" }]),
+    });
+
+    expect(session.craft(PAID, 0, "smith")).toBe(true);
+    expect(counted(session.equipmentOf("smith")).sort()).toEqual(["coinx70", "emberx1"]);
+  });
+
+  it("hands over the cash it gives beside what it makes", () => {
+    const session = new GameSession(board("paid-forge"), tiles);
+    session.spawn("smith", { at: BESIDE, carrying: holding([{ tileId: "raw-meat" }]) });
+
+    expect(session.craft(PAID, 1, "smith")).toBe(true);
+    expect(counted(session.equipmentOf("smith")).sort()).toEqual(["coinx3", "cooked-meatx1"]);
+  });
+
+  it("reads as missing, not as no room, when the cash falls short", () => {
+    const short = holding([{ tileId: "cinder" }, { tileId: "coin", count: 29 }]);
+    const offered = offeredRecipes(board("paid-forge"), tilesById, ACTOR, short, PAID);
+    expect(offered?.recipes[0]?.block).toBe("missing");
   });
 });
 
