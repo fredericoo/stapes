@@ -8,6 +8,7 @@ import { planIsland } from "./island/plan";
 import { readSketch } from "./island/sketch";
 import { tile } from "./island/board";
 import { Builder } from "./island/build";
+import { placeCast } from "./island/cast";
 import { mapDoc } from "./island/doc";
 import { harmoniseGround } from "./island/harmonise";
 import { buildHarbour, buildLighthouse, buildWreck } from "./island/landmarks";
@@ -56,6 +57,7 @@ buildWitch(builder, sites.get("witch")!);
 buildHarbour(builder, sites.get("harbour")!);
 buildLighthouse(builder, sites.get("lighthouse")!);
 buildWreck(builder);
+placeCast(builder);
 plant(builder);
 {
   const at = island.place("wreckBeach");
@@ -128,6 +130,7 @@ console.log(
     buildings: builder.buildings.length,
     residents: builder.residents.filter((r) => r.tileId).length,
     lamps: builder.lamps.length,
+    cats: builder.cats.length,
   }),
 );
 await Bun.write(
@@ -143,6 +146,7 @@ if (record) {
         buildings: builder.buildings,
         residents: builder.residents,
         lamps: builder.lamps,
+        cats: builder.cats,
         ox: board.ox,
         oy: board.oy,
       },

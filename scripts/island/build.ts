@@ -17,6 +17,7 @@ export type Resident = {
   bed: { x: number; y: number; z: number } | null;
   work: string;
   workCell: { x: number; y: number; z: number } | null;
+  post?: { x: number; y: number; z: number; facing: Direction };
 };
 
 export type Building = {
@@ -46,6 +47,7 @@ export class Builder {
   readonly residents: Resident[] = [];
   readonly buildings: Building[] = [];
   readonly lamps: Array<{ x: number; y: number; z: number; route: string }> = [];
+  readonly cats: Array<{ tileId: string; owner: string; x: number; y: number; z: number }> = [];
   private spans = 0;
 
   constructor(
@@ -170,6 +172,15 @@ export class Builder {
     );
     if (resident) this.residents.push({ ...resident, bed: this.world(x, y, z) });
     return true;
+  }
+
+  /** Puts a character's tile on the board, standing on free floor at `at` (map coordinates). */
+  stand(r: Resident, at: { x: number; y: number; z: number }, facing: Direction) {
+    const x = at.x - this.board.ox;
+    const y = at.y - this.board.oy;
+    if (!this.put(x, y, at.z, r.tileId, facing))
+      throw new Error(`${r.name}: no free floor at ${at.x}, ${at.y}, L${at.z}`);
+    r.post = { ...at, facing };
   }
 
   /** A ladder from storey `z` to the floor above it. */

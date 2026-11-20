@@ -10,9 +10,9 @@ The island is seed 75599 of the reference generator at 0.5 cells per pixel of
 `docs/lore-map.webp`, inside the sketch's coastline. A step takes
 200 ms and movement is four-way, so a road's length in cells is its walking time.
 
-No character or creature is placed yet. The tile ids below are the ones draft
-PR #699 gives the cast, so placing each character is putting their tile on the
-cell beside their bed or at their place of work.
+Each character's tile stands in the cell under *Stands*, which their routines
+read as their home; `docs/notes.md`, *The cast is placed at work*, says why
+that is the work cell for most of them. No wild creature is placed.
 
 ## Places
 
@@ -45,50 +45,58 @@ cell beside their bed or at their place of work.
 
 ## Who lives and works where
 
-| Tile id | Name | Home | Bed | Works at | Work cell |
-| --- | --- | --- | --- | --- | --- |
-| `tove-arnesdatter` | Tove Arnesdatter | Tove's lean-to at the beach end of the camp | -6, -75, L1 | Wreck beach at dawn, the camp by day | -10, -85, L1 |
-| `idris-kaya` | Idris Kaya | Idris's awning beside the path | -4, -82, L1 | Under the awning beside the path | -2, -83, L1 |
-| `ifeoma-nwachukwu` | Ifeoma Nwachukwu | Ifeoma's cook tent at the cookfire | -17, -81, L1 | The cookfire | -9, -86, L1 |
-| `peregrine-voss` | Peregrine Voss | Peregrine's tent and trap bench | -18, -91, L1 | Trap bench by the salvage pile | -19, -91, L1 |
-| `wenna-pascoe` | Wenna Pascoe | Wenna's shack at the salvage pile | 5, -81, L1 | The salvage pile and the wreck beach | 8, -82, L1 |
-| `jory-thistlewood` | Jory Thistlewood | In the open beside his barrow | -7, -97, L1 | His barrow at the path's fork towards the two towns | -6, -96, L1 |
-| `iolanthe-sarno` | Iolanthe Sarno | Council house | -184, -223, L2 | Council house | -187, -220, L1 |
-| `hesper-vaun` | Hesper Vaun | Hesper's cell behind the temple | -190, -208, L1 | Rune temple, the carving table between the forges | -173, -225, L1 |
-| `dagny-rook` | Dagny Rook | Dagny's house | -173, -202, L1 | Rune temple, the clerk's desk by the door | -170, -224, L1 |
-| `amaru-quispe` | Amaru Quispe | Weaving house | -162, -220, L2 | Weaving house | -160, -219, L1 |
-| `noor-halabi` | Noor Halabi | Apothecary | -155, -205, L1 | Apothecary | -155, -208, L1 |
-| `pell-marrow` | Pell Marrow | Bakehouse | -162, -202, L1 | Bakehouse | -165, -203, L1 |
-| `suvi-kallio` | Suvi Kallio | Suvi's cottage by the garden plots | -203, -217, L1 | Garden plots on the town's west side | -196, -214, L1 |
-| `casimir-wren` | Casimir Wren | Apothecary | -157, -205, L2 | The streets: lamplighter | -182, -206, L1 |
-| `mina-dross` | Mina Dross | Granary | -154, -219, L1 | Granary | -152, -219, L1 |
-| `rosalind-peake` | Rosalind Peake | Ledger house | -181, -201, L1 | Ledger house | -182, -203, L1 |
-| `orrin-fask` | Orrin Fask | Long house | -194, -209, L1 | Long house | -198, -209, L1 |
-| `fen-achterberg` | Fen Achterberg | Ledger house | -179, -201, L2 | Rune temple steps | -172, -220, L1 |
-| `taavi-kask` | Taavi Kask | Wardens' house | -198, -219, L1 | Rune temple door (day warden) | -174, -220, L1 |
-| `nadia-ferreira` | Nadia Ferreira | Wardens' house | -195, -218, L1 | The streets at night (night warden) | -173, -215, L1 |
-| `ragna-holt` | Ragna Holt | Longhall | 83, -207, L1 | Longhall | 86, -204, L1 |
-| `absalom-grieve` | Absalom Grieve | Absalom's house beside the drill yard | 73, -193, L1 | Drill yard | 72, -182, L1 |
-| `brannoc-hale` | Brannoc Hale | Smithy | 102, -197, L2 | Smithy | 104, -195, L1 |
-| `selin-arslan` | Selin Arslan | Bowyer's shop by the east gate | 119, -194, L1 | Bowyer's shop | 117, -194, L1 |
-| `mateo-ferran` | Mateo Ferran | Spear shed by the drill yard | 87, -171, L1 | Spear shed; the longhall at night | 87, -172, L1 |
-| `halina-brzeska` | Halina Brzeska | Armoury | 104, -180, L1 | Armoury | 104, -183, L1 |
-| `bertha-oyelaran` | Bertha Oyelaran | Smokehouse by the south gate | 100, -168, L1 | Smokehouse | 97, -169, L1 |
-| `magda-fenwick` | Magda Fenwick | Trophy shed outside the north gate | 97, -216, L1 | Trophy shed | 97, -217, L1 |
-| `tobiah-marsh` | Tobiah Marsh | Tobiah's house by the south gate | 87, -160, L1 | The streets: lamplighter | 84, -196, L1 |
-| `rukmini-desai` | Rukmini Desai | Storehouse by the drill yard | 81, -178, L1 | Storehouse | 84, -179, L1 |
-| `edda-kell` | Edda Kell | North gatehouse | 87, -215, L1 | North gate | 92, -211, L1 |
-| `aurelio-benedetti` | Aurelio Benedetti | Cooperage by the smokehouse | 97, -175, L1 | Cooperage | 97, -177, L1 |
-| `sigrun-halde` | Sigrun Halde | Smokehouse by the south gate | 99, -167, L1 | Bench at the drill yard | 69, -178, L1 |
-| `gideon-okafor` | Gideon Okafor | East gatehouse | 116, -184, L1 | East gate, facing the Red Waste | 122, -189, L1 |
-| `liv-sandvik` | Liv Sandvik | Barracks by the drill yard | 59, -179, L1 | The walls at night | 96, -213, L2 |
-| `margit-oslund` | Margit Oslund | Roadside inn, the room behind the bar | -22, -240, L1 | Behind the bar | -20, -240, L1 |
-| `kofi-asante` | Kofi Asante | Roadside inn, the loft | -11, -241, L2 | The inn's kitchen and cellar | -17, -239, L1 |
-| `rodrigo-vela` | Rodrigo Vela | The room over the stable | -1, -240, L2 | The same table every night | -17, -239, L1 |
-| `hamid-sarraf` | Hamid Sarraf | Roadside inn, a guest bed | -22, -241, L2 | The roads between the towns and the camp (pedlar) | — |
-| `anselm-quaye` | Anselm Quaye | Roadside inn, a guest bed (assumed) | -11, -239, L2 | A circuit of the island's roads (pilgrim) | — |
-| `yeva-kostenko` | Yeva Kostenko | Roadside inn, a guest bed; or either town at dusk | -22, -239, L2 | The roads between the towns (courier) | — |
-| `morwen-teague` | Morwen Teague | The witch's house on stilts at the bog's edge | -180, -159, L0 | Her house and the bog by night | -182, -159, L0 |
+| Tile id | Name | Home | Bed | Works at | Work cell | Stands |
+| --- | --- | --- | --- | --- | --- | --- |
+| `tove-arnesdatter` | Tove Arnesdatter | Tove's lean-to at the beach end of the camp | -6, -75, L1 | Wreck beach at dawn, the camp by day | -10, -85, L1 | -10, -85, L1, facing n |
+| `idris-kaya` | Idris Kaya | Idris's awning beside the path | -4, -82, L1 | Under the awning beside the path | -2, -83, L1 | -2, -83, L1, facing n |
+| `ifeoma-nwachukwu` | Ifeoma Nwachukwu | Ifeoma's cook tent at the cookfire | -17, -81, L1 | The cookfire | -9, -86, L1 | -9, -86, L1, facing w |
+| `peregrine-voss` | Peregrine Voss | Peregrine's tent and trap bench | -18, -91, L1 | Trap bench by the salvage pile | -19, -91, L1 | -19, -91, L1, facing s |
+| `wenna-pascoe` | Wenna Pascoe | Wenna's shack at the salvage pile | 5, -81, L1 | The salvage pile and the wreck beach | 8, -82, L1 | 8, -82, L1, facing n |
+| `jory-thistlewood` | Jory Thistlewood | In the open beside his barrow | -7, -97, L1 | His barrow at the path's fork towards the two towns | -6, -96, L1 | -6, -96, L1, facing n |
+| `iolanthe-sarno` | Iolanthe Sarno | Council house | -184, -223, L2 | Council house | -187, -220, L1 | -187, -220, L1, facing s |
+| `hesper-vaun` | Hesper Vaun | Hesper's cell behind the temple | -190, -208, L1 | Rune temple, the carving table between the forges | -173, -225, L1 | -173, -225, L1, facing n |
+| `dagny-rook` | Dagny Rook | Dagny's house | -173, -202, L1 | Rune temple, the clerk's desk by the door | -170, -224, L1 | -170, -224, L1, facing s |
+| `amaru-quispe` | Amaru Quispe | Weaving house | -162, -220, L2 | Weaving house | -160, -219, L1 | -160, -219, L1, facing s |
+| `noor-halabi` | Noor Halabi | Apothecary | -155, -205, L1 | Apothecary | -155, -208, L1 | -155, -208, L1, facing n |
+| `pell-marrow` | Pell Marrow | Bakehouse | -162, -202, L1 | Bakehouse | -165, -203, L1 | -165, -203, L1, facing n |
+| `suvi-kallio` | Suvi Kallio | Suvi's cottage by the garden plots | -203, -217, L1 | Garden plots on the town's west side | -196, -214, L1 | -196, -214, L1, facing e |
+| `casimir-wren` | Casimir Wren | Apothecary | -157, -205, L2 | The streets: lamplighter | -182, -206, L1 | -183, -207, L1, facing e |
+| `mina-dross` | Mina Dross | Granary | -154, -219, L1 | Granary | -152, -219, L1 | -152, -219, L1, facing s |
+| `rosalind-peake` | Rosalind Peake | Ledger house | -181, -201, L1 | Ledger house | -182, -203, L1 | -182, -203, L1, facing n |
+| `orrin-fask` | Orrin Fask | Long house | -194, -209, L1 | Long house | -198, -209, L1 | -198, -209, L1, facing n |
+| `fen-achterberg` | Fen Achterberg | Ledger house | -179, -201, L2 | Rune temple steps | -172, -220, L1 | -172, -220, L1, facing s |
+| `taavi-kask` | Taavi Kask | Wardens' house | -198, -219, L1 | Rune temple door (day warden) | -174, -220, L1 | -174, -220, L1, facing s |
+| `nadia-ferreira` | Nadia Ferreira | Wardens' house | -195, -218, L1 | The streets at night (night warden) | -173, -215, L1 | -173, -215, L1, facing s |
+| `ragna-holt` | Ragna Holt | Longhall | 83, -207, L1 | Longhall | 86, -204, L1 | 86, -204, L1, facing s |
+| `absalom-grieve` | Absalom Grieve | Absalom's house beside the drill yard | 73, -193, L1 | Drill yard | 72, -182, L1 | 72, -182, L1, facing s |
+| `brannoc-hale` | Brannoc Hale | Smithy | 102, -197, L2 | Smithy | 104, -195, L1 | 104, -195, L1, facing s |
+| `selin-arslan` | Selin Arslan | Bowyer's shop by the east gate | 119, -194, L1 | Bowyer's shop | 117, -194, L1 | 117, -194, L1, facing s |
+| `mateo-ferran` | Mateo Ferran | Spear shed by the drill yard | 87, -171, L1 | Spear shed; the longhall at night | 87, -172, L1 | 87, -173, L1, facing e |
+| `halina-brzeska` | Halina Brzeska | Armoury | 104, -180, L1 | Armoury | 104, -183, L1 | 104, -183, L1, facing n |
+| `bertha-oyelaran` | Bertha Oyelaran | Smokehouse by the south gate | 100, -168, L1 | Smokehouse | 97, -169, L1 | 97, -169, L1, facing w |
+| `magda-fenwick` | Magda Fenwick | Trophy shed outside the north gate | 97, -216, L1 | Trophy shed | 97, -217, L1 | 96, -218, L1, facing w |
+| `tobiah-marsh` | Tobiah Marsh | Tobiah's house by the south gate | 87, -160, L1 | The streets: lamplighter | 84, -196, L1 | 83, -197, L1, facing s |
+| `rukmini-desai` | Rukmini Desai | Storehouse by the drill yard | 81, -178, L1 | Storehouse | 84, -179, L1 | 84, -179, L1, facing n |
+| `edda-kell` | Edda Kell | North gatehouse | 87, -215, L1 | North gate | 92, -211, L1 | 92, -211, L1, facing n |
+| `aurelio-benedetti` | Aurelio Benedetti | Cooperage by the smokehouse | 97, -175, L1 | Cooperage | 97, -177, L1 | 97, -177, L1, facing w |
+| `sigrun-halde` | Sigrun Halde | Smokehouse by the south gate | 99, -167, L1 | Bench at the drill yard | 69, -178, L1 | 69, -178, L1, facing n |
+| `gideon-okafor` | Gideon Okafor | East gatehouse | 116, -184, L1 | East gate, facing the Red Waste | 122, -189, L1 | 122, -189, L1, facing e |
+| `liv-sandvik` | Liv Sandvik | Barracks by the drill yard | 59, -179, L1 | The walls at night | 96, -213, L2 | 96, -213, L2, facing n |
+| `margit-oslund` | Margit Oslund | Roadside inn, the room behind the bar | -22, -240, L1 | Behind the bar | -20, -240, L1 | -20, -240, L1, facing s |
+| `kofi-asante` | Kofi Asante | Roadside inn, the loft | -11, -241, L2 | The inn's kitchen and cellar | -17, -239, L1 | -17, -239, L1, facing s |
+| `rodrigo-vela` | Rodrigo Vela | The room over the stable | -1, -240, L2 | The same table every night | -17, -239, L1 | -18, -239, L1, facing s |
+| `hamid-sarraf` | Hamid Sarraf | Roadside inn, a guest bed | -22, -241, L2 | The roads between the towns and the camp (pedlar) | — | -21, -241, L2, facing s |
+| `anselm-quaye` | Anselm Quaye | Roadside inn, a guest bed (assumed) | -11, -239, L2 | A circuit of the island's roads (pilgrim) | — | -12, -239, L2, facing s |
+| `yeva-kostenko` | Yeva Kostenko | Roadside inn, a guest bed; or either town at dusk | -22, -239, L2 | The roads between the towns (courier) | — | -21, -239, L2, facing s |
+| `morwen-teague` | Morwen Teague | The witch's house on stilts at the bog's edge | -180, -159, L0 | Her house and the bog by night | -182, -159, L0 | -182, -159, L0, facing s |
+
+The named cats live with their owners:
+
+- `cat-biscuit` with Ifeoma Nwachukwu, at -10, -87, L1
+- `cat-soot` with Mina Dross, at -153, -220, L1
+- `cat-ghee` with Rukmini Desai, at 83, -180, L1
+- `cat-captain` with Margit Oslund, at -20, -241, L1
+- `cat-nettle` with Morwen Teague, at -183, -160, L0
 
 Beds nobody in the cast sleeps in:
 
