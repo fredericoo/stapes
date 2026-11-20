@@ -19100,3 +19100,80 @@ anything but bare ground, stops the generator with the cell named.
 screenshot with `/tile torch -5 -292 -3` puts the torch five cells west, 292
 north and three down from the player, not at that cell. `/goto` takes the
 cell.
+
+## Garbage collection pauses on the server, measured
+
+**The multi-second full collections came from the measuring loop, not the
+server.** A run that ticks a `GameSession` 36,903 times in one synchronous loop
+stops the world once for 2.4–4.4 s here (7–11 s in an earlier measurement) and keeps
+eden pauses of 40–430ms. The same run with one turn of the event loop between
+ticks (`await new Promise((r) => setImmediate(r))`) has no full collection over
+18ms and no eden collection over 50ms. Production is the second case:
+`GameServer.tickIfDue` runs one tick per timer callback.
+
+The reason is the ECMAScript rule that `new WeakRef(target)` and
+`ref.deref()` keep `target` alive until the current job ends. `setStacks` makes
+a `WeakRef` to the source of every chunk and level it copies (the `lineage` in
+`app/lib/mapData.ts`), so a loop that never yields keeps every version of every
+chunk written since it started, with the `WeakMap` values keyed on them. A
+3,000-link chain built that way in a test script stayed alive through every
+natural collection in its job and was gone after one `setImmediate`. In the
+long loop, the full collection that stopped the world for seconds ran 2,352
+marking-constraint iterations (the `i#` count in a `BUN_JSC_logGC=1` line);
+with a turn per tick, no full collection needed more than 7. A whole second
+copy of the board (about 1.7M objects, 100 MB) also stays live until the first
+job ends, through `Bun.gc(true)` as well; after one turn the heap after a
+collection is 113 MB, not 212 MB. Which reference holds that copy was not
+traced. `GameServer.step(n)` in a `manualTicks` world runs `n` ticks in one
+job, so `bench:bots` and `bench:respawn` keep the same history for each call.
+
+**Measure collector pauses with a turn of the event loop between ticks.** The
+runs below are Rune Isle with players `p-camp`, `p-druids`, `p-warriors` and
+`p-inn` sent with `/goto` to -9 -90 1, -176 -212 1, 88 -188 1 and -16 -231 1,
+and the clock at 17:30 for 30 s, 18:00 for 600 s, 20:00, 23:00, 03:00, 06:00
+and 08:00 for 60, 60, 120, 300 and 60 s. Each tick was bracketed by `@start`
+and `@end <ms>` on stderr, under `BUN_JSC_logGC=1` with `BUN_OPTIONS` empty. A
+pause is the sum of a cycle's `p=` values. "#713" is `main` at `228d4b9`, "before
+#713" is that commit reverted, and each build ran twice, in turn:
+
+| build, loop | full: count, longest | eden: count, median, longest | ticks > 33ms, > 100ms | median tick |
+|---|---|---|---|---|
+| before #713, one job | 4, 4,442 / 4,217ms | 211 / 220, 13.0 / 11.6ms, 115 / 142ms | 18 / 17, 1 / 3 | 1.34 / 1.29ms |
+| #713, one job | 4, 2,407 / 4,048ms | 42 / 37, 42.7 / 53.8ms, 406 / 433ms | 26 / 27, 11 / 9 | 0.49 / 0.47ms |
+| before #713, a turn per tick | 9 / 10, 12.6 / 15.8ms | 959 / 960, 3.0 / 3.1ms, 50 / 20ms | 3 / 4, 0 / 0 | 1.33 / 1.36ms |
+| #713, a turn per tick | 6 / 7, 18.4 / 14.8ms | 206 / 207, 3.8 / 3.8ms, 14 / 15ms | 1 / 4, 0 / 0 | 0.49 / 0.48ms |
+
+So #713 cut eden collections fivefold and the per-collection pause stayed
+about the same; in one job, each eden also had to visit the history kept since
+the run started. The ticks over 33ms with a turn per tick are the change to
+23:00 (ticks 20,706–20,708) and one or two others, and none of them held more
+than a few milliseconds of collection.
+
+**A `WeakMap` entry costs every collection, eden ones too.** Every live entry
+of a live `WeakMap` adds to every collection's pause. One `WeakMap` of a
+million live keys took a test script's median eden pause from 1.5ms to 68ms;
+the same keys in a `Map` left it at 1.4ms. On the real `GameServer`, with the
+four players above joined and sent to the same cells, eden pauses were a
+median 24ms against 3–4ms for the session alone. The difference was
+`stackTexts` in `server/chunkJson.ts`, a `WeakMap` from each stack ever sent to
+its JSON: 266,437 live entries after 60 s, against 2,523 for the next largest
+(`cellIndexByChunk`, one per chunk). The text of an unchanged stack is now
+found through the earlier chunk text it was read into. Real `GameServer`, 300 s
+each (about 9,000 ticks), the two builds in turn:
+
+| build | full: count, median, longest | eden: count, median, longest | ticks > 33ms | median tick | heap after a full collection |
+|---|---|---|---|---|---|
+| `main` | 14 / 14, 65 / 74ms, 92 / 91ms | 279 / 290, 24.2 / 24.5ms, 180 / 55ms | 9 / 9 | 1.82 / 1.76ms | 234–237 MB |
+| `stackTexts` gone | 12 / 9, 10.6 / 10.9ms, 14 / 13ms | 250 / 256, 3.3 / 3.3ms, 11 / 12ms | 5 / 3 | 1.72 / 1.66ms | 213–221 MB |
+
+At 400 walking players (`bench:crowd --players 400`, two runs of each in
+turn) the tail of the tick moved and the middle did not: p99 tick 32.9 /
+70.9ms → 28.5 / 29.1ms, longest tick 167 / 193ms → 47 / 42ms, p99 gap between
+ticks 83 / 89ms → 40 / 40ms. The median tick was 15.2 / 14.7ms → 15.7 / 15.1ms,
+and `streamEnteredChunks`, which writes the handovers, 1.15 / 1.05ms →
+1.22 / 1.08ms a tick; `broadcastPatch`, which does not use `chunkJson`, moved
+by as much (2.63 / 2.67ms → 2.90 / 2.80ms). The remaining ticks over 33ms with
+four players contain no collection.
+
+None of this needed a collector setting: no `BUN_JSC_*` option and no
+scheduled `Bun.gc()`.

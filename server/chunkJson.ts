@@ -25,22 +25,33 @@ type StackText = {
 };
 
 const texts = new WeakMap<ChunkCells, ChunkText>();
-const stackTexts = new WeakMap<PlacedTile[], StackText>();
 
 const MAX_INHERIT_STEPS = 256;
 
 const NOBODY: ReadonlySet<string> = new Set();
 
-function stackTextOf(stack: PlacedTile[], key: string, z: number): StackText {
-  const kept = stackTexts.get(stack);
-  if (kept !== undefined && kept.key === key && kept.z === z) return kept;
+/**
+ * An unchanged stack keeps its text through the chunk text it was read into,
+ * not through a `WeakMap` keyed by the stack: every live entry adds to every
+ * collection's pause, eden ones too, and there would be one per stack ever sent.
+ */
+function stackTextOf(
+  stack: PlacedTile[],
+  key: string,
+  z: number,
+  was: StackText | undefined,
+): StackText {
+  if (was !== undefined && was.stack === stack) return was;
   let owners: string[] | null = null;
   for (const placed of stack) {
     if (placed.owner) (owners ??= []).push(placed.owner);
   }
-  const text: StackText = { key, z, stack, owners, bare: null, cell: null, entry: null };
-  stackTexts.set(stack, text);
-  return text;
+  return { key, z, stack, owners, bare: null, cell: null, entry: null };
+}
+
+function indexOf(text: ChunkText): Map<string, number> {
+  text.index ??= new Map(text.keys.map((key, i) => [key, i]));
+  return text.index;
 }
 
 function bareOf(text: StackText): string {
@@ -66,17 +77,32 @@ function textOf(chunk: ChunkCells, z: number): ChunkText {
   const kept = texts.get(chunk);
   /** Two levels can share one chunk object, and the level is part of the text. */
   if (kept && kept.z === z) return kept;
-  const text = inheritedText(chunk, z) ?? readText(chunk, z);
+  const text = inheritedText(chunk, z) ?? readText(chunk, z, ancestorText(chunk, z));
   texts.set(chunk, text);
   return text;
 }
 
-function readText(chunk: ChunkCells, z: number): ChunkText {
+/** The nearest earlier version of the chunk that was read at this level, however its keys changed since. */
+function ancestorText(chunk: ChunkCells, z: number): ChunkText | null {
+  let at = chunk;
+  for (let steps = 0; steps < MAX_INHERIT_STEPS; steps++) {
+    const link = chunkCopiedFrom(at);
+    if (link === null) return null;
+    const base = texts.get(link.from);
+    if (base !== undefined && base.z === z) return base;
+    at = link.from;
+  }
+  return null;
+}
+
+function readText(chunk: ChunkCells, z: number, base: ChunkText | null): ChunkText {
   const keys: string[] = [];
   const stacks: StackText[] = [];
+  const index = base && indexOf(base);
   let bodyCells = 0;
   for (const key in chunk) {
-    const stack = stackTextOf(chunk[key]!, key, z);
+    const at = index?.get(key);
+    const stack = stackTextOf(chunk[key]!, key, z, at === undefined ? undefined : base!.stacks[at]);
     keys.push(key);
     stacks.push(stack);
     if (stack.owners) bodyCells++;
@@ -107,14 +133,14 @@ function carriedDown(
   z: number,
   written: ReadonlySet<string>,
 ): ChunkText {
-  const index = (base.index ??= new Map(base.keys.map((key, i) => [key, i])));
+  const index = indexOf(base);
   const stacks = base.stacks.slice();
   let bodyCells = base.bodyCells;
   let sameText = true;
   for (const key of written) {
     const i = index.get(key)!;
     const was = stacks[i]!;
-    const now = stackTextOf(chunk[key]!, key, z);
+    const now = stackTextOf(chunk[key]!, key, z, was);
     if (now === was) continue;
     if (bareOf(now) !== bareOf(was)) sameText = false;
     if (was.owners) bodyCells--;
