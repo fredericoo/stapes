@@ -3128,9 +3128,10 @@ What this leaves for later:
   what `markOutside` in `app/lib/lightingFlood.ts` computes today from cells.
 - **A body more than eight levels away is not sent at all**, and a creature
   brain counts as unobserved by a player that far above or below it.
-- **The editor still builds a mesh for every level the map holds** and only
-  draws the band, so its memory and its rebuild on load grow with content
-  depth. It is admin-only.
+- **The editor meshes the band it draws, and only around its camera** (see
+  "The editor meshes the play renderer's window, and draws a level at a
+  time"), but it still reads the whole map into memory, so its load time
+  grows with content. It is admin-only.
 - **An edit on any level invalidates that chunk column for every light band
   the client has cached**, including bands it cannot affect. Before this
   change there was one band and the same edit invalidated it too.
@@ -16288,6 +16289,70 @@ it held when it was first read. Fractional
 coordinates are not slots and go through the cell key as before. On the fixture
 town it took a `getStack` call from about 155ns to 95ns.
 
+### The editor meshes the play renderer's window, and draws a level at a time
+
+`EditorRenderer` used to build every level the map held at load, one mesh per
+(level, texture), and to bake light across the whole map in the light band.
+On Rune Isle that was 659,000 quads, 136 meshes and 1.3M triangles drawn from
+the corner of the map, and a 1.4s bake on every lighting update. It now keeps
+only what a window over its camera reaches, through the same pieces the play
+renderer uses:
+
+- **The window is `visibleChunkKeys` over the camera rect**, with the levels
+  `drawnLevelRange` (`app/editor/levelBand.ts`) returns: every level
+  `levelVisibility` does not hide. With "show other levels" off that is the
+  current level and the eight below it; preview and "show other levels" add
+  the eight above. A level that is never drawn is never built.
+- **A chunk is the unit of build, as in play**: built when it enters the
+  window, dropped when it leaves, rebuilt when an edit changes a cell in it
+  or in the ring of cells around it, so an autotile seam at a chunk edge is
+  rebuilt on both sides. Chunks within `MESH_BUILD_NOW_MARGIN` are built at
+  once and the rest are queued (`buildQueuedNearestFirst`). After a load or a
+  jump to a window that does not overlap the last one, every chunk is built
+  at once: nothing is on screen yet, and under SwiftShader a queue drained at
+  2ms a frame made the previous map's ready time worse (10.8–12.2s against
+  6.8–7.7s) instead of better.
+- **A level is the unit of draw, which play does not do.** Each chunk keeps
+  its batches per texture as geometry that is never uploaded, and each level
+  draws one `concatQuadGeometries` of its chunks' batches per texture. Drawing
+  chunks the way play does would make the draw calls grow with the zoom: at
+  zoom 1 the window over the warriors' town is 160 chunks. The cost is that a
+  chunk entering or leaving copies its level's batches (see "Known remaining
+  costs").
+- **A level's animation table only grows** while its chunks come and go, as
+  in play, so a merged quad's row stays valid until the geometry is discarded.
+- **Light is `ChunkedLighting` over the play renderer's light window**, the
+  union of the drawn levels' rects across `lightLevels`, uploaded through the
+  shared `LevelLights`. The sun and the ambient are uniforms over the baked
+  arc spans, as in play, so the time-of-day slider no longer rebakes. This also
+  changed what the editor shows: it used to compose the sun into the light map
+  on the CPU, which put a bright fringe along the edges of buildings in the
+  sun. That fringe is gone, and the editor's lighting is now the game's.
+
+Measured in headless Chromium against Vite's dev server at 1280×720, on
+Rune Isle (405,000 cells, 16 levels) and on the map before it (the previous
+`data/map.json`, 240,000 quads, 8 levels). Each "before" is `main` at
+`54fd1b8`; frame times are `measureRenders(60)`, the CPU cost of a frame:
+
+| | before | after |
+|---|---|---|
+| Rune Isle, ready | 11.5–14.6s | 6.6–7.2s |
+| Rune Isle, JS heap at ready (before / after GC) | 547–842 / 93–95 MB | 166–346 / 90–91 MB |
+| Rune Isle, light bake | 1,381ms | 102ms at the corner; 171–325ms on a jump to the town; 25–36ms on a level change there |
+| Rune Isle default view: quads meshed, meshes, draw calls, triangles | 656,243, 136, 117, 1.31M | 2,141, 9, 12, 4,284 |
+| Rune Isle default view, frame p50 / p95 | 0.7 / 1.4–1.7ms | 0.2–0.3 / 0.5ms |
+| Warriors' town, zoom 4: quads, meshes, calls | 656,243, 136, 119 | 8,943, 19, 21 |
+| Warriors' town, zoom 1: quads, meshes, calls | 656,243, 136, 119 | 54,851, 27, 29 |
+| Previous map, ready | 6.8–7.7s | 4.5–5.4s |
+| Previous map: quads, meshes, calls, triangles | 240,180, 101, 105, 480,074 | 18,339, 58, 62, 36,682 |
+| Previous map, frame p50 / p95 | 1.0–1.1 / 1.4–1.5ms | 0.7–0.8 / 1.2ms |
+
+The default view is the camera the editor opens on and the one
+`e2e/renderer-perf.spec.ts` measures. The budgets per quad in
+`app/editor/perf.ts` are now taken over the quads meshed (`meshedQuads`), not
+the quads the map holds (`placedQuads`), since the map no longer bounds what is
+drawn.
+
 ### Do not sweep for the player
 
 `requireSinglePlayer` is a full map sweep. `GameSession` memoises it on map
@@ -17295,13 +17360,23 @@ Not yet fixed, and worth knowing before you profile something else:
   nodes and sharing distance maps were both measured against the current cost
   and left out (see "A creature thinks every round only while somebody could
   notice it").
-- **The editor reads and meshes the whole map.** On Rune Isle `/admin/map`
-  is ready after about 13 seconds in headless Chromium, with a 575 MB heap,
-  659,000 quads and 135 world meshes across 16 levels; `maxWorldMeshes` in
-  `app/editor/perf.ts` was raised from 98 to 140 for it, because the count
-  grows with the levels the map holds and the lighthouse alone is 16.
-- **The editor is a second, unchunked lighting path** and will hit the same wall
-  the play renderer already climbed.
+- **The editor still reads the whole map.** On Rune Isle `/admin/map` is
+  ready after about 7 seconds in headless Chromium against Vite's dev server,
+  and none of that is meshing any more: it is fetching 23 MB, `parseMap`
+  (about 530ms in Bun) and the `serializeMap` comparison in the store's
+  `hydrate` (about 540ms). Tools read the `MapFile`, so it has to be in
+  memory; the comparison does not.
+- **A pan in the editor re-concatenates every level a new chunk lands on.**
+  Each level is one mesh per texture (see below), so a chunk entering or
+  leaving copies that level's whole batch. A 4-cell pan step over the
+  warriors' town costs 3ms at the median and 16ms at worst at zoom 4, and
+  11ms and 46ms at zoom 1, against about 2ms and 4–5ms before. The lever is
+  a draw unit between a chunk and a level, which the draw-call budget has to
+  allow.
+- **The editor bakes light on the main thread.** It uses `ChunkedLighting`
+  without the play renderer's `WorkerChunkBaker`, so a pan that uncovers a
+  light chunk bakes it in the debounced update: 170–330ms for a jump to the
+  town at zoom 4 or 1, where the whole-map bake it replaced was about 1.4s.
 
 ## A bot is a player in another process
 
