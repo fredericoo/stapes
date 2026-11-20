@@ -1,0 +1,18 @@
+{
+  "time": "22:00",
+  "zoom": 5,
+  "look": [5, 4],
+  "cells": [
+    { "from": [-3, -2], "to": [13, 10], "tiles": ["grass-2"] },
+    { "from": [0, 1], "to": [10, 1], "tiles": ["grass-2", "brick-wall"] },
+    { "from": [0, 2], "to": [10, 7], "tiles": ["grass-2", "wooden-floor"] },
+    { "at": [2, 2], "tiles": ["grass-2", "wooden-floor", { "tile": "lantern", "foot": 2 }] },
+    { "at": [5, 2], "tiles": ["grass-2", "wooden-floor", { "tile": "lantern-off", "foot": 2 }] },
+    { "at": [8, 4], "tiles": ["grass-2", "wooden-floor", "lantern"] },
+    { "at": [8, 6], "tiles": ["grass-2", "wooden-floor", "lantern-off"] },
+    { "at": [3, 5], "tiles": ["grass-2", "wooden-floor", "table", "candle"] },
+    { "at": [4, 5], "tiles": ["grass-2", "wooden-floor", "table", "candle-off"] },
+    { "at": [6, 5], "tiles": ["grass-2", "wooden-floor", "barrel", "candle"] },
+    { "at": [12, 4], "tiles": ["grass-2", "lamppost"] }
+  ]
+}

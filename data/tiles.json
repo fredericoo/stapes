@@ -218316,5 +218316,277 @@
       "hill-cave-mouth-sandstone",
       "hill-cave-mouth-basalt"
     ]
+  },
+  {
+    "id": "lantern",
+    "name": "Lantern",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lanterns",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "lantern-off",
+        "actionName": "Put out"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 380,
+          "light": {
+            "radius": 6,
+            "color": "#ffcc88",
+            "intensity": 0.95
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 260,
+          "light": {
+            "radius": 6,
+            "color": "#ffcc88",
+            "intensity": 0.82
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 320,
+          "light": {
+            "radius": 6,
+            "color": "#ffcc88",
+            "intensity": 0.9
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 240,
+          "light": {
+            "radius": 6,
+            "color": "#ffcc88",
+            "intensity": 0.76
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lantern-off",
+    "name": "Unlit Lantern",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lanterns",
+      "x": 0,
+      "y": 2
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "lantern",
+        "actionName": "Light"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "candle",
+    "name": "Candle",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lanterns",
+      "x": 0,
+      "y": 4
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "candle-off",
+        "actionName": "Snuff"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "color": "#ffc27a",
+            "intensity": 0.9
+          }
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 22,
+      "ttlFromMs": 350,
+      "ttlToMs": 550,
+      "spawnRadiusCells": 0.02,
+      "spawnElevFrom": 2,
+      "spawnElevTo": 2.1,
+      "riseFrom": 0.8,
+      "riseTo": 1.2,
+      "driftCellsPerSecond": 0,
+      "gravity": 0,
+      "offsetX": "0.04 * sin(AGE_SEC * 18 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "lit": false,
+      "ownDepth": false,
+      "shape": null,
+      "sizeFromPx": 1,
+      "sizeToPx": null,
+      "radiusFromPx": 0.7,
+      "radiusToPx": 0.5,
+      "alphaFrom": 1,
+      "alphaTo": 0.3,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#fbb954"
+        },
+        {
+          "at": 0.45,
+          "color": "#f79617"
+        },
+        {
+          "at": 0.8,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 1,
+          "color": "#ae2334"
+        }
+      ]
+    }
+  },
+  {
+    "id": "candle-off",
+    "name": "Unlit Candle",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lanterns",
+      "x": 0,
+      "y": 6
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "candle",
+        "actionName": "Light"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

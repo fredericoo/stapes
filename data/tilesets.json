@@ -347,5 +347,12 @@
     "width": 48,
     "height": 376,
     "translucent": true
+  },
+  {
+    "id": "lanterns",
+    "name": "Lanterns",
+    "file": "lanterns.png",
+    "width": 32,
+    "height": 64
   }
 ]
