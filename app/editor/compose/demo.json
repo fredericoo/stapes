@@ -29,7 +29,24 @@
           "onlyOn": ["sand"],
           "density": 50,
           "path": null
-        }
+        },
+        "children": [
+          {
+            "type": "mask",
+            "key": "glade",
+            "frame": {
+              "x": 12,
+              "y": 6,
+              "w": 12,
+              "h": 9
+            },
+            "props": {
+              "shape": "oval",
+              "op": "subtract",
+              "ragged": 45
+            }
+          }
+        ]
       },
       {
         "type": "river",
@@ -46,7 +63,149 @@
             "pinX": "scale",
             "pinY": "bottom"
           },
-          "width": 2
+          "width": 2,
+          "wander": 35
+        }
+      },
+      {
+        "type": "fill",
+        "key": "lake",
+        "frame": {
+          "x": 60,
+          "y": 16,
+          "w": 18,
+          "h": 13
+        },
+        "props": {
+          "tiles": ["water", "deep-water"],
+          "edge": ["water"],
+          "edgeWidth": 2,
+          "mode": "replace"
+        },
+        "children": [
+          {
+            "type": "mask",
+            "key": "lake-shape",
+            "props": {
+              "shape": "oval",
+              "op": "intersect",
+              "ragged": 35
+            }
+          }
+        ]
+      },
+      {
+        "type": "river",
+        "key": "creek",
+        "props": {
+          "from": {
+            "in": "lake",
+            "x": 0,
+            "y": 1,
+            "pinX": "center",
+            "pinY": "bottom"
+          },
+          "via": [
+            {
+              "x": 72,
+              "y": 46
+            }
+          ],
+          "to": {
+            "x": 0.82,
+            "y": 0,
+            "pinX": "scale",
+            "pinY": "bottom"
+          },
+          "width": 1,
+          "wander": 45,
+          "bendLength": 10
+        }
+      },
+      {
+        "type": "fill",
+        "key": "swamp",
+        "frame": {
+          "x": 48,
+          "y": 36,
+          "w": 40,
+          "h": 30
+        },
+        "props": {
+          "tiles": ["mud", "water", "swamp"],
+          "edge": ["mud"],
+          "edgeWidth": 1,
+          "mode": "replace"
+        },
+        "children": [
+          {
+            "type": "mask",
+            "key": "along-creek",
+            "props": {
+              "from": "creek",
+              "op": "intersect",
+              "grow": 4,
+              "ragged": 50
+            }
+          },
+          {
+            "type": "mask",
+            "key": "swamp-shape",
+            "frame": {
+              "x": 4,
+              "y": 2,
+              "w": 32,
+              "h": 26
+            },
+            "props": {
+              "shape": "oval",
+              "op": "intersect",
+              "ragged": 40
+            }
+          }
+        ]
+      },
+      {
+        "type": "scatter",
+        "key": "reeds",
+        "frame": {
+          "x": 48,
+          "y": 36,
+          "w": 40,
+          "h": 30
+        },
+        "props": {
+          "tiles": [
+            {
+              "tile": "reeds",
+              "weight": 3
+            },
+            {
+              "tile": "cattails",
+              "weight": 2
+            },
+            {
+              "tile": "duckweed",
+              "weight": 2
+            },
+            {
+              "tile": "swamp-lily",
+              "weight": 1
+            }
+          ],
+          "density": 14,
+          "clumping": 60,
+          "onlyOn": ["swamp"]
+        }
+      },
+      {
+        "type": "scatter",
+        "key": "wildflowers",
+        "props": {
+          "density": 4,
+          "clumping": 70,
+          "clumpSize": 8,
+          "onlyOn": ["sand"]
         }
       },
       {
