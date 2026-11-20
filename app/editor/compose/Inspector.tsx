@@ -20,12 +20,21 @@ function spaced(name: string): string {
   return name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
+/**
+ * A row is a group rather than a `<label>`: a label names and clicks the
+ * first control inside it, and a row can hold several (a point's frame,
+ * offsets and pins), so each control carries its own `aria-label` instead.
+ */
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="grid grid-cols-[7.5rem_1fr] items-center gap-2 text-sm">
+    <div
+      role="group"
+      aria-label={label}
+      className="grid grid-cols-[7.5rem_1fr] items-center gap-2 text-sm"
+    >
       <span className="truncate text-muted">{label}</span>
       <span className="flex min-w-0 flex-wrap items-center gap-1">{children}</span>
-    </label>
+    </div>
   );
 }
 
