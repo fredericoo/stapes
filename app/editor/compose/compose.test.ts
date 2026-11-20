@@ -187,6 +187,31 @@ describe("buildMap", () => {
     expect(problems).toEqual([{ key: "shed", reason: "wall: Tree is not a wall" }]);
   });
 
+  it("places a tile with its placement settings and no facing it cannot take", () => {
+    const { map, problems } = build(
+      doc(
+        field([
+          {
+            type: "tile",
+            key: "loot",
+            props: {
+              tile: "quest-chest",
+              at: { x: 5, y: 6 },
+              facing: "e",
+              placement: { rewardTag: "first-chest", rewardTileIds: ["apple"], direction: "n" },
+            },
+          },
+        ]),
+      ),
+    );
+    expect(problems).toEqual([]);
+    expect(getStack(map, 5, 6, 0).at(-1)).toEqual({
+      tileId: "quest-chest",
+      rewardTag: "first-chest",
+      rewardTileIds: ["apple"],
+    });
+  });
+
   it("writes nothing outside its parent's frame", () => {
     const { map } = build(
       doc(

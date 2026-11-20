@@ -450,8 +450,8 @@ export default function ComposePage() {
             {spawns !== 1 ? (
               <p className="text-danger">
                 {spawns === 0
-                  ? "The map has no spawn. Add a Spawn layer so new players have somewhere to start."
-                  : `The map has ${spawns} spawns and a world takes exactly one.`}
+                  ? "The map has no spawn. Add a Tile layer holding the Player tile so new players have somewhere to start."
+                  : `The map has ${spawns} Player tiles and a world takes exactly one.`}
               </p>
             ) : null}
             {built.problems.length ? (

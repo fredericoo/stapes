@@ -5,7 +5,7 @@ import { house } from "./house";
 import { island } from "./island";
 import { river } from "./river";
 import { road } from "./road";
-import { spawn } from "./spawn";
+import { tile } from "./tile";
 
 const all: ReadonlyArray<Component<never>> = [
   group,
@@ -14,7 +14,7 @@ const all: ReadonlyArray<Component<never>> = [
   house,
   road,
   river,
-  spawn,
+  tile,
 ] as never;
 
 export const COMPONENTS: ComponentRegistry = Object.fromEntries(all.map((c) => [c.type, c]));

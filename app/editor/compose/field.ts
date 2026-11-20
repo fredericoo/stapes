@@ -57,7 +57,8 @@ export type FieldMeta =
   | { field: "weighted"; tiles: TileKind }
   | { field: "point"; level: boolean }
   | { field: "direction" }
-  | { field: "percent" };
+  | { field: "percent" }
+  | { field: "placement"; tileProp: string };
 
 /**
  * The props a component can ask for. Each is an ordinary valibot schema, so
@@ -87,6 +88,12 @@ export const field = {
     v.pipe(
       v.picklist(DIRECTIONS as [Direction, ...Direction[]]),
       v.metadata({ field: "direction" } satisfies FieldMeta),
+    ),
+  /** The placement settings of the tile named by the prop `tileProp`, edited in the map editor's dialog. */
+  placement: (tileProp: string) =>
+    v.pipe(
+      v.record(v.string(), v.unknown()),
+      v.metadata({ field: "placement", tileProp } satisfies FieldMeta),
     ),
   percent: () =>
     v.pipe(

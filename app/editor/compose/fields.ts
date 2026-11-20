@@ -8,6 +8,7 @@ export type Field =
   | { kind: "point"; level: boolean }
   | { kind: "direction" }
   | { kind: "percent" }
+  | { kind: "placement"; tileProp: string }
   | { kind: "number"; min?: number; max?: number; integer: boolean }
   | { kind: "string" }
   | { kind: "boolean" }
@@ -34,6 +35,7 @@ function requirement(schema: Introspected, type: string): number | undefined {
 function fromMeta(meta: FieldMeta): Field {
   if (meta.field === "point") return { kind: "point", level: meta.level };
   if (meta.field === "direction" || meta.field === "percent") return { kind: meta.field };
+  if (meta.field === "placement") return { kind: "placement", tileProp: meta.tileProp };
   return { kind: meta.field, tiles: meta.tiles };
 }
 

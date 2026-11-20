@@ -7,6 +7,7 @@ import { allKeys, reframeNode, renameNode, updateNode } from "./edit";
 import { fieldsOf, type Field } from "./fields";
 import type { Bounds } from "../generator";
 import { pointFor, pointFrame, type Layout, type Placement } from "./layout";
+import { PlacementField } from "./PlacementField";
 import { TilePicker, TileSet, WeightedTiles } from "./TilePicker";
 
 const UINT32 = 4294967296;
@@ -214,6 +215,7 @@ function FieldEditor({
   label,
   frameOf,
   pickCell,
+  nodeProps,
 }: {
   field: Field;
   value: unknown;
@@ -223,6 +225,7 @@ function FieldEditor({
   label: string;
   frameOf: (point: Point) => Bounds | null;
   pickCell: PickCell;
+  nodeProps: Record<string, unknown>;
 }): ReactNode {
   switch (field.kind) {
     case "number":
@@ -292,6 +295,14 @@ function FieldEditor({
           onChange={onChange}
         />
       );
+    case "placement":
+      return (
+        <PlacementField
+          tileId={String(nodeProps[field.tileProp] ?? "")}
+          value={(value as Record<string, unknown> | undefined) ?? {}}
+          onChange={onChange}
+        />
+      );
     case "boolean":
       return <Switch ariaLabel={label} checked={value === true} onCheckedChange={onChange} />;
     case "enum":
@@ -334,6 +345,7 @@ function FieldEditor({
                 label={label}
                 frameOf={frameOf}
                 pickCell={pickCell}
+                nodeProps={nodeProps}
               />
             </span>
           ) : null}
@@ -522,6 +534,7 @@ export function Inspector({
                 value={node.props && name in node.props ? node.props[name] : fallback}
                 onChange={(value) => setProp(name, value)}
                 pickCell={pickCell}
+                nodeProps={node.props ?? {}}
                 frameOf={(point) => (placement ? pointFrame(built.layout, placement, point) : null)}
               />
             </Row>

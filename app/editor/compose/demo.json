@@ -84,9 +84,10 @@
         }
       },
       {
-        "type": "spawn",
+        "type": "tile",
         "key": "start",
         "props": {
+          "tile": "player",
           "at": {
             "in": "cottage",
             "x": 0,
