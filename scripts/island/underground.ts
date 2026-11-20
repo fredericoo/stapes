@@ -70,9 +70,13 @@ export type Entrance = {
   at: { x: number; y: number; z: number };
 };
 
+/** A room or hall as it was asked for, in map cells, for whatever is placed in it later. */
+export type CaveRoom = { name: string; x: number; y: number; z: number; rx: number; ry: number };
+
 export type Underground = {
   places: CavePlace[];
   entrances: Entrance[];
+  rooms: CaveRoom[];
   cells: number;
   levels: number[];
 };
@@ -241,6 +245,7 @@ export class Digger {
   private readonly protectedCells = new Set<string>();
   readonly places: CavePlace[] = [];
   readonly entrances: Entrance[] = [];
+  readonly rooms: CaveRoom[] = [];
   private readonly townChunks = new Set<string>();
   private readonly surfaceEdits: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> =
     [];
@@ -355,6 +360,7 @@ export class Digger {
     const cx = this.gx(mx);
     const cy = this.gy(my);
     const seed = hashName(name);
+    this.rooms.push({ name, x: mx, y: my, z, rx, ry });
     for (let y = cy - ry - 3; y <= cy + ry + 3; y++)
       for (let x = cx - rx - 3; x <= cx + rx + 3; x++) {
         const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
@@ -402,6 +408,14 @@ export class Digger {
 
   /** A rectangular hall, for the barrow. */
   hall(mx0: number, my0: number, mx1: number, my1: number, z: number, style: StyleId) {
+    this.rooms.push({
+      name: `${style} hall`,
+      x: Math.round((mx0 + mx1) / 2),
+      y: Math.round((my0 + my1) / 2),
+      z,
+      rx: Math.ceil((mx1 - mx0) / 2),
+      ry: Math.ceil((my1 - my0) / 2),
+    });
     for (let y = this.gy(my0); y <= this.gy(my1); y++)
       for (let x = this.gx(mx0); x <= this.gx(mx1); x++) this.dig(x, y, z, STYLES[style]);
   }
@@ -840,6 +854,7 @@ export class Digger {
     return {
       places: this.places,
       entrances: this.entrances,
+      rooms: this.rooms,
       cells,
       levels: [...this.levels.keys()].sort((a, b) => a - b),
     };

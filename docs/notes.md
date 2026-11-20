@@ -10600,6 +10600,20 @@ that depends on facing can be looked at from each side without walking the
 body there. Only the four cardinals are accepted, because `turnActor` stores a
 `Direction`. A brain that is on turns the body again on its next step, so put
 it `off` with `/brain` first when the facing has to hold.
+### `/invisible` is the menu's Invisible switch, typed
+
+`/invisible` hides the administrator who types it and `/invisible off` shows
+them again, as the switch in the game menu does (see *A hidden administrator
+is a body left out of everybody else's `held`*). It is there so a script
+driving `/admin/play` can go where creatures are without being killed.
+
+- **The session hides the body; the server does the rest.** `runCommand`
+  calls `GameSession.setHidden`, and `GameServer` compares `hiddenOf` before
+  and after the command. On a change it does what the switch does, through the
+  same `noteHiddenChanged`: it saves the flag, sends `left` or `joined`,
+  updates the headcount, and sends `hidden` to the author's sockets so the
+  switch in the menu agrees.
+
 ### `/fire` sends a projectile's flight, and nothing that travels with one
 
 `/fire <projectile> <from> <to>` looses a projectile tile from one end to the
@@ -19227,3 +19241,35 @@ four players contain no collection.
 
 None of this needed a collector setting: no `BUN_JSC_*` option and no
 scheduled `Bun.gc()`.
+
+## Rune Isle's creatures are placed by the generator, land by land
+
+`scripts/island/creatures.ts` puts every wild creature on the island after the
+ground has settled, and `docs/map.md` lists each habitat with what it holds.
+A habitat is a set of cells and the creatures wanted there: surface cells
+picked by ground (`Ground.Beach` within four cells of the shallows, desert by
+its distance from the desert's edge, `Ground.Bog`), or the rooms `Digger`
+dug, which it now records by name (`Underground.rooms`). Each element's land
+is split into tiers by how far into it a cell is, so a slime is at a land's
+edge and a troll or a yeti at its centre or on its lowest floor.
+
+- **Only cells a player can reach.** The generator walks the map from the
+  wreck beach with `reachable` (`scripts/island/reach.ts`) before placing, and
+  a cell outside that walk gets nothing. It costs about five seconds of the
+  run.
+- **The Ember deeps' two lava floors are out of that walk.** It reaches 2
+  cells on level -5 and none on -6, because the stair down from -4 lands
+  among lava and a step that hurts on arrival is not a leg. `verify caves`
+  walks those floors because it walks with no status definitions, so lava
+  does not burn there. A player gets down only by walking through lava, so
+  the habitat placed there holds nothing until the cave has a way round it.
+- **Nothing hostile near the start.** The wreck beach road is traced from
+  the beach along `plan.road` into the camp's site, and nothing but deer and
+  rabbits stands within 26 cells of it or of the camp, nor anything hostile
+  within 18 of any settlement's site.
+- **A body has to fit under its roof.** Each placement asks `canPlace` on a
+  few cells of the board round it, since a yeti is taller than some cave
+  ceilings and `verify content` warns about a body that does not fit.
+- **A wisp gets its flower ring from the generator.** The ring and the cleared
+  flowers round it follow *The forest wisps*, so a moved wisp moves its ring
+  on the next run.

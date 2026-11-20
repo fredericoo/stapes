@@ -29,12 +29,15 @@ export const GIVE_COMMAND = "give";
 export const BRAIN_COMMAND = "brain";
 export const FIRE_COMMAND = "fire";
 export const FACE_COMMAND = "face";
+export const INVISIBLE_COMMAND = "invisible";
 
 export const STATUS_CLEAR_ARGUMENT = "clear";
 export const STATUS_OFF_ARGUMENT = "off";
 export const BRAIN_OFF_ARGUMENT = "off";
 export const BRAIN_ON_ARGUMENT = "on";
 export const WEATHER_AUTO_ARGUMENT = "auto";
+export const INVISIBLE_OFF_ARGUMENT = "off";
+export const INVISIBLE_ON_ARGUMENT = "on";
 
 export type CommandName =
   | typeof MASTERY_COMMAND
@@ -50,7 +53,8 @@ export type CommandName =
   | typeof GIVE_COMMAND
   | typeof BRAIN_COMMAND
   | typeof FIRE_COMMAND
-  | typeof FACE_COMMAND;
+  | typeof FACE_COMMAND
+  | typeof INVISIBLE_COMMAND;
 
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_EARNED_MASTERY}-${MAX_MASTERY}> [player id]`,
@@ -67,6 +71,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   [BRAIN_COMMAND]: `${COMMAND_PREFIX}${BRAIN_COMMAND} <body> <${BRAIN_OFF_ARGUMENT} | ${BRAIN_ON_ARGUMENT} | state>`,
   [FIRE_COMMAND]: `${COMMAND_PREFIX}${FIRE_COMMAND} <projectile> <body | x,y[,z]> <body | x,y[,z]>`,
   [FACE_COMMAND]: `${COMMAND_PREFIX}${FACE_COMMAND} <body> <n | e | s | w>`,
+  [INVISIBLE_COMMAND]: `${COMMAND_PREFIX}${INVISIBLE_COMMAND} [${INVISIBLE_ON_ARGUMENT} | ${INVISIBLE_OFF_ARGUMENT}]`,
 };
 
 export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
@@ -153,7 +158,8 @@ export type Command =
       name: typeof FACE_COMMAND;
       target: string | null;
       direction: Direction;
-    };
+    }
+  | { name: typeof INVISIBLE_COMMAND; on: boolean };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
 export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
@@ -166,6 +172,7 @@ export type DespawnCommand = Extract<Command, { name: typeof DESPAWN_COMMAND }>;
 export type GiveCommand = Extract<Command, { name: typeof GIVE_COMMAND }>;
 export type BrainCommand = Extract<Command, { name: typeof BRAIN_COMMAND }>;
 export type FaceCommand = Extract<Command, { name: typeof FACE_COMMAND }>;
+export type InvisibleCommand = Extract<Command, { name: typeof INVISIBLE_COMMAND }>;
 
 export type BrainChange = { kind: "off" } | { kind: "on" } | { kind: "state"; state: string };
 
@@ -246,7 +253,8 @@ export type CommandData =
       target: string | null;
       flightMs: number;
     }
-  | { command: typeof FACE_COMMAND; target: string; direction: Direction };
+  | { command: typeof FACE_COMMAND; target: string; direction: Direction }
+  | { command: typeof INVISIBLE_COMMAND; on: boolean };
 
 export type CommandOutcome =
   | { ok: true; data: CommandData; ids?: readonly string[] }
@@ -294,6 +302,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseBrainArguments(args);
     case FACE_COMMAND:
       return parseFaceArguments(args);
+    case INVISIBLE_COMMAND:
+      return parseInvisibleArguments(args);
     case FIRE_COMMAND:
       return parseFireArguments(args);
     default:
@@ -602,6 +612,15 @@ function parseFaceArguments(args: string[]): CommandParse {
   const direction = DIRECTION_WORDS[word.toLowerCase()];
   if (!direction) return { ok: false, refusal: { kind: "notADirection", typed: word } };
   return { ok: true, command: { name: FACE_COMMAND, target: targetOf(bodyToken), direction } };
+}
+
+function parseInvisibleArguments(args: string[]): CommandParse {
+  const [word = INVISIBLE_ON_ARGUMENT] = args;
+  const choice = word.toLowerCase();
+  if (args.length > 1 || (choice !== INVISIBLE_ON_ARGUMENT && choice !== INVISIBLE_OFF_ARGUMENT)) {
+    return { ok: false, refusal: { kind: "badArguments", command: INVISIBLE_COMMAND } };
+  }
+  return { ok: true, command: { name: INVISIBLE_COMMAND, on: choice === INVISIBLE_ON_ARGUMENT } };
 }
 
 function parseFireArguments(args: string[]): CommandParse {

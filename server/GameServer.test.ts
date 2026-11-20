@@ -4533,6 +4533,18 @@ describe("an administrator hiding", () => {
     expect(await gone).not.toBeNull();
   });
 
+  it("happens on `/invisible` as it does on the menu's switch", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+
+    const gone = eventWithin(bob.ws, "despawned", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
+    const answer = hiddenWithin(alice.ws, true);
+    send(alice.ws, { type: "command", text: "/invisible", requestId: 0 });
+
+    expect(await answer).toEqual({ type: "hidden", on: true });
+    expect(await gone).not.toBeNull();
+  });
+
   it("does not tell the administrator they have left", async () => {
     const alice = await connect("alice");
     await connect("bob", { admin: false });

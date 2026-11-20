@@ -161,6 +161,7 @@ import {
   spawnNotice,
   despawnNotice,
   faceNotice,
+  invisibleNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   otherStatusRemovedNotice,
@@ -182,6 +183,7 @@ import {
   BRAIN_COMMAND,
   DESPAWN_COMMAND,
   FACE_COMMAND,
+  INVISIBLE_COMMAND,
   FIRE_COMMAND,
   GIVE_COMMAND,
   GOTO_COMMAND,
@@ -198,6 +200,7 @@ import {
   type WeatherCommand,
   type BrainCommand,
   type FaceCommand,
+  type InvisibleCommand,
   type Command,
   type CommandOutcome,
   type CommandRefusal,
@@ -6173,7 +6176,17 @@ export class GameSession implements PlaySession {
         return this.runFireCommand(command, id);
       case FACE_COMMAND:
         return this.runFaceCommand(command, id);
+      case INVISIBLE_COMMAND:
+        return this.runInvisibleCommand(command, id);
     }
+  }
+
+  private runInvisibleCommand(command: InvisibleCommand, id: string): CommandOutcome {
+    if (!this.setHidden(command.on, id)) {
+      return { ok: false, refusal: { kind: "noSuchTarget", typed: id } };
+    }
+    this.say(id, invisibleNotice(command.on));
+    return { ok: true, data: { command: INVISIBLE_COMMAND, on: command.on } };
   }
 
   private runFaceCommand(command: FaceCommand, id: string): CommandOutcome {

@@ -1,5 +1,6 @@
 import { WALK_DURATION_MS } from "../../app/game/constants";
 import type { Builder } from "./build";
+import type { Land, PlacedHabitat } from "./creatures";
 import { PLACES, type PlaceId } from "./layout";
 import type { Plan } from "./plan";
 import type { Island } from "./terrain";
@@ -29,6 +30,7 @@ export function mapDoc(
   island: Island,
   settings: { seed: number; cellsPerPixel: number },
   underground: Underground,
+  creatures: PlacedHabitat[],
 ): string {
   const w = (x: number, y: number, z: number) => b.world(x, y, z);
   const lines: string[] = [];
@@ -47,7 +49,8 @@ export function mapDoc(
     "",
     "Each character's tile stands in the cell under *Stands*, which their routines",
     "read as their home; `docs/notes.md`, *The cast is placed at work*, says why",
-    "that is the work cell for most of them. No wild creature is placed.",
+    "that is the work cell for most of them. The wild creatures are under",
+    "*Creatures*.",
     "",
     "## Places",
     "",
@@ -133,7 +136,7 @@ export function mapDoc(
     "from its own entrances and gets harder the deeper it goes; the deep way on",
     "level -4 joins every descent, and the Ember heart on -6 is the lowest floor.",
     "Floors are joined by `stone-stairs`, ladders and holes, and every hole has a",
-    "way back up. Nothing lives in them yet. No cave runs under a chunk of either",
+    "way back up. No cave runs under a chunk of either",
     `town. The underground adds ${underground.cells.toLocaleString("en")} cells to the map.`,
     "",
     "| Place | Levels | Where | What |",
@@ -150,6 +153,52 @@ export function mapDoc(
     "| --- | --- | --- |",
   );
   for (const e of underground.entrances) lines.push(`| ${e.place} | ${e.by} | ${cell(e.at)} |`);
-  lines.push("");
+  lines.push(...creatureSection(creatures), "");
   return lines.join("\n");
+}
+
+const LANDS: Record<Land, string> = {
+  camp: "Round the camp",
+  water: "Water",
+  fire: "Fire",
+  nature: "Nature",
+  barrow: "The barrow",
+  roads: "The roads",
+  deep: "The deep way",
+};
+
+/** Every habitat `scripts/island/creatures.ts` filled, by land and then by tier, with what it holds. */
+function creatureSection(creatures: PlacedHabitat[]): string[] {
+  const total = creatures.reduce(
+    (sum, h) => sum + Object.values(h.placed).reduce((a, c) => a + c, 0),
+    0,
+  );
+  const lines = [
+    "",
+    "## Creatures",
+    "",
+    "Placed by `scripts/island/creatures.ts`. Each elemental land starts with its",
+    "weakest creatures at its edge and keeps its strongest for its centre, and each",
+    "cave for its lowest floor; *Tier* counts up from 1 at a land's edge. Nothing",
+    "hostile is placed within 26 cells of the wreck beach road or the camp, or within",
+    "18 of any settlement. A wisp stands in a ring of flowers, which is the only",
+    `sign of it by day. ${total} creatures in all.`,
+    "",
+    "| Land | Tier | Habitat | Levels | Creatures |",
+    "| --- | --- | --- | --- | --- |",
+  ];
+  const order = Object.keys(LANDS) as Land[];
+  const sorted = [...creatures].sort(
+    (a, b) => order.indexOf(a.land) - order.indexOf(b.land) || a.tier - b.tier,
+  );
+  for (const h of sorted) {
+    const held = Object.entries(h.wanted)
+      .map(([id, wanted]) => {
+        const placed = h.placed[id] ?? 0;
+        return `${placed} \`${id}\`${placed < wanted ? ` (of ${wanted} asked for)` : ""}`;
+      })
+      .join(", ");
+    lines.push(`| ${LANDS[h.land]} | ${h.tier} | ${h.name} | ${h.levels} | ${held} |`);
+  }
+  return lines;
 }

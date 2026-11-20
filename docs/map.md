@@ -12,7 +12,8 @@ The island is seed 75599 of the reference generator at 0.5 cells per pixel of
 
 Each character's tile stands in the cell under *Stands*, which their routines
 read as their home; `docs/notes.md`, *The cast is placed at work*, says why
-that is the work cell for most of them. No wild creature is placed.
+that is the work cell for most of them. The wild creatures are under
+*Creatures*.
 
 ## Places
 
@@ -181,7 +182,7 @@ The caves are dug by `scripts/island/caves.ts`. Each elemental land goes down
 from its own entrances and gets harder the deeper it goes; the deep way on
 level -4 joins every descent, and the Ember heart on -6 is the lowest floor.
 Floors are joined by `stone-stairs`, ladders and holes, and every hole has a
-way back up. Nothing lives in them yet. No cave runs under a chunk of either
+way back up. No cave runs under a chunk of either
 town. The underground adds 57,643 cells to the map.
 
 | Place | Levels | Where | What |
@@ -221,3 +222,51 @@ town. The underground adds 57,643 cells to the map.
 | Ember deeps | `hill-cave-mouth-basalt` facing w | 158, -217, L0 |
 | Ember deeps | `hill-cave-mouth-sandstone` facing e | 196, -213, L0 |
 | Snake hollow | `hill-cave-mouth-sandstone` facing e | 128, -117, L0 |
+
+## Creatures
+
+Placed by `scripts/island/creatures.ts`. Each elemental land starts with its
+weakest creatures at its edge and keeps its strongest for its centre, and each
+cave for its lowest floor; *Tier* counts up from 1 at a land's edge. Nothing
+hostile is placed within 26 cells of the wreck beach road or the camp, or within
+18 of any settlement. A wisp stands in a ring of flowers, which is the only
+sign of it by day. 366 creatures in all.
+
+| Land | Tier | Habitat | Levels | Creatures |
+| --- | --- | --- | --- | --- |
+| Round the camp | 1 | Fields round the camp | 1, 0 | 16 `rat` |
+| Round the camp | 1 | Meadows round the camp | 1, 0 | 10 `deer`, 12 `rabbit` |
+| Round the camp | 1 | Bat cave | 0 | 7 `bat` |
+| Water | 1 | Beaches | 0 | 14 `water-slime` |
+| Water | 1 | Sea grotto | -1 | 8 `water-slime` |
+| Water | 2 | The lake shore | 1, 0 | 10 `water-slime`, 3 `tide-wisp` |
+| Water | 2 | The flooded caves | -1 | 12 `water-slime` |
+| Water | 3 | The flooded caves below | -2 | 4 `water-slime`, 6 `snow-wolf` |
+| Water | 3 | Under the lakes | -3 | 6 `snow-wolf` |
+| Water | 3 | The mountain | 3, 2 | 10 `snow-wolf` |
+| Water | 3 | The frost caves | 3, 2, 1 | 10 `snow-wolf` |
+| Water | 3 | The crystal galleries | 0, -1 | 12 `snow-wolf` |
+| Water | 4 | The snow below the peak | 10, 9, 8, 7, 6, 5, 4, 3 | 10 `snow-wolf` |
+| Water | 4 | The frozen lake | -2 | 8 `snow-wolf` |
+| Water | 5 | The White Peak | 10, 9, 8, 7, 6 | 1 `yeti` |
+| Water | 5 | The frozen lake below | -3 | 6 `snow-wolf`, 1 `yeti` |
+| Fire | 1 | The desert edge | 1, 0 | 14 `fire-slime` |
+| Fire | 1 | Snake hollow | 0 | 6 `snake` |
+| Fire | 2 | The open waste | 1, 0 | 8 `fire-slime`, 4 `ember-wisp` |
+| Fire | 2 | Ember deeps, sandstone | 0, -1 | 14 `fire-slime` |
+| Fire | 3 | The lava gorge | 1, 0 | 6 `fire-slime`, 3 `ember-wisp` |
+| Fire | 3 | Ember deeps, sandstone below | -2 | 8 `fire-slime` |
+| Fire | 4 | Ember deeps, basalt | -3, -4 | 3 `cave-troll` |
+| Nature | 1 | The forest edge | 2, 1, 0 | 14 `nature-slime`, 4 `snake` |
+| Nature | 1 | Woodland grazing | 2, 1, 0 | 8 `deer`, 8 `rabbit` |
+| Nature | 2 | The deep woods | 2, 1, 0 | 6 `nature-slime`, 8 `wolf`, 4 `moss-wisp` |
+| Nature | 2 | The rootways | -1 | 10 `nature-slime` |
+| Nature | 3 | The rootways below | -2 | 8 `wolf` |
+| Nature | 3 | Bear caves | 1 | 4 `bear` |
+| Nature | 4 | The rootways deep | -3 | 4 `bear` |
+| Nature | 4 | The bog | 0 | 10 `bog-imp`, 6 `nature-slime` |
+| Nature | 4 | Troll cave | 0 | 2 `cave-troll` |
+| The barrow | 2 | The barrow | -1 | 12 `skeleton` |
+| The roads | 2 | Wolf den | -1 | 6 `wolf` |
+| The roads | 2 | The roads between the towns | 1, 0 | 16 `wolf`, 3 `snake` |
+| The deep way | 5 | The deep way | -4 | 1 `cyclops` |

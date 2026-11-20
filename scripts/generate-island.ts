@@ -21,6 +21,8 @@ import { bedRivers, raiseFallPockets, joinRiverCorners, writeTerrain } from "./i
 import { mergeSpecks } from "./island/specks";
 import { buildIsland } from "./island/terrain";
 import { digUnderground } from "./island/caves";
+import { placeCreatures } from "./island/creatures";
+import { reachable } from "./island/reach";
 import { frayClearings } from "./island/fray";
 import { layGrass } from "./island/grass";
 import { jogStraightBorders } from "./island/jog";
@@ -107,6 +109,12 @@ for (let pass = 0; pass < GROUND_PASSES; pass++) {
   if (changed === 0 && jogStraightBorders(island, board, tilesById) === 0) break;
 }
 layGrass(island, board);
+const creatures = placeCreatures(
+  builder,
+  underground,
+  tilesById,
+  await reachable(chunkifyMap(board.toFlat()), tilesById),
+);
 
 for (const layer of board.levels.values()) {
   for (const stack of layer.values()) {
@@ -183,11 +191,15 @@ console.log(
     lamps: builder.lamps.length,
     cats: builder.cats.length,
     underground: underground.cells,
+    creatures: creatures.reduce(
+      (sum, h) => sum + Object.values(h.placed).reduce((a, c) => a + c, 0),
+      0,
+    ),
   }),
 );
 await Bun.write(
   argValue("--doc") ?? "docs/map.md",
-  mapDoc(builder, plan, island, { seed, cellsPerPixel }, underground),
+  mapDoc(builder, plan, island, { seed, cellsPerPixel }, underground, creatures),
 );
 const record = argValue("--record");
 if (record) {

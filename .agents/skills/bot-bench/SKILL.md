@@ -43,6 +43,10 @@ BUN_OPTIONS= bun run bench:bots --b HEAD
   background and write the table to a file.
 - Empty `BUN_OPTIONS` so `--smol`, if your shell sets it, does not slow every
   run.
+- A change to `data/map.json` is benched the other way round: the same ref on
+  both sides and a map each, so the difference is the map.
+  `bun run bench:bots --a HEAD --b HEAD --map-a <main's map.json> --map-b data/map.json`,
+  with main's map written out by `git show origin/main:data/map.json`.
 - Progress goes to stderr; the table is the only thing on stdout, so
   `> bench.md` keeps it.
 
