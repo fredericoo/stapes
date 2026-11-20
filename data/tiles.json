@@ -215395,5 +215395,434 @@
         ]
       }
     }
+  },
+  {
+    "id": "waterfall-east-top",
+    "name": "Waterfall east (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 6
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "waterfall-east-middle",
+    "name": "Waterfall east (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 8
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "waterfall-east-base",
+    "name": "Waterfall east (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "waterfall",
+      "x": 0,
+      "y": 10
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 90
+        }
+      ]
+    }
   }
 ]

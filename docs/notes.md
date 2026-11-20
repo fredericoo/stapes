@@ -15931,6 +15931,14 @@ the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
 
+`waterfall-east-top`, `-middle` and `-base` are the same fall down a cliff's
+east face, for a river that flows east off a cliff: they go in the cell east
+of the cliff. The projection draws x and y alike, so they are the south-facing
+sprites with rows and columns swapped, with the foam's normal swapped back
+before it is lit so the light still comes from the south-west. They are phased
+along y. There is no west- or north-facing fall, because those faces of a
+cliff are never drawn.
+
 ## An apple tree is drawn in bundles, and drops what it bears
 
 `bun run generate:apple-trees` ray-traces `apple-tree` in the game's

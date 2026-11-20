@@ -48,13 +48,38 @@ const STREAKS: { pattern: string; speed: number }[] = [
   { pattern: "bbbh", speed: 1 },
 ];
 
-type Segment = { tileId: string; name: string; lip: boolean; pool: boolean };
+/**
+ * Which cliff face the sheet falls down. Only the south and east faces are
+ * drawn, so those are the only two a fall can be seen on.
+ */
+type Facing = "s" | "e";
+type Segment = { tileId: string; name: string; lip: boolean; pool: boolean; facing: Facing };
+
+const PARTS = [
+  { part: "top", lip: true, pool: false },
+  { part: "middle", lip: false, pool: false },
+  { part: "base", lip: false, pool: true },
+] as const;
 
 const SEGMENTS: Segment[] = [
-  { tileId: "waterfall-top", name: "Waterfall (top)", lip: true, pool: false },
-  { tileId: "waterfall-middle", name: "Waterfall (middle)", lip: false, pool: false },
-  { tileId: "waterfall-base", name: "Waterfall (base)", lip: false, pool: true },
+  ...PARTS.map(({ part, lip, pool }) => ({
+    tileId: `waterfall-${part}`,
+    name: `Waterfall (${part})`,
+    lip,
+    pool,
+    facing: "s" as const,
+  })),
+  ...PARTS.map(({ part, lip, pool }) => ({
+    tileId: `waterfall-east-${part}`,
+    name: `Waterfall east (${part})`,
+    lip,
+    pool,
+    facing: "e" as const,
+  })),
 ];
+
+/** How far apart in frames neighbouring cells along the fall's width are, so a wide fall is not one column stamped side by side. */
+const PHASE_FRAMES = 3;
 
 function hash(x: number, y: number, salt: number): number {
   let h = Math.imul(x + 1, 0x27d4eb2d) ^ Math.imul(y + 1, 0x165667b1) ^ Math.imul(salt, 0x9e3779b9);
@@ -136,13 +161,14 @@ function foamNormal(u: number, v: number, frame: number): Vec3 | null {
 }
 
 /** White where the heap faces up or toward the light, spray on its flanks, water in its shade. */
-function foamTone(normal: Vec3): Rgba {
+function foamTone([nx, ny, nz]: Vec3, facing: Facing): Rgba {
+  const normal: Vec3 = facing === "e" ? [ny, nx, nz] : [nx, ny, nz];
   const across = (normal[0] - normal[1]) / Math.SQRT2 - normal[2];
   if (across < -0.6) return FOAM;
   return across < 0.4 ? SPRAY : HIGHLIGHT;
 }
 
-function foamPixel(u: number, v: number, frame: number): Rgba | null {
+function foamPixel(u: number, v: number, frame: number, facing: Facing): Rgba | null {
   const votes = new Map<Rgba, number>();
   let hits = 0;
   for (let j = 0; j < FOAM_SUPERSAMPLE; j++) {
@@ -154,7 +180,7 @@ function foamPixel(u: number, v: number, frame: number): Rgba | null {
       );
       if (!normal) continue;
       hits++;
-      const tone = foamTone(normal);
+      const tone = foamTone(normal, facing);
       votes.set(tone, (votes.get(tone) ?? 0) + 1);
     }
   }
@@ -190,8 +216,15 @@ function lipPixel(u: number, v: number, frame: number): Rgba | null {
   return hash(x, ((drifted % 4) + 4) % 4, 3) < 0.2 ? HIGHLIGHT : SHADOW;
 }
 
-function framePixel(segment: Segment, u: number, v: number, frame: number): Rgba | null {
-  const splash = segment.pool ? foamPixel(u, v, frame) : null;
+/**
+ * Everything above is drawn for a fall facing south. The projection draws x
+ * and y the same way, so the fall facing east is the same picture with the
+ * sprite's rows and columns swapped; only the light, which comes from the
+ * south-west, has to be swapped back.
+ */
+function framePixel(segment: Segment, column: number, row: number, frame: number): Rgba | null {
+  const [u, v] = segment.facing === "e" ? [row, column] : [column, row];
+  const splash = segment.pool ? foamPixel(u, v, frame, segment.facing) : null;
   if (splash) return splash;
   const fall = sheetPixel(segment, u, v, frame);
   if (fall) return fall;
@@ -211,7 +244,7 @@ function segmentTile(segment: Segment, row: number): TileDef {
     walkable: false,
     lightPassing: true,
     sprite: {
-      phase: { x: 3, y: 0 },
+      phase: segment.facing === "e" ? { x: 0, y: PHASE_FRAMES } : { x: PHASE_FRAMES, y: 0 },
       frames: Array.from({ length: FRAME_COUNT }, (_, frame) => ({
         sprite: {
           rect: { x: frame * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS },
