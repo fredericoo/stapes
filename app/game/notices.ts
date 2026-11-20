@@ -62,6 +62,7 @@ export function blockedNotice(
   const doing = `${sentenceVerb(option.label, DEFAULT_BLOCKED_VERB)} ${option.name}`;
   if (blocked.kind === "needs") return `You need a rating of ${blocked.rating} to ${doing}`;
   if (blocked.kind === "taken") return `${option.name} is in use`;
+  if (blocked.kind === "here") return spawnMarkUnchangedNotice();
   return `You have no room to ${doing}`;
 }
 

@@ -299,6 +299,16 @@ describe("why a blocked thing did nothing", () => {
     );
   });
 
+  it("says a respawn point you are already bound to is already yours", () => {
+    expect(
+      blockedNotice({
+        label: "You respawn here",
+        name: "Respawn Point",
+        blocked: { kind: "here" },
+      }),
+    ).toBe("You already respawn here.");
+  });
+
   it("says nothing about a pull already under way, or a thing that is not blocked", () => {
     const working = {
       kind: "working",
