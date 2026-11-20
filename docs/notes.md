@@ -3345,16 +3345,15 @@ lighting one:
   is a property of the thing standing on it — and until it is fixed, a cave
   simply does not run under those cells.
 
-The check that catches all three is the last thing `scripts/carve-caves.ts`
-does: bake the map it just wrote and assert no carved cell has any sky in it
-away from the mouth. Everything above was found by that assertion failing.
+The check that catches all three is `bun run verify caves`: it bakes the map
+and asserts no cave cell has any sky in it away from an opening. Everything
+above was found by that assertion failing.
 
-The mouth is not the only way daylight is meant to get in any more. Two holes
-were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
-with a ladder beside it, and a hole in the floor of a roofless house at
-(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
-treats them as it treats the mouth. A new hole is a line there; anything else
-that lets the sky in is still reported.
+The openings are read from the map rather than listed: every cell holding a
+`hill-cave-mouth` (any of the four), a `hole` or `stone-stairs` that the sky
+can see. Those tiles let daylight in on purpose, so light within
+`MAX_LIGHT_LEVEL` of one is its light. Anything else that lets the sky in is
+still reported.
 
 ## A full cell's top face is lit from the cell above it
 
@@ -3392,18 +3391,17 @@ the walls, and the palette turns most of it into the darkest browns. Drawing a
 full cell whose top is a floor of the level above with that level's light map
 would fix it; that was considered and not done.
 
-## `carve:caves --verify` walks the underground the way a player gets around it
+## `verify caves` walks the underground the way a player gets around it
 
-Straight after a carve, the script checks only the cells it carved. With
-`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
-those were built by hand: the tutorial rooms around the spawn, the cellars
-under houses, rooms behind doors, a floor reached only by ladder. A walk that
-started at the mouth and only took `canWalk` steps reached none of them: it
-reported 355 cells nobody could walk to, and a bat walled in behind a door.
+A cave cell is a `dirt` cell that is not rock and is either below level 0 or
+has raised ground over it: a stack on the level above whose first tile is one
+of the grounds a hill is filled with. That is what tells a cave dug into a
+hill from a road on top of one, which is `dirt` too.
 
-The walk now starts at the `player` marker as well as at the mouth, because
-that is where everybody enters the world, and the tutorial's only way out
-starts with a drop nobody can climb back up. The walk is `reachableCells` in
+The walk starts at the `player` marker, because that is where everybody
+enters the world, and every cave has to be reached from there. On the old map
+the walk started at the den's mouth and only took `canWalk` steps, and it
+reached none of the rooms built by hand behind doors and ladders. The walk is `reachableCells` in
 `app/game/navigation.ts`, the same graph `planRoute` searches: it walks
 through a door as though it were open, since anybody who reaches one can open
 it, falls wherever a step leaves a body in the air, and takes every ladder and
@@ -3421,8 +3419,8 @@ for a three-unit body, so nobody can stand in any of those cells.
 
 ## `verify caves` excuses a problem only by kind and area
 
-The cave check moved out of `scripts/carve-caves.ts` into `checkCaves` in
-`app/verify/caves.ts`, so `bun run verify caves` can run it in CI. It reports
+The cave check is `checkCaves` in `app/verify/caves.ts`, so
+`bun run verify caves` can run it in CI. It reports
 one problem per cell, each with a kind (`open-sky`, `daylight`, `unreachable`,
 `ramp-climbs-nowhere`, ...), where it used to report a count.
 

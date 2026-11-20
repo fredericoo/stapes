@@ -365,7 +365,7 @@ function unwind(node: Node): NavLeg[] {
 
 /**
  * Every standing cell reachable from `starts`, keyed by `cellKey`. The walk
- * `carve:caves --verify` checks the underground with.
+ * `verify caves` checks the underground with.
  */
 export function reachableCells(world: NavWorld, starts: readonly Coord[]): Map<string, Coord> {
   const seen = new Map<string, Coord>();

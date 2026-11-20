@@ -297,10 +297,6 @@ an agent drives", lists every call.
   cell, and print its cell count per level and each road's length in cells and
   seconds. `--plan` draws the sites, ramps and bridges as well; `--scale` tries
   another size without writing a map
-- `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
-  then walk every cell of it with the game's own movement rules. What to carve
-  is the `SYSTEM` block in `scripts/caveSystem.ts`; `--verify` checks the map
-  as it stands without touching it, the same check as `bun run verify caves`
 - `bun run raise:hills` — raise hills and mountains out of the open country in
   `data/map.json` and put ramps on them, then walk the map with the game's own
   movement rules and refuse to write it if a cell a player could walk to before

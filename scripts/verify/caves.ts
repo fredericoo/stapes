@@ -10,7 +10,6 @@ import {
   parseExceptions,
   type VerifyException,
 } from "../../app/verify/exceptions";
-import { AUTHORED_HOLES, SYSTEM } from "../caveSystem";
 import { type Command, type Outcome, UsageError } from "./cli";
 
 const EXCEPTIONS_FILE = "verify-exceptions.json";
@@ -50,10 +49,6 @@ export const caves: Command = {
     const report = checkCaves({
       map: parseMap(await Bun.file(join(dir, "map.json")).text()),
       tilesById: tilesByIdFromList(tiles),
-      levels: SYSTEM.levels,
-      mouth: SYSTEM.mouth,
-      mouthDescent: SYSTEM.mouthDescent,
-      openings: [SYSTEM.mouth, ...AUTHORED_HOLES],
     });
     const { failing, excused, stale } = applyExceptions<CaveProblem>(
       "caves",

@@ -23,8 +23,7 @@ export type CaveProblemKind =
   | "walled-in"
   | "ramp-not-stood-on"
   | "ramp-climbs-nowhere"
-  | "ramp-unreachable"
-  | "no-approach";
+  | "ramp-unreachable";
 
 export type CaveProblem = {
   kind: CaveProblemKind;
@@ -39,13 +38,6 @@ type Cell = { x: number; y: number };
 export type CaveCheckInput = {
   map: MapFile;
   tilesById: Record<string, TileDef>;
-  levels: readonly number[];
-  mouth: Cell;
-  mouthDescent: Direction;
-  /** Cells open to the sky on purpose, the mouth among them; light near them is expected. */
-  openings: readonly Cell[];
-  /** `x,y,z` of the cells a carve just wrote; every dirt cell on `levels` when absent. */
-  carved?: ReadonlySet<string>;
 };
 
 export type CaveReport = {
@@ -58,35 +50,66 @@ export type CaveReport = {
 /** Sky light at or under this reads as a glow through a crack; above it, as a hole in the roof. */
 export const DIM_ENOUGH = 64;
 
-const ROCK_TILES = new Set(["half-stone", "cave-wall-sloped", "cave-wall-sloped-grey"]);
+const ROCK_TILES = new Set([
+  "half-stone",
+  "cave-wall-sloped",
+  "cave-wall-sloped-grey",
+  "hill-wall",
+  "hill-wall-frost",
+  "hill-wall-sandstone",
+  "hill-wall-basalt",
+]);
 const isRock = (stack: readonly PlacedTile[]) => stack.some((t) => ROCK_TILES.has(t.tileId));
 
-const STEP: Record<Direction, Cell> = {
-  n: { x: 0, y: -1 },
-  e: { x: 1, y: 0 },
-  s: { x: 0, y: 1 },
-  w: { x: -1, y: 0 },
-};
+/** What raised ground is made of, so a cell with one of these over it is inside a hill. */
+const GROUND_TILES = new Set([
+  "grass-2",
+  "snow",
+  "sand-dunes",
+  "grass-brink",
+  "snow-brink",
+  "sand-brink",
+]);
+
+/** Tiles that let the sky into a cave on purpose: a mouth in a cliff, a hole, a stairwell. */
+const OPENING_TILES = new Set([
+  "hill-cave-mouth",
+  "hill-cave-mouth-frost",
+  "hill-cave-mouth-sandstone",
+  "hill-cave-mouth-basalt",
+  "hole",
+  "stone-stairs",
+]);
+
 const DIRS: Direction[] = ["n", "e", "s", "w"];
 
 const chebyshev = (a: Cell, b: Cell) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const where = (x: number, y: number, z: number) => `${x},${y} L${z}`;
 
+/**
+ * Checks every cave floor on the map: a `dirt` cell below level 0, or one with
+ * raised ground over it. Daylight is expected near the openings the map makes
+ * on purpose, which are the cells of a mouth, a hole or a flight of stairs
+ * that the sky can see.
+ */
 export function checkCaves(input: CaveCheckInput): CaveReport {
-  const { tilesById, levels, mouth, mouthDescent, openings, carved } = input;
+  const { tilesById } = input;
   const problems: CaveProblem[] = [];
   const problem = (kind: CaveProblemKind, x: number, y: number, z: number, message: string) =>
     problems.push({ kind, x, y, z, message });
   let live = input.map;
   const playerDef = tilesById["player"]!;
 
+  const levels = presentLevels(live);
+  const underGround = (x: number, y: number, z: number) =>
+    z < 0 || GROUND_TILES.has(getStack(live, x, y, z + 1)[0]?.tileId ?? "");
   const denCells = new Set<string>();
   const bodies: Array<{ x: number; y: number; z: number; def: TileDef }> = [];
   for (const z of levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
       if (isRock(stack)) continue;
       if (!stack.some((p) => p.tileId === "dirt")) continue;
-      if (carved && !carved.has(`${x},${y},${z}`)) continue;
+      if (!underGround(x, y, z)) continue;
       denCells.add(`${x},${y},${z}`);
       for (const placed of stack) {
         const def = tilesById[placed.tileId];
@@ -101,6 +124,13 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
   for (const z of presentLevels(live)) {
     for (const { x, y, stack } of listCoords(live, z)) {
       occlusion.set(`${z}:${coordKey(x, y)}`, stackOcclusion(stack, tilesById));
+    }
+  }
+  const openings: Cell[] = [];
+  for (const z of levels) {
+    for (const { x, y, stack } of listCoords(live, z)) {
+      if (!stack.some((p) => OPENING_TILES.has(p.tileId))) continue;
+      if (isSkyExposed(x, y, z, occlusion)) openings.push({ x, y });
     }
   }
   for (const [x, y, z] of cellsOf()) {
@@ -200,20 +230,7 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
 
   if (denCells.size === 0) return report({});
 
-  const approach = { x: mouth.x - STEP[mouthDescent].x, y: mouth.y - STEP[mouthDescent].y };
-  const start = settle(approach.x, approach.y, 0);
-  if (!start) {
-    problem(
-      "no-approach",
-      approach.x,
-      approach.y,
-      0,
-      "nowhere to stand on the approach to the mouth",
-    );
-    return report({});
-  }
-
-  const starts = [{ ...approach, z: start.z }, ...spawns.map(({ x, y, z }) => ({ x, y, z }))];
+  const starts = spawns.map(({ x, y, z }) => ({ x, y, z }));
   const world = { board: live, traveller: playerDef, tilesById, statusDefs: {} };
   const seen = new Set<string>();
   for (const { x, y, z } of reachableCells(world, starts).values()) seen.add(`${x},${y},${z}`);
@@ -249,7 +266,7 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
 
   for (const z of levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
-      if (!stack.some((p) => p.tileId === "ramp")) continue;
+      if (!stack.some((p) => p.tileId === "ramp") || !underGround(x, y, z)) continue;
       const onRamp = settle(x, y, z * HEIGHT_PER_LEVEL + 2);
       if (!onRamp || onRamp.abs !== z * HEIGHT_PER_LEVEL + 2) {
         problem("ramp-not-stood-on", x, y, z, `ramp at ${where(x, y, z)} is not stood on`);
@@ -275,6 +292,9 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
   }
 
   const walked: Record<string, number> = {};
-  for (const z of levels) walked[`L${z}`] = [...seen].filter((k) => k.endsWith(`,${z}`)).length;
+  for (const z of levels) {
+    const n = [...denCells].filter((k) => k.endsWith(`,${z}`) && seen.has(k)).length;
+    if (n > 0) walked[`L${z}`] = n;
+  }
   return report(walked);
 }
