@@ -24,6 +24,7 @@ const AWKWARD = new Set([
   "deep-water",
   "lava",
   "ramp",
+  "snowy-ramp",
   "fence",
   "stone-stairs",
   "hole",

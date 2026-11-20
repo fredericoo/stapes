@@ -2601,6 +2601,14 @@ so the two can disagree. `generate:ramps` resolves every facing's `climbFrom`
 before it draws and stops if one does not climb exactly towards the high edge
 it is about to draw.
 
+`snowy-ramp` is the same slope in snow, with `frosted-half-stone` under its
+high cell where `ramp` has `half-stone`; `generate:island` uses the pair on
+snow. Snow is one flat colour, so the slope is shaded by the way it faces: a
+slope turned to the south-west light is white, one turned away is grey, or it
+would vanish into the snow round it. A ramp on the edge of the snow takes the
+ground of its high cell for both cells. `frosted-half-stone` is in every
+`connectsTo` that lists `half-stone`, so a wall meets it the same way.
+
 ### A step never crosses a sealed floor plane
 
 `canWalk` lands a step on any standing surface in the destination column within

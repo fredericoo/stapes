@@ -56,6 +56,7 @@
     },
     "connectsTo": [
       "half-stone",
+      "frosted-half-stone",
       "hole",
       "sand-dunes",
       "beach-sand"
@@ -81652,6 +81653,7 @@
     },
     "connectsTo": [
       "half-stone",
+      "frosted-half-stone",
       "hole"
     ],
     "slices": {
@@ -91145,6 +91147,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall-sloped",
       "cave-wall-grey",
       "cave-wall-sloped-grey",
@@ -92069,6 +92072,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-grey",
       "cave-wall-sloped-grey",
@@ -92993,6 +92997,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-sloped-grey",
@@ -93917,6 +93922,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
@@ -129064,6 +129070,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
@@ -143246,6 +143253,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
@@ -144170,6 +144178,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
@@ -145094,6 +145103,7 @@
     "connectsTo": [
       "stone-wall",
       "half-stone",
+      "frosted-half-stone",
       "cave-wall",
       "cave-wall-sloped",
       "cave-wall-grey",
@@ -215821,6 +215831,155 @@
             }
           },
           "durationMs": 90
+        }
+      ]
+    }
+  },
+  {
+    "id": "snowy-ramp",
+    "name": "Snowy Ramp",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 4
+    },
+    "climbFrom": {
+      "n": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      },
+      "s": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "frosted-half-stone",
+    "name": "Frosted Half Stone",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 6
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
         }
       ]
     }

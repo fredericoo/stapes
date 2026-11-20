@@ -41,6 +41,14 @@ const BRINK: Record<Kind, string> = {
   basalt: "sand-brink",
 };
 
+/** What a ramp is made of on each ground: the slope, and the half-height block the top half of the climb stands on. */
+const RAMP: Record<Kind, { slope: string; block: string }> = {
+  grass: { slope: "ramp", block: "half-stone" },
+  sand: { slope: "ramp", block: "half-stone" },
+  snow: { slope: "snowy-ramp", block: "frosted-half-stone" },
+  basalt: { slope: "ramp", block: "half-stone" },
+};
+
 export const kindAt = (island: Island, i: number): Kind => KIND[island.ground[i]!] ?? "grass";
 export const baseTile = (island: Island, i: number) => BASE[kindAt(island, i)];
 
@@ -101,7 +109,7 @@ export function writeTerrain(island: Island, plan: Plan): Board {
         y,
         z,
         heads.has(i) && z === L - 1
-          ? [tile(base), tile("half-stone"), tile("half-stone")]
+          ? [tile(base), tile(RAMP[kind].block), tile(RAMP[kind].block)]
           : [tile(base), tile(WALL[kind])],
       );
     }
@@ -148,14 +156,16 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     const direction = OPPOSITE[r.climbs];
     const lx = r.low % w;
     const hx = r.high % w;
+    /** Both cells take the high one's ground, so a ramp on the edge of the snow is not half of each. */
+    const { slope, block } = RAMP[kindAt(island, r.high)];
     board.set(lx, Math.floor(r.low / w), z, [
       tile(baseTile(island, r.low)),
-      tile("ramp", direction),
+      tile(slope, direction),
     ]);
     board.set(hx, Math.floor(r.high / w), z, [
       tile(baseTile(island, r.high)),
-      tile("half-stone"),
-      tile("ramp", direction),
+      tile(block),
+      tile(slope, direction),
     ]);
   }
 
