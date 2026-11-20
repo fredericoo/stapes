@@ -335,6 +335,11 @@ an agent drives", lists every call.
   cliff to its top is long. It walks the map with the game's own movement
   rules, undoes any ramp that strands anybody, and prints each ramp. It runs
   once; `--dry-run` reports without writing
+- `bun run verify landscape` — check the ground of `data/map.json`: rivers
+  that join only at a corner, grass rivers without dirt banks, mud by water,
+  rivers on the wrong ground, specks of ground, borders drawn straight, and
+  deserts or snowfields too crowded. `generate:island` runs it too and
+  writes nothing when it fails. CI runs it
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs

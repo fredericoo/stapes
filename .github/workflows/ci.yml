@@ -43,6 +43,9 @@ jobs:
       - name: Every cave floor is dark, roofed and reachable, or excused
         run: bun run verify caves
 
+      - name: Rivers join, banks are dirt, and no ground is ruled or crowded
+        run: bun run verify landscape
+
       - name: Nowhere on the map strands a player
         run: |
           mkdir -p stranded

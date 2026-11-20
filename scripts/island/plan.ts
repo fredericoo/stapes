@@ -1,4 +1,4 @@
-import { CellHeap, N4, components, distanceTo } from "./grid";
+import { CellHeap, N4, components, distanceTo, fbm, perlin } from "./grid";
 import { ROADS, SITES, SITE_APRON, type PlaceId, type SiteId } from "./layout";
 import { Ground, type Island } from "./terrain";
 
@@ -46,6 +46,11 @@ export type Plan = {
 export const SITE_ORDER = Object.keys(SITES) as SiteId[];
 
 const TERRACE_WIDTH = 3;
+const APRON_SALT = 0xa960;
+/** Cells round a site kept level with it whatever the noise says, so no cliff stands against a town's edge. */
+const SITE_FLAT_RING_CELLS = 2;
+const APRON_FRAY_CELLS = 5;
+const APRON_FRAY_SCALE_CELLS = 9;
 const MIN_REGION_CELLS = 28;
 const MIN_PIT_CELLS = 40;
 const MIN_SHELF_FOR_RAMP = 40;
@@ -78,6 +83,12 @@ export function planIsland(island: Island): Plan {
   const sites = new Map<SiteId, Site>();
   const siteOf = new Uint8Array(n);
   const pinned = new Uint8Array(n);
+  const apronNoise = perlin(APRON_SALT);
+  /** Distance out from a site, pushed out by noise so the terraces round it are not squares. */
+  const frayed = (x: number, y: number, d: number) =>
+    d +
+    APRON_FRAY_CELLS *
+      (0.5 + 0.5 * fbm(apronNoise, x / APRON_FRAY_SCALE_CELLS, y / APRON_FRAY_SCALE_CELLS, 3));
   SITE_ORDER.forEach((id, k) => {
     const size = SITES[id];
     const centre = island.place(id);
@@ -100,11 +111,12 @@ export function planIsland(island: Island): Plan {
         if (x < 0 || y < 0 || x >= w || y >= h) continue;
         const i = at(x, y);
         if (siteOf[i] || !land(i)) continue;
-        const d = Math.max(site.x0 - x, x - site.x1, site.y0 - y, y - site.y1);
-        const slack =
-          d <= TERRACE_WIDTH + 1 ? 0 : Math.floor((d - TERRACE_WIDTH) / (TERRACE_WIDTH + 1));
+        const out = Math.max(site.x0 - x, x - site.x1, site.y0 - y, y - site.y1);
+        const d = frayed(x, y, out);
+        const flat = d <= TERRACE_WIDTH + 1 || out <= SITE_FLAT_RING_CELLS;
+        const slack = flat ? 0 : Math.floor((d - TERRACE_WIDTH) / (TERRACE_WIDTH + 1));
         level[i] = Math.max(site.level - slack, Math.min(site.level + slack, level[i]!));
-        if (d <= TERRACE_WIDTH + 1) pinned[i] = 1;
+        if (flat) pinned[i] = 1;
       }
     }
   });

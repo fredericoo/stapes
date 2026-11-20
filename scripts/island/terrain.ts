@@ -1,4 +1,4 @@
-import { CellHeap, N4, components, distanceTo, type Grid } from "./grid";
+import { CellHeap, N4, N8, components, distanceTo, fbm, perlin, type Grid } from "./grid";
 import { PLACES, ROADS, type PlaceId } from "./layout";
 import { sketchLand, type Sketch } from "./sketch";
 import {
@@ -49,6 +49,12 @@ export type Island = Grid & {
   /** Level of the ground's top in each cell; -1 is open sea outside the stored ring. */
   level: Int8Array;
   ground: Uint8Array;
+  /**
+   * The ground each cell had before rivers were cut and sites were levelled:
+   * the land it lies in, which a river takes its banks from and a site's
+   * unused edge goes back to.
+   */
+  biome: Uint8Array;
   road: Uint8Array;
   /** Distance in cells to the nearest dry land. */
   seaDistance: Float32Array;
@@ -139,10 +145,19 @@ export function buildIsland(options: IslandOptions): Island {
       Math.min(peakLevel, Math.floor(Math.pow(Math.max(0, e) / maxE, 1.3) * (peakLevel + 0.999))),
     );
   const level = new Int8Array(n);
+  const edgeNoise = perlin(seed ^ BOG_EDGE_SALT);
   for (let i = 0; i < n; i++) {
     const x = i % w;
     const y = (i - x) / w;
-    const { e, east, forest, bog, gorge } = samples[i]!;
+    const { e, east, forest, gorge } = samples[i]!;
+    /** The height's contours run nearly straight across the top of the peak, so the snow line is moved by noise as the bog's edge is. */
+    const snowJitter =
+      SNOW_LINE_NOISE *
+      fbm(edgeNoise, x / SNOW_LINE_SCALE_CELLS + 91.3, y / SNOW_LINE_SCALE_CELLS, 3);
+    /** The bog's weight is a smooth bump, so a fixed threshold on it draws an exact oval; noise on the weight frays the edge. */
+    const bog =
+      samples[i]!.bog +
+      BOG_EDGE_NOISE * fbm(edgeNoise, x / BOG_EDGE_SCALE_CELLS, y / BOG_EDGE_SCALE_CELLS, 3);
     if (!land[i]) {
       ground[i] = seaDistance[i]! <= 4 ? Ground.Shallows : Ground.DeepSea;
       level[i] = seaDistance[i]! <= seaRing ? 0 : -1;
@@ -161,11 +176,14 @@ export function buildIsland(options: IslandOptions): Island {
     else if (bog > 0.3) ground[i] = Ground.Bog;
     else if (forest > 0.55) ground[i] = Ground.DeepWoods;
     else if (forest > 0.25) ground[i] = Ground.Woods;
-    else if (e > 0.5) ground[i] = Ground.Snow;
-    else if (e > 0.34) ground[i] = Ground.Rock;
+    else if (e > SNOW_LINE + snowJitter) ground[i] = Ground.Snow;
+    else if (e > ROCK_LINE + snowJitter) ground[i] = Ground.Rock;
     else ground[i] = Ground.Grass;
     if (ground[i] === Ground.Lava) level[i] = Math.max(0, levelOf(e) - 1);
   }
+
+  mergeSmallPatches(grid, ground);
+  const biome = ground.slice();
 
   for (let r = 0; r < REF_W * REF_H; r++) {
     const to = ref.recv[r]!;
@@ -175,10 +193,7 @@ export function buildIsland(options: IslandOptions): Island {
     const ay = (Math.floor(r / REF_W) + 0.5) * k;
     const bx = ((to % REF_W) + 0.5) * k;
     const by = (Math.floor(to / REF_W) + 0.5) * k;
-    const steps = Math.ceil(Math.hypot(bx - ax, by - ay) * 2) + 1;
-    for (let t = 0; t <= steps; t++) {
-      const px = Math.floor(ax + ((bx - ax) * t) / steps);
-      const py = Math.floor(ay + ((by - ay) * t) / steps);
+    for (const [px, py] of fourWayLine(ax, ay, bx, by)) {
       for (let dy = 0; dy <= width; dy++) {
         for (let dx = 0; dx <= width; dx++) {
           const x = px + dx;
@@ -198,6 +213,7 @@ export function buildIsland(options: IslandOptions): Island {
     }
   }
 
+  joinDiagonalRivers(grid, ground, land);
   settleLevels(grid, level, land, ground);
   lowerRivers(grid, level, ground);
 
@@ -238,7 +254,143 @@ export function buildIsland(options: IslandOptions): Island {
     const cells = routeRoad(grid, level, ground, road, place(from), place(to));
     roadLengths.push({ from, to, cells });
   }
-  return { ...grid, cellsPerPixel: s, level, ground, road, seaDistance, place, roadLengths };
+  return { ...grid, cellsPerPixel: s, level, ground, biome, road, seaDistance, place, roadLengths };
+}
+
+const BOG_EDGE_SALT = 0x5b0c;
+const BOG_EDGE_NOISE = 0.14;
+const BOG_EDGE_SCALE_CELLS = 14;
+const SNOW_LINE = 0.5;
+const ROCK_LINE = 0.34;
+const SNOW_LINE_NOISE = 0.12;
+const SNOW_LINE_SCALE_CELLS = 6;
+/** A piece of one ground smaller than this is noise in the height or the land weights, not a place: a few cells of snow on a lowland meadow. */
+export const MIN_PATCH_CELLS = 40;
+
+const HIGHLAND_GROUP = 2;
+/** Which grounds read as one land, so a wood inside a meadow is not a patch of it. */
+const PATCH_GROUP: Partial<Record<number, number>> = {
+  [Ground.Grass]: 1,
+  [Ground.Woods]: 1,
+  [Ground.DeepWoods]: 1,
+  [Ground.Snow]: HIGHLAND_GROUP,
+  [Ground.Rock]: HIGHLAND_GROUP,
+  [Ground.Desert]: 3,
+  [Ground.Basalt]: 4,
+  [Ground.Bog]: 5,
+};
+
+/**
+ * Snow and rock belong to the peak. A low hill whose top just passes the rock
+ * line would otherwise be a white blob in a meadow; on this seed the peak is
+ * over 30,000 cells and every other such body is under 70.
+ */
+const MIN_HIGHLAND_CELLS = 1000;
+
+/** Gives every piece of land smaller than `MIN_PATCH_CELLS` (`MIN_HIGHLAND_CELLS` for snow and rock) the ground most of the land round it has. */
+function mergeSmallPatches(grid: Grid, ground: Uint8Array) {
+  const { width: w, height: h } = grid;
+  const group = (i: number) => PATCH_GROUP[ground[i]!] ?? 0;
+  const labels = new Int32Array(w * h);
+  let label = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (labels[i] || !group(i)) continue;
+    const piece = floodSame(grid, i, group, labels, ++label);
+    const least = group(i) === HIGHLAND_GROUP ? MIN_HIGHLAND_CELLS : MIN_PATCH_CELLS;
+    if (piece.length >= least) continue;
+    const around = new Map<number, number>();
+    for (const c of piece) {
+      const x = c % w;
+      const y = (c - x) / w;
+      for (const [dx, dy] of N8) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const j = ny * w + nx;
+        const g = group(j);
+        if (!g || g === group(c)) continue;
+        around.set(ground[j]!, (around.get(ground[j]!) ?? 0) + 1);
+      }
+    }
+    const into = [...around].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (into !== undefined) for (const c of piece) ground[c] = into;
+  }
+}
+
+function floodSame(
+  grid: Grid,
+  start: number,
+  group: (i: number) => number,
+  labels: Int32Array,
+  label: number,
+): number[] {
+  const { width: w, height: h } = grid;
+  const g = group(start);
+  const piece = [start];
+  labels[start] = label;
+  for (let k = 0; k < piece.length; k++) {
+    const i = piece[k]!;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (const [dx, dy] of N4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const j = ny * w + nx;
+      if (labels[j] || group(j) !== g) continue;
+      labels[j] = label;
+      piece.push(j);
+    }
+  }
+  return piece;
+}
+
+/** The cells from `a` to `b` with every step to a side, never a corner, so a river one cell wide is never joined only at a corner. */
+export function fourWayLine(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): Array<[number, number]> {
+  const steps = Math.ceil(Math.hypot(bx - ax, by - ay) * 2) + 1;
+  const out: Array<[number, number]> = [];
+  for (let t = 0; t <= steps; t++) {
+    const px = Math.floor(ax + ((bx - ax) * t) / steps);
+    const py = Math.floor(ay + ((by - ay) * t) / steps);
+    const last = out[out.length - 1];
+    if (last && last[0] === px && last[1] === py) continue;
+    if (last && last[0] !== px && last[1] !== py) out.push([px, last[1]]);
+    out.push([px, py]);
+  }
+  return out;
+}
+
+/**
+ * Where two river cells meet only at a corner, one of the two cells beside
+ * both is made river too. Segments of different widths and the cells a lake
+ * or a bog took out of a line still leave such corners after `fourWayLine`.
+ */
+function joinDiagonalRivers(grid: Grid, ground: Uint8Array, land: Uint8Array) {
+  const { width: w, height: h } = grid;
+  const wet = (i: number) =>
+    ground[i] === Ground.River || ground[i] === Ground.Lake || ground[i] === Ground.Bog;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (!wet(i)) continue;
+      for (const dx of [-1, 1]) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= w) continue;
+        const j = (y + 1) * w + nx;
+        if (!wet(j) || (ground[i] !== Ground.River && ground[j] !== Ground.River)) continue;
+        const across = y * w + nx;
+        const below = (y + 1) * w + x;
+        if (wet(across) || wet(below)) continue;
+        const fill = land[below] && ground[below] !== Ground.Lava ? below : across;
+        if (land[fill] && ground[fill] !== Ground.Lava) ground[fill] = Ground.River;
+      }
+    }
+  }
 }
 
 /**
