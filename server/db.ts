@@ -161,6 +161,7 @@ const MIGRATIONS: readonly string[] = [
   FORGET_POSITIONS_SQL,
   renameTileIdsSql(TILE_ID_RENAMES[1]!, "kv", "value"),
   renameTileIdsSql(TILE_ID_RENAMES[2]!, "kv", "value"),
+  renameTileIdsSql(TILE_ID_RENAMES[3]!, "kv", "value"),
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

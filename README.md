@@ -381,6 +381,13 @@ an agent drives", lists every call.
   faces. The sprites are 3D models cast through the game's projection by
   `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
   times larger
+- `bun run generate:bookshelves` — draw `data/tilesets/bookshelves.png` and
+  write the bookshelves: `bookshelf`, `bookshelf-sparse` and `bookshelf-tomes`,
+  each facing four ways, with its back to the edge of the cell behind it. Each
+  is a container of 8 nobody can carry off, so books are shelved in it and
+  read from their cards. The shelf and its books are voxels cast through the
+  game's projection by `scripts/model-caster.ts`, edged as `table` and
+  `chair` are; `PREVIEW=<dir>` also writes each facing cast four times larger
 - `bun run generate:runes` — draw `data/tilesets/runes.png` and point every
   `arcane-stone-*` item at it, write the three blank runes, and draw the three
   essences into `data/tilesets/essences.png`. A rune is a slab in its material

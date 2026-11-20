@@ -64,6 +64,10 @@ Whichever you use:
 - **`writeTileset`** writes the PNG, its `tilesets.json` entry and the tiles
   together. It updates only the generated fields of a tile that already exists,
   so authored fields such as `interactions` survive a re-run.
+- **Furniture is edged in two colours.** `table` and `chair` have a dark red
+  (3) edge along their top and left and a near-black (0) one along their
+  bottom and right. A cast with only `outlineBelow` beside them runs into the
+  floor; `edge` in `generate-bookshelves.ts` draws theirs.
 - **Hand-drawn food has a dark edge below it.** `outlineBelow` adds one. An
   edge on the right as well doubles up along every diagonal and looks heavy.
 

@@ -16,6 +16,7 @@ export const TILE_ID_RENAMES: readonly TileRename[] = [
   { from: "arcane-stone-of-", to: "rune-" },
   { from: "sand-dunes", to: "sand" },
   { from: "grass", to: "tuft", exact: true },
+  { from: "wooden-shelf", to: "bookshelf", exact: true },
 ];
 
 function needle(rename: TileRename, id: string): string {

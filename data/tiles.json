@@ -75970,40 +75970,6 @@
     }
   },
   {
-    "id": "wooden-shelf",
-    "name": "Wooden shelf",
-    "height": 4,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 8,
-      "y": 6
-    },
-    "lightPassing": true,
-    "walkable": false,
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    }
-  },
-  {
     "id": "counter-top",
     "name": "Counter",
     "height": 2,
@@ -218316,5 +218282,308 @@
       "hill-cave-mouth-sandstone",
       "hill-cave-mouth-basalt"
     ]
+  },
+  {
+    "id": "bookshelf",
+    "name": "Bookshelf",
+    "height": 3,
+    "type": "directional",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "bookshelves",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 8,
+        "equippable": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "bookshelf-sparse",
+    "name": "Bookshelf",
+    "height": 3,
+    "type": "directional",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "bookshelves",
+      "x": 0,
+      "y": 2
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 8,
+        "equippable": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "bookshelf-tomes",
+    "name": "Bookshelf",
+    "height": 3,
+    "type": "directional",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "bookshelves",
+      "x": 0,
+      "y": 4
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 8,
+        "equippable": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
   }
 ]
