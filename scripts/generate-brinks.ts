@@ -1,10 +1,10 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { PNG } from "pngjs";
-import { AUTOTILE_SLICE_MASKS } from "../app/lib/autotile";
+import { AUTOTILE_SLICE_MASKS, blobMaskToSlice } from "../app/lib/autotile";
 import { CELL_SIZE, type TileDef, type TileSprite, type TilesetDef } from "../app/lib/types";
 import { HILL_CROWN, footprint } from "./cave-wall-outline";
-import { type Rgba, paintRgba, readJson, writeTileset } from "./tileset-output";
+import { type Rgba, paintRgba, paletteRgba, readJson, writeTileset } from "./tileset-output";
 
 const DATA = path.resolve(import.meta.dirname, "..", "data");
 const TILESET_ID = "brinks";
@@ -16,7 +16,11 @@ const hex = (value: string): Rgba => {
 
 type Brink = { id: string; name: string; ground: string; rim: Rgba; lip: Rgba };
 
-/** `ground` is the tile each brink is cut from. The rim colours are the ones its ledge in `generate-ledges.ts` has. */
+/**
+ * `ground` is the tile each brink is cut from. The rim colours are the ones its
+ * ledge in `generate-ledges.ts` has; basalt has no ledge, so its rim is
+ * `hill-wall-basalt`'s dark bevel and its lip the grey of the wall's treads.
+ */
 const BRINKS: Brink[] = [
   {
     id: "grass-brink",
@@ -39,7 +43,17 @@ const BRINKS: Brink[] = [
     rim: hex("#9babb2"),
     lip: hex("#ffffff"),
   },
+  {
+    id: "basalt-brink",
+    name: "Basalt brink",
+    ground: "basalt",
+    rim: paletteRgba(1),
+    lip: paletteRgba(22),
+  },
 ];
+
+/** An autotile ground is cut from the slice with every neighbour joined, the one its open floor uses. */
+const JOINED_SLICE = blobMaskToSlice(0xff);
 
 /** The same rows `generate-ledges.ts` draws, so a brink beside a ledge carries on its tufts. */
 const TUFTS: ReadonlyArray<ReadonlyArray<"rim" | "lip" | null>> = [
@@ -78,7 +92,7 @@ async function groundPixels(ground: string): Promise<Rgba[][]> {
   const tiles = await readJson<TileDef[]>(path.join(DATA, "tiles.json"));
   const sets = await readJson<TilesetDef[]>(path.join(DATA, "tilesets.json"));
   const tile = tiles.find((t) => t.id === ground);
-  const sprite = tile?.sprite ?? tile?.scatter?.[0];
+  const sprite = tile?.sprite ?? tile?.scatter?.[0] ?? tile?.slices?.[JOINED_SLICE];
   const rect = sprite?.frames[0]?.sprite.rect;
   const set = sets.find((s) => s.id === tile?.anchor.tilesetId);
   if (!tile || !rect || !set) throw new Error(`no sprite for ${ground}`);

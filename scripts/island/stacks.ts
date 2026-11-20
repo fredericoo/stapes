@@ -38,7 +38,27 @@ const BRINK: Record<Kind, string> = {
   grass: "grass-brink",
   sand: "sand-brink",
   snow: "snow-brink",
-  basalt: "sand-brink",
+  basalt: "basalt-brink",
+};
+
+/** What a ramp is made of on each ground: the slope, and the half-height block the top half of the climb stands on. */
+const RAMP: Record<Kind, { slope: string; block: string }> = {
+  grass: { slope: "ramp", block: "half-stone" },
+  sand: { slope: "ramp", block: "half-stone" },
+  snow: { slope: "snowy-ramp", block: "frosted-half-stone" },
+  basalt: { slope: "ramp", block: "half-stone" },
+};
+
+/**
+ * What a raised column is filled with under its wall. Basalt is a layer over
+ * sand, so without it in the wall cells the basalt at a cliff's foot draws its
+ * sandy autotile edge against every one of them.
+ */
+const UNDER_WALL: Record<Kind, string[]> = {
+  grass: ["grass-2"],
+  sand: ["sand-dunes"],
+  snow: ["snow"],
+  basalt: ["sand-dunes", "basalt"],
 };
 
 export const kindAt = (island: Island, i: number): Kind => KIND[island.ground[i]!] ?? "grass";
@@ -101,8 +121,8 @@ export function writeTerrain(island: Island, plan: Plan): Board {
         y,
         z,
         heads.has(i) && z === L - 1
-          ? [tile(base), tile("half-stone"), tile("half-stone")]
-          : [tile(base), tile(WALL[kind])],
+          ? [tile(base), tile(RAMP[kind].block), tile(RAMP[kind].block)]
+          : [...UNDER_WALL[kind].map((id) => tile(id)), tile(WALL[kind])],
       );
     }
     let drop = false;
@@ -148,14 +168,16 @@ export function writeTerrain(island: Island, plan: Plan): Board {
     const direction = OPPOSITE[r.climbs];
     const lx = r.low % w;
     const hx = r.high % w;
+    /** Both cells take the high one's ground, so a ramp on the edge of the snow is not half of each. */
+    const { slope, block } = RAMP[kindAt(island, r.high)];
     board.set(lx, Math.floor(r.low / w), z, [
       tile(baseTile(island, r.low)),
-      tile("ramp", direction),
+      tile(slope, direction),
     ]);
     board.set(hx, Math.floor(r.high / w), z, [
       tile(baseTile(island, r.high)),
-      tile("half-stone"),
-      tile("ramp", direction),
+      tile(block),
+      tile(slope, direction),
     ]);
   }
 
@@ -187,7 +209,46 @@ export function writeTerrain(island: Island, plan: Plan): Board {
       }
     }
   }
+  placeWaterfalls(island, board);
   return board;
+}
+
+/**
+ * A fall stands in the lower cell, against the face of the cliff it comes
+ * down, and only a cliff's south and east faces are drawn: water leaving a
+ * cliff north or west goes over an edge nobody can see.
+ */
+const FALLS = [
+  { dx: 0, dy: -1, segments: ["waterfall-base", "waterfall-top"] },
+  { dx: -1, dy: 0, segments: ["waterfall-east-base", "waterfall-east-top"] },
+] as const;
+
+const FALLING_WATER = new Set([Ground.River, Ground.Lake]);
+
+/**
+ * Every cliff is one storey, and two segments are one storey, so each fall is
+ * a base and a top. A cell is given one fall at most: a river turning a
+ * corner over a cliff would otherwise stack two, a storey too tall.
+ */
+function placeWaterfalls(island: Island, board: Board) {
+  const { width: w, height: h, level, ground } = island;
+  for (let j = 0; j < w * h; j++) {
+    if (!FALLING_WATER.has(ground[j]!)) continue;
+    const x = j % w;
+    const y = (j - x) / w;
+    const z = level[j]!;
+    const fall = FALLS.find((f) => fallsInto(island, x + f.dx, y + f.dy, z));
+    const pool = board.get(x, y, z);
+    if (!fall || pool?.at(-1)?.tileId !== "water") continue;
+    board.set(x, y, z, [...pool, ...fall.segments.map((id) => tile(id))]);
+  }
+}
+
+/** Whether the cell at `x, y` holds water one storey above `z`. */
+function fallsInto(island: Island, x: number, y: number, z: number): boolean {
+  if (x < 0 || y < 0 || x >= island.width || y >= island.height) return false;
+  const i = y * island.width + x;
+  return FALLING_WATER.has(island.ground[i]!) && island.level[i] === z + 1;
 }
 
 /** Open sea is bare `deep-water`; the cells next to the shallows have `water` under it, and the shallows foam where they meet dry sand. */

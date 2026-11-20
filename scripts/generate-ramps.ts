@@ -8,7 +8,7 @@ import {
   type TileDef,
   resolveClimbFrom,
 } from "../app/lib/types";
-import { type Rgba, paintRgba, readJson, writeTileset } from "./tileset-output";
+import { type Rgba, paintRgba, paletteRgba, readJson, writeTileset } from "./tileset-output";
 
 const TILESET_ID = "ramps";
 const RISE = 2;
@@ -24,8 +24,16 @@ const hex = (value: string): Rgba => {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 255];
 };
 
+type RampPalette = {
+  outline: Rgba;
+  top: Rgba;
+  speck: Rgba;
+  south: { base: Rgba; speck: Rgba };
+  east: { base: Rgba; speck: Rgba };
+};
+
 /** The colours of the `tiny-ranch-tiles` sprites both tiles were drawn with before they had a facing each. */
-const RAMP = {
+const RAMP: RampPalette = {
   outline: hex("#6e2727"),
   top: hex("#fbb954"),
   speck: hex("#e6904e"),
@@ -33,6 +41,29 @@ const RAMP = {
   south: { base: hex("#e6904e"), speck: hex("#9e4539") },
   east: { base: hex("#9e4539"), speck: hex("#6e2727") },
 };
+/** The frosted rock of `hill-wall-frost`, on the faces a snowy ramp and its plinth are cut into. */
+const FROST = {
+  outline: paletteRgba(22),
+  south: { base: paletteRgba(22), speck: paletteRgba(8) },
+  east: { base: paletteRgba(7), speck: paletteRgba(5) },
+};
+const SNOW = paletteRgba(27);
+const SNOW_BRIGHT = paletteRgba(28);
+const SNOW_SHADE = paletteRgba(25);
+
+/**
+ * Snow is one flat colour, so a slope of it vanishes into the snow round it
+ * unless it is lit: one turned to the south-west light is brighter than the
+ * flat snow, one turned away from it darker.
+ */
+const SNOW_LIT: Record<Direction, { top: Rgba; speck: Rgba }> = {
+  s: { top: SNOW_BRIGHT, speck: SNOW },
+  w: { top: SNOW_BRIGHT, speck: SNOW },
+  n: { top: SNOW_SHADE, speck: SNOW },
+  e: { top: SNOW_SHADE, speck: SNOW },
+};
+const snowyRamp = (facing: Direction): RampPalette => ({ ...FROST, ...SNOW_LIT[facing] });
+const FROSTED_BLOCK: RampPalette = { ...FROST, top: SNOW, speck: SNOW };
 const STAIRS = {
   tread: hex("#9babb2"),
   edge: hex("#45293f"),
@@ -106,12 +137,14 @@ function speckled(x: number, y: number): boolean {
   return n === 0 || n === 7;
 }
 
-function rampColour(hit: Hit): Rgba {
-  if (hit.face === "top") return speckled(hit.x, hit.y) ? RAMP.speck : RAMP.top;
-  const along = hit.face === "south" ? hit.x : hit.y;
-  const { base, speck } = RAMP[hit.face];
-  return speckled(along + 3, hit.h * PX_PER_HEIGHT + 5) ? speck : base;
-}
+const rampColour =
+  (palette: RampPalette) =>
+  (hit: Hit): Rgba => {
+    if (hit.face === "top") return speckled(hit.x, hit.y) ? palette.speck : palette.top;
+    const along = hit.face === "south" ? hit.x : hit.y;
+    const { base, speck } = palette[hit.face];
+    return speckled(along + 3, hit.h * PX_PER_HEIGHT + 5) ? speck : base;
+  };
 
 /**
  * A flight climbed towards the camera hides its risers behind its treads and
@@ -192,10 +225,17 @@ async function assertClimbsUphill(ids: string[]) {
   if (wrong.length) throw new Error(`climbFrom does not match the sprites:\n${wrong.join("\n")}`);
 }
 
-const TILE_IDS = ["ramp", "stone-stairs"];
+const TILE_IDS = ["ramp", "stone-stairs", "snowy-ramp"];
 await assertClimbsUphill(TILE_IDS);
 
-const sheet = new PNG({ width: DIRECTIONS.length * SPRITE_PX, height: 2 * SPRITE_PX });
+const BLOCK_ID = "frosted-half-stone";
+const BLOCK_ROW = TILE_IDS.length;
+const blockSurface: Surface = () => RISE;
+
+const sheet = new PNG({
+  width: DIRECTIONS.length * SPRITE_PX,
+  height: (BLOCK_ROW + 1) * SPRITE_PX,
+});
 DIRECTIONS.forEach((facing, column) => {
   const left = column * SPRITE_PX;
   /**
@@ -203,14 +243,23 @@ DIRECTIONS.forEach((facing, column) => {
    * is a bar at the join of the two cells that make one level's climb.
    */
   const along = facing === "n" || facing === "s" ? "rows" : "columns";
-  drawSprite(sheet, left, 0, rampSurface(facing), rampColour, { colour: RAMP.outline, along });
+  const ramp = rampSurface(facing);
+  drawSprite(sheet, left, 0, ramp, rampColour(RAMP), { colour: RAMP.outline, along });
   const stairs = stairSurface(facing);
   drawSprite(sheet, left, SPRITE_PX, stairs, (hit) => stairColour(facing, stairs, hit), null);
+  const snowy = { colour: FROST.outline, along } as const;
+  drawSprite(sheet, left, 2 * SPRITE_PX, ramp, rampColour(snowyRamp(facing)), snowy);
 });
+drawSprite(sheet, 0, BLOCK_ROW * SPRITE_PX, blockSurface, rampColour(FROSTED_BLOCK), null);
 
-await writeTileset(
-  TILESET_ID,
-  "Ramps",
-  sheet,
-  TILE_IDS.map((id, row) => tileDef(id, row)),
-);
+const block = {
+  id: BLOCK_ID,
+  type: "simple",
+  anchor: { tilesetId: TILESET_ID, x: 0, y: BLOCK_ROW * SPRITE_CELLS },
+  sprite: frames(0, 0),
+} as unknown as TileDef;
+
+await writeTileset(TILESET_ID, "Ramps", sheet, [
+  ...TILE_IDS.map((id, row) => tileDef(id, row)),
+  block,
+]);

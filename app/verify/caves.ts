@@ -52,6 +52,7 @@ export const DIM_ENOUGH = 64;
 
 const ROCK_TILES = new Set([
   "half-stone",
+  "frosted-half-stone",
   "cave-wall-sloped",
   "cave-wall-sloped-grey",
   "hill-wall",

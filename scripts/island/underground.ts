@@ -24,6 +24,7 @@ const AWKWARD = new Set([
   "deep-water",
   "lava",
   "ramp",
+  "snowy-ramp",
   "fence",
   "stone-stairs",
   "hole",
@@ -285,10 +286,10 @@ export class Digger {
     return this.b.plan.siteOf[y * this.w + x]! > 0;
   }
 
-  /** A cell of a raised column below its top: the ground tile and a hill wall, nothing else. */
+  /** A cell of a raised column below its top: its ground layers with a hill wall over them, nothing else. */
   private isFill(x: number, y: number, z: number) {
-    const s = this.b.board.get(x, y, z);
-    return !!s && s.length === 2 && FILL_WALLS.has(s[1]!.tileId) && !s[1]!.direction;
+    const wall = this.b.board.get(x, y, z)?.at(-1);
+    return !!wall && FILL_WALLS.has(wall.tileId) && !wall.direction;
   }
 
   private seals(x: number, y: number, z: number) {
@@ -819,7 +820,7 @@ export class Digger {
           const ny = y + dy;
           const rock = board.get(nx, ny, z);
           if (z >= 0 && this.isFill(nx, ny, z))
-            board.set(nx, ny, z, [tile(c.style.ground), rock![1]!]);
+            board.set(nx, ny, z, [tile(c.style.ground), rock!.at(-1)!]);
           else if (z < 0 && !rock) board.set(nx, ny, z, [tile("dirt"), tile(c.style.wall)]);
         }
       }

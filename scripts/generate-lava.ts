@@ -451,7 +451,7 @@ function tiles(): TileDef[] {
     kind: "prop",
     attributes: {},
     anchor: { tilesetId: TILESET, x: BASALT_COLUMN, y: 0 },
-    connectsTo: ["lava-crust", "lava"],
+    connectsTo: ["lava-crust", "lava", "basalt-brink"],
     slices: Object.fromEntries(
       AUTOTILE_SLICE_MASKS.map((_, slice) => [
         slice,

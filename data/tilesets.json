@@ -130,7 +130,7 @@
     "name": "Waterfall",
     "file": "waterfall.png",
     "width": 128,
-    "height": 48
+    "height": 96
   },
   {
     "id": "monsters",
@@ -151,7 +151,7 @@
     "name": "Ramps",
     "file": "ramps.png",
     "width": 64,
-    "height": 32
+    "height": 64
   },
   {
     "id": "wisps",
@@ -231,7 +231,7 @@
     "id": "brinks",
     "name": "Brinks",
     "file": "brinks.png",
-    "width": 24,
+    "width": 32,
     "height": 376
   },
   {

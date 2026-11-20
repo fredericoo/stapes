@@ -2612,6 +2612,14 @@ so the two can disagree. `generate:ramps` resolves every facing's `climbFrom`
 before it draws and stops if one does not climb exactly towards the high edge
 it is about to draw.
 
+`snowy-ramp` is the same slope in snow, with `frosted-half-stone` under its
+high cell where `ramp` has `half-stone`; `generate:island` uses the pair on
+snow. Snow is one flat colour, so the slope is shaded by the way it faces: a
+slope turned to the south-west light is white, one turned away is grey, or it
+would vanish into the snow round it. A ramp on the edge of the snow takes the
+ground of its high cell for both cells. `frosted-half-stone` is in every
+`connectsTo` that lists `half-stone`, so a wall meets it the same way.
+
 ### A step never crosses a sealed floor plane
 
 `canWalk` lands a step on any standing surface in the destination column within
@@ -15942,6 +15950,21 @@ the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
 
+`waterfall-east-top`, `-middle` and `-base` are the same fall down a cliff's
+east face, for a river that flows east off a cliff: they go in the cell east
+of the cliff. The projection draws x and y alike, so they are the south-facing
+sprites with rows and columns swapped, with the foam's normal swapped back
+before it is lit so the light still comes from the south-west. They are phased
+along y. There is no west- or north-facing fall, because those faces of a
+cliff are never drawn.
+
+`generate:island` places them: wherever river or lake water is one storey
+above shallow water to the north or west of it, the lower cell gets a base and
+a top, two segments being one storey. A river that leaves a cliff to the north
+or west gets nothing, since the face it would fall down is behind the cliff,
+and a cell gets one fall at most, so a river turning a corner over a cliff
+does not stack two.
+
 ## An apple tree is drawn in bundles, and drops what it bears
 
 `bun run generate:apple-trees` ray-traces `apple-tree` in the game's
@@ -18496,14 +18519,18 @@ the floor, so its side is on the line of a face at every height.
 every open side, since ground fills its whole cell.
 
 **A brink is the ground tile cut to that outline.** `bun run generate:brinks`
-(`../scripts/generate-brinks.ts`) draws `grass-brink`, `sand-brink` and
-`snow-brink` from
+(`../scripts/generate-brinks.ts`) draws `grass-brink`, `sand-brink`,
+`snow-brink` and `basalt-brink` from
 `footprint` in `../scripts/cave-wall-outline.ts` at `HILL_CROWN`, the call the
 wall's top layer is drawn from, one slice per neighbourhood. A brink reads its
 neighbours on its own level and the wall reads its own on the level below, so
 the two outlines agree only while the two levels hold the same cells: ground or
 a brink above exactly where rock is below. A hill is built that way. The rim
-and tufts are the ledge's, drawn along the outline.
+and tufts are the ledge's, drawn along the outline. `basalt` has no ledge, so
+`basalt-brink` takes its rim and tufts from `hill-wall-basalt`'s bevel and
+treads. `basalt` is an autotile, so a brink is cut from its fully joined
+slice, and `basalt` lists `basalt-brink` in `connectsTo` or it would draw its
+sandy edge against every brink round a basalt hilltop.
 
 **Where a brink goes.** On every cell above a `hill-wall` that has a cell
 without rock among the eight around it on the wall's level. That is every cell
