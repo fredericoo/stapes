@@ -12,9 +12,17 @@ const JSON_FILES = [
 ];
 const TILESET_DIRECTORY = "tilesets";
 
-export async function seedFromDirectory(blobs: Blobs, directory: string): Promise<void> {
+/**
+ * `mapFile` is the file in `directory` stored as the world's `map.json`, so a
+ * staging world can be seeded from a smaller map than production's.
+ */
+export async function seedFromDirectory(
+  blobs: Blobs,
+  directory: string,
+  mapFile = "map.json",
+): Promise<void> {
   for (const name of JSON_FILES) {
-    const text = await readIfPresent(join(directory, name));
+    const text = await readIfPresent(join(directory, name === "map.json" ? mapFile : name));
     if (text !== null) await blobs.put(name, text, "application/json");
   }
 

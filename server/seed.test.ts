@@ -37,4 +37,20 @@ describe("seeding a store from a directory", () => {
 
     expect(await new DataStore(blobs).readTraits()).toEqual(traits);
   });
+
+  it("stores the named map file as the world's map", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "stapes-seed-"));
+    made.push(directory);
+    await writeFile(
+      join(directory, "map.json"),
+      JSON.stringify({ version: 2, levels: { "0": {} } }),
+    );
+    const staging = { version: 2, levels: { "0": { "0,0": [{ tileId: "grass-2" }] } } };
+    await writeFile(join(directory, "map-staging.json"), JSON.stringify(staging));
+    const blobs = memoryBlobs();
+
+    await seedFromDirectory(blobs, directory, "map-staging.json");
+
+    expect(JSON.parse((await blobs.getText("map.json"))!)).toEqual(staging);
+  });
 });

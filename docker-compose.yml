@@ -10,6 +10,7 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:?set this}
       AUTH_SECRET: ${AUTH_SECRET:-}
       CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-2000}
+      SEED_MAP: ${SEED_MAP:-map.json}
       BACKUP_DIR: /backups
     volumes:
       - stapes-data:/data

@@ -33,8 +33,10 @@ generator: the height is shaped by the rules in this doc (the peak in the
 north, the desert and its gorge in the east, the woods and the bog in the
 west, the bay in the south), and the lakes and rivers come from rain flowing
 downhill over it. Places and roads are put down by rules, and the names on it
-are placeholders. On this seed the road between the two towns is about 1,650
-cells, five and a half minutes' walk.
+are placeholders. The game builds this seed at half a cell per pixel of the
+sketch, the largest island the server can hold, so the road between the two
+towns by the inn is about 340 cells, a little over a minute's walk
+(`docs/map.md`).
 
 ## Runes
 
@@ -218,8 +220,8 @@ The first area is where a new player learns to fight, eat and trade.
 
 ## The two towns
 
-The people at the camp tell you about two towns. Each one is about five
-minutes' walk from the other, and the roads between them have threats a new
+The people at the camp tell you about two towns. Each one is about a minute's
+walk from the other, and the roads between them have threats a new
 player should be careful of. You can go to both, trade and talk with both, and
 understand both sides. Neither of them is wrong.
 

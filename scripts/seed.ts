@@ -7,7 +7,7 @@ const config = readConfig();
 const db = await openDatabase(config.databasePath);
 const blobs = new SqliteBlobs(db);
 
-await seedFromDirectory(blobs, config.SEED_DIR);
+await seedFromDirectory(blobs, config.SEED_DIR, config.SEED_MAP);
 await db.close?.();
 
 console.log(

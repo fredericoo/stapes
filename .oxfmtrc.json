@@ -1,5 +1,5 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 100,
-  "ignorePatterns": ["**/*.md", "data/map.json", "data/tiles.json"]
+  "ignorePatterns": ["**/*.md", "data/map.json", "data/map-staging.json", "data/tiles.json"]
 }
