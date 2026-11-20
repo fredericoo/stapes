@@ -173,4 +173,18 @@ describe("what a creature drops", () => {
       ).toEqual([]);
     }
   });
+
+  it("is an essence of each of its own elements, carried in a bag that always rolls", () => {
+    for (const { id, battler } of creatures) {
+      const bag = (battler.kit ?? []).find((entry) => entry.slot === "bag" && entry.chance === 100);
+      const essences = (bag?.contents ?? [])
+        .map((c) => c.tileId)
+        .filter((tileId) => tileId.startsWith("essence-"));
+      expect(essences, id).toEqual((battler.elements ?? []).map((e) => ESSENCE_OF[e]));
+      expect(
+        kitIds(battler).filter((t) => t.startsWith("essence-")),
+        id,
+      ).toEqual(essences);
+    }
+  });
 });

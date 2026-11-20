@@ -1912,8 +1912,23 @@ trip on their own. Each shop's Sell menu is one
 does not undercut Idris's leather prices: five skins sell for ten
 gold, and a leather cap costs those five skins.
 
-**No creature drops a rune**, not even in its kit; `runeCrafting.test.ts`
-checks that over every creature.
+**Every creature with an element also drops that element's essence**, rarely,
+as the first thing in the same bag, so a crowded bag never crowds it out. A
+creature with no `elements` drops none, and nor do the spawned small slimes
+and icicles, for the reason spawned slimes drop no spoil. The rate rises with
+what the creature costs to kill, the way the spoil prices do:
+
+| creatures                                       | essence                 | chance |
+| ----------------------------------------------- | ----------------------- | ------ |
+| snake, the three slimes, snow wolf (8 hp)       | its element's           | 1%     |
+| the three wisps (24 hp)                         | its element's           | 2%     |
+| cave troll (100 hp), bear (160 hp)              | fire, nature            | 5%     |
+| yeti (1400 hp, back every 30 to 45 minutes)     | water                   | 10%    |
+
+At 1% an essence takes about a hundred kills of the weakest creatures, and
+ten yetis on average, so it is the rarer of the two things a rune needs.
+No creature drops a rune, not even in its kit, and `runeCrafting.test.ts`
+checks both rules over every creature.
 
 **A shopkeeper is a `battler`, and that is load-bearing.** `resolveActor` is
 satisfied by a `dialog` alone, so a body that only talks would be adopted,

@@ -71802,6 +71802,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-nature",
+                "chance": 1
+              },
+              {
                 "tileId": "snake-fang",
                 "chance": 70
               }
@@ -74288,6 +74292,10 @@
             "tileId": "basic-bag",
             "chance": 100,
             "contents": [
+              {
+                "tileId": "essence-fire",
+                "chance": 5
+              },
               {
                 "tileId": "arcane-stone",
                 "chance": 10
@@ -87382,6 +87390,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-water",
+                "chance": 1
+              },
+              {
                 "tileId": "water-slime-jelly",
                 "chance": 75
               }
@@ -88865,6 +88877,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-fire",
+                "chance": 1
+              },
+              {
                 "tileId": "fire-slime-jelly",
                 "chance": 75
               }
@@ -90309,6 +90325,10 @@
             "tileId": "basic-bag",
             "chance": 100,
             "contents": [
+              {
+                "tileId": "essence-nature",
+                "chance": 1
+              },
               {
                 "tileId": "nature-slime-jelly",
                 "chance": 75
@@ -100953,6 +100973,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-fire",
+                "chance": 2
+              },
+              {
                 "tileId": "wisp-ash",
                 "chance": 70
               }
@@ -101567,6 +101591,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-water",
+                "chance": 2
+              },
+              {
                 "tileId": "wisp-dew",
                 "chance": 70
               }
@@ -102180,6 +102208,10 @@
             "tileId": "basic-bag",
             "chance": 100,
             "contents": [
+              {
+                "tileId": "essence-nature",
+                "chance": 2
+              },
               {
                 "tileId": "wisp-spore",
                 "chance": 70
@@ -131179,6 +131211,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-nature",
+                "chance": 5
+              },
+              {
                 "tileId": "raw-meat",
                 "chance": 100
               },
@@ -136107,6 +136143,10 @@
             "chance": 100,
             "contents": [
               {
+                "tileId": "essence-water",
+                "chance": 1
+              },
+              {
                 "tileId": "wolf-skin",
                 "chance": 100
               }
@@ -137185,6 +137225,10 @@
             "tileId": "leather-backpack",
             "chance": 100,
             "contents": [
+              {
+                "tileId": "essence-water",
+                "chance": 10
+              },
               {
                 "tileId": "wolf-skin",
                 "chance": 50
