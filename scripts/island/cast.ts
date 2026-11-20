@@ -15,7 +15,6 @@ const LOOKS: Record<string, Direction> = {
   "tove-arnesdatter": "n",
   "ifeoma-nwachukwu": "w",
   "wenna-pascoe": "n",
-  "jory-thistlewood": "n",
   "hesper-vaun": "n",
   "dagny-rook": "s",
   "suvi-kallio": "e",
@@ -51,7 +50,7 @@ export function placeCast(b: Builder) {
     if (!r.tileId) continue;
     const post = BY_THE_BED.has(r.tileId) || !r.workCell ? besideBed(b, r) : free(b, r.workCell);
     const inside = buildingAt(b, post);
-    b.stand(r, post, LOOKS[r.tileId] ?? inside?.door.wall ?? "s");
+    b.stand(r, post, r.faces ?? LOOKS[r.tileId] ?? inside?.door.wall ?? "s");
   }
   for (const [cat, owner] of Object.entries(CATS)) {
     const by = b.residents.find((r) => r.tileId === owner)?.post;

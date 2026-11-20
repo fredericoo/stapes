@@ -254,7 +254,7 @@ than in either town.
 - **Where**: the camp, by a barrow at the path's fork towards the two towns.
 - **What he does**: rag-and-bone man. He buys the small spoils of the first hunts:
   rat tails, bat wings, rabbit feet, bones. He pays less than the towns, and says
-  so. By day he sits at the barrow; at night he sleeps beside it.
+  so. By day he sits at the barrow; at night he sleeps in a lean-to behind it.
 - **Before Wyrd**: aged 23. Born on the island. A harbour pickpocket.
 - **Backstory**: he likes the island now, because nobody can hang him. He has
   died fourteen times, more than anyone else at the camp, because he once tried

@@ -52,7 +52,7 @@ that is the work cell for most of them. No wild creature is placed.
 | `ifeoma-nwachukwu` | Ifeoma Nwachukwu | Ifeoma's cook tent at the cookfire | -17, -81, L1 | The cookfire | -9, -86, L1 | -9, -86, L1, facing w |
 | `peregrine-voss` | Peregrine Voss | Peregrine's tent and trap bench | -18, -91, L1 | Trap bench by the salvage pile | -19, -91, L1 | -19, -91, L1, facing s |
 | `wenna-pascoe` | Wenna Pascoe | Wenna's shack at the salvage pile | 5, -81, L1 | The salvage pile and the wreck beach | 8, -82, L1 | 8, -82, L1, facing n |
-| `jory-thistlewood` | Jory Thistlewood | In the open beside his barrow | -7, -97, L1 | His barrow at the path's fork towards the two towns | -6, -96, L1 | -6, -96, L1, facing n |
+| `jory-thistlewood` | Jory Thistlewood | Jory's lean-to by his barrow | -14, -92, L1 | His barrow at the path's fork towards the two towns | -12, -89, L1 | -12, -89, L1, facing s |
 | `iolanthe-sarno` | Iolanthe Sarno | Council house | -184, -223, L2 | Council house | -187, -220, L1 | -187, -220, L1, facing s |
 | `hesper-vaun` | Hesper Vaun | Hesper's cell behind the temple | -190, -208, L1 | Rune temple, the carving table between the forges | -173, -225, L1 | -173, -225, L1, facing n |
 | `dagny-rook` | Dagny Rook | Dagny's house | -173, -202, L1 | Rune temple, the clerk's desk by the door | -170, -224, L1 | -170, -224, L1, facing s |
@@ -114,6 +114,7 @@ Beds nobody in the cast sleeps in:
 | Ifeoma's cook tent at the cookfire | -19, -85 | -15, -80 | 1 | 1 | -17, -85 (n) |
 | Peregrine's tent and trap bench | -21, -93 | -17, -88 | 1 | 1 | -19, -88 (s) |
 | Wenna's shack at the salvage pile | 2, -85 | 6, -80 | 1 | 1 | 4, -85 (n, open) |
+| Jory's lean-to by his barrow | -15, -94 | -11, -90 | 1 | 1 | -13, -90 (s, open) |
 | Rune temple | -180, -231 | -166, -221 | 1 | 1 | -173, -221 (s) |
 | Council house | -190, -225 | -183, -215 | 1 | 2 | -187, -215 (s) |
 | Wardens' house | -199, -221 | -194, -215 | 1 | 1 | -197, -215 (s) |

@@ -17,6 +17,8 @@ export type Resident = {
   bed: { x: number; y: number; z: number } | null;
   work: string;
   workCell: { x: number; y: number; z: number } | null;
+  /** Which way they look at their work cell, where the post itself does not say. */
+  faces?: Direction;
   post?: { x: number; y: number; z: number; facing: Direction };
 };
 

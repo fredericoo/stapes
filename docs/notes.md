@@ -1697,12 +1697,16 @@ post by day, walk to a bed at night, and back to the post in the morning.
   route fails it sleeps where it stands.
 - **So a body sleeps in its own bed only when that bed is the nearest one from
   its post and a walk reaches it.** That holds for everybody whose post and bed
-  are in one room, for Jory Thistlewood in the open, and for Wenna Pascoe,
-  Absalom Grieve and Tobiah Marsh, whose doors the generator leaves open
+  are in one room, and for Wenna Pascoe, Absalom Grieve, Jory Thistlewood and
+  Tobiah Marsh, whose doors the generator leaves open
   (`Builder.openDoor`) because only the door was in the way.
 - **A door is opened only where nobody else's nearest bed is behind it.** The
   wardens' house stays shut because it is the nearest bed from Suvi Kallio's
   garden, and Idris Kaya's awning because it is the nearest from the cookfire.
+  Jory's lean-to stands north-west of the cookfire for the same reason: due
+  north of it, its bed was nearer the cookfire than Idris's. Jory calls
+  `returns-home` with a leash of one cell; his written brain only sits, and
+  without it he stayed in the lean-to after his first night.
   The north gatehouse stays shut for a different reason: Edda Kell has no
   `returns-home`, so a body put to bed indoors never goes back to the gate.
 - **Everybody else sleeps at their post**, which is the same outcome as before

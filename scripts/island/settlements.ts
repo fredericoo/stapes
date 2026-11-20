@@ -536,7 +536,6 @@ export function buildCamp(b: Builder, site: Site) {
   }
   footprint(b, { x: c.x - 3, y: c.y - 2 }, z, "fallen-log", 2, 1);
   const beachEnd = entries.reduce((best, e) => (e.y > best.y ? e : best), { x: c.x, y: site.y1 });
-  const townEnd = entries.reduce((best, e) => (e.y < best.y ? e : best), { x: c.x, y: site.y0 });
 
   const tove = town.place(
     "tove-lean-to",
@@ -618,22 +617,47 @@ export function buildCamp(b: Builder, site: Site) {
   b.residents[b.residents.length - 1]!.workCell = b.world(pile.x, pile.y + 3, z);
   b.openDoor(wenna);
 
-  const fork = { x: townEnd.x + 3, y: townEnd.y + 3 };
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const x = fork.x + (attempt % 4);
-    const y = fork.y + Math.floor(attempt / 4);
-    if (town.at(x, y) === 0 && town.at(x, y - 1) === 0 && town.at(x + 1, y) === 0) {
-      b.put(x + 1, y, z, "wooden-box");
-      b.put(x + 1, y - 1, z, "sack");
-      b.bed(x, y, z, {
-        ...P("Jory Thistlewood", "His barrow at the path's fork towards the two towns"),
-        home: "In the open beside his barrow",
-        workCell: b.world(x + 1, y + 1, z),
-      });
-      break;
-    }
-  }
+  const jory = town.place(
+    "jory-lean-to",
+    "Jory's lean-to by his barrow",
+    5,
+    5,
+    { x: c.x - 6, y: site.y0 + 2 },
+    { roof: "yellow", window: null },
+    1,
+  );
+  const { faces, ...seat } = barrow(b, town, jory);
+  b.bedFor(jory, {
+    ...P("Jory Thistlewood", "His barrow at the path's fork towards the two towns"),
+    workCell: seat,
+    faces,
+  });
+  b.openDoor(jory);
   b.put(c.x - 1, c.y + 2, z, "respawn-point");
+}
+
+/**
+ * Jory's barrow, a box with a sack on it, against the lean-to's front wall
+ * beside the doorway. Returns the cell beside it, where he sits by day facing
+ * the path.
+ */
+function barrow(b: Builder, town: Town, shelter: Building) {
+  const { x, y, wall } = shelter.door;
+  const out: Record<string, [number, number]> = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
+  const [ox, oy] = out[wall]!;
+  const along: [number, number] = ox === 0 ? [1, 0] : [0, 1];
+  for (const side of [2, -2, 3, -3]) {
+    const box = { x: x + ox + along[0] * side, y: y + oy + along[1] * side };
+    const sack = { x: box.x + along[0] * Math.sign(side), y: box.y + along[1] * Math.sign(side) };
+    const seat = { x: box.x - along[0] * Math.sign(side), y: box.y - along[1] * Math.sign(side) };
+    if ([box, sack, seat].some((p) => town.at(p.x, p.y) === 2)) continue;
+    if (!b.put(box.x, box.y, town.z, "wooden-box")) continue;
+    b.put(sack.x, sack.y, town.z, "sack");
+    town.mark(box.x, box.y, 3);
+    town.mark(sack.x, sack.y, 3);
+    return { ...b.world(seat.x, seat.y, town.z), faces: wall };
+  }
+  throw new Error("no room for Jory's barrow beside his lean-to");
 }
 
 export function buildInn(b: Builder, site: Site) {
