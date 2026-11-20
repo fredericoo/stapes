@@ -4,6 +4,7 @@ import statusesJson from "../data/statuses.json";
 import traitsJson from "../data/traits.json";
 import { PLAYER_TILE_ID, TICK_MS } from "../app/game/constants";
 import { carriedInstances, emptyEquipment } from "../app/game/equipment";
+import { MS_PER_CLOCK_MINUTE } from "../app/lib/clock";
 import { fixtureTutorial } from "../app/lib/fixtureTutorial";
 import { statusesById } from "../app/lib/status";
 import { traitsById, withTraits } from "../app/lib/traits";
@@ -38,7 +39,7 @@ const tiles: TileDef[] = withTraits(
 const tilesById = tilesByIdFromList(tiles);
 const statuses = statusesById(statusesJson as unknown[]);
 
-const NOON_MS = 12 * 60 * 60 * 1000;
+const NOON_MS = 12 * 60 * MS_PER_CLOCK_MINUTE;
 const FRAME_MS = 50;
 const GIVE_UP_MS = 120_000;
 /** Well over `KIT_MIN_WORTH`, so a bag holding this many is fetched from anywhere in a test world. */

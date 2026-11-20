@@ -3093,5 +3093,427 @@
         "to": "rest"
       }
     ]
+  },
+  {
+    "id": "keeps-hours",
+    "name": "Keeps hours",
+    "hint": "Goes to bed for the hours given: walks to the nearest bed within reach and puts itself to sleep with one of its own spells, or sleeps where it stands when no bed is in reach or the walk takes too long. Gets up when the hours end. Bedtime never takes it out of a conversation, a fright or a fight.",
+    "params": {
+      "from": {
+        "kind": "hour",
+        "label": "from"
+      },
+      "to": {
+        "kind": "hour",
+        "label": "to"
+      },
+      "spell": {
+        "kind": "spell",
+        "label": "sleeps with"
+      },
+      "bed": {
+        "kind": "things",
+        "default": ["bed", "bed-2"],
+        "label": "beds"
+      },
+      "within": {
+        "kind": "cells",
+        "default": 16,
+        "label": "looks for a bed within"
+      },
+      "patience": {
+        "kind": "ms",
+        "default": 45000,
+        "label": "walks to bed for at most"
+      }
+    },
+    "states": {
+      "to-bed": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "thing",
+              "data": {
+                "tileIds": {
+                  "arg": "bed"
+                }
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "abed": {
+        "band": "rest",
+        "do": [
+          {
+            "action": "cast",
+            "spell": {
+              "arg": "spell"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "band": "errand",
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            },
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "bed"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "to": "to-bed"
+      },
+      {
+        "band": "errand",
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": {
+                        "arg": "bed"
+                      }
+                    }
+                  },
+                  "cells": {
+                    "arg": "within"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "to": "abed"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "to-bed",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            }
+          ]
+        },
+        "to": "rest"
+      },
+      {
+        "from": "to-bed",
+        "if": {
+          "cond": "in_range",
+          "of": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "bed"
+              }
+            }
+          },
+          "cells": 1
+        },
+        "to": "abed"
+      },
+      {
+        "from": "to-bed",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "abed"
+      },
+      {
+        "from": "to-bed",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "abed"
+      },
+      {
+        "from": "abed",
+        "if": {
+          "combinator": "and",
+          "not": true,
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            }
+          ]
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "potters",
+    "name": "Potters about",
+    "hint": "Now and then, with nobody near and nobody talking to it, takes a few steps about its post and stops. A body that never moves reads as a statue. Pair it with returns-home so the steps do not carry it off.",
+    "params": {
+      "every": {
+        "kind": "ms",
+        "default": 15000,
+        "label": "waits at least"
+      },
+      "upTo": {
+        "kind": "ms",
+        "default": 40000,
+        "label": "waits at most"
+      },
+      "steps": {
+        "kind": "steps",
+        "default": 1,
+        "label": "steps"
+      },
+      "near": {
+        "kind": "cells",
+        "default": 6,
+        "label": "keeps still with a player within"
+      }
+    },
+    "states": {
+      "pottering": {
+        "band": "roam",
+        "do": [
+          {
+            "action": "walk_n_steps",
+            "steps": {
+              "arg": "steps"
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "after",
+              "ms": {
+                "arg": "every"
+              },
+              "toMs": {
+                "arg": "upTo"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": ["player"]
+                    }
+                  },
+                  "cells": {
+                    "arg": "near"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "to": "pottering"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "pottering",
+        "if": {
+          "cond": "talking"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "pottering",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "pottering",
+        "if": {
+          "cond": "after",
+          "ms": 1500,
+          "toMs": 3000
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
+    "id": "calls-out",
+    "name": "Calls out",
+    "hint": "Says its line now and then while a player is in sight within near and nobody is talking to it: a shopkeeper crying their wares, a guard telling passers-by to keep to the road.",
+    "params": {
+      "line": {
+        "kind": "text",
+        "label": "says"
+      },
+      "near": {
+        "kind": "cells",
+        "default": 6,
+        "label": "to a player within"
+      },
+      "every": {
+        "kind": "ms",
+        "default": 20000,
+        "label": "waits at least"
+      },
+      "upTo": {
+        "kind": "ms",
+        "default": 60000,
+        "label": "waits at most"
+      }
+    },
+    "states": {
+      "calling": {
+        "band": "roam",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "line"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "after",
+              "ms": {
+                "arg": "every"
+              },
+              "toMs": {
+                "arg": "upTo"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": ["player"]
+                }
+              },
+              "cells": {
+                "arg": "near"
+              }
+            }
+          ]
+        },
+        "to": "calling"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "calling",
+        "if": {
+          "cond": "after",
+          "ms": 500
+        },
+        "to": "rest"
+      }
+    ]
   }
 ]
