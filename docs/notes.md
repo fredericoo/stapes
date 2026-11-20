@@ -15905,7 +15905,12 @@ another node.
   evaluates noise over a small grid rather than over the island.
 
 **A road and a river share their route (`ROUTE_PROPS`) and stay separate
-components,** because a road lays a deck over water and a river does not. A
+components,** because a road lays a deck over water and a river does not.
+A road's crossing is always one straight bridge (`withBridges`): from the last
+land cell before the water, along the crossing's longer axis (or the step it
+entered the water by, when that axis starts on land), to the first land cell
+after it, then back to the route. Laying deck on whichever band cells were
+wet left bridges in pieces wherever a road met water at an angle. A
 route runs from `from` through each `via` point to `to`, and `wander` pushes
 each stretch sideways by noise multiplied by a sine that is zero at both ends
 of the stretch, so the route still meets every point exactly.
@@ -15944,6 +15949,12 @@ copies it out or pastes one in.
   crosshair that takes the next click on the map. A component with a prop the
   reader does not know gets "Edit this in the JSON" for it rather than a
   broken form.
+- **The camera is snapped to a whole art pixel, two at half zoom
+  (`cameraOf`).** Between pixels every tile edge lands on a fraction of a
+  screen pixel and the renderer leaves hairline slits between tiles. Scrolling
+  pans; a pinch arrives as a wheel event with `ctrlKey` (or as Safari's
+  gesture events, or as two pointers) and steps through `ZOOMS`, which stay
+  fixed steps for the same reason.
 - **A dragged box is written back through `frameFor`**, the inverse of the pin
   arithmetic, so it keeps its pins and only its offsets change; `pointFor` does
   the same for a point. `layout.test.ts` round-trips every pair of pins,
