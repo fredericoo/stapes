@@ -7,13 +7,14 @@ import { isDirectional } from "../lib/types";
 import { elevationAt, getStack, listChannels } from "../lib/mapData";
 import { footRange } from "../lib/validation";
 import {
-  resolveDepotDef,
-  resolveEmit,
-  resolveReceive,
-  resolveRewardDef,
-  resolveTeleportDef,
-} from "../lib/interactions";
-import { resolveContainer, resolveItem } from "../lib/item";
+  holdsCount,
+  isDepot,
+  isGiveable,
+  isGiver,
+  isStowable,
+  isWired,
+  needsDestination,
+} from "./placementCapabilities";
 import { Rating } from "./Rating";
 import { variantKeys } from "../lib/variant";
 import { useEditorStore } from "../editor/store";
@@ -60,34 +61,6 @@ function toDisplayRows(stack: PlacedTile[]): StackRow[] {
     const stackIndex = stack.length - 1 - displayIdx;
     return { id: ids[stackIndex]!, placed, stackIndex };
   });
-}
-
-function isWired(def: TileDef): boolean {
-  return resolveEmit(def) != null || resolveReceive(def) != null;
-}
-
-function isGiver(def: TileDef): boolean {
-  return resolveRewardDef(def) != null;
-}
-
-function isDepot(def: TileDef): boolean {
-  return resolveDepotDef(def) != null;
-}
-
-function needsDestination(def: TileDef): boolean {
-  return resolveTeleportDef(def)?.destination.kind === "absolute";
-}
-
-function isGiveable(def: TileDef): boolean {
-  return resolveItem(def) != null && resolveContainer(def) == null;
-}
-
-function holdsCount(def: TileDef): number | null {
-  return resolveContainer(def)?.size ?? null;
-}
-
-function isStowable(def: TileDef): boolean {
-  return resolveItem(def) != null && resolveContainer(def) == null;
 }
 
 function footChoice(
