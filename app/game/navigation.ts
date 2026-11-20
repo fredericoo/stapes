@@ -233,8 +233,26 @@ function useLegs(world: NavWorld, at: Coord): NavLeg[] {
   return out;
 }
 
+/**
+ * A body can only stand in a doorway with the door open, so the legs out of
+ * one are planned with it open. On the board as stored the door is shut, and
+ * the body would be standing on top of it, under the storey above.
+ */
+function throughDoorway(world: NavWorld, at: Coord): NavWorld {
+  for (const z of [at.z, at.z + 1]) {
+    const stack = getStack(world.board, at.x, at.y, z);
+    const index = stack.findIndex((placed) => opensToIntangible(placed, world.tilesById));
+    if (index < 0) continue;
+    const openId = opensToIntangible(stack[index]!, world.tilesById)!;
+    const next = stack.map((p, i) => (i === index ? { ...p, tileId: openId } : p));
+    return { ...world, board: replaceStack(world.board, at.x, at.y, z, next) };
+  }
+  return world;
+}
+
 export function navigationLegs(world: NavWorld, at: Coord): NavLeg[] {
-  return [...walkLegs(world, at), ...useLegs(world, at)];
+  const open = throughDoorway(world, at);
+  return [...walkLegs(open, at), ...useLegs(open, at)];
 }
 
 function costOf(world: NavWorld, from: Coord, leg: NavLeg): number {
