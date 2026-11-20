@@ -1,10 +1,23 @@
 import { resolveActor } from "../lib/types";
-import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
 import { resolveRespawn, type RespawnInteraction } from "../lib/interactions";
-import { getStack, listCoords, presentLevels } from "../lib/mapData";
+import {
+  absoluteStandingElevation,
+  getStack,
+  isBodyPlacement,
+  isWalkableSurfaceAt,
+  listCoords,
+  presentLevels,
+} from "../lib/mapData";
+import type { StatusDef } from "../lib/status";
+import { canPlace } from "../lib/validation";
 import { findActorAnywhere } from "./actors";
+import { isSupported } from "./gravity";
+import { unsafeToStepOn, wadesIn } from "./pathfinding";
 import { cellKey } from "./pressurePlates";
+
+export const MAX_SPAWN_RADIUS = 12;
 
 export type SpawnPoint = {
   key: string;
@@ -115,4 +128,45 @@ export function withMigratedItemIds(map: MapFile, point: SpawnPoint): SpawnPoint
     placed.tileId === point.placed.tileId && placed.itemId ? [placed.itemId] : [],
   );
   return itemIds.length > 0 ? { ...point, itemIds } : point;
+}
+
+/** Only a creature's point can scatter: an object's point counts what is left in its own cell. */
+export function spawnRadiusOf(point: SpawnPoint): number {
+  const radius = point.placed.spawnRadius;
+  if (!point.ownerId || radius === undefined || !Number.isInteger(radius) || radius <= 0) return 0;
+  return Math.min(radius, MAX_SPAWN_RADIUS);
+}
+
+export function spawnAreaCells(centre: Coord, radius: number): Coord[] {
+  const cells: Coord[] = [];
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      cells.push({ x: centre.x + dx, y: centre.y + dy, z: centre.z });
+    }
+  }
+  return cells;
+}
+
+/**
+ * Stricter than the `canPlace` a point without an area asks of its authored
+ * cell, because nobody chose these cells: one also needs ground the body could
+ * have walked onto, nobody already in it, nothing harmful underfoot, and no
+ * water for a body that does not swim.
+ */
+export function canSpawnBodyAt(
+  map: MapFile,
+  at: Coord,
+  def: TileDef,
+  tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
+  direction?: Direction,
+): boolean {
+  const stack = getStack(map, at.x, at.y, at.z);
+  if (stack.some((placed) => isBodyPlacement(placed, tilesById))) return false;
+  if (!isSupported(map, at.x, at.y, at.z, stack.length, tilesById)) return false;
+  const groundAbs = absoluteStandingElevation(at.z, stack, tilesById);
+  if (!isWalkableSurfaceAt(map, at.x, at.y, groundAbs, tilesById)) return false;
+  if (!def.swims && wadesIn(map, at, tilesById)) return false;
+  if (unsafeToStepOn(map, at, tilesById, statusDefs, def)) return false;
+  return canPlace(map, at.x, at.y, at.z, def, tilesById, direction).ok;
 }
