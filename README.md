@@ -289,7 +289,8 @@ an agent drives", lists every call.
   `scripts/island/`: the reference generator's height, lakes and rivers inside
   the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,
   the towns, the camp, the inn, the lighthouse, the harbour ruins and the
-  wreck, and what grows on each kind of ground. It also writes
+  wreck, what grows on each kind of ground, and the caves under it
+  (`scripts/island/caves.ts`). It also writes
   `data/map-staging.json`, a corner of the same island for the staging world,
   and `docs/map.md`, the table of who lives and works where. It replaces the
   map rather than adding to it; `--seed` and `--scale` change the island

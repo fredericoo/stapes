@@ -18771,3 +18771,58 @@ harbour ruins and the lighthouse, widened until the crop cuts no hill off from
 its ramps and ringed with sea. It is seeded where `SEED_MAP=map-staging.json`
 (`docs/deploy.md`) and needs about 180 MB.
 
+
+## Rune Isle's underground is dug by the generator, a cell of rock at a time
+
+`scripts/island/caves.ts` says where every cave is, in map cells, and
+`scripts/island/underground.ts` (`Digger`) digs them after the surface and its
+plants are written. `docs/map.md` lists each place and every way in from the
+surface. Each elemental land goes down from its own entrances: the frost caves
+inside the White Peak on levels 1 to 3, crystal galleries on 0 and -1, the
+frozen lake on -2 and -3; the rootways under the deep woods on -1 to -3; the
+Ember deeps from 0 to -5 and the Ember heart on -6. The deep way on -4 joins
+the descents of the Greenwood, the peak, the heartland and the Red Waste.
+
+**What a cave costs is its floor and one cell of rock round it.** Below level 0
+nothing exists until a cave is dug, so a cave there adds its floor and a shell
+of `[dirt, wall]` on every cell next to it, and nothing else: the empty cells
+past the shell stay dark, because light comes underground only through an
+opening and the shell stops it sideways. The whole underground is 57,635
+cells on top of the surface's 405,381. Loaded into the real `GameServer` with
+one player in, the heap after a collection went from 111 MB to 127 MB, and the
+first join took 3.4–3.9 s on both maps; resident memory moved between 313 and
+396 MB from run to run on either map, so it does not show the difference.
+Above level 0 a cave is dug into the fill of a hill and costs nothing, since
+the cells were already there.
+
+**A cave in a hill keeps two cells of fill on every side.** A cell above level
+0 is dug only where every cell within two of it is fill (`[ground, hill-wall]`)
+and the cell over it seals the sky, so the cave's wall is fill that is inside
+the hill and the face of the cliff outside is untouched. The fill next to the
+cave has its ground tile changed to the cave's own (`Style.ground`), and every
+floor there is that ground under `dirt`. Without that, `dirt` draws an edge
+towards fill whose ground is a different one (snow beside grass in the
+mountain), and `verify content` warns.
+
+**The roof over a mouth is a brink, which lets light through.** The cell over
+the outermost cell of a hill is cut to a brink, so the mouth cells are the
+only cave cells allowed an open roof. They are openings to `verify caves`
+anyway.
+
+**No cave runs under a chunk of either town.** Every level of a chunk is sent
+to whoever stands on it, so a cave under the druids' town would be sent to
+everybody in it. `Digger` refuses every cell within two of a chunk that
+overlaps the druids' or the warriors' site, and the deep way goes round both.
+
+**A level is settled before it is written.** Every floor cell has to be in a
+fully open two-by-two square, as in the editor's caves, and every piece of a
+level that holds none of the pinned cells (the ends of its stairs, ladders,
+holes and mouths) is filled back in, because a room nobody can walk into is
+worse than no room. The generator prints each piece of more than 40 cells it
+filled back. A pinned cell that cannot be dug, or a surface entrance on
+anything but bare ground, stops the generator with the cell named.
+
+**`/tile` reads a number with a sign as an offset.** Lighting a cave for a
+screenshot with `/tile torch -5 -292 -3` puts the torch five cells west, 292
+north and three down from the player, not at that cell. `/goto` takes the
+cell.

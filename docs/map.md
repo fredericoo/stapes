@@ -25,7 +25,7 @@ that is the work cell for most of them. No wild creature is placed.
 | The druids' town | -154, -196 | 1 |
 | The barrow | -92, -139 | 0 |
 | Frost caves | -98, -247 | 1 |
-| Bear caves | -162, -279 | 2 |
+| Bear caves | -127, -257 | 2 |
 | Deep woods | -236, -263 | 1 |
 | The bog | -249, -93 | 0 |
 | Witch's house | -182, -147 | 0 |
@@ -39,9 +39,9 @@ that is the work cell for most of them. No wild creature is placed.
 | The White Peak | -56, -323 | 7 |
 | Ice hollow | 1, -296 | 4 |
 | Sea grotto | 33, -35 | 0 |
-| Snake hollow | 96, -121 | 1 |
+| Snake hollow | 128, -117 | 1 |
 | Wolf den | -89, -186 | 0 |
-| Troll cave | -209, -206 | 1 |
+| Troll cave | -227, -188 | 1 |
 
 ## Who lives and works where
 
@@ -174,3 +174,50 @@ the order a walk from the first one reaches them, nearest next.
 
 3 bridges carry roads over rivers; elsewhere a road wades the river at a ford.
 46 ramps join the terraces, and every cell a player can reach has a way back.
+
+## Underground
+
+The caves are dug by `scripts/island/caves.ts`. Each elemental land goes down
+from its own entrances and gets harder the deeper it goes; the deep way on
+level -4 joins every descent, and the Ember heart on -6 is the lowest floor.
+Floors are joined by `stone-stairs`, ladders and holes, and every hole has a
+way back up. Nothing lives in them yet. No cave runs under a chunk of either
+town. The underground adds 57,635 cells to the map.
+
+| Place | Levels | Where | What |
+| --- | --- | --- | --- |
+| Bat cave | 0 | -46, -57, L0 | a lair behind a cliff mouth |
+| The barrow | -1 | -93, -147, L-1 | four halls of flagstone and bone round an entrance hall |
+| Wolf den | -1 | -89, -193, L-1 | a lair under the field |
+| The flooded caves | -1, -2 | -40, -178, L-1 | standing water between the lakes |
+| Sea grotto | -1 | 20, -34, L-1 | pools and sand under the beach |
+| Bear caves | 1 | -128, -268, L1 | a lair behind a cliff mouth |
+| Troll cave | 0 | -228, -199, L0 | a lair behind a cliff mouth |
+| The rootways | -1 to -3 | -240, -240, L-2 | earth and tree roots under the deep woods |
+| Frost caves | 1 to 3 | -96, -260, L1 | ice and frosted rock inside the mountain |
+| Ice hollow | 3 | -1, -295, L3 | the high way into the frost caves |
+| Crystal galleries | 0, -1 | -118, -266, L0 | arcane crystal in frosted rock |
+| The frozen lake | -2, -3 | -32, -295, L-2 | ice over standing water under the peak |
+| Ember deeps | 0 to -5 | 172, -212, L0 | sandstone, then basalt, then lava |
+| Ember heart | -6 | 175, -195, L-6 | a lava cavern with the deep-ore veins |
+| Snake hollow | 0 | 116, -117, L0 | a lair behind a cliff mouth |
+| The deep way | -4 | -130, -266, L-4 | one tunnel from the rootways to the Ember deeps |
+
+### Ways in from the surface
+
+| Into | By | Where |
+| --- | --- | --- |
+| Bat cave | `hill-cave-mouth` facing s | -46, -47, L0 |
+| The barrow | `stone-stairs` down from the field | -93, -138, L0 |
+| Wolf den | `stone-stairs` down from the field | -89, -185, L0 |
+| The flooded caves | a ladder down from the lake shore | -60, -164, L0 |
+| Sea grotto | a ladder down from the beach | 12, -40, L0 |
+| Bear caves | `hill-cave-mouth` facing s | -128, -257, L1 |
+| Troll cave | `hill-cave-mouth` facing s | -228, -188, L0 |
+| The rootways | `stone-stairs` down in the deep woods | -248, -290, L0 |
+| The rootways | a hole in the woods, with a ladder back up beside it | -255, -262, L0 |
+| Frost caves | `hill-cave-mouth-frost` facing s | -99, -248, L1 |
+| Ice hollow | `hill-cave-mouth-frost` facing e | 3, -295, L3 |
+| Ember deeps | `hill-cave-mouth-basalt` facing w | 158, -217, L0 |
+| Ember deeps | `hill-cave-mouth-sandstone` facing e | 196, -213, L0 |
+| Snake hollow | `hill-cave-mouth-sandstone` facing e | 128, -117, L0 |
