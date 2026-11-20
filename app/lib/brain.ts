@@ -14,6 +14,7 @@ export type Selector =
   | { type: "speaker" }
   | { type: "attacker" }
   | { type: "home" }
+  | { type: "spot"; data: { name: string } }
   | { type: "wanted" };
 
 export const SPEAKER_SELECTOR: Selector = { type: "speaker" };
@@ -27,6 +28,10 @@ export function nearest(...tileIds: string[]): Selector {
 
 export function thing(...tileIds: string[]): Selector {
   return { type: "thing", data: { tileIds } };
+}
+
+export function spot(name: string): Selector {
+  return { type: "spot", data: { name } };
 }
 
 export function slot(name: string): Selector {
@@ -184,6 +189,10 @@ const selectorSchema = v.variant("type", [
   v.object({ type: v.literal("speaker") }),
   v.object({ type: v.literal("attacker") }),
   v.object({ type: v.literal("home") }),
+  v.object({
+    type: v.literal("spot"),
+    data: v.object({ name: v.pipe(v.string(), v.regex(/^[A-Za-z0-9_]+$/)) }),
+  }),
   v.object({ type: v.literal("wanted") }),
 ]);
 

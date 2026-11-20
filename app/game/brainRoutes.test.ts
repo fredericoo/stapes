@@ -95,3 +95,39 @@ describe("a townsperson's walk home", () => {
     expect(Math.abs(body(session, "brannoc-hale").x - 6)).toBeLessThanOrEqual(1);
   });
 });
+
+describe("a townsperson's bedtime", () => {
+  it("walks past a nearer bed and up a ladder to the bed their placement names", () => {
+    const clock = { minutes: 22 * 60 + 30 };
+    let map = field();
+    map = put(map, -2, 0, 0, { tileId: "grass" }, { tileId: "bed" });
+    map = put(map, 4, 0, 0, { tileId: "grass" }, { tileId: "ladder-up" });
+    map = put(map, 4, 0, 1, { tileId: "wooden-floor" }, { tileId: "ladder-top" });
+    for (const x of [5, 6]) map = put(map, x, 0, 1, { tileId: "wooden-floor" });
+    map = put(map, 7, 0, 1, { tileId: "wooden-floor" }, { tileId: "bed" });
+    map = put(
+      map,
+      0,
+      0,
+      0,
+      { tileId: "grass" },
+      { tileId: "brannoc-hale", direction: "s", spots: { bed: { x: 6, y: 0, z: 1 } } },
+    );
+    const session = new GameSession(map, tiles, {
+      actorIds: [LOCAL_ACTOR_ID],
+      statuses,
+      traits,
+      clock: () => clock.minutes,
+    });
+
+    run(session, 20_000);
+    const abed = body(session, "brannoc-hale");
+    expect(abed).toMatchObject({ z: 1 });
+    expect(Math.abs(abed.x - 7)).toBeLessThanOrEqual(1);
+    expect(abed.statuses.map((s) => s.defId)).toContain("sleep");
+
+    clock.minutes = 7 * 60;
+    run(session, 30_000);
+    expect(body(session, "brannoc-hale")).toMatchObject({ x: 0, y: 0, z: 0 });
+  });
+});

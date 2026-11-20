@@ -2327,6 +2327,7 @@ export class GameSession implements PlaySession {
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
       home: actor.home,
+      spot: (name) => loc.placed.spots?.[name] ?? null,
       nearestOnTile: (tileIds) => this.nearestOnTile(actor.id, loc, tileIds),
       nearestThing: (tileIds) => {
         const key = tileIds.join("+");
