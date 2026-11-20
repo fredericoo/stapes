@@ -339,5 +339,12 @@
     "file": "cats.png",
     "width": 48,
     "height": 448
+  },
+  {
+    "id": "grass-edge",
+    "name": "Grass edge",
+    "file": "grass-edge.png",
+    "width": 96,
+    "height": 376
   }
 ]
