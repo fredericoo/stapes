@@ -1644,6 +1644,18 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   the opposite of `potters`'s, so the two never compete for the same idle
   moment: a shopkeeper potters on an empty street and cries their wares to a
   passer-by.
+- **`tends-lights` lights the lanterns and candles near a body for the hours it
+  is given and puts them out outside them**, one at a time, nearest first,
+  within 6 cells unless told otherwise. It is the lamplighter's routine as a
+  trait: a `switch` from the cell beside the light, finished when
+  `out_of_range` of the slot reads the flipped tile as gone, with 20 seconds
+  and `stuck` as the ways out of a light it cannot reach. Both its triggers
+  fire at `errand`, as `keeps-hours`'s do, so a body called with
+  `tends-lights` first and hours that end at its bedtime puts its lights out
+  and then goes to bed: the tie goes to the order of the calls. While `abed`
+  holds at `rest` it does not get up to put out a light, so hours that run
+  past bedtime leave the lights burning until it wakes. Outside its hours it
+  also puts out a light a player lit near it.
 - **Bots do not read any of this as noticing them.** `noticeCells` reads every
   `in_los` of the player tile in a brain, and both traits have one, but bots
   never count a body with a dialog as a creature (`creaturesAround`).
