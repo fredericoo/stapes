@@ -2,7 +2,7 @@ import * as v from "valibot";
 import { MapDraft, emptyMap, getStack, setStacks, type StackEdit } from "../../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
-import type { MapDoc, MapNode, Point } from "./doc";
+import type { Frame, MapDoc, MapNode, Point } from "./doc";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
 export type BuildContext = {
@@ -15,9 +15,13 @@ export type BuildContext = {
   point(point: Point): { x: number; y: number } | null;
 };
 
+/** What a node of this type starts as when the editor adds one. */
+export type Starter = { frame?: Frame; props?: Record<string, unknown> };
+
 export type Component<Props> = {
   readonly type: string;
   readonly label: string;
+  readonly starter: Starter;
   readonly schema: v.GenericSchema<unknown, Props>;
   build(ctx: BuildContext, props: Props): GeneratedPlan;
 };

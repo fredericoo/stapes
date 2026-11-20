@@ -99,3 +99,36 @@ export function freeKey(root: MapNode, base: string): string {
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
+
+/**
+ * Copies a node and everything under it with fresh keys, beside the original.
+ * A point inside the copy that named a node inside the original names that
+ * node's copy, so a copied town keeps its own roads; one that named a node
+ * outside it keeps naming that node.
+ */
+export function duplicateNode(doc: MapDoc, key: string): { doc: MapDoc; key: string } {
+  const node = findNode(doc.root, key);
+  const parent = findParent(doc.root, key);
+  if (!node || !parent) return { doc, key };
+  const renames = new Map<string, string>();
+  const taken = new Set(allKeys(doc.root));
+  for (const old of allKeys(node)) {
+    let next = `${old}-copy`;
+    for (let n = 2; taken.has(next); n++) next = `${old}-copy-${n}`;
+    taken.add(next);
+    renames.set(old, next);
+  }
+  const retarget = (value: unknown): unknown =>
+    isPoint(value) && value.in && renames.has(value.in)
+      ? { ...value, in: renames.get(value.in) }
+      : value;
+  const copy = mapNodes(node, (n) => ({
+    ...n,
+    key: renames.get(n.key)!,
+    ...(n.props
+      ? { props: Object.fromEntries(Object.entries(n.props).map(([k, v]) => [k, retarget(v)])) }
+      : {}),
+  }));
+  const index = parent.children!.findIndex((c) => c.key === key);
+  return { doc: insertNode(doc, parent.key, index + 1, copy), key: copy.key };
+}

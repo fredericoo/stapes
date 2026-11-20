@@ -33,6 +33,7 @@ export type RoadProps = v.InferOutput<typeof RoadSchema>;
 export const road: Component<RoadProps> = {
   type: "road",
   label: "Road",
+  starter: { props: { from: { x: 2, y: 2 }, to: { x: 14, y: 2 } } },
   schema: RoadSchema,
   build(ctx, props) {
     for (const id of [props.tile, props.deck, props.rail, ...props.clears]) {

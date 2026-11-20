@@ -142,6 +142,7 @@ function distanceFrom(g: CellGrid, land: Uint8Array, limit: number): Int32Array 
 export const island: Component<IslandProps> = {
   type: "island",
   label: "Island",
+  starter: { frame: { x: 0, y: 0, w: 48, h: 36 } },
   schema: IslandSchema,
   build(ctx, props) {
     if (!ctx.tilesById[props.fill])

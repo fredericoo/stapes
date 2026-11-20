@@ -44,6 +44,7 @@ export type ForestProps = v.InferOutput<typeof ForestSchema>;
 export const forest: Component<ForestProps> = {
   type: "forest",
   label: "Forest",
+  starter: { frame: { x: 2, y: 2, w: 16, h: 12 } },
   schema: ForestSchema,
   build(ctx, props) {
     const treeDef = ctx.tilesById[props.tree];

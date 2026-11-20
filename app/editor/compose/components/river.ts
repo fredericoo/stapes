@@ -22,6 +22,7 @@ export type RiverProps = v.InferOutput<typeof RiverSchema>;
 export const river: Component<RiverProps> = {
   type: "river",
   label: "River",
+  starter: { props: { from: { x: 2, y: 0 }, to: { x: 6, y: 0, pinY: "bottom" } } },
   schema: RiverSchema,
   build(ctx, props) {
     if (!ctx.tilesById[props.bed])

@@ -46,6 +46,7 @@ export type HouseProps = v.InferOutput<typeof HouseSchema>;
 export const house: Component<HouseProps> = {
   type: "house",
   label: "House",
+  starter: { frame: { x: 2, y: 2, w: 7, h: 6 } },
   schema: HouseSchema,
   build(ctx, props) {
     const { minX, minY, maxX, maxY } = ctx.bounds;

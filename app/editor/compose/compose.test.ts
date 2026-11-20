@@ -14,6 +14,7 @@ const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
 const ground: Component<{ tile: string }> = {
   type: "ground",
   label: "Ground",
+  starter: {},
   schema: v.object({ tile: v.optional(v.string(), "sand") }),
   build(ctx, props) {
     const edits = [];

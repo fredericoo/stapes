@@ -1,4 +1,10 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconBraces } from "@tabler/icons-react";
+import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconBraces,
+  IconCopy,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
@@ -11,7 +17,16 @@ import {
 } from "../../editor/compose/ComposeCanvas";
 import demo from "../../editor/compose/demo.json";
 import { parseMapDoc, type MapDoc, type Point } from "../../editor/compose/doc";
-import { findNode, updateNode } from "../../editor/compose/edit";
+import {
+  duplicateNode,
+  findNode,
+  findParent,
+  freeKey,
+  insertNode,
+  moveNode,
+  removeNode,
+  updateNode,
+} from "../../editor/compose/edit";
 import { fieldsOf } from "../../editor/compose/fields";
 import { FrameHandles, PointHandle } from "../../editor/compose/Handles";
 import { Inspector, TILE_LIST_ID } from "../../editor/compose/Inspector";
@@ -30,7 +45,7 @@ import { fetchBootstrap } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import { baseCellWorldOrigin } from "../../lib/geometry";
 import { tilesByIdFromList } from "../../lib/validation";
-import { Button, ScrollArea, Tooltip } from "../../ui";
+import { Button, ScrollArea, Select, Tooltip } from "../../ui";
 
 export async function clientLoader() {
   await requireAdmin();
@@ -98,18 +113,49 @@ export default function ComposePage() {
   const placement = selected ? built.layout.placements.get(selected) : undefined;
   const selectedNode = selected ? findNode(doc.root, selected) : null;
 
+  const addNode = (type: string) => {
+    const component = COMPONENTS[type];
+    if (!component) return;
+    const parent = selectedNode ?? doc.root;
+    const key = freeKey(doc.root, type);
+    commit((d) =>
+      insertNode(d, parent.key, parent.children?.length ?? 0, { type, key, ...component.starter }),
+    );
+    setExpanded((keys) => (keys.includes(parent.key) ? keys : [...keys, parent.key]));
+    setSelected(key);
+  };
+
+  const deleteSelected = () => {
+    if (!selected || selected === doc.root.key) return;
+    const parent = findParent(doc.root, selected);
+    commit((d) => removeNode(d, selected));
+    setSelected(parent?.key ?? null);
+  };
+
+  const duplicateSelected = () => {
+    if (!selected || selected === doc.root.key) return;
+    const copied = duplicateNode(doc, selected);
+    commit(copied.doc);
+    setSelected(copied.key);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable]")) return;
+      if (target?.closest("input, textarea, [contenteditable], [role=dialog]")) return;
+      if ((e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        deleteSelected();
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  });
 
   return (
     <AdminShell
@@ -155,9 +201,41 @@ export default function ComposePage() {
     >
       <div className="grid h-full min-h-0 grid-cols-[16rem_1fr_25rem]">
         <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
-          <h2 className="border-b-2 border-border px-3 py-2 text-xs font-bold uppercase tracking-wide">
-            Layers
-          </h2>
+          <div className="flex items-center gap-1 border-b-2 border-border px-3 py-1.5">
+            <h2 className="mr-auto text-xs font-bold uppercase tracking-wide">Layers</h2>
+            <Tooltip content="Duplicate the selected layer">
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Duplicate layer"
+                disabled={!selected || selected === doc.root.key}
+                onClick={duplicateSelected}
+              >
+                <IconCopy size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Delete the selected layer (Delete)">
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Delete layer"
+                disabled={!selected || selected === doc.root.key}
+                onClick={deleteSelected}
+              >
+                <IconTrash size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
+          </div>
+          <div className="border-b-2 border-border px-3 py-2">
+            <Select
+              ariaLabel="Add a layer"
+              className="w-full"
+              placeholder={`Add inside ${selectedNode?.key ?? doc.root.key}…`}
+              value={null}
+              onValueChange={(type) => type && addNode(type)}
+              options={Object.values(COMPONENTS).map((c) => ({ value: c.type, label: c.label }))}
+            />
+          </div>
           <ScrollArea className="min-h-0 flex-1 p-2">
             <LayersPanel
               root={doc.root}
@@ -167,6 +245,7 @@ export default function ComposePage() {
               expanded={expanded}
               onExpandedChange={setExpanded}
               problems={problemKeys}
+              onMove={(key, parent, index) => commit((d) => moveNode(d, key, parent, index))}
             />
           </ScrollArea>
         </aside>
