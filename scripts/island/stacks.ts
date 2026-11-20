@@ -49,6 +49,18 @@ const RAMP: Record<Kind, { slope: string; block: string }> = {
   basalt: { slope: "ramp", block: "half-stone" },
 };
 
+/**
+ * What a raised column is filled with under its wall. Basalt is a layer over
+ * sand, so without it in the wall cells the basalt at a cliff's foot draws its
+ * sandy autotile edge against every one of them.
+ */
+const UNDER_WALL: Record<Kind, string[]> = {
+  grass: ["grass-2"],
+  sand: ["sand-dunes"],
+  snow: ["snow"],
+  basalt: ["sand-dunes", "basalt"],
+};
+
 export const kindAt = (island: Island, i: number): Kind => KIND[island.ground[i]!] ?? "grass";
 export const baseTile = (island: Island, i: number) => BASE[kindAt(island, i)];
 
@@ -110,7 +122,7 @@ export function writeTerrain(island: Island, plan: Plan): Board {
         z,
         heads.has(i) && z === L - 1
           ? [tile(base), tile(RAMP[kind].block), tile(RAMP[kind].block)]
-          : [tile(base), tile(WALL[kind])],
+          : [...UNDER_WALL[kind].map((id) => tile(id)), tile(WALL[kind])],
       );
     }
     let drop = false;
