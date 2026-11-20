@@ -10,7 +10,7 @@ September four previews deployed within an hour, their builds and containers
 together outgrew 4 GB, and the box spent the next two hours swapping program
 pages off disk at 1–2 GB/s with both CPUs at 100%. The limit caps each container,
 not their sum, and a box that is thrashing never gets to the OOM killer. Previews
-now fill only their own box, and no more than five run at once (step 6).
+now fill only their own box, and no more than three run at once (step 6).
 
 Total: **€13.18/month**, on one bill, with no external services.
 
@@ -192,9 +192,9 @@ silently starts a brand new world**. Nothing warns you.
 
 Do not skip this. The world holds the whole map in memory: Rune Isle measured
 640 MB with one player in, and players add to that, so 1.5 GB leaves room for
-them on a 4 GB box whose previews run elsewhere. The staging world seeds the
-smaller `map-staging.json` (set `SEED_MAP=map-staging.json` there) and fits
-in less. Without one,
+them on a 4 GB box whose previews run elsewhere. Staging seeds the same full
+map in `1024m` (step 6), and the previews seed the smaller `map-staging.json`.
+Without one,
 a container that leaks hands the problem to the kernel's OOM killer, which
 chooses its victim by resident size; on a box full of small preview worlds, the
 largest process is production. With a limit, the offender dies inside its own
@@ -268,7 +268,7 @@ Repository variables:
 COOLIFY_URL=https://coolify.example.com
 COOLIFY_PREVIEW_APP_UUID=<step 6>
 PREVIEW_DOMAIN=preview.example.com
-MAX_PREVIEWS=5
+MAX_PREVIEWS=3
 ```
 
 **Settings → Environments** holds what differs between the two worlds `deploy.yml`
@@ -334,7 +334,7 @@ over SSH:
    key. **Validate & configure** installs Docker and starts a Traefik proxy on it.
 3. On the new server's page, **Advanced → Concurrent builds: 1.** A Docker build
    of this repository is the largest thing that runs on the box, and two at once
-   next to five running previews is what does not fit in 4 GB.
+   next to staging and three running previews is what does not fit in 4 GB.
 4. Point `*.preview.example.com` at the preview box. Traefik on that box issues
    each `pr-N` certificate, so the record stays grey.
 
@@ -403,6 +403,8 @@ cron files below.
   `768m` holds one bot and about `1280m` holds ten.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
+- `SEED_MAP=map-staging.json`, so each preview seeds a corner of the island
+  that fits in `512m` rather than the full map.
 - Same environment variables, except `PUBLIC_ORIGIN`, plus
   `BETTER_AUTH_TRUSTED_ORIGINS=https://*.preview.example.com`. Coolify gives
   every preview the same values, so `PUBLIC_ORIGIN` cannot name each `pr-N`
@@ -446,27 +448,28 @@ The workflow polls `GET /api/v1/deployments/applications/{uuid}` for the
 deployment whose `pull_request_id` and `commit` are this push's, and only seeds
 and uploads once it reads `finished`.
 
-### At most five previews run at once
+### At most three previews run at once
 
 The webhook starts a preview, so by the time any job could object the container
 is already coming up, and `preview.yml` cannot refuse one. The preview box
 enforces the number instead: `scripts/cap-previews.sh` runs every minute, keeps
-the five preview containers most recently created, and stops the rest. Coolify
-recreates a preview's container on every push, so the five kept are the five
+the three preview containers most recently created, and stops the rest. Coolify
+recreates a preview's container on every push, so the three kept are the three
 most recently pushed pull requests. A stopped preview keeps its volume and comes
 back on its pull request's next push.
 
 ```bash
 scp scripts/cap-previews.sh root@<preview ip>:/usr/local/bin/stapes-cap-previews.sh
 ssh root@<preview ip> 'chmod 755 /usr/local/bin/stapes-cap-previews.sh &&
-  echo "* * * * * root PREVIEW_APP=<preview app uuid> MAX_PREVIEWS=5 /usr/local/bin/stapes-cap-previews.sh >/dev/null" \
+  echo "* * * * * root PREVIEW_APP=<preview app uuid> MAX_PREVIEWS=3 /usr/local/bin/stapes-cap-previews.sh >/dev/null" \
   > /etc/cron.d/stapes-cap-previews'
 ```
 
 The repository variable `MAX_PREVIEWS` is the same number, and `preview.yml`
 only uses it to warn a pull request that it may not keep a running preview.
-Change both together. Five is what fits a 4 GB box with the 512 MB limit above
-and one build at a time.
+Change both together. Three is what fits a 4 GB box beside staging's `1024m`,
+with the 512 MB limit above and one build at a time: 1024 + 3 × 512 MB leaves
+about 1.5 GB for the build, Docker and the system.
 
 ### Closing a pull request does not delete its volume
 
@@ -525,9 +528,11 @@ environment of the same Coolify project, on the preview server's destination:
 - Same Dockerfile build, port, health check, persistent storage (`/data` and
   `/backups`) and **consistent container name** as production (step 4). A rolling
   update deadlocks on the database lock here as it does there.
-- `512m` and no `BOTS`. It shares the preview box's 4 GB with up to
-  `MAX_PREVIEWS` previews at 512m each and one build, and nobody plays it for
-  long enough to need more.
+- `1024m`, no `BOTS`, and no `SEED_MAP`, so it seeds the full `map.json` and
+  shows the whole island before a release. Rune Isle measured 640 MB with one
+  player in; staging has few players, so `1024m` is enough where production
+  needs `1536m`. It shares the preview box's 4 GB with up to `MAX_PREVIEWS`
+  previews at 512m each and one build.
 - Its own `ADMIN_SECRET` and `AUTH_SECRET`, and `PUBLIC_ORIGIN` set to its own
   name. Accounts, the map and every player are its own; nothing is shared with
   production, and `/api/seed` replaces its map on every merge.
