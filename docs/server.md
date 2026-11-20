@@ -12,6 +12,7 @@
 - `GameServer` reads the time only through its `now()`, which a world built with `manualTicks` advances one `TICK_MS` per `step()`. A `Date.now()` added to it puts that world back on wall time, and a stepped run stops repeating.
 - `POST /api/map` (`server/api.ts`) does not write the map. `GameServer.replaceWorld` writes it after a `GameSession` has been built from it, so a map that cannot start a world is refused with the stored one untouched; a write in the handler would persist it first.
 - `MIN_PASSWORD_LENGTH` (`app/lib/account.ts`) is a length floor only. An account's email is stored and nothing is sent to it, so there is no password reset.
+- Every live entry of a live `WeakMap` adds to every collection's pause, eden ones included. A cache keyed by something the world holds one of per cell or per placement (a stack, a `PlacedTile`) ends up with hundreds of thousands of entries: `stackTexts` in `server/chunkJson.ts` held 266,000 after a minute with four players and made the median eden pause 24ms instead of 3. Key a cache by chunk or by tile def, or keep the value on something that already lives as long as it does. "Garbage collection pauses on the server, measured" in `docs/notes.md` has the measurements.
 
 ## Wire
 

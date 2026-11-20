@@ -19064,5 +19064,31 @@ the run started. The ticks over 33ms with a turn per tick are the change to
 23:00 (ticks 20,706–20,708) and one or two others, and none of them held more
 than a few milliseconds of collection.
 
+**A `WeakMap` entry costs every collection, eden ones too.** Every live entry
+of a live `WeakMap` adds to every collection's pause. One `WeakMap` of a
+million live keys took a test script's median eden pause from 1.5ms to 68ms;
+the same keys in a `Map` left it at 1.4ms. On the real `GameServer`, with the
+four players above joined and sent to the same cells, eden pauses were a
+median 24ms against 3–4ms for the session alone. The difference was
+`stackTexts` in `server/chunkJson.ts`, a `WeakMap` from each stack ever sent to
+its JSON: 266,437 live entries after 60 s, against 2,523 for the next largest
+(`cellIndexByChunk`, one per chunk). The text of an unchanged stack is now
+found through the earlier chunk text it was read into. Real `GameServer`, 300 s
+each (about 9,000 ticks), the two builds in turn:
+
+| build | full: count, median, longest | eden: count, median, longest | ticks > 33ms | median tick | heap after a full collection |
+|---|---|---|---|---|---|
+| `main` | 14 / 14, 65 / 74ms, 92 / 91ms | 279 / 290, 24.2 / 24.5ms, 180 / 55ms | 9 / 9 | 1.82 / 1.76ms | 234–237 MB |
+| `stackTexts` gone | 12 / 9, 10.6 / 10.9ms, 14 / 13ms | 250 / 256, 3.3 / 3.3ms, 11 / 12ms | 5 / 3 | 1.72 / 1.66ms | 213–221 MB |
+
+At 400 walking players (`bench:crowd --players 400`, two runs of each in
+turn) the tail of the tick moved and the middle did not: p99 tick 32.9 /
+70.9ms → 28.5 / 29.1ms, longest tick 167 / 193ms → 47 / 42ms, p99 gap between
+ticks 83 / 89ms → 40 / 40ms. The median tick was 15.2 / 14.7ms → 15.7 / 15.1ms,
+and `streamEnteredChunks`, which writes the handovers, 1.15 / 1.05ms →
+1.22 / 1.08ms a tick; `broadcastPatch`, which does not use `chunkJson`, moved
+by as much (2.63 / 2.67ms → 2.90 / 2.80ms). The remaining ticks over 33ms with
+four players contain no collection.
+
 None of this needed a collector setting: no `BUN_JSC_*` option and no
 scheduled `Bun.gc()`.
