@@ -28,6 +28,7 @@ const STORED: Record<string, unknown> = {
       { tileId: "sand-dunes" },
       { tileId: "grass" },
       { tileId: "grass-2" },
+      { tileId: "wooden-shelf" },
       {
         tileId: "chest",
         rewardTileIds: ["arcane-stone-of-bolt"],
@@ -65,5 +66,6 @@ describe("renamed tile ids", () => {
     expect(text).not.toContain('"sand-dunes"');
     expect(text).toContain('{"tileId":"tuft"}');
     expect(text).toContain('{"tileId":"grass-2"}');
+    expect(text).toContain('{"tileId":"bookshelf"}');
   });
 });

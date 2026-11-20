@@ -347,5 +347,12 @@
     "width": 48,
     "height": 376,
     "translucent": true
+  },
+  {
+    "id": "bookshelves",
+    "name": "Bookshelves",
+    "file": "bookshelves.png",
+    "width": 64,
+    "height": 48
   }
 ]

@@ -83,7 +83,7 @@ export function buildDruids(b: Builder, site: Site) {
   b.put(mid + 3, y0 + 3, town.z, "obsidian-forge");
   b.put(mid, y0 + 5, town.z, "table");
   b.put(mid + 3, temple.rect.y1 - 2, town.z, "counter-top");
-  b.put(mid + 4, temple.rect.y1 - 2, town.z, "wooden-shelf");
+  b.put(mid + 4, temple.rect.y1 - 2, town.z, "bookshelf");
   const carving = b.world(mid, y0 + 6, town.z);
   const clerk = b.world(mid + 3, temple.rect.y1 - 3, town.z);
 
@@ -166,15 +166,15 @@ export function buildDruids(b: Builder, site: Site) {
   );
   garden(b, town, { x: cottage.rect.x1 + 3, y: cottage.rect.y0 }, 14, 12);
 
-  b.furnish(council, ["table", "chair", "chair", "chair", "wooden-shelf"]);
+  b.furnish(council, ["table", "chair", "chair", "chair", "bookshelf"]);
   b.stairsUp(council);
   b.furnish(wardens, ["wooden-box"]);
-  b.furnish(weaving, ["table", "wooden-shelf", "sack", "sack"]);
+  b.furnish(weaving, ["table", "bookshelf", "sack", "sack"]);
   b.stairsUp(weaving);
   b.furnish(bakehouse, ["stone-forge", "table", "sack", "sack", "barrel"]);
-  b.furnish(apothecary, ["counter-top", "wooden-shelf", "wooden-shelf", "barrel"]);
+  b.furnish(apothecary, ["counter-top", "bookshelf", "bookshelf", "barrel"]);
   b.stairsUp(apothecary);
-  b.furnish(ledger, ["table", "wooden-shelf", "wooden-shelf", "chair"]);
+  b.furnish(ledger, ["table", "bookshelf", "bookshelf", "chair"]);
   b.stairsUp(ledger);
   b.furnish(granary, ["sack", "sack", "sack", "sack", "barrel", "barrel", "wooden-box"]);
   b.furnish(longHouse, ["table", "wooden-box", "wooden-box", "anvil"]);
@@ -439,15 +439,15 @@ export function buildWarriors(b: Builder, site: Site) {
     "barrel",
     "barrel",
   ]);
-  b.furnish(smithy, ["anvil", "stone-forge", "barrel", "wooden-shelf"]);
+  b.furnish(smithy, ["anvil", "stone-forge", "barrel", "bookshelf"]);
   b.stairsUp(smithy);
-  b.furnish(armoury, ["wooden-shelf", "wooden-shelf", "wooden-shelf", "counter-top"]);
-  b.furnish(bowyer, ["table", "wooden-shelf"]);
-  b.furnish(spear, ["wooden-shelf", "table"]);
+  b.furnish(armoury, ["bookshelf", "bookshelf", "bookshelf", "counter-top"]);
+  b.furnish(bowyer, ["table", "bookshelf"]);
+  b.furnish(spear, ["bookshelf", "table"]);
   b.furnish(store, ["sack", "sack", "barrel", "barrel", "wooden-box", "counter-top"]);
   b.furnish(smokehouse, ["stone-forge", "barrel", "sack"]);
   b.furnish(cooperage, ["barrel", "barrel", "barrel", "table"]);
-  b.furnish(trophy, ["wooden-shelf", "wooden-shelf"]);
+  b.furnish(trophy, ["bookshelf", "bookshelf"]);
 
   const t = P;
   settle(b, longhall, t("Ragna Holt", "Longhall"), longhall);
@@ -683,7 +683,7 @@ export function buildInn(b: Builder, site: Site) {
   );
   const bar = inn.rect.x0 + 2;
   for (let y = inn.rect.y0 + 2; y <= inn.rect.y0 + 4; y++) b.put(bar, y, z, "counter-top");
-  b.furnish(inn, ["barrel", "barrel", "stone-forge", "wooden-shelf"]);
+  b.furnish(inn, ["barrel", "barrel", "stone-forge", "bookshelf"]);
   for (const [dx, dy] of [
     [6, 3],
     [9, 3],
@@ -765,7 +765,7 @@ export function buildWitch(b: Builder, site: Site) {
     { roof: "blue" },
     1,
   );
-  b.furnish(house, ["stone-forge", "wooden-shelf", "wooden-shelf", "barrel"]);
+  b.furnish(house, ["stone-forge", "bookshelf", "bookshelf", "barrel"]);
   settle(b, house, P("Morwen Teague", "Her house and the bog by night"), house);
   b.put(c.x + 3, c.y + 4, z, "campfire");
 }
