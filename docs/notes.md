@@ -15790,9 +15790,36 @@ builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is stil
 `GeneratedPlan`, the same `{ ok, edits } | { ok: false, reason }` the editor's
 procedural tools return, and the house component is `planHouse` with its config
 renamed. The schema validates the node's props, supplies their defaults and
-gives the props their type. A tile id field is `TileIdSchema` and a point is
-`PointSchema`; both carry `v.metadata({ field })` so a form built from the
-schema can give them a picker instead of a text box.
+gives the props their type.
+
+**A prop is asked for through `field.*` (`field.ts`).** `field.tile`,
+`field.tiles`, `field.weighted`, `field.point`, `field.direction` and
+`field.percent` are ordinary valibot schemas with a `v.metadata` naming the
+widget, so the form needs nothing per component. Write the metadata inside
+the pipe: `v.metadata` called on its own cannot infer the pipe's input type,
+and every prop then types as `unknown`.
+
+- **A tile field names a kind from `TILES`, and a kind is a test on what the
+  catalogue already says**, not a list of ids: a wall is a tall autotile you
+  cannot walk through, a door is directional with a `switch` or `receive`
+  interaction, a window is wall-height, directional, lets light through and
+  has no interactions, ground is flat and walkable. A tile added to
+  `data/tiles.json` appears in every field it fits. A window was first "lets
+  light through", which offered torches, chairs and cave mouths; height and
+  "no interactions" are what narrow it to `window-1`, `window-2` and `grate`.
+- **`buildMap` checks the kinds (`wrongTile`)**, because a schema never sees
+  the catalogue: a house given a tree for a wall is refused with "wall: Tree
+  is not a wall" rather than built.
+
+**A group builds nothing.** Without a frame it is a folder and its children
+build exactly as they would without it. With a frame its children are placed
+in it, so moving the group moves them. `reframeNode` gives a node a frame or
+takes it away without moving anything inside: child frames keep their pins
+and get new offsets, and a child without a frame has its own points rewritten
+and its children rebased in turn. "Frame round its children" fits the frame
+round the child frames and every cell the subtree wrote in the last build
+(`BuildResult.written`); fitting to frames alone clipped a road whose ends lay
+outside the house it was grouped with.
 
 **The tree is built depth first, and each node reads the map every node before
 it left.** That is the whole of the layering: a forest grows only on the tiles
@@ -15834,11 +15861,23 @@ doors.
 clipped to its own parent's, so a child dragged half off its parent loses the
 half that is off. The root writes inside its own frame.
 
-**One build is one `MapDraft`.** Every node's edits go through `setStacks` with
-the same draft, so a chunk the island copied is written in place by the forest
-rather than copied again. The draft is sealed before the map is returned. A
-component is handed the map and must not keep it: `planHouse` builds a
-provisional copy of its own, which is fine because it is discarded.
+**A build resumes from the first node whose inputs changed.** `buildMap`
+takes the previous `BuildResult`. Every visible node keeps a step: its inputs
+(component, props, seed, frame, clip, level, and the frame of every node a
+point in its props names) and the map after it. A new build reuses steps
+until the first node whose inputs differ and builds on from that step's map;
+every node before it would build the same thing on the same map. That is why
+nothing writes a map in place any more (no `MapDraft`): a step's map has to
+stay as it was for the next build to start from it. A component is handed the
+map and must not keep it.
+
+**Then every chunk whose cells came out the same gets the previous object
+back (`keepUnchanged`).** The renderer re-meshes a chunk when its object
+changes, and a node rebuilt over unchanged ground makes new objects for every
+chunk it covers. Measured on a 400×300 island: a full build is about 178 ms,
+and dragging a house rebuilds 3 of 6 layers in 6–13 ms and changes 21–30 of
+about 500 chunks, most of them the long road whose start follows the house.
+The canvas prints those three numbers for every build.
 
 What a tree does not do yet: a road stays on its own level and does not climb
 (Rune Isle's ramps are `planIsland`'s), and a road goes round nothing and
@@ -15862,8 +15901,11 @@ copies it out or pastes one in.
 - **The form is the component's schema.** `fieldsOf` reads a valibot schema at
   runtime — its `type`, the `min_value`/`max_value`/`integer` actions in its
   pipe, and the `field` its `v.metadata` names — and picks a widget for each
-  prop. A component with a prop the reader does not know gets "Edit this in
-  the JSON" for it rather than a broken form.
+  prop: a tile is a searchable grid of the tiles its kind allows, a set of
+  tiles is chips, a weighted list shows each tile's share, and a point has a
+  crosshair that takes the next click on the map. A component with a prop the
+  reader does not know gets "Edit this in the JSON" for it rather than a
+  broken form.
 - **A dragged box is written back through `frameFor`**, the inverse of the pin
   arithmetic, so it keeps its pins and only its offsets change; `pointFor` does
   the same for a point. `layout.test.ts` round-trips every pair of pins,
