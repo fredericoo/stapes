@@ -337,13 +337,18 @@ an agent drives", lists every call.
   once; `--dry-run` reports without writing
 - `bun run verify landscape` — check the ground of `data/map.json`: rivers
   that join only at a corner, grass rivers without dirt banks, mud by water,
-  rivers on the wrong ground, specks of ground, borders drawn straight, and
-  deserts or snowfields too crowded. `generate:island` runs it too and
+  rivers on the wrong ground, a river spilling south or east over a cliff
+  with no waterfall, snow below level 3, specks of ground, borders drawn
+  straight, and deserts or snowfields too crowded. `generate:island` runs it too and
   writes nothing when it fails. CI runs it
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs
   it and, when it fails, uploads the picture as the `stranded` artifact
+- `bun run generate:grass-edge` — draw `data/tilesets/grass-edge.png` and
+  write the `grass-edge-sand-N` and `grass-edge-snow-N` autotiles: grass with
+  a ragged edge and a shadow on its south and east, which `generate:island`
+  lays over sand and snow where the grass gives way to them
 - `bun run generate:ledges` — draw `data/tilesets/ledges.png` and write the
   `grass-ledge`, `sand-ledge` and `snow-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do

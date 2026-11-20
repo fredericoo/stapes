@@ -1,7 +1,7 @@
 import type { PlacedTile } from "../../app/lib/types";
 import { Board, tile } from "./board";
 import { N4, N8 } from "./grid";
-import { OPPOSITE, SIDEWAYS, STEP, type Plan } from "./plan";
+import { OPPOSITE, SIDEWAYS, STEP, TALL_FALL_STOREYS, type Plan } from "./plan";
 import { Ground, type Island } from "./terrain";
 
 type Kind = "grass" | "sand" | "snow" | "basalt";
@@ -292,6 +292,7 @@ export function writeTerrain(island: Island, plan: Plan): Board {
       }
     }
   }
+  widenPlunges(island, plan, board);
   placeWaterfalls(island, board);
   return board;
 }
@@ -302,16 +303,29 @@ export function writeTerrain(island: Island, plan: Plan): Board {
  * cliff north or west goes over an edge nobody can see.
  */
 const FALLS = [
-  { dx: 0, dy: -1, segments: ["waterfall-base", "waterfall-top"] },
-  { dx: -1, dy: 0, segments: ["waterfall-east-base", "waterfall-east-top"] },
+  { dx: 0, dy: -1, segments: ["waterfall-base", "waterfall-middle", "waterfall-top"] },
+  {
+    dx: -1,
+    dy: 0,
+    segments: ["waterfall-east-base", "waterfall-east-middle", "waterfall-east-top"],
+  },
 ] as const;
+
+/** Two segments are one storey: a base and a top for one, with middles between them for every storey more. */
+const SEGMENTS_PER_STOREY = 2;
+
+function fallSegments(fall: (typeof FALLS)[number], storeys: number): PlacedTile[] {
+  const [base, middle, top] = fall.segments;
+  const middles = Array.from({ length: storeys * SEGMENTS_PER_STOREY - 2 }, () => tile(middle));
+  return [tile(base), ...middles, tile(top)];
+}
 
 const FALLING_WATER = new Set([Ground.River, Ground.Lake]);
 
 /**
- * Every cliff is one storey, and two segments are one storey, so each fall is
- * a base and a top. A cell is given one fall at most: a river turning a
- * corner over a cliff would otherwise stack two, a storey too tall.
+ * A fall is as many storeys as the cliff it comes down: one everywhere but
+ * the tall fall off the snow (`raiseTallFall`). A cell is given one fall at
+ * most: a river turning a corner over a cliff would otherwise stack two.
  */
 function placeWaterfalls(island: Island, board: Board) {
   const { width: w, height: h, level, ground } = island;
@@ -320,18 +334,77 @@ function placeWaterfalls(island: Island, board: Board) {
     const x = j % w;
     const y = (j - x) / w;
     const z = level[j]!;
-    const fall = FALLS.find((f) => fallsInto(island, x + f.dx, y + f.dy, z));
+    const fall = FALLS.find((f) => fallHeight(island, x + f.dx, y + f.dy, z) > 0);
     const pool = board.get(x, y, z);
     if (!fall || pool?.at(-1)?.tileId !== "water") continue;
-    board.set(x, y, z, [...pool, ...fall.segments.map((id) => tile(id))]);
+    const segments = fallSegments(fall, fallHeight(island, x + fall.dx, y + fall.dy, z));
+    board.set(x, y, z, [...pool, ...segments.slice(0, SEGMENTS_PER_STOREY)]);
+    /** A stack may not reach past its own storey, so a taller fall goes on in the empty cells above the pool, a storey's worth in each. */
+    for (let k = SEGMENTS_PER_STOREY; k < segments.length; k += SEGMENTS_PER_STOREY) {
+      board.set(x, y, z + k / SEGMENTS_PER_STOREY, segments.slice(k, k + SEGMENTS_PER_STOREY));
+    }
   }
 }
 
-/** Whether the cell at `x, y` holds water one storey above `z`. */
-function fallsInto(island: Island, x: number, y: number, z: number): boolean {
+/**
+ * A river two or three cells wide that narrows as it reaches a cliff drops
+ * from its whole width, so a dry cell under the edge, beside the pool a fall
+ * lands in, is made pool too and gets its own fall. Otherwise water stands at
+ * the top of the cliff with nothing coming down from it.
+ */
+function widenPlunges(island: Island, plan: Plan, board: Board) {
+  const { width: w, height: h, level, ground } = island;
+  for (let pass = 0; pass < WIDEST_RIVER_CELLS - 1; pass++) {
+    for (let j = 0; j < w * h; j++) {
+      if (FALLING_WATER.has(ground[j]!) || plan.road[j] || plan.reserved[j] || plan.siteOf[j])
+        continue;
+      const x = j % w;
+      const y = (j - x) / w;
+      const z = level[j]!;
+      if (board.get(x, y, z)?.length !== 1) continue;
+      if (!FALLS.some((f) => riverAbove(island, x + f.dx, y + f.dy, z))) continue;
+      const pool = besidePool(island, board, j);
+      if (!pool) continue;
+      ground[j] = Ground.River;
+      board.set(
+        x,
+        y,
+        z,
+        pool.map((p) => ({ ...p })),
+      );
+    }
+  }
+}
+
+/** The widest river the terrain cuts; a pool is widened at most this far, so it cannot run along a lake's cliff edge. */
+const WIDEST_RIVER_CELLS = 3;
+
+function riverAbove(island: Island, x: number, y: number, z: number): boolean {
   if (x < 0 || y < 0 || x >= island.width || y >= island.height) return false;
   const i = y * island.width + x;
-  return FALLING_WATER.has(island.ground[i]!) && island.level[i] === z + 1;
+  const storeys = island.level[i]! - z;
+  return island.ground[i] === Ground.River && storeys >= 1 && storeys <= TALL_FALL_STOREYS;
+}
+
+function besidePool(island: Island, board: Board, j: number): PlacedTile[] | undefined {
+  const { width: w, height: h, level, ground } = island;
+  let pool: PlacedTile[] | undefined;
+  forNeighbours(w, h, j, N4, (k) => {
+    if (pool || !FALLING_WATER.has(ground[k]!) || level[k] !== level[j]) return;
+    const stack = board.get(k % w, Math.floor(k / w), level[k]!);
+    if (stack?.at(-1)?.tileId === "water") pool = stack;
+  });
+  return pool;
+}
+
+/** Whether the cell at `x, y` holds water one storey above `z`. */
+/** How many storeys water at `x`, `y` falls to reach `z`, or 0 when nothing falls from there. */
+function fallHeight(island: Island, x: number, y: number, z: number): number {
+  if (x < 0 || y < 0 || x >= island.width || y >= island.height) return 0;
+  const i = y * island.width + x;
+  if (!FALLING_WATER.has(island.ground[i]!)) return 0;
+  const storeys = island.level[i]! - z;
+  return storeys >= 1 && storeys <= TALL_FALL_STOREYS ? storeys : 0;
 }
 
 /** The stack of a bare cell of the ground `island` has at `i`, as the terrain lays it away from any edge. */

@@ -3,6 +3,8 @@ import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 
 export type LandscapeProblemKind =
   | "river-corner"
+  | "river-fall"
+  | "low-snow"
   | "river-bed"
   | "river-bank"
   | "river-ground"
@@ -17,6 +19,8 @@ export type LandscapeProblem = {
   y: number;
   z: number;
   message: string;
+  /** For a straight edge: which way the line runs from `x`, `y`, and how many cells of it are straight. */
+  run?: { dx: number; dy: number; cells: number };
 };
 
 export type LandscapeInput = {
@@ -66,6 +70,8 @@ export const COVER_TILES: ReadonlySet<string> = new Set([
 export const MIN_PATCH_CELLS = 16;
 /** Snow lies on the peak, so a field of it smaller than this, in other ground, is a hilltop that caught the snow line rather than a place. */
 export const MIN_SNOW_PATCH_CELLS = 200;
+/** The lowest storey snow lies on: below it the land is grass however high the hill above it climbs. */
+export const SNOW_LEVEL = 3;
 /** Longest straight line two grounds may meet along before it reads as drawn with a ruler. */
 export const MAX_STRAIGHT_EDGE_CELLS = 12;
 /** A river's bank stops this far from the shore of the sea or a lake, as `scripts/island/stacks.ts` lays it; a river that close is its mouth. */
@@ -117,7 +123,9 @@ function describe(stack: PlacedTile[], z: number, x: number, y: number): Cell | 
   const base = stack[0]?.tileId;
   if (!base) return null;
   const water = stack.some((p) => WATER_TILES.has(p.tileId));
-  const kind = KIND_OF_BASE[base] ?? null;
+  /** Grass at a border is drawn over the ground it gives way to, so its base is sand or snow and the grass is the tile above it. */
+  const grassOver = stack.some((p) => p.tileId.startsWith("grass-edge"));
+  const kind = grassOver ? "grass" : (KIND_OF_BASE[base] ?? null);
   if (!kind && !water) return null;
   const swamp = stack.some((p) => p.tileId === "swamp");
   return {
@@ -181,6 +189,8 @@ export function checkLandscape({ map, tilesById }: LandscapeInput): LandscapeRep
   markGrowth(surface, tilesById);
   const problems: LandscapeProblem[] = [
     ...riverCorners(surface),
+    ...riverFalls(surface),
+    ...lowSnow(surface),
     ...riverBeds(surface, shore),
     ...riverGrounds(surface),
     ...waterMud(surface),
@@ -269,6 +279,48 @@ function riverCorners(surface: Map<string, Cell>): LandscapeProblem[] {
         y: cell.y,
         z: cell.z,
         message: `the river at ${cell.x},${cell.y} L${cell.z} meets ${other.x},${other.y} only at a corner, so it shows a gap; one of the cells beside both should be water`,
+      });
+    }
+  }
+  return out;
+}
+
+function lowSnow(surface: Map<string, Cell>): LandscapeProblem[] {
+  const out: LandscapeProblem[] = [];
+  for (const cell of surface.values()) {
+    if (cell.kind !== "snow" || cell.z >= SNOW_LEVEL) continue;
+    out.push({
+      kind: "low-snow",
+      x: cell.x,
+      y: cell.y,
+      z: cell.z,
+      message: `snow at ${cell.x},${cell.y} lies on L${cell.z}, below L${SNOW_LEVEL} where the snow starts`,
+    });
+  }
+  return out;
+}
+
+/** The two sides a drop faces the camera from: water spilling south or east over a cliff shows its face, so it needs a fall drawn there. */
+const FACING_DROPS = [
+  [0, 1],
+  [1, 0],
+] as const;
+
+const isFall = (placed: PlacedTile) => placed.tileId.startsWith("waterfall");
+
+function riverFalls(surface: Map<string, Cell>): LandscapeProblem[] {
+  const out: LandscapeProblem[] = [];
+  for (const cell of surface.values()) {
+    if (!cell.river) continue;
+    for (const [dx, dy] of FACING_DROPS) {
+      const below = surface.get(key(cell.x + dx, cell.y + dy));
+      if (!below?.water || below.z >= cell.z || below.stack.some(isFall)) continue;
+      out.push({
+        kind: "river-fall",
+        x: below.x,
+        y: below.y,
+        z: below.z,
+        message: `the river at ${cell.x},${cell.y} L${cell.z} drops into ${below.x},${below.y} L${below.z} with no waterfall drawn down the cliff`,
       });
     }
   }
@@ -533,6 +585,7 @@ function straightRuns(surface: Map<string, Cell>, ax: number, ay: number): Lands
       y: cell.y,
       z: cell.z,
       message: `${a} meets ${b} along a straight line ${length} cells long from ${cell.x},${cell.y} L${cell.z}`,
+      run: { dx: ax, dy: ay, cells: length },
     });
   }
   return out;

@@ -1,5 +1,6 @@
 import { CellHeap, N4, components, distanceTo, fbm, perlin } from "./grid";
 import { ROADS, SITES, SITE_APRON, type PlaceId, type SiteId } from "./layout";
+import { SNOW_LEVEL } from "../../app/verify/landscape";
 import { Ground, type Island } from "./terrain";
 
 export type Dir = "n" | "e" | "s" | "w";
@@ -41,6 +42,8 @@ export type Plan = {
   /** The cells where each road enters each site, so the town can run a street to it. */
   entries: Map<SiteId, Array<{ x: number; y: number }>>;
   roadLengths: Array<{ from: PlaceId; to: PlaceId; cells: number }>;
+  /** The cell the tall fall off the snow lands in, or -1 when the island has none. */
+  tallFall: number;
 };
 
 export const SITE_ORDER = Object.keys(SITES) as SiteId[];
@@ -121,6 +124,7 @@ export function planIsland(island: Island): Plan {
     }
   });
   for (let i = 0; i < n; i++) if (siteOf[i]) pinned[i] = 1;
+  const tallFall = raiseTallFall(island, siteOf, pinned);
 
   let ramps: Ramp[] = [];
   let candidates: Ramp[] = [];
@@ -133,6 +137,8 @@ export function planIsland(island: Island): Plan {
       break;
     }
   }
+
+  thawLowSnow(island);
 
   const reserved = new Uint8Array(n);
   for (const r of ramps) for (const i of [r.low, r.high, r.head]) reserved[i] = 1;
@@ -189,8 +195,8 @@ export function planIsland(island: Island): Plan {
     bridges.push(...bridgesAlong(island, path, reserved, siteOf));
   }
   for (const b of bridges) for (const i of b.cells) reserved[i] = 1;
-  widenRoads(island, road, reserved, siteOf);
-  return { sites, siteOf, ramps, road, bridges, reserved, entries, roadLengths };
+  for (const b of bridges) joinBridgeEnds(island, road, reserved, siteOf, b);
+  return { sites, siteOf, ramps, road, bridges, reserved, entries, roadLengths, tallFall };
 }
 
 /**
@@ -281,6 +287,115 @@ function chooseSite(
   }
   if (!best) throw new Error(`no room for the ${id} site`);
   return best;
+}
+
+/** How many storeys the river leaving the snow falls in one drop: the one place a cliff is taller than a storey. */
+export const TALL_FALL_STOREYS = 3;
+/** How far across the cliff the land is raised with the river, so the fall drops from a headwall rather than out of a slot. */
+const TALL_FALL_REACH_CELLS = 7;
+/** The headwall's reach is pushed in and out by noise, so the raised land ends in a ragged round and not a square. */
+const TALL_FALL_FRAY_CELLS = 3;
+const TALL_FALL_FRAY_SCALE_CELLS = 4;
+const TALL_FALL_SALT = 0x7a11;
+/** How far up its own course the river is raised, which must reach the storey it is raised to. */
+const TALL_FALL_RIVER_CELLS = 40;
+/** The drops a fall can be drawn down: water leaving a cliff south or east. */
+const FALL_STEPS = [
+  [0, 1],
+  [1, 0],
+] as const;
+
+/**
+ * Finds the widest river dropping south or east inside the snow, the
+ * lowest such drop where two are as wide, which is the last cliff before
+ * the river runs out onto the lower ground, and raises
+ * the land above that drop until the river falls `TALL_FALL_STOREYS` in
+ * one cliff. The raised cells are pinned, as `terrace` would otherwise
+ * lower them into one-storey shelves again. Returns the cell the fall lands
+ * in, or -1 when no river leaves the snow that way.
+ */
+function raiseTallFall(island: Island, siteOf: Uint8Array, pinned: Uint8Array): number {
+  const drop = widestSnowDrop(island);
+  if (!drop) return -1;
+  const { width: w, height: h, level, ground } = island;
+  const top = level[drop.pool]! + TALL_FALL_STOREYS;
+  const [sx, sy] = drop.step;
+  const rx = drop.from % w;
+  const ry = (drop.from - rx) / w;
+  const seen = new Uint8Array(w * h);
+  const fray = perlin(TALL_FALL_SALT);
+  const queue = [drop.from];
+  seen[drop.from] = 1;
+  for (let k = 0; k < queue.length; k++) {
+    const i = queue[k]!;
+    level[i] = top;
+    pinned[i] = 1;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (const [dx, dy] of N4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const j = ny * w + nx;
+      if (seen[j] || siteOf[j] || level[j]! <= level[drop.pool]! || level[j]! >= top) continue;
+      /** Only the side the river comes from is raised: nothing below the cliff's line moves. */
+      if ((nx - rx) * sx + (ny - ry) * sy > 0) continue;
+      const reach =
+        ground[j] === Ground.River
+          ? TALL_FALL_RIVER_CELLS
+          : TALL_FALL_REACH_CELLS +
+            TALL_FALL_FRAY_CELLS *
+              fbm(fray, nx / TALL_FALL_FRAY_SCALE_CELLS, ny / TALL_FALL_FRAY_SCALE_CELLS, 3);
+      if (Math.hypot(nx - rx, ny - ry) > reach) continue;
+      seen[j] = 1;
+      queue.push(j);
+    }
+  }
+  pinned[drop.pool] = 1;
+  return drop.pool;
+}
+
+type SnowDrop = { from: number; pool: number; step: readonly [number, number]; width: number };
+
+function widestSnowDrop(island: Island): SnowDrop | undefined {
+  const { width: w, height: h, level, ground, biome } = island;
+  let best: SnowDrop | undefined;
+  for (let i = 0; i < w * h; i++) {
+    if (ground[i] !== Ground.River || biome[i] !== Ground.Snow) continue;
+    const x = i % w;
+    const y = (i - x) / w;
+    for (const step of FALL_STEPS) {
+      const [dx, dy] = step;
+      if (x + dx >= w || y + dy >= h) continue;
+      const j = i + dy * w + dx;
+      if (ground[j] !== Ground.River || level[j]! >= level[i]!) continue;
+      const width = riverWidth(island, i, dy, dx);
+      const lower = best && width === best.width && level[i]! < level[best.from]!;
+      if (!best || width > best.width || lower) best = { from: i, pool: j, step, width };
+    }
+  }
+  return best;
+}
+
+/** How many river cells in a row the river at `i` is across `ax`, `ay`, at its own level. */
+function riverWidth(island: Island, i: number, ax: number, ay: number): number {
+  const { width: w, level, ground } = island;
+  const same = (j: number) => ground[j] === Ground.River && level[j] === level[i];
+  let width = 1;
+  for (const sign of [-1, 1]) {
+    for (let k = 1; same(i + sign * k * (ay * w + ax)); k++) width++;
+  }
+  return width;
+}
+
+/** Terracing lowers cells into the shelf below them, so snow it took below `SNOW_LEVEL` becomes grass. */
+function thawLowSnow(island: Island) {
+  const { level, ground, biome } = island;
+  for (let i = 0; i < ground.length; i++) {
+    if (level[i]! >= SNOW_LEVEL) continue;
+    if (ground[i] === Ground.Snow || ground[i] === Ground.Rock) ground[i] = Ground.Grass;
+    if (biome[i] === Ground.Snow || biome[i] === Ground.Rock) biome[i] = Ground.Grass;
+  }
 }
 
 /**
@@ -727,19 +842,59 @@ function bridgesAlong(
   return out;
 }
 
-/** Roads two cells wide where the ground beside them allows it. */
-function widenRoads(island: Island, road: Uint8Array, reserved: Uint8Array, siteOf: Uint8Array) {
-  const { width: w, height: h, level } = island;
-  const add: number[] = [];
-  for (let i = 0; i < w * h; i++) {
-    if (road[i] !== 1 || reserved[i]) continue;
-    const x = i % w;
-    const y = (i - x) / w;
-    const east = road[i - 1] || road[i + 1];
-    const j = east ? (y + 1 < h ? i + w : -1) : x + 1 < w ? i + 1 : -1;
-    if (j < 0 || road[j] || reserved[j] || siteOf[j] || level[j] !== level[i]) continue;
-    if (!plainLand(island, j)) continue;
-    add.push(j);
+/** How far from a deck's end the search for the road on that bank goes, in cells walked. */
+const BRIDGE_JOIN_CELLS = 16;
+
+/**
+ * A road is one cell wide and meets a bridge's deck square on, at the middle
+ * of its three cells. The deck runs straight from where the road reached the
+ * water, but the road may have waded on at an angle, so the cell straight out
+ * from each end of the deck is joined to the nearest road on that bank by
+ * the shortest walk over dry land the bridge does not use.
+ */
+function joinBridgeEnds(
+  island: Island,
+  road: Uint8Array,
+  reserved: Uint8Array,
+  siteOf: Uint8Array,
+  bridge: Bridge,
+) {
+  const { width: w } = island;
+  const [dx, dy] = STEP[bridge.across];
+  const first = bridge.cells[0]!;
+  const last = bridge.cells.at(-1)!;
+  const blocked = (i: number) => reserved[i] === 1 || siteOf[i]! > 0;
+  joinToRoad(island, road, blocked, first - dx - dy * w, bridge.level);
+  joinToRoad(island, road, blocked, last + dx + dy * w, bridge.level);
+}
+
+function joinToRoad(
+  island: Island,
+  road: Uint8Array,
+  blocked: (i: number) => boolean,
+  start: number,
+  z: number,
+) {
+  const { width: w, height: h, level, ground } = island;
+  const dry = (i: number) =>
+    level[i] === z && !blocked(i) && walkable(island, i) && ground[i] !== Ground.River;
+  if (start < 0 || start >= w * h || !dry(start)) return;
+  const from = new Map<number, number>([[start, -1]]);
+  const queue = [start];
+  for (let k = 0; k < queue.length && k < BRIDGE_JOIN_CELLS ** 2; k++) {
+    const i = queue[k]!;
+    if (road[i] && i !== start) {
+      for (let c = i; c !== -1; c = from.get(c)!) road[c] = 1;
+      return;
+    }
+    for (const [ox, oy] of N4) {
+      const x = (i % w) + ox;
+      const y = Math.floor(i / w) + oy;
+      const j = y * w + x;
+      if (x < 0 || y < 0 || x >= w || y >= h || from.has(j) || !dry(j)) continue;
+      from.set(j, i);
+      queue.push(j);
+    }
   }
-  for (const j of add) road[j] = 2;
+  road[start] = 1;
 }

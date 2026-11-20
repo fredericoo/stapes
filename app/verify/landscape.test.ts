@@ -3,7 +3,7 @@ import { shippedTiles } from "../game/testShippedTiles";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { checkLandscape, type LandscapeProblemKind } from "./landscape";
+import { SNOW_LEVEL, checkLandscape, type LandscapeProblemKind } from "./landscape";
 
 const tilesById = tilesByIdFromList(shippedTiles());
 
@@ -24,10 +24,13 @@ const RIVER_X = 15;
 
 type Paint = (x: number, y: number) => PlacedTile[];
 
+/** Fields are laid on the snow line's storey, so a snowfield in one is not snow too low down. */
+const FIELD_LEVEL = SNOW_LEVEL;
+
 function field(size: number, paint: Paint): MapFile {
   let map = emptyMap();
   for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) map = replaceStack(map, x, y, 0, paint(x, y));
+    for (let x = 0; x < size; x++) map = replaceStack(map, x, y, FIELD_LEVEL, paint(x, y));
   }
   return map;
 }
@@ -79,6 +82,37 @@ describe("checkLandscape", () => {
     ],
   ])("%s", (_, map, expected) => {
     expect(kindsOf(map)).toEqual(expected);
+  });
+
+  it("fails a river that spills south over a cliff with no waterfall", () => {
+    const CLIFF_Y = 15;
+    const SNOW_FALL = [...SNOW_RIVER, t("waterfall-base")];
+    const cliff = (pool: PlacedTile[]) => {
+      let map = emptyMap();
+      for (let y = 0; y < FIELD_CELLS; y++) {
+        for (let x = 0; x < FIELD_CELLS; x++) {
+          const upper = y < CLIFF_Y;
+          const wet = x === RIVER_X;
+          const stack = wet ? (upper ? SNOW_RIVER : pool) : SNOW;
+          map = replaceStack(map, x, y, upper ? FIELD_LEVEL + 1 : FIELD_LEVEL, stack);
+        }
+      }
+      return map;
+    };
+    expect(kindsOf(cliff(SNOW_RIVER))).toEqual(["river-fall"]);
+    expect(kindsOf(cliff(SNOW_FALL))).toEqual([]);
+  });
+
+  it("fails snow on a storey below the snow line", () => {
+    const snowfield = (z: number) => {
+      let map = emptyMap();
+      for (let y = 0; y < FIELD_CELLS; y++) {
+        for (let x = 0; x < FIELD_CELLS; x++) map = replaceStack(map, x, y, z, SNOW);
+      }
+      return map;
+    };
+    expect(kindsOf(snowfield(SNOW_LEVEL - 1))).toEqual(["low-snow"]);
+    expect(kindsOf(snowfield(SNOW_LEVEL))).toEqual([]);
   });
 
   it("leaves a sea shore bare and fails mud laid on it", () => {

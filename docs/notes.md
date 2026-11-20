@@ -18878,11 +18878,54 @@ a change to the generator cannot quietly bring the old shapes back.
 - **No border runs straight for more than 12 cells**, unless it is within 8
   cells of a shore or follows a river's bank. Swamps, the snow line, site
   aprons and clearings all have noise on their edges for this reason
-  (`scripts/island/fray.ts`, `plan.ts`, `terrain.ts`).
+  (`scripts/island/fray.ts`, `plan.ts`, `terrain.ts`). A straight road pulls
+  the seam beside it straight as `harmoniseGround` settles it, so once the
+  ground loop holds still, `jogStraightBorders` (`scripts/island/jog.ts`)
+  steps every line the check still finds by two cells at its middle and the
+  loop runs again. The check reports each line's direction and length for it.
+- **No snow below level 3** (`SNOW_LEVEL`). Above it the peak climbs 1.6
+  storeys for every storey the height curve gives, so the snow is a steep
+  peak and not more of the same hill. The snow line wanders across the first
+  storey of the peak by noise, so it does not follow the cliff at its foot.
+  Terracing can lower a snow cell below the line; `thawLowSnow` turns it to
+  grass, and a frost cave's tunnel and mouth below the line lie on grass.
+- **A river spilling south or east over a cliff has a waterfall down it**,
+  however many storeys it drops. Water leaving north or west goes over a
+  face the projection never draws.
 - **A desert or a snowfield is mostly open ground.** In any 32-cell window,
   things that stand may cover at most 4% of the open sand or 5% of the open
   snow. Walls and lamps within two cells of a floor, a street or a bank are
   not counted. The woods have no limit.
+
+Every cliff is one storey but one. `raiseTallFall` (`plan.ts`) finds the
+widest river dropping south or east inside the snow, the lowest such drop
+where two are as wide, and raises the land above it so the river falls
+three storeys in one cliff. The raised land is pinned, or `terrace` would
+cut it back into one-storey shelves, and its reach is pushed in and out by
+noise so it does not end in a square. A stack may not reach past its own
+storey, so a fall taller than one storey puts a base and a middle in the
+pool and two segments in each empty cell above it.
+
+Roads are one cell wide everywhere. A road meets a bridge at the middle,
+walkable cell of the deck's end, square on: `joinBridgeEnds` (`plan.ts`)
+walks out from the cell past each end of the deck, on its own level, to the
+nearest road, and lays road along that walk. Where no road is within 16
+cells, the cell past the deck is road on its own.
+
+Grass is drawn over the ground it gives way to. `edgeGrass`
+(`scripts/island/grassEdge.ts`) runs after the ground loop and gives every
+grass cell beside sand or snow on its own level that ground as its base,
+under a `grass-edge-sand-N` or `grass-edge-snow-N` autotile. The
+autotile is the grass with a ragged edge and a shadow cast south and east
+in that ground's darker shade. Only border cells change, so a meadow is
+still one quad a cell. An autotile draws one sprite per slice, so each
+ground has six tiles with different edges (`generate:grass-edge`), and
+the cell's position picks one. The check reads a cell under a grass edge as
+grass. A cell beside a floor or a road on grass that does not connect to
+sand keeps plain grass, or the grass under that floor would show as a line.
+The shadow is opaque, one tile set per ground: a translucent shadow
+could serve both, but a translucent sheet is drawn after the level and would
+cover what stands on the cell.
 
 A cell shut in by cliff on three sides with a waterfall on the fourth
 cannot be left, since a fall is not walked through, so `raiseFallPockets`

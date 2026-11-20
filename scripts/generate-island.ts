@@ -22,6 +22,8 @@ import { mergeSpecks } from "./island/specks";
 import { buildIsland } from "./island/terrain";
 import { digUnderground } from "./island/caves";
 import { frayClearings } from "./island/fray";
+import { edgeGrass } from "./island/grassEdge";
+import { jogStraightBorders } from "./island/jog";
 
 /**
  * Writes Rune Isle to `data/map.json`: the island from the reference
@@ -92,7 +94,8 @@ const underground = digUnderground(builder, tilesById);
 /**
  * Each pass can give a river grass ground that needs a bed and banks, and
  * the dirt can open a seam, or leave a speck of ground, that the next pass
- * closes.
+ * closes. Once the ground holds still, a border left straight is jogged and
+ * the ground settles round the jog.
  */
 for (let pass = 0; pass < GROUND_PASSES; pass++) {
   harmoniseGround(board, tilesById);
@@ -101,8 +104,9 @@ for (let pass = 0; pass < GROUND_PASSES; pass++) {
     raiseFallPockets(island, board) +
     bedRivers(island, board, GROWN) +
     mergeSpecks(island, board);
-  if (changed === 0) break;
+  if (changed === 0 && jogStraightBorders(island, board, tilesById) === 0) break;
 }
+edgeGrass(island, board, tilesById);
 
 for (const layer of board.levels.values()) {
   for (const stack of layer.values()) {
@@ -166,6 +170,13 @@ console.log(
     levels: [...board.levels.keys()].sort((a, b) => a - b),
     ramps: plan.ramps.length,
     bridges: plan.bridges.length,
+    tallFall:
+      plan.tallFall < 0
+        ? null
+        : [
+            (plan.tallFall % island.width) + board.ox,
+            Math.floor(plan.tallFall / island.width) + board.oy,
+          ],
     roads: plan.roadLengths,
     buildings: builder.buildings.length,
     residents: builder.residents.filter((r) => r.tileId).length,
