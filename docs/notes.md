@@ -15781,8 +15781,9 @@ arming the tool with an id nothing can draw.
 `app/editor/compose/` builds a map from a tree instead of from a script. A
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
-component in `COMPONENTS` (`app/editor/compose/components/`): `island`,
-`forest`, `house`, `road` and `river` so far. `bun run build:map <tree.json>`
+component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
+`island`, `forest`, `house`, `road`, `river`, `tile`, `fill`, `scatter`,
+`mask` and `clear`. `bun run build:map <tree.json>`
 builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is still
 `generate:island`; nothing ships from a tree yet.
 
@@ -15879,11 +15880,48 @@ and dragging a house rebuilds 3 of 6 layers in 6–13 ms and changes 21–30 of
 about 500 chunks, most of them the long road whose start follows the house.
 The canvas prints those three numbers for every build.
 
+**A mask is a child layer that shapes its parent.** It writes nothing; the
+build passes the parent's edits through the parent's masks (`applyMasks`)
+before writing them, and a mask is the only component whose effect is on
+another node.
+
+- A mask is an oval or a rectangle in its own frame, or `from` another layer,
+  when it covers the cells that layer wrote (`Step.footprint`). `grow` widens
+  or narrows it by whole cells and `ragged` moves the edge with noise.
+- Masks combine in order: add puts back what one covers, subtract takes it
+  away, intersect keeps only what it covers, and a chain that starts with add
+  starts from nothing.
+- Only the tiles a layer itself added to a cell are tested, and a cell where
+  none survive keeps the stack it had. A mask with `only` tests only those
+  tiles, so it takes the roofs off a house and leaves the walls.
+- A mask stops its own layer placing tiles. Removing tiles an earlier layer
+  already placed is a `clear` layer, which gets `covered(x, y)` from its masks
+  because it adds nothing for the filtering to remove.
+- A layer's masks are part of its inputs, because a mask comes after its
+  parent in build order and would otherwise be rebuilt without it. A mask
+  `from` a layer needs nothing more: the layer has to come earlier, which the
+  build enforces, and any change to it already stops the reuse of what follows.
+- A mask's grid spans only as far as it can reach, so a small ragged clearing
+  evaluates noise over a small grid rather than over the island.
+
+**A road and a river share their route (`ROUTE_PROPS`) and stay separate
+components,** because a road lays a deck over water and a river does not. A
+route runs from `from` through each `via` point to `to`, and `wander` pushes
+each stretch sideways by noise multiplied by a sine that is zero at both ends
+of the stretch, so the route still meets every point exactly.
+
+**A tile node is one tile on one cell with its placement settings,** edited in
+the map editor's own `PlacementSettingsDialog` through `placementWriter`,
+which applies the map editor's `updatePlaced*` functions to a one-cell map so
+both editors drop an empty reward the same way. The spawn is the `player`
+tile, and a creature is its battler tile; the world respawns it where it was
+placed.
+
 What a tree does not do yet: a road stays on its own level and does not climb
-(Rune Isle's ramps are `planIsland`'s), and a road goes round nothing and
-leaves a cell where anything but the plants in `clears` stands. The demo
-builds 96×72 cells in about 150ms, which is fast enough to rebuild on every
-drag step.
+(Rune Isle's ramps are `planIsland`'s), a road goes round nothing and leaves a
+cell where anything but the plants in `clears` stands, and a mask on a group
+does not shape the group's children. The demo builds 96×72 cells in about
+50ms, which is fast enough to rebuild on every drag step.
 
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
@@ -15924,8 +15962,10 @@ copies it out or pastes one in.
   re-render after the drop left a copy of it behind.
 - **"Play this map" is `POST /api/map`**, the map editor's Save, so it
   replaces the running world's map for everyone on it and, under `bun dev`,
-  writes `data/map.json` on disk. It refuses a map without exactly one spawn,
-  because `requireSinglePlayer` would refuse to load it.
+  writes `data/map.json` on disk. It refuses a map without exactly one `player`
+  tile, because `requireSinglePlayer` would refuse to load it.
+- **An inspector row is a `role="group"`, not a `<label>`.** A label names and
+  clicks the first control inside it, and a row can hold several.
 
 ## A cave is rock you take away from
 
