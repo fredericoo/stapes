@@ -451,3 +451,90 @@ describe("masks", () => {
     expect(serializeMap(resumed.map)).toBe(serializeMap(build(at(16)).map));
   });
 });
+
+describe("layer masks and clearing", () => {
+  const brook: MapNode = {
+    type: "river",
+    key: "brook",
+    props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 1 },
+  };
+
+  it("keeps a layer to the cells beside another layer when masked from it", () => {
+    const { map } = build(
+      doc(
+        field([
+          brook,
+          {
+            type: "ground",
+            key: "banks",
+            props: { tile: "dirt" },
+            children: [
+              {
+                type: "mask",
+                key: "near-brook",
+                props: { from: "brook", op: "intersect", grow: 2 },
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+    expect([
+      topAt(map, 22, 15),
+      topAt(map, 23, 15),
+      topAt(map, 18, 15),
+      topAt(map, 17, 15),
+    ]).toEqual(["dirt", "sand", "dirt", "sand"]);
+  });
+
+  it("refuses a mask from a layer that is built after the one it shapes", () => {
+    const { problems } = build(
+      doc(
+        field([
+          {
+            type: "ground",
+            key: "banks",
+            props: { tile: "dirt" },
+            children: [
+              { type: "mask", key: "near-brook", props: { from: "brook", op: "intersect" } },
+            ],
+          },
+          brook,
+        ]),
+      ),
+    );
+    expect(problems.map((p) => p.key)).toEqual(["near-brook"]);
+  });
+
+  it("clears only the listed tiles, only where its mask leaves it in", () => {
+    const { map } = build(
+      doc(
+        field([
+          {
+            type: "forest",
+            key: "wood",
+            props: { onlyOn: ["sand"], path: null, density: 100, undergrowthDensity: 100 },
+          },
+          {
+            type: "clear",
+            key: "felled",
+            props: { remove: ["tree"] },
+            children: [
+              {
+                type: "mask",
+                key: "left-half",
+                frame: { x: 0, y: 0, w: 20, h: 30 },
+                props: { shape: "rect", op: "intersect" },
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+    const trees = cellsWith(map, "tree", 40, 30).map((c) => Number(c.split(",")[0]));
+    const bushes = cellsWith(map, "small-bush", 40, 30).map((c) => Number(c.split(",")[0]));
+    expect(trees.length).toBeGreaterThan(0);
+    expect(trees.every((x) => x >= 20)).toBe(true);
+    expect(bushes.some((x) => x < 20)).toBe(true);
+  });
+});

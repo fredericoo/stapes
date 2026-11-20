@@ -1,4 +1,5 @@
 import type { Component, ComponentRegistry } from "../build";
+import { clear } from "./clear";
 import { forest } from "./forest";
 import { group } from "./group";
 import { house } from "./house";
@@ -17,6 +18,7 @@ const all: ReadonlyArray<Component<never>> = [
   river,
   tile,
   mask,
+  clear,
 ] as never;
 
 export const COMPONENTS: ComponentRegistry = Object.fromEntries(all.map((c) => [c.type, c]));

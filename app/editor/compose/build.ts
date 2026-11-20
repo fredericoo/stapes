@@ -3,7 +3,17 @@ import { emptyMap, getStack, setStacks } from "../../lib/mapData";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
-import { MASK_TYPE, applyMasks, mask, maskShape, type MaskProps } from "./components/mask";
+import {
+  MASK_TYPE,
+  applyMasks,
+  footprintOf,
+  keeps,
+  mask,
+  maskShape,
+  type Footprint,
+  type MaskProps,
+  type MaskShape,
+} from "./components/mask";
 import { wrongTile } from "./field";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
@@ -15,6 +25,8 @@ export type BuildContext = {
   readonly seed: number;
   stackAt(x: number, y: number, z?: number): PlacedTile[];
   point(point: Point): { x: number; y: number } | null;
+  /** Whether the node's masks leave x,y in; true everywhere for a node with none. */
+  covered(x: number, y: number): boolean;
 };
 
 /** What a node of this type starts as when the editor adds one. */
@@ -38,6 +50,7 @@ type Step = {
   map: MapFile;
   problems: BuildProblem[];
   written: Bounds | null;
+  footprint: Footprint | null;
 };
 
 export type BuildResult = {
@@ -81,8 +94,10 @@ function namedFrames(value: unknown, layout: Layout, into: Record<string, unknow
 
 /**
  * Everything a node's output depends on besides the map the nodes before it
- * left: its component, props, seed, frame, clip and level, and the frame of
- * every node a point in its props is measured in.
+ * left: its component, props, seed, frame, clip and level, the frame of every
+ * node a point in its props is measured in, and its masks. A mask `from` a
+ * layer needs nothing more, because that layer comes earlier, and any change
+ * to it already stops the build reusing what follows.
  */
 function inputsOf(placement: Placement, layout: Layout): string {
   const named: Record<string, unknown> = {};
@@ -137,12 +152,31 @@ function masksOf(node: MapNode): MapNode[] {
   return (node.children ?? []).filter((c) => c.type === MASK_TYPE && !c.hidden);
 }
 
-function shapesFor(node: MapNode, layout: Layout, area: Bounds) {
+/**
+ * A mask `from` a layer reads what that layer wrote in this build, so the
+ * layer has to come earlier in the tree; one that comes later is refused
+ * rather than read as empty, which would quietly mask nothing.
+ */
+function shapesFor(
+  node: MapNode,
+  layout: Layout,
+  built: ReadonlyMap<string, Step>,
+  problems: BuildProblem[],
+): MaskShape[] {
   return masksOf(node).flatMap((m) => {
     const placement = layout.placements.get(m.key);
     const parsed = v.safeParse(mask.schema, m.props ?? {});
     if (!placement || !parsed.success) return [];
-    return [maskShape(parsed.output as MaskProps, placement.bounds, placement.seed, area)];
+    const props = parsed.output as MaskProps;
+    if (props.from && !built.has(props.from)) {
+      problems.push({
+        key: m.key,
+        reason: `${props.from} is not built before ${node.key}, so there is nothing of it to mask with`,
+      });
+      return [];
+    }
+    const footprint = props.from ? (built.get(props.from)?.footprint ?? null) : null;
+    return [maskShape(props, placement.bounds, placement.seed, footprint)];
   });
 }
 
@@ -185,6 +219,7 @@ export function buildMap(
       ? previous.steps
       : [];
   const steps: Step[] = [];
+  const built = new Map<string, Step>();
   let map = base;
   let resuming = true;
 
@@ -193,13 +228,16 @@ export function buildMap(
     const prior = usable[steps.length];
     if (resuming && prior?.key === placement.node.key && prior.inputs === inputs) {
       steps.push(prior);
+      built.set(prior.key, prior);
       map = prior.map;
       continue;
     }
     resuming = false;
     const problems: BuildProblem[] = [];
     let written: Bounds | null = null;
+    let footprint: Footprint | null = null;
     const { node } = placement;
+    const shapes = shapesFor(node, layout, built, problems);
     const component = components[node.type];
     if (!component) {
       problems.push({ key: node.key, reason: `There is no component called ${node.type}` });
@@ -231,24 +269,23 @@ export function buildMap(
               const frame = pointFrame(layout, placement, point);
               return frame ? pointIn(point, frame) : null;
             },
+            covered: (x, y) => keeps(shapes, x, y, ""),
           },
           parsed.output as never,
         );
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
         else {
-          const area = boundsOf(plan.edits);
-          const masked = area
-            ? applyMasks(plan.edits, shapesFor(node, layout, area), (x, y, z) =>
-                getStack(current, x, y, z),
-              )
-            : plan.edits;
+          const masked = applyMasks(plan.edits, shapes, (x, y, z) => getStack(current, x, y, z));
           const kept = masked.filter((e) => inside(placement.clip, e.x, e.y));
           map = setStacks(map, kept);
           written = boundsOf(kept);
+          footprint = footprintOf(kept);
         }
       }
     }
-    steps.push({ key: node.key, inputs, map, problems, written });
+    const step = { key: node.key, inputs, map, problems, written, footprint };
+    steps.push(step);
+    built.set(step.key, step);
   }
 
   const reused = steps.filter((step, i) => step === usable[i]).length;

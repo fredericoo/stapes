@@ -341,6 +341,16 @@ function FieldEditor({
         </span>
       );
     }
+    case "node":
+      return (
+        <Select
+          ariaLabel={label}
+          value={typeof value === "string" ? value : null}
+          onValueChange={onChange}
+          placeholder="Pick a layer"
+          options={keys.map((k) => ({ value: k, label: k }))}
+        />
+      );
     case "placement":
       return (
         <PlacementField
@@ -378,7 +388,11 @@ function FieldEditor({
           <Switch
             ariaLabel={`${label} on`}
             checked={value !== null}
-            onCheckedChange={(on) => onChange(on ? (fallback ?? "") : null)}
+            onCheckedChange={(on) =>
+              onChange(
+                on ? (fallback ?? (field.inner.kind === "node" ? (keys[0] ?? "") : "")) : null,
+              )
+            }
           />
           {value !== null ? (
             <span className="min-w-0 flex-1">

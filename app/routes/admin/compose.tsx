@@ -87,6 +87,7 @@ function MaskOutline({ placement, projection }: { placement: Placement; projecti
   const { bounds, z } = placement;
   const a = projection.cellToScreen(bounds.minX, bounds.minY, z);
   const b = projection.cellToScreen(bounds.maxX + 1, bounds.maxY + 1, z);
+  if (placement.node.props?.from) return null;
   const shape = (placement.node.props?.shape as string | undefined) ?? "oval";
   const op = (placement.node.props?.op as string | undefined) ?? "subtract";
   return (

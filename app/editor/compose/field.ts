@@ -57,6 +57,7 @@ export type FieldMeta =
   | { field: "weighted"; tiles: TileKind }
   | { field: "point"; level: boolean }
   | { field: "points" }
+  | { field: "node" }
   | { field: "direction" }
   | { field: "percent" }
   | { field: "placement"; tileProp: string };
@@ -87,6 +88,8 @@ export const field = {
     ),
   /** Points a route passes through on its way, in order; the editor draws each as a handle on the map. */
   points: () => v.pipe(v.array(PointObject), v.metadata({ field: "points" } satisfies FieldMeta)),
+  /** Another node of the tree, by key. */
+  node: () => v.pipe(v.string(), v.minLength(1), v.metadata({ field: "node" } satisfies FieldMeta)),
   direction: () =>
     v.pipe(
       v.picklist(DIRECTIONS as [Direction, ...Direction[]]),

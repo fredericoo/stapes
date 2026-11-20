@@ -7,6 +7,7 @@ export type Field =
   | { kind: "weighted"; tiles: TileKind }
   | { kind: "point"; level: boolean }
   | { kind: "points" }
+  | { kind: "node" }
   | { kind: "direction" }
   | { kind: "percent" }
   | { kind: "placement"; tileProp: string }
@@ -35,7 +36,7 @@ function requirement(schema: Introspected, type: string): number | undefined {
 
 function fromMeta(meta: FieldMeta): Field {
   if (meta.field === "point") return { kind: "point", level: meta.level };
-  if (meta.field === "points") return { kind: "points" };
+  if (meta.field === "points" || meta.field === "node") return { kind: meta.field };
   if (meta.field === "direction" || meta.field === "percent") return { kind: meta.field };
   if (meta.field === "placement") return { kind: "placement", tileProp: meta.tileProp };
   return { kind: meta.field, tiles: meta.tiles };
