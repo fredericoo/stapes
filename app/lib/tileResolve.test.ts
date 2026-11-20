@@ -187,3 +187,46 @@ describe("a tile written before it had an anchor", () => {
     expect(blank.anchor).toEqual({ tilesetId: "", x: 0, y: 0 });
   });
 });
+
+describe("an autotile with slice columns", () => {
+  const COLUMNS = 3;
+  const CELLS = 64;
+  const slice = (y: number) => ({
+    frames: [{ sprite: { rect: { x: 0, y, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
+  });
+  const tile = {
+    id: "turf",
+    name: "Turf",
+    height: 0,
+    type: "autotile",
+    kind: "prop",
+    attributes: {},
+    anchor: { tilesetId: "t", x: 0, y: 0 },
+    sliceColumns: COLUMNS,
+    slices: { 0: slice(0) },
+  } as TileDef;
+
+  it("draws every column somewhere, and one cell always the same one", () => {
+    const columns = new Set<number>();
+    for (let x = 0; x < CELLS; x++) {
+      const at = { x, y: 0, z: 0, autotileSlice: 0 as const };
+      const first = resolveTileSprite(tile, at);
+      expect(resolveTileSprite(tile, at)).toBe(first);
+      columns.add(first!.frames[0]!.sprite.rect.x);
+    }
+    expect([...columns].sort()).toEqual([0, 1, 2]);
+  });
+
+  it("keeps the slice's row in every column", () => {
+    const sprite = resolveTileSprite(
+      { ...tile, slices: { 5: slice(5) } },
+      {
+        x: 3,
+        y: 9,
+        z: 0,
+        autotileSlice: 5,
+      },
+    );
+    expect(sprite!.frames[0]!.sprite.rect.y).toBe(5);
+  });
+});

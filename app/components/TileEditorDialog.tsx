@@ -623,6 +623,7 @@ export function TileEditorDialog({
       connectsTo:
         draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
+      sliceColumns: draft.type === "autotile" ? draft.sliceColumns : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
       particleRule: draft.particles ? draft.particleRule : undefined,

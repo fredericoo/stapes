@@ -1,4 +1,4 @@
-import { pickAutotileSprite, resolveAutotileSlice } from "./autotile";
+import { pickAutotileSprite, resolveAutotileSlice, spriteInColumn } from "./autotile";
 import { pickScatterSprite, resolveScatterIndex } from "./scatter";
 import { pickVariantSprite, variantKeys } from "./variant";
 import {
@@ -77,7 +77,10 @@ export function resolveTileSprite(
     slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile);
   }
   if (slice == null) slice = 0;
-  return override?.slices?.[slice] ?? pickAutotileSprite(tile, slice);
+  const sprite = override?.slices?.[slice] ?? pickAutotileSprite(tile, slice);
+  const columns = tile.sliceColumns ?? 1;
+  if (!sprite || columns <= 1 || ctx.x == null || ctx.y == null || ctx.z == null) return sprite;
+  return spriteInColumn(sprite, resolveScatterIndex(ctx.x, ctx.y, ctx.z, tile, columns));
 }
 
 export function getFrames(

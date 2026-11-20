@@ -228,6 +228,14 @@ const WADING_RENDER_ORDER = 0.5;
  */
 const TRANSLUCENT_RENDER_ORDER = 0.75;
 
+/**
+ * A translucent mesh of its own, such as a wisp, is drawn after the merged
+ * translucent batches. Those are flat ground and liquid, so whatever is a
+ * mesh of its own stands over them, and drawing the batch second would blend
+ * the ground over it.
+ */
+const TRANSLUCENT_SEPARATE_RENDER_ORDER = 0.85;
+
 const SPRITE_ALPHA_CUTOFF = 0.5;
 
 const TRANSLUCENT_ALPHA_FLOOR = 0.02;
@@ -236,9 +244,10 @@ function isTranslucent(texture: THREE.Texture | null | undefined): boolean {
   return texture?.userData.translucent === true;
 }
 
-function restingRenderOrder(mesh: THREE.Mesh): number {
+function restingRenderOrder(mesh: THREE.Mesh, { merged = false } = {}): number {
   const material = mesh.material as THREE.MeshBasicMaterial;
-  return isTranslucent(material.map) ? TRANSLUCENT_RENDER_ORDER : 0;
+  if (!isTranslucent(material.map)) return 0;
+  return merged ? TRANSLUCENT_RENDER_ORDER : TRANSLUCENT_SEPARATE_RENDER_ORDER;
 }
 
 function cutOrBlend(mat: THREE.MeshBasicMaterial, texture: THREE.Texture) {
@@ -2364,7 +2373,7 @@ export class WorldRenderer {
       const geo = buildMergedQuadGeometry(quads);
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
-      mesh.renderOrder = restingRenderOrder(mesh);
+      mesh.renderOrder = restingRenderOrder(mesh, { merged: true });
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
