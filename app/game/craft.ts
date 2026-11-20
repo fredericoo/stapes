@@ -1,4 +1,4 @@
-import type { TradeSide } from "../lib/dialog";
+import type { TradeSide, TradeTerms } from "../lib/dialog";
 import {
   MAX_CRAFT_CHANCE,
   type CraftInteraction,
@@ -8,7 +8,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { reachableCraftAt, type Actor, type ObjectRef } from "./affordances";
 import type { Equipment } from "./equipment";
-import { planTrade } from "./trade";
+import { planDeal } from "./trade";
 
 const CHECK_ID = "craft-check";
 const checkId = () => CHECK_ID;
@@ -22,13 +22,22 @@ function sidesOf(tileIds: readonly string[]): TradeSide[] {
   return tileIds.map((tileId) => ({ tileId, count: 1 }));
 }
 
+function termsOf(recipe: CraftRecipe, made: readonly string[]): TradeTerms {
+  return {
+    take: recipe.inputs,
+    give: sidesOf(made),
+    ...(recipe.takeCash ? { takeCash: recipe.takeCash } : {}),
+    ...(recipe.giveCash ? { giveCash: recipe.giveCash } : {}),
+  };
+}
+
 export function affordsRecipe(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
   recipe: CraftRecipe,
 ): boolean {
   return possibleOutcomes(recipe.output).every(
-    (outcome) => planTrade(tilesById, equipment, recipe.inputs, sidesOf(outcome), checkId) !== null,
+    (outcome) => planDeal(tilesById, equipment, termsOf(recipe, outcome), checkId) !== null,
   );
 }
 
@@ -41,7 +50,8 @@ export function recipeBlock(
   equipment: Equipment,
   recipe: CraftRecipe,
 ): RecipeBlock | null {
-  if (planTrade(tilesById, equipment, recipe.inputs, [], checkId) === null) return "missing";
+  const price = { take: recipe.inputs, give: [], takeCash: recipe.takeCash };
+  if (planDeal(tilesById, equipment, price, checkId) === null) return "missing";
   return affordsRecipe(tilesById, equipment, recipe) ? null : "noRoom";
 }
 
@@ -124,6 +134,6 @@ export function runCraft(
   mintId: () => string,
 ): CraftResult | null {
   const made = rollCraft(recipe.output, random);
-  const next = planTrade(tilesById, equipment, recipe.inputs, sidesOf(made), mintId);
+  const next = planDeal(tilesById, equipment, termsOf(recipe, made), mintId);
   return next ? { equipment: next, made } : null;
 }

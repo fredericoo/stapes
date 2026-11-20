@@ -1912,6 +1912,24 @@ trip on their own. Each shop's Sell menu is one
 does not undercut Idris's leather prices: five skins sell for ten
 gold, and a leather cap costs those five skins.
 
+**Every creature with an element also drops that element's essence**, rarely,
+as the first thing in the same bag, so a crowded bag never crowds it out. A
+creature with no `elements` drops none, and nor do the spawned small slimes
+and icicles, for the reason spawned slimes drop no spoil. The rate rises with
+what the creature costs to kill, the way the spoil prices do:
+
+| creatures                                       | essence                 | chance |
+| ----------------------------------------------- | ----------------------- | ------ |
+| snake, the three slimes, snow wolf (8 hp)       | its element's           | 1%     |
+| the three wisps (24 hp)                         | its element's           | 2%     |
+| cave troll (100 hp), bear (160 hp)              | fire, nature            | 5%     |
+| yeti (1400 hp, back every 30 to 45 minutes)     | water                   | 10%    |
+
+At 1% an essence takes about a hundred kills of the weakest creatures, and
+ten yetis on average, so it is the rarer of the two things a rune needs.
+No creature drops a rune, not even in its kit, and `runeCrafting.test.ts`
+checks both rules over every creature.
+
 **A shopkeeper is a `battler`, and that is load-bearing.** `resolveActor` is
 satisfied by a `dialog` alone, so a body that only talks would be adopted,
 driven and reachable exactly like one that fights. Every shopkeeper is a
@@ -10956,14 +10974,21 @@ luck.
   and `one` picks exactly one item by relative `weight`. The union is there so
   that a weight on an `all` item cannot be left behind by the editor;
   `craftForSave` rebuilds the output by its arm.
+- **A recipe may also take and give cash**: `takeCash` and `giveCash`, an
+  amount of money paid or given in whatever tiles have a `worth`, exactly as
+  a dialog trade's are (see *Cash is a field on a trade*). A recipe and its
+  outcome become a `TradeTerms`, and `planDeal` pays the cash first, so a
+  gold bar is broken for change. A recipe must spend something: inputs, cash,
+  or both. Short of cash reads as "missing", like a short input.
 - **One row per crafter, and a window behind it.** The row is named by the
   tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears
   whenever the crafter is in reach, affordable or not, so a player learns the
   forge exists before they can pay for anything. Pressing it opens `CraftPanel`
-  in the interaction list's place, the way Talk does, listing only the
-  affordable recipes by their authored names with their inputs drawn beside
-  them, or "No recipes available" when there are none. What a
-  recipe gives is deliberately not drawn — the odds are part of the game.
+  in the interaction list's place, the way Talk does. Every recipe is a button
+  of three rows: its authored name, what it costs, and what it may give with
+  the chance of each. One the kit cannot pay for, or has no room for, is
+  dimmed rather than left out. The buttons do not shrink in the scrolling
+  list, so a long list scrolls instead of squeezing the rows into each other.
 - **The window is the client's own.** `GameRenderer.setCrafting` holds a
   reference; `pushCrafting` re-asks `offeredRecipes` whenever the map, the
   viewer's cell or the kit changes identity, and drops the reference when the
@@ -11016,6 +11041,66 @@ Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
 player from a quest chest (`troll-stone`) where the troll's own forge used to
 stand. A first-timer who kills the troll with friends still gets a stone; more
 trolls still yield more, just rarely.
+
+### The rune forges shape blanks
+
+The rune temple has one forge per material (`bone-forge`, `crystal-forge`,
+`obsidian-forge`), each a `craft` with the verb Shape and one recipe that turns
+its material into its blank. A blank is not a rune: only the runemaster carves
+one (see *The runemaster carves a blank into a random rune*).
+
+| forge            | spends              | gives                 |
+| ---------------- | ------------------- | --------------------- |
+| `bone-forge`     | 3 `bone`            | `rune-blank-bone`     |
+| `crystal-forge`  | 4 `arcane-shard`    | `rune-blank-crystal`  |
+| `obsidian-forge` | 5 `obsidian-shard`  | `rune-blank-obsidian` |
+
+Each price is about one trip's worth of its material. A skeleton drops two
+bones on average and the temple buys bone at 1 gold, so a bone blank is a
+skeleton and a half or 3 gold of bone. A large crystal on -3 pays about three
+shards a pull, so a crystal blank is a little over one pull there, or a whole
+medium crystal on -2. An obsidian vein pays about 1.35 shards a twenty-second
+pull and 6.75 before it is mined out, so an obsidian blank is most of a vein
+and 20 gold at Dagny Rook's buying price. The material is the cost that rises
+with the tier; the runemaster's fee rises with it too.
+
+### The runemaster carves a blank into a random rune
+
+Hesper Vaun (`hesper-vaun`) is the only carver, and the carving is a `craft`
+on her own tile with the verb Carve: a battler resolves a craft like any
+other tile, so her Nearby row offers Talk to and Carve side by side. Each
+recipe is named for what it makes, "Fire Bone Rune", since the verb already
+says carve. Her dialog teaches the forges and the fees, and "Which runes can
+you carve?" names every rune each blank can become as `{item:...}` mentions,
+so a player can open each one's card before paying. Each of her twelve recipes takes one blank, one essence (none
+for a plain rune) and her fee as `takeCash`, and gives one rune from its pool by a
+`one` output, every rune at weight 1. Like every craft, it is listed only once
+the player can hold whichever rune comes out.
+
+| blank    | fee     | plain        | fire             | water                | nature                           |
+| -------- | ------- | ------------ | ---------------- | -------------------- | -------------------------------- |
+| bone     | 10 gold | Light, Spark | Flame, Cinder    | Sleet                | Barbs                            |
+| crystal  | 30 gold | Bolt, Lance  | Ember, Pyre      | Frost, Rime          | Thorns, Bramble, Verdance, Bloom |
+| obsidian | 60 gold | Stomp        | Inferno, Berserk | Shatter, Crystallise | Overgrowth, Blossom              |
+
+- **`RUNE_KINDS` in `app/lib/runes.ts` is the table.** It gives each rune its
+  material and essence. `generate:runes` draws each rune's base and mark from
+  it, and `runeCrafting.test.ts` fails unless Hesper's recipes hold exactly
+  the runes the table puts in each pool, every rune tile is in the table, and
+  a rune under an element needs that element to cast. Moving a rune to another
+  pool is an edit to the table, the matching move in her recipes, and a
+  `bun run generate:runes`.
+- **The tiers follow what a rune needs to cast.** Bone runes need at most 10
+  Arcane and 1 of an element; crystal runes 15 to 38 Arcane and up to 10 of
+  an element (Bloom 15); obsidian runes are the area runes at 45 Arcane and
+  15 of an element, and the Toughness 40 runes. Verdance and Bloom need
+  water and nature; they are under nature.
+- **A pool of one is not random.** Bone with water essence is always Sleet,
+  bone with nature essence always Barbs, and plain obsidian always Stomp.
+- **The fee follows the tier**: 10, 30 and 60 gold. Dagny Rook sells a
+  ready-carved Light for 25 and Spark for 40, so carving your own bone blank
+  (3 bone and 10 gold) is cheaper and a gamble; the material makes most of
+  the price of the higher tiers.
 
 ## Food piles, and so does an artifact that is only ever counted
 

@@ -104,6 +104,8 @@ function exchangesAt(tile: TileDef): Exchange[] {
         name: recipe.name.trim() || null,
         take: recipe.inputs.map((input) => ({ ...input, chance: null })),
         give: craftGives(recipe.output),
+        ...(recipe.takeCash ? { takeCash: recipe.takeCash } : {}),
+        ...(recipe.giveCash ? { giveCash: recipe.giveCash } : {}),
       });
     }
   }

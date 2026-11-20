@@ -1,12 +1,13 @@
 import { PNG } from "pngjs";
+import { RUNE_KINDS, type RuneEssence, type RuneMaterial } from "../app/lib/runes";
 import type { TileDef } from "../app/lib/types";
 import { paint, writeTileset } from "./tileset-output";
 
 const CELL = 8;
 const COLUMNS = 8;
 
-type Material = "bone" | "crystal" | "obsidian";
-type Essence = "fire" | "water" | "nature" | "neutral";
+type Material = RuneMaterial;
+type Essence = RuneEssence;
 
 /** `#` is the mark, on the 5×6 interior of a rune's face. */
 type Glyph = readonly [string, string, string, string, string, string];
@@ -257,46 +258,44 @@ const GLYPHS = {
 
 interface Rune {
   id: string;
-  essence: Essence;
-  material: Material;
   glyph: keyof typeof GLYPHS;
 }
 
 /**
- * One row per essence, crude to high. The tier follows the stone forge's
- * chain: a blank forges into a crude rune, two of a kind into the next.
+ * One row per essence, bone to obsidian. The row and column are where the
+ * sprite sits on the sheet; the material and essence come from `RUNE_KINDS`.
  */
 const RUNES: Rune[][] = [
   [
-    { id: "flame", essence: "fire", material: "bone", glyph: "caret" },
-    { id: "cinder", essence: "fire", material: "bone", glyph: "dots" },
-    { id: "ember", essence: "fire", material: "crystal", glyph: "diamond" },
-    { id: "pyre", essence: "fire", material: "crystal", glyph: "logs" },
-    { id: "inferno", essence: "fire", material: "obsidian", glyph: "star" },
-    { id: "berserk", essence: "fire", material: "obsidian", glyph: "teeth" },
+    { id: "flame", glyph: "caret" },
+    { id: "cinder", glyph: "dots" },
+    { id: "ember", glyph: "diamond" },
+    { id: "pyre", glyph: "logs" },
+    { id: "inferno", glyph: "star" },
+    { id: "berserk", glyph: "teeth" },
   ],
   [
-    { id: "sleet", essence: "water", material: "bone", glyph: "slashes" },
-    { id: "frost", essence: "water", material: "crystal", glyph: "cross" },
-    { id: "rime", essence: "water", material: "crystal", glyph: "saltire" },
-    { id: "shatter", essence: "water", material: "obsidian", glyph: "zed" },
-    { id: "crystallise", essence: "water", material: "obsidian", glyph: "diamond" },
+    { id: "sleet", glyph: "slashes" },
+    { id: "frost", glyph: "cross" },
+    { id: "rime", glyph: "saltire" },
+    { id: "shatter", glyph: "zed" },
+    { id: "crystallise", glyph: "diamond" },
   ],
   [
-    { id: "barbs", essence: "nature", material: "bone", glyph: "barbed" },
-    { id: "thorns", essence: "nature", material: "crystal", glyph: "arrow" },
-    { id: "bramble", essence: "nature", material: "crystal", glyph: "fence" },
-    { id: "verdance", essence: "nature", material: "crystal", glyph: "sprout" },
-    { id: "bloom", essence: "nature", material: "crystal", glyph: "eye" },
-    { id: "overgrowth", essence: "nature", material: "obsidian", glyph: "trident" },
-    { id: "blossom", essence: "nature", material: "obsidian", glyph: "eight" },
+    { id: "barbs", glyph: "barbed" },
+    { id: "thorns", glyph: "arrow" },
+    { id: "bramble", glyph: "fence" },
+    { id: "verdance", glyph: "sprout" },
+    { id: "bloom", glyph: "eye" },
+    { id: "overgrowth", glyph: "trident" },
+    { id: "blossom", glyph: "eight" },
   ],
   [
-    { id: "light", essence: "neutral", material: "bone", glyph: "beam" },
-    { id: "spark", essence: "neutral", material: "bone", glyph: "spark" },
-    { id: "bolt", essence: "neutral", material: "crystal", glyph: "zigzag" },
-    { id: "lance", essence: "neutral", material: "crystal", glyph: "spear" },
-    { id: "stomp", essence: "neutral", material: "obsidian", glyph: "impact" },
+    { id: "light", glyph: "beam" },
+    { id: "spark", glyph: "spark" },
+    { id: "bolt", glyph: "zigzag" },
+    { id: "lance", glyph: "spear" },
+    { id: "stomp", glyph: "impact" },
   ],
 ];
 
@@ -452,9 +451,10 @@ const tiles: TileDef[] = [];
 
 RUNES.forEach((row, cy) =>
   row.forEach((rune, cx) => {
-    drawRune(cx, cy, rune.material, rune.essence, {
+    const { material, essence } = RUNE_KINDS[`rune-${rune.id}`]!;
+    drawRune(cx, cy, material, essence, {
       glyph: GLYPHS[rune.glyph],
-      colour: MARK[rune.material][rune.essence],
+      colour: MARK[material][essence],
     });
     tiles.push({ id: `rune-${rune.id}`, ...cellSprite(cx, cy) } as TileDef);
   }),

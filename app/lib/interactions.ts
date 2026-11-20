@@ -7,7 +7,14 @@ import { WEATHER_KINDS, type WeatherKind } from "./weather";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
-import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
+import {
+  itemForSave,
+  stoneForSave,
+  MAX_CONTAINER_SIZE,
+  MAX_WORTH,
+  resolveItem,
+  weaponForSave,
+} from "./item";
 import { MASTERIES, MIN_RATING, type Mastery } from "./mastery";
 import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
 import { type CraftOutcome, resolveTransition, type Transition } from "./tileTransition";
@@ -211,9 +218,15 @@ export type CraftOutput =
 
 export type CraftOutputKind = CraftOutput["kind"];
 
+/**
+ * `takeCash` and `giveCash` are amounts of money, paid and given in whatever
+ * tiles have a `worth`, the way a dialog trade's are.
+ */
 export type CraftRecipe = {
   name: string;
   inputs: CraftInput[];
+  takeCash?: number;
+  giveCash?: number;
   output: CraftOutput;
 };
 
@@ -589,11 +602,23 @@ const craftOutputSchema = v.variant("kind", [
   }),
 ]);
 
-const craftRecipeSchema = v.object({
-  name: v.fallback(v.pipe(v.string(), v.trim()), ""),
-  inputs: v.pipe(v.array(craftInputSchema), v.minLength(1), v.maxLength(MAX_CRAFT_INPUTS)),
-  output: craftOutputSchema,
-});
+const craftCashSchema = v.optional(
+  v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_WORTH)),
+);
+
+const craftRecipeSchema = v.pipe(
+  v.object({
+    name: v.fallback(v.pipe(v.string(), v.trim()), ""),
+    inputs: v.pipe(v.array(craftInputSchema), v.maxLength(MAX_CRAFT_INPUTS)),
+    takeCash: craftCashSchema,
+    giveCash: craftCashSchema,
+    output: craftOutputSchema,
+  }),
+  v.check(
+    (recipe) => recipe.inputs.length > 0 || Boolean(recipe.takeCash),
+    "a recipe spends something",
+  ),
+);
 
 const craftSchema = v.object({
   actionName: v.optional(v.string()),
@@ -1419,8 +1444,14 @@ function craftRecipeForSave(recipe: CraftRecipe): CraftRecipe | null {
     .map((input) => ({ tileId: input.tileId.trim(), count: input.count }))
     .filter((input) => input.tileId);
   const output = craftOutputForSave(recipe.output);
-  if (inputs.length === 0 || !output) return null;
-  return { name: recipe.name.trim(), inputs, output };
+  if ((inputs.length === 0 && !recipe.takeCash) || !output) return null;
+  return {
+    name: recipe.name.trim(),
+    inputs,
+    ...(recipe.takeCash ? { takeCash: recipe.takeCash } : {}),
+    ...(recipe.giveCash ? { giveCash: recipe.giveCash } : {}),
+    output,
+  };
 }
 
 function craftOutputForSave(output: CraftOutput): CraftOutput | null {
