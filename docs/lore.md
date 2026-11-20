@@ -134,8 +134,9 @@ took death away from everyone else on the island with her.
 who died. **He is still in the lighthouse**, at the top with Wyrd, trying to
 find a way to save her properly. He has not stopped since.
 
-The light at the top of the lighthouse is Wyrd. Ships see it in the storm and
-steer towards it, and that is how they are wrecked.
+Halvard built the lighthouse to bring ships safely into the island's harbour,
+and the islanders built its lower floors for him. Its light is now Wyrd. Ships
+see it in the storm and steer towards it, and that is how they are wrecked.
 
 ### Climbing the lighthouse
 
@@ -172,6 +173,23 @@ creatures of any element from the start.
   there have been since Wyrd.
 
 Nobody leaves, islander or castaway.
+
+### The island before Wyrd
+
+**Wyrd took hold about 130 years ago.** Everyone looks the age they were that
+night.
+
+- **The island was a port.** A harbour town stood on Wreckers' Bay, below the
+  lighthouse, and ships came and went. Traders and sailors from many countries
+  settled there, which is why the islanders' names come from so many places.
+- **The harbour town is abandoned.** After Wyrd the storms broke every ship in
+  the bay and flooded the waterfront, and people moved inland. Its ruins are
+  still on the bay.
+- **The two towns came from a split over runes.** Those who kept carving built
+  the druids' town around the rune temple; those who refused walked east and
+  built the warriors' town.
+- **The camp was put up to meet the castaways.** Ships still come in on the
+  storm, and the only people who walk out of the wrecks are castaways.
 
 This is the main way a player learns the lore. **Islanders speak openly about
 it**, without being asked twice:
