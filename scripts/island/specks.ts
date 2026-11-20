@@ -11,7 +11,7 @@ import { N4, N8 } from "./grid";
 import { forNeighbours, shoreOf } from "./stacks";
 import type { Island } from "./terrain";
 
-const FULL: Record<Kind, string> = { grass: "grass-2", snow: "snow", sand: "sand-dunes" };
+const FULL: Record<Kind, string> = { grass: "grass-2", snow: "snow", sand: "sand" };
 const BRINK: Record<Kind, string> = {
   grass: "grass-brink",
   snow: "snow-brink",

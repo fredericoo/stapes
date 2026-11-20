@@ -2,7 +2,7 @@ import type { PlacedTile, TileDef } from "../../app/lib/types";
 import type { Board } from "./board";
 import { N8 } from "./grid";
 
-const FULL_GROUND = new Set(["grass-2", "sand-dunes", "snow"]);
+const FULL_GROUND = new Set(["grass-2", "sand", "snow"]);
 const SEAMED = new Set([
   "dirt",
   "water",

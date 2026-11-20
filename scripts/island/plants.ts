@@ -14,7 +14,7 @@ const GROWTH: Partial<Record<number, readonly Chance[]>> = {
     ["small-bush", 0.008],
     ["yellow-flowers", 0.012],
     ["red-flowers", 0.01],
-    ["grass", 0.02],
+    ["tuft", 0.02],
   ],
   [Ground.Woods]: [
     ["tree", 0.13],

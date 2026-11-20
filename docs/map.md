@@ -36,8 +36,8 @@ that is the work cell for most of them. No wild creature is placed.
 | Lava gorge | 151, -186 | 1 |
 | The lighthouse | 110, -32 | 0 |
 | Old harbour ruins | 76, -33 | 0 |
-| The White Peak | -56, -323 | 7 |
-| Ice hollow | 1, -296 | 4 |
+| The White Peak | -56, -323 | 10 |
+| Ice hollow | 1, -296 | 5 |
 | Sea grotto | 33, -35 | 0 |
 | Snake hollow | 128, -117 | 1 |
 | Wolf den | -89, -186 | 0 |
@@ -74,7 +74,7 @@ that is the work cell for most of them. No wild creature is placed.
 | `mateo-ferran` | Mateo Ferran | Spear shed by the drill yard | 87, -171, L1 | Spear shed; the longhall at night | 87, -172, L1 | 87, -173, L1, facing e |
 | `halina-brzeska` | Halina Brzeska | Armoury | 104, -180, L1 | Armoury | 104, -183, L1 | 104, -183, L1, facing n |
 | `bertha-oyelaran` | Bertha Oyelaran | Smokehouse by the south gate | 100, -168, L1 | Smokehouse | 97, -169, L1 | 97, -169, L1, facing w |
-| `magda-fenwick` | Magda Fenwick | Trophy shed outside the north gate | 97, -216, L1 | Trophy shed | 97, -217, L1 | 96, -218, L1, facing w |
+| `magda-fenwick` | Magda Fenwick | Trophy shed outside the north gate | 97, -217, L1 | Trophy shed | 97, -218, L1 | 96, -219, L1, facing w |
 | `tobiah-marsh` | Tobiah Marsh | Tobiah's house by the south gate | 87, -160, L1 | The streets: lamplighter | 84, -196, L1 | 83, -197, L1, facing s |
 | `rukmini-desai` | Rukmini Desai | Storehouse by the drill yard | 81, -178, L1 | Storehouse | 84, -179, L1 | 84, -179, L1, facing n |
 | `edda-kell` | Edda Kell | North gatehouse | 87, -215, L1 | North gate | 92, -211, L1 | 92, -211, L1, facing n |
@@ -140,7 +140,7 @@ Beds nobody in the cast sleeps in:
 | Smokehouse by the south gate | 94, -172 | 101, -166 | 1 | 1 | 94, -169 (w) |
 | Cooperage by the smokehouse | 94, -180 | 99, -174 | 1 | 1 | 94, -177 (w) |
 | Tobiah's house by the south gate | 86, -163 | 90, -159 | 1 | 1 | 90, -161 (e) |
-| Trophy shed outside the north gate | 94, -219 | 99, -215 | 1 | 1 | 94, -217 (w) |
+| Trophy shed outside the north gate | 94, -220 | 99, -216 | 1 | 1 | 94, -218 (w) |
 | Roadside inn | -23, -243 | -10, -234 | 1 | 2 | -17, -234 (s) |
 | Stable | -6, -242 | 0, -234 | 1 | 2 | -3, -234 (s) |
 | The witch's house on stilts at the bog's edge | -184, -161 | -179, -155 | 0 | 1 | -182, -155 (s) |
@@ -153,27 +153,27 @@ Each town's lamp posts are `lamppost-off` beside its streets, and only the two
 towns have them, because only they have a lamplighter. The posts are listed in
 the order a walk from the first one reaches them, nearest next.
 
-- **Casimir Wren · druids' town streets**, 17 posts: -208, -246; -208, -237; -208, -228; -208, -219; -193, -215; -184, -211; -182, -220; -171, -220; -175, -206; -175, -197; -175, -188; -166, -185; -157, -185; -148, -185; -147, -215; -156, -215; -136, -219.
-- **Tobiah Marsh · warriors' town streets**, 19 posts: 53, -221; 53, -212; 53, -203; 53, -194; 63, -191; 80, -183; 89, -182; 98, -182; 94, -173; 94, -163; 83, -158; 74, -158; 83, -195; 94, -200; 94, -209; 91, -218; 108, -191; 121, -191; 131, -194.
+- **Casimir Wren · druids' town streets**, 17 posts: -210, -243; -208, -234; -208, -225; -208, -216; -193, -215; -184, -211; -182, -220; -171, -220; -175, -206; -175, -197; -175, -188; -166, -185; -157, -185; -148, -185; -147, -215; -156, -215; -136, -219.
+- **Tobiah Marsh · warriors' town streets**, 19 posts: 66, -221; 75, -219; 84, -219; 94, -221; 94, -211; 94, -202; 83, -195; 80, -183; 89, -182; 98, -182; 94, -173; 94, -163; 83, -158; 74, -158; 66, -191; 57, -191; 108, -191; 121, -191; 131, -194.
 
 ## Roads
 
 | From | To | Cells | Walk |
 | --- | --- | --- | --- |
 | Wreck beach | The camp | 95 | 19 s |
-| The camp | The druids' town | 277 | 55 s |
+| The camp | The druids' town | 263 | 53 s |
 | The camp | The warriors' town | 198 | 40 s |
 | The druids' town | Roadside inn | 198 | 40 s |
 | Roadside inn | The warriors' town | 131 | 26 s |
-| The warriors' town | The lighthouse | 208 | 42 s |
-| The camp | Old harbour ruins | 180 | 36 s |
+| The warriors' town | The lighthouse | 216 | 43 s |
+| The camp | Old harbour ruins | 148 | 30 s |
 | Old harbour ruins | The lighthouse | 36 | 7 s |
 | The warriors' town | Ember deeps | 171 | 34 s |
 | The druids' town | Deep woods | 150 | 30 s |
 | The druids' town | Frost caves | 108 | 22 s |
 
 4 bridges carry roads over rivers; elsewhere a road wades the river at a ford.
-56 ramps join the terraces, and every cell a player can reach has a way back.
+47 ramps join the terraces, and every cell a player can reach has a way back.
 
 ## Underground
 
@@ -195,7 +195,7 @@ town. The underground adds 57,643 cells to the map.
 | Troll cave | 0 | -228, -199, L0 | a lair behind a cliff mouth |
 | The rootways | -1 to -3 | -240, -240, L-2 | earth and tree roots under the deep woods |
 | Frost caves | 1 to 3 | -96, -260, L1 | ice and frosted rock inside the mountain |
-| Ice hollow | 3 | -1, -295, L3 | the high way into the frost caves |
+| Ice hollow | 3 | 10, -302, L3 | the high way into the frost caves |
 | Crystal galleries | 0, -1 | -118, -266, L0 | arcane crystal in frosted rock |
 | The frozen lake | -2, -3 | -32, -295, L-2 | ice over standing water under the peak |
 | Ember deeps | 0 to -5 | 172, -212, L0 | sandstone, then basalt, then lava |
@@ -217,7 +217,7 @@ town. The underground adds 57,643 cells to the map.
 | The rootways | `stone-stairs` down in the deep woods | -248, -290, L0 |
 | The rootways | a hole in the woods, with a ladder back up beside it | -255, -262, L0 |
 | Frost caves | `hill-cave-mouth-frost` facing s | -99, -248, L1 |
-| Ice hollow | `hill-cave-mouth-frost` facing e | 3, -295, L3 |
+| Ice hollow | `hill-cave-mouth-frost` facing e | 14, -302, L3 |
 | Ember deeps | `hill-cave-mouth-basalt` facing w | 158, -217, L0 |
 | Ember deeps | `hill-cave-mouth-sandstone` facing e | 196, -213, L0 |
 | Snake hollow | `hill-cave-mouth-sandstone` facing e | 128, -117, L0 |

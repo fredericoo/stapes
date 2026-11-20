@@ -2979,7 +2979,11 @@ behind it.
   them still wins the depth test by its stack bias.
 - **Two translucent sprites do not sort against each other.** Neither writes
   depth, so where two overlap the one drawn second is on top, whichever is in
-  front. Everything opaque is drawn before them and sorts correctly.
+  front. Everything opaque is drawn before them and sorts correctly. A
+  translucent mesh of its own, such as a wisp, draws at
+  `TRANSLUCENT_SEPARATE_RENDER_ORDER`, after the merged batches, because those
+  are flat ground (`grass`) and liquids that anything with a mesh of its own
+  stands over.
 
 ### A `reflective` tile shows what stands beside it, blended over the water
 
@@ -18426,7 +18430,7 @@ ordinary authored content: nothing in the game knows a hill from a platform
 somebody stacked by hand.
 
 **What is raised.** Only open country: a level-0 stack of `grass-2`,
-`sand-dunes` or `snow` with nothing on it but trees, bushes, flowers and grass, with
+`sand` or `snow` with nothing on it but trees, bushes, flowers and grass, with
 nothing on any level above it, outside the town's rectangle and its margin.
 Everything else is a blocker — paths, water, swamp, buildings, creatures, the
 sand dunes with a footprint, the cave mouth — and ground within `margin` cells
@@ -18878,11 +18882,65 @@ a change to the generator cannot quietly bring the old shapes back.
 - **No border runs straight for more than 12 cells**, unless it is within 8
   cells of a shore or follows a river's bank. Swamps, the snow line, site
   aprons and clearings all have noise on their edges for this reason
-  (`scripts/island/fray.ts`, `plan.ts`, `terrain.ts`).
+  (`scripts/island/fray.ts`, `plan.ts`, `terrain.ts`). A straight road pulls
+  the seam beside it straight as `harmoniseGround` settles it, so once the
+  ground loop holds still, `jogStraightBorders` (`scripts/island/jog.ts`)
+  steps every line the check still finds by two cells at its middle and the
+  loop runs again. The check reports each line's direction and length for it.
+- **No snow below level 3** (`SNOW_LEVEL`). Above it the peak climbs 1.6
+  storeys for every storey the height curve gives, so the snow is a steep
+  peak and not more of the same hill. The snow line wanders across the first
+  storey of the peak by noise, so it does not follow the cliff at its foot.
+  Terracing can lower a snow cell below the line; `thawLowSnow` turns it to
+  grass, and a frost cave's tunnel and mouth below the line lie on grass.
+- **A river spilling south or east over a cliff has a waterfall down it**,
+  however many storeys it drops. Water leaving north or west goes over a
+  face the projection never draws.
 - **A desert or a snowfield is mostly open ground.** In any 32-cell window,
   things that stand may cover at most 4% of the open sand or 5% of the open
   snow. Walls and lamps within two cells of a floor, a street or a bank are
   not counted. The woods have no limit.
+
+Every cliff is one storey but one. `raiseTallFall` (`plan.ts`) finds the
+widest river dropping south or east inside the snow, the lowest such drop
+where two are as wide, and raises the land above it so the river falls
+three storeys in one cliff. The raised land is pinned, or `terrace` would
+cut it back into one-storey shelves, and its reach is pushed in and out by
+noise so it does not end in a square. A stack may not reach past its own
+storey, so a fall taller than one storey puts a base and a middle in the
+pool and two segments in each empty cell above it.
+
+Roads are one cell wide everywhere. A road meets a bridge at the middle,
+walkable cell of the deck's end, square on: `joinBridgeEnds` (`plan.ts`)
+walks out from the cell past each end of the deck, on its own level, to the
+nearest road, and lays road along that walk. Where no road is within 16
+cells, the cell past the deck is road on its own.
+
+Grass is a layer over the ground, not a ground. The generator works with
+`grass-2` and `dirt` laid on it until the last step; `layGrass`
+(`scripts/island/grass.ts`) then turns every `grass-2` into the ground under
+it (sand, or snow where the grass meets snow) with the `grass` autotile on
+top, and every cell with dirt on its grass into that ground bare. A path,
+a yard or a river's bank is where the grass is not. A tunnel floor keeps
+its dirt. Lakes and the sea keep their grass to the water's edge; only a
+river's banks are bare.
+
+`grass` is one translucent autotile for every ground. Its shadow is black
+at 35% alpha, and the palette pass snaps the blend to the ground's darker
+shade, so one sheet serves sand and snow. A translucent sheet is drawn
+after the level with no depth write; the merged batch draws at
+`TRANSLUCENT_RENDER_ORDER`, before translucent meshes of their own
+(`TRANSLUCENT_SEPARATE_RENDER_ORDER`), so grass does not cover a wisp
+standing on it. An autotile draws one sprite per slice, so the sheet has
+six columns of edges and `sliceColumns: 6` lets the renderer pick a column
+per cell by position (`spriteInColumn`). It connects to `grass-2`, the
+brinks and ledges, and the foot of every hill wall, so it does not fray
+against a cliff.
+
+`verify landscape` reads a cell with `grass` in its stack as grass. Bare
+sand is a path or a desert, and the check tells them apart by shape: sand
+in, or within two cells of, a 5×5 block is desert; any other piece of bare
+sand takes the kind of the land around it and counts as covered.
 
 A cell shut in by cliff on three sides with a waterfall on the fourth
 cannot be left, since a fall is not walked through, so `raiseFallPockets`

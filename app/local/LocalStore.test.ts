@@ -125,6 +125,21 @@ describe("LocalStore", () => {
       expect(checkpoints.world.values.get("equip:alice")).toContain('"rune-flame"');
     });
 
+    it("applies each tile rename once, so an id a rename freed keeps its new tile", async () => {
+      const checkpoints = recording();
+      checkpoints.world.values.set("chunk:0:0", JSON.stringify([[{ tileId: "grass" }]]));
+
+      const first = new LocalStore(checkpoints);
+      await first.restore();
+      expect(await first.get("chunk:0:0")).toEqual([[{ tileId: "tuft" }]]);
+      await first.put("chunk:0:0", [[{ tileId: "grass" }]]);
+      await first.flush();
+
+      const second = new LocalStore(checkpoints);
+      await second.restore();
+      expect(await second.get("chunk:0:0")).toEqual([[{ tileId: "grass" }]]);
+    });
+
     it("carries a deletion across a restart", async () => {
       const checkpoints = recording();
       const before = new LocalStore(checkpoints);

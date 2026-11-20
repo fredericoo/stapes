@@ -5,6 +5,7 @@ import { tile } from "./board";
 import type { Builder } from "./build";
 import { N4, N8, mulberry32 } from "./grid";
 import { OPPOSITE, SIDEWAYS, STEP, type Dir } from "./plan";
+import { SNOW_LEVEL } from "../../app/verify/landscape";
 
 /**
  * Rock and floor for one part of the underground. `floor` is laid over the
@@ -32,6 +33,11 @@ const AWKWARD = new Set([
   "swamp",
   "mud",
 ]);
+
+/** A tunnel above ground lies on its style's ground, except that no snow lies below the snow line, where a frost cave's mouth opens onto grass. */
+function groundAt(style: Style, z: number): string {
+  return style.ground === "snow" && z < SNOW_LEVEL ? "grass-2" : style.ground;
+}
 
 const FILL_WALLS = new Set([
   "hill-wall",
@@ -187,28 +193,28 @@ const STYLES = (() => {
     },
     grotto: {
       wall: "cave-wall-sloped-grey",
-      ground: "sand-dunes",
-      floor: (x, y) => (flood(x, y) ? [tile("water")] : sand(x, y) ? [tile("sand-dunes")] : []),
+      ground: "sand",
+      floor: (x, y) => (flood(x, y) ? [tile("water")] : sand(x, y) ? [tile("sand")] : []),
       props: [["stalagmite-grey", 60]],
     },
     sandstone: {
       wall: "hill-wall-sandstone",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) => [
-        ...(sand(x, y) ? [tile("sand-dunes")] : []),
+        ...(sand(x, y) ? [tile("sand")] : []),
         ...(bones(x, y) ? [tile("bleached-bones")] : []),
       ],
       props: [["stalagmite", 40]],
     },
     basalt: {
       wall: "hill-wall-basalt",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) => (crust(x, y) ? [tile("basalt"), tile("lava-crust")] : [tile("basalt")]),
       props: [["rock-pillar", 70]],
     },
     lava: {
       wall: "hill-wall-basalt",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) =>
         lavaPool(x, y)
           ? [tile("basalt"), tile("lava-crust"), tile("lava")]
@@ -658,12 +664,14 @@ export class Digger {
     const [dx, dy] = STEP[d];
     const [sx, sy] = STEP[SIDEWAYS[d]];
     this.requirePlain(x + dx, y + dy, z);
+    /** The mouth lies on the ground in front of it, which below the snow line is not the frost style's snow: its dirt would spread that ground out onto the land. */
+    const outside = this.b.board.get(x + dx, y + dy, z)?.[0]?.tileId ?? STYLES[style].ground;
     this.pin(
       x,
       y,
       z,
       STYLES[style],
-      [tile(STYLES[style].ground), tile("dirt"), tile(mouthTile, d as Direction)],
+      [tile(outside), tile("dirt"), tile(mouthTile, d as Direction)],
       true,
     );
     for (let k = 0; k < 2; k++)
@@ -792,7 +800,7 @@ export class Digger {
       for (const [i, c] of l) {
         const x = i % this.w;
         const y = (i - x) / this.w;
-        const under = z >= 0 ? [tile(c.style.ground)] : [];
+        const under = z >= 0 ? [tile(groundAt(c.style, z))] : [];
         if (c.kind === Kind.Floor && !c.fixed) {
           floors.set(i, [...under, tile("dirt"), ...c.style.floor(x + board.ox, y + board.oy)]);
         } else if (c.fixed?.[0]?.tileId === "dirt" && z >= 0) {

@@ -4872,7 +4872,7 @@ describe("patches scoped to a subscription", () => {
   function farApart(bobAt: number = BODY_OUT): { map: FlatMapFile; spawn: Record<string, number> } {
     const cells: Record<string, unknown[]> = {};
     for (let x = 0; x <= OUT_OF_REACH + 1; x++) {
-      cells[`${x},0`] = [{ tileId: "grass" }];
+      cells[`${x},0`] = [{ tileId: "sand" }, { tileId: "grass" }];
     }
     cells[`${ALICE_CELL},0`] = [
       { tileId: "grass" },
@@ -5077,7 +5077,7 @@ describe("patches scoped to a subscription", () => {
     const after = cellsHeard(heard)
       .filter((cell) => cell.x === BODY_OUT + 1)
       .at(-1);
-    expect(after?.stack.map((placed) => placed.tileId)).toEqual(["dirt", "arcane-flame"]);
+    expect(after?.stack.map((placed) => placed.tileId)).toEqual(["sand", "arcane-flame"]);
     expect(after?.afflicted).toBeUndefined();
 
     const caught = cellsHeard(heard).filter((cell) => cell.x === BODY_OUT + 2);

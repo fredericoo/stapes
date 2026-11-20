@@ -10,7 +10,7 @@ const CELL = CELL_SIZE;
 const FOAM = 28;
 const FOAM_SHADE = 27;
 const WET_SAND = 18;
-/** The body colour of `sand-dunes`, painted where a rounded corner gives back land the square water covered. */
+/** The body colour of `sand`, painted where a rounded corner gives back land the square water covered. */
 const SAND = 19;
 
 const FRAMES = 8;

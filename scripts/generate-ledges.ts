@@ -26,7 +26,7 @@ const LEDGES: Ledge[] = [
     name: "Sand ledge",
     rim: hex("#cd683d"),
     lip: hex("#e6904e"),
-    ground: ["sand-dunes"],
+    ground: ["sand"],
   },
   {
     id: "snow-ledge",

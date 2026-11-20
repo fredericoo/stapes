@@ -185,6 +185,13 @@ export type TileDef = StateSprites & {
   description?: string;
   attributes: Record<string, never>;
   connectsTo?: string[];
+  /**
+   * An autotile drawn from this many copies of its slices side by side on the
+   * sheet, each one cell to the right of the last. Every cell draws one copy,
+   * picked from a hash of its position, so a long edge does not repeat the
+   * same few pixels. One copy when unset.
+   */
+  sliceColumns?: number;
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;

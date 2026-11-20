@@ -621,20 +621,20 @@ describe("the content in data/", () => {
     return play;
   }
 
-  it("burns grass down to dirt under a flame", () => {
-    const play = burn([{ at: ORIGIN, stack: ["grass", "flame"] }], 30_000);
-    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+  it("burns grass off the ground under a flame", () => {
+    const play = burn([{ at: ORIGIN, stack: ["sand", "grass", "flame"] }], 30_000);
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["sand", "flame"]);
   });
 
   it("carries an arcane flame into the grass beside it", () => {
     const play = burn(
       [
-        { at: ORIGIN, stack: ["grass", "arcane-flame"] },
-        { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
+        { at: ORIGIN, stack: ["sand", "grass", "arcane-flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["sand", "grass"] },
       ],
       30_000,
     );
-    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["sand"]);
   });
 
   it("fells a tree beside an arcane flame", () => {

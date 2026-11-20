@@ -7,6 +7,8 @@ import {
   type TileSprite,
 } from "./types";
 
+const columnCache = new WeakMap<TileSprite, TileSprite[]>();
+
 export const N = 1;
 export const NE = 2;
 export const E = 4;
@@ -146,4 +148,29 @@ export function pickAutotileSprite(
     if (s) return s;
   }
   return undefined;
+}
+
+/**
+ * The same slice drawn from the copy `column` slice widths to the right on
+ * the sheet. Cached per sprite, as every cell of a level is resolved on each
+ * rebuild and a copy per cell would be garbage by the next one.
+ */
+export function spriteInColumn(sprite: TileSprite, column: number): TileSprite {
+  if (column === 0) return sprite;
+  const cached = columnCache.get(sprite) ?? [];
+  columnCache.set(sprite, cached);
+  const hit = cached[column];
+  if (hit) return hit;
+  const shifted: TileSprite = {
+    ...sprite,
+    frames: sprite.frames.map((f) => ({
+      ...f,
+      sprite: {
+        ...f.sprite,
+        rect: { ...f.sprite.rect, x: f.sprite.rect.x + column * f.sprite.rect.w },
+      },
+    })),
+  };
+  cached[column] = shifted;
+  return shifted;
 }

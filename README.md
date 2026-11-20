@@ -230,7 +230,7 @@ an agent drives", lists every call.
   its light, and leaves the battler, brain, respawn and particles authored on
   the tile alone
 - `bun run generate:desert` — redraw `data/tilesets/desert.png`,
-  `data/tilesets/desert-dunes.png` and their tiles. `sand-dunes` is a scatter
+  `data/tilesets/desert-dunes.png` and their tiles. `sand` is a scatter
   tile that is plain sand in all but about one cell in nine, where it wears one
   of five curved dents, each with a plain border so any face sits beside any
   other without a seam; the script refuses a face that marks its border.
@@ -240,7 +240,7 @@ an agent drives", lists every call.
   sheet marked `translucent`. `bleached-bones` scatters a skull, a rib cage and
   loose bones. `saguaro`, `barrel-cactus` and `prickly-pear` are cast with
   `scripts/limb-caster.ts`, the caster the swamp trees use. `PREVIEW=<dir>`
-  also writes `sand-dunes.png` there, a field of the sand faces picked the way
+  also writes `sand.png` there, a field of the sand faces picked the way
   the renderer picks them
 - `bun run generate:lava` — redraw `data/tilesets/lava.png` and its tiles. All
   three are autotiles with `dirt`'s rounded outline, read from `floors.png` as
@@ -336,14 +336,21 @@ an agent drives", lists every call.
   rules, undoes any ramp that strands anybody, and prints each ramp. It runs
   once; `--dry-run` reports without writing
 - `bun run verify landscape` — check the ground of `data/map.json`: rivers
-  that join only at a corner, grass rivers without dirt banks, mud by water,
-  rivers on the wrong ground, specks of ground, borders drawn straight, and
-  deserts or snowfields too crowded. `generate:island` runs it too and
+  that join only at a corner, rivers through grass whose bed or banks are
+  grassed, mud by water,
+  rivers on the wrong ground, a river spilling south or east over a cliff
+  with no waterfall, snow below level 3, specks of ground, borders drawn
+  straight, and deserts or snowfields too crowded. `generate:island` runs it too and
   writes nothing when it fails. CI runs it
 - `bun run verify stranded` — walk `data/map.json` from where a player starts,
   drops off ledges included, and list every place they could get to and not
   leave. `--image <file.png>` draws the map with those places in red. CI runs
   it and, when it fails, uploads the picture as the `stranded` artifact
+- `bun run generate:grass` — draw `data/tilesets/grass.png` and write the
+  `grass` autotile: grass with a ragged edge and a translucent shadow on its
+  south and east, in six columns of edges the renderer picks between by
+  position. `generate:island` lays it over sand or snow; a path is where it
+  is not
 - `bun run generate:ledges` — draw `data/tilesets/ledges.png` and write the
   `grass-ledge`, `sand-ledge` and `snow-ledge` tiles: the tufted rim `raise:hills` lays on
   the ground wherever it stops at a drop, so two levels of the same grass do

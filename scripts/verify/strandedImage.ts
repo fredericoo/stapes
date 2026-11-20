@@ -25,7 +25,7 @@ const COLOUR: Record<string, Rgb> = {
   "picked-bush": [50, 124, 60],
   dirt: [156, 116, 76],
   mud: [104, 82, 56],
-  "sand-dunes": [226, 204, 138],
+  sand: [226, 204, 138],
   "sand-ledge": [226, 204, 138],
   "half-stone": [150, 96, 70],
   ramp: [236, 176, 84],

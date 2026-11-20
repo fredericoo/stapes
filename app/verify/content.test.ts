@@ -291,9 +291,9 @@ const FAULTS: {
   {
     fault: "a path on grass beside sand it does not connect to",
     seed: (c) => {
-      c.tiles.push(tile("grass-2"), tile("sand-dunes"), autotile("dirt"));
+      c.tiles.push(tile("grass-2"), tile("sand"), autotile("dirt"));
       c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "grass-2" }, { tileId: "dirt" }]);
-      c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "sand-dunes" }]);
+      c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "sand" }]);
     },
     found: { severity: "warn", file: "map.json", id: "dirt", path: "" },
   },
@@ -365,38 +365,38 @@ describe("checkContent", () => {
 
   it("accepts a path on grass beside sand it connects to", () => {
     const c = content();
-    c.tiles.push(tile("grass-2"), tile("sand-dunes"), {
+    c.tiles.push(tile("grass-2"), tile("sand"), {
       ...autotile("dirt"),
-      connectsTo: ["sand-dunes"],
+      connectsTo: ["sand"],
     });
     c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "grass-2" }, { tileId: "dirt" }]);
-    c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "sand-dunes" }]);
+    c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "sand" }]);
 
     expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });
 
   it("accepts a path on grass beside grass and beside a path on sand", () => {
     const c = content();
-    c.tiles.push(tile("grass-2"), tile("sand-dunes"), autotile("dirt"));
+    c.tiles.push(tile("grass-2"), tile("sand"), autotile("dirt"));
     c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "grass-2" }]);
     c.map = replaceStack(c.map, 4, 0, 0, [{ tileId: "grass-2" }, { tileId: "dirt" }]);
-    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "sand-dunes" }, { tileId: "dirt" }]);
+    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "sand" }, { tileId: "dirt" }]);
 
     expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });
 
   it("accepts water on sand beside a path over grass that connects to sand", () => {
     const c = content();
-    c.tiles.push(tile("grass-2"), tile("sand-dunes"), autotile("water"), {
+    c.tiles.push(tile("grass-2"), tile("sand"), autotile("water"), {
       ...autotile("dirt"),
-      connectsTo: ["sand-dunes"],
+      connectsTo: ["sand"],
     });
     for (let x = 2; x <= 8; x++) {
       for (let y = -3; y <= 3; y++) {
         c.map = replaceStack(c.map, x, y, 0, [{ tileId: "grass-2" }, { tileId: "dirt" }]);
       }
     }
-    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "sand-dunes" }, { tileId: "water" }]);
+    c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "sand" }, { tileId: "water" }]);
 
     expect(check(c).findings.filter((f) => f.file === "map.json")).toEqual([]);
   });

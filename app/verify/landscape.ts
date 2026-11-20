@@ -3,6 +3,8 @@ import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 
 export type LandscapeProblemKind =
   | "river-corner"
+  | "river-fall"
+  | "low-snow"
   | "river-bed"
   | "river-bank"
   | "river-ground"
@@ -17,6 +19,8 @@ export type LandscapeProblem = {
   y: number;
   z: number;
   message: string;
+  /** For a straight edge: which way the line runs from `x`, `y`, and how many cells of it are straight. */
+  run?: { dx: number; dy: number; cells: number };
 };
 
 export type LandscapeInput = {
@@ -39,7 +43,7 @@ export const KIND_OF_BASE: Record<string, Kind> = {
   "grass-brink": "grass",
   snow: "snow",
   "snow-brink": "snow",
-  "sand-dunes": "sand",
+  sand: "sand",
   "sand-brink": "sand",
   "beach-sand": "sand",
 };
@@ -66,6 +70,8 @@ export const COVER_TILES: ReadonlySet<string> = new Set([
 export const MIN_PATCH_CELLS = 16;
 /** Snow lies on the peak, so a field of it smaller than this, in other ground, is a hilltop that caught the snow line rather than a place. */
 export const MIN_SNOW_PATCH_CELLS = 200;
+/** The lowest storey snow lies on: below it the land is grass however high the hill above it climbs. */
+export const SNOW_LEVEL = 3;
 /** Longest straight line two grounds may meet along before it reads as drawn with a ruler. */
 export const MAX_STRAIGHT_EDGE_CELLS = 12;
 /** A river's bank stops this far from the shore of the sea or a lake, as `scripts/island/stacks.ts` lays it; a river that close is its mouth. */
@@ -91,6 +97,8 @@ type Cell = {
   stack: PlacedTile[];
   kind: Kind | null;
   water: boolean;
+  /** Sand with no grass over it, whose land is judged from what is around it. */
+  bare: boolean;
   /** Water on grass or snow, outside a swamp, that is not the sea or a lake or its edge. */
   river: boolean;
   swamp: boolean;
@@ -113,11 +121,16 @@ function isStanding(placed: PlacedTile, tilesById: Record<string, TileDef>): boo
   return def.walkable === false || (def.height ?? 0) > 0 || !!def.footprint;
 }
 
+/** Ground with nothing laid on it, which reads as whatever land it lies in: a path through grass is sand where the grass is not. */
+const BARE_GROUNDS: ReadonlySet<string> = new Set(["sand"]);
+
 function describe(stack: PlacedTile[], z: number, x: number, y: number): Cell | null {
   const base = stack[0]?.tileId;
   if (!base) return null;
   const water = stack.some((p) => WATER_TILES.has(p.tileId));
-  const kind = KIND_OF_BASE[base] ?? null;
+  /** Grass is drawn over the ground with a ragged edge, so its base is sand or snow and the grass is the tile above it. */
+  const grassed = stack.some((p) => p.tileId === "grass");
+  const kind = grassed ? "grass" : (KIND_OF_BASE[base] ?? null);
   if (!kind && !water) return null;
   const swamp = stack.some((p) => p.tileId === "swamp");
   return {
@@ -127,11 +140,125 @@ function describe(stack: PlacedTile[], z: number, x: number, y: number): Cell | 
     stack,
     kind,
     water,
+    bare: !grassed && BARE_GROUNDS.has(base),
     river: false,
     swamp,
     covered: stack.slice(1).some((p) => COVER_TILES.has(p.tileId)),
     standing: false,
   };
+}
+
+/** A bare cell inside a square this wide of its own ground is that ground's land, a desert, not a path through other land. */
+const WIDE_CELLS = 5;
+/** How far bare ground runs out of such a square and is still the desert: a ragged border's teeth, and the first cells of a road out of it. */
+const DESERT_REACH_CELLS = 2;
+/** How far a path or a river looks for the land it runs through. */
+const LAND_REACH_CELLS = 4;
+
+/**
+ * Gives every bare cell that is not part of a wide stretch of its own
+ * ground, and the water on it, the ground of the land around it. A path, a
+ * bank or a yard is bare sand where the grass is not, so it is grass land
+ * with its ground showing, which `covered` already says of a road laid on
+ * the ground. Bare land is judged a connected piece at a time, so a strip of
+ * beach is one thing rather than alternating cells of two; water is judged
+ * a cell at a time, as a river changes ground where its land does.
+ */
+function inferLand(surface: Map<string, Cell>) {
+  const wide = wideCells(surface);
+  const settled = (cell: Cell | undefined, z: number): cell is Cell & { kind: Kind } =>
+    !!cell?.kind && !cell.water && cell.z === z && (!cell.bare || wide.has(cell));
+  const loose = (from: Cell, cell: Cell | undefined): cell is Cell =>
+    !!cell?.bare && !cell.water && cell.z === from.z && !wide.has(cell);
+  const landAround = (cells: Cell[], reach: number): Kind | null => {
+    const counts: Record<Kind, number> = { grass: 0, snow: 0, sand: 0 };
+    for (const cell of cells) {
+      const around = near(cell.x, cell.y, reach).map((k) => surface.get(k));
+      for (const other of around) if (settled(other, cell.z)) counts[other.kind]++;
+    }
+    return KINDS.some((kind) => counts[kind] > 0) ? mostOf(counts) : null;
+  };
+  const seen = new Set<Cell>();
+  for (const start of surface.values()) {
+    if (!loose(start, start) || seen.has(start)) continue;
+    const piece = floodPiece(surface, start, loose, seen);
+    const kind = landAround(piece, 1) ?? landAround(piece, LAND_REACH_CELLS);
+    for (const cell of piece) settleBare(cell, kind);
+  }
+  for (const cell of surface.values()) {
+    if (cell.bare && cell.water) settleBare(cell, landAround([cell], LAND_REACH_CELLS));
+  }
+}
+
+/**
+ * Gives a bare cell the land it lies in. Land that is not its own ground is
+ * that land with its ground showing, so it is covered. A pocket with no land
+ * of its own level near it lies between water and cliffs: a bank, whose
+ * ground has no look of its own.
+ */
+function settleBare(cell: Cell, kind: Kind | null) {
+  if (!kind) {
+    cell.covered = !cell.water;
+    return;
+  }
+  if (!cell.water && kind !== cell.kind) cell.covered = true;
+  cell.kind = kind;
+}
+
+const sidesOf = (surface: Map<string, Cell>, cell: Cell): Cell[] =>
+  SIDES.map(([dx, dy]) => surface.get(key(cell.x + dx, cell.y + dy))).filter(
+    (other): other is Cell => !!other,
+  );
+
+/** Every cell joined to `start` side to side through cells `joins` lets in, each added to `seen`. */
+function floodPiece(
+  surface: Map<string, Cell>,
+  start: Cell,
+  joins: (from: Cell, next: Cell | undefined) => next is Cell,
+  seen: Set<Cell>,
+): Cell[] {
+  const piece = [start];
+  seen.add(start);
+  for (let k = 0; k < piece.length; k++) {
+    const from = piece[k]!;
+    for (const next of sidesOf(surface, from).filter((n) => joins(from, n) && !seen.has(n))) {
+      seen.add(next);
+      piece.push(next);
+    }
+  }
+  return piece;
+}
+
+function wideCells(surface: Map<string, Cell>): Set<Cell> {
+  const wide = new Set<Cell>();
+  for (const cell of surface.values()) {
+    if (!cell.bare || cell.water || !cell.kind) continue;
+    for (const other of squareFrom(surface, cell) ?? []) wide.add(other);
+  }
+  const desert = (from: Cell, other: Cell) =>
+    other.bare && !other.water && other.z === from.z && !wide.has(other);
+  let front = [...wide];
+  for (let step = 0; step < DESERT_REACH_CELLS; step++) {
+    const next = front.flatMap((cell) => sidesOf(surface, cell).filter((o) => desert(cell, o)));
+    for (const other of next) wide.add(other);
+    front = next;
+  }
+  return wide;
+}
+
+/** The bare cells of the `WIDE_CELLS` square whose north-west corner is `corner`, if all of it is bare ground of the corner's kind. */
+function squareFrom(surface: Map<string, Cell>, corner: Cell): Cell[] | null {
+  const cells: Cell[] = [];
+  for (let dy = 0; dy < WIDE_CELLS; dy++) {
+    for (let dx = 0; dx < WIDE_CELLS; dx++) {
+      const other = surface.get(key(corner.x + dx, corner.y + dy));
+      const same =
+        other?.bare && !other.water && other.z === corner.z && other.kind === corner.kind;
+      if (!same) return null;
+      cells.push(other);
+    }
+  }
+  return cells;
 }
 
 /**
@@ -170,17 +297,20 @@ function surfaceOf(map: MapFile): Map<string, Cell> {
 
 /**
  * Checks the rules a generated landscape keeps: rivers joined side to side,
- * a dirt bed and banks under a river on grass and no mud by any water, rivers
+ * bare ground under and beside a river on grass and no mud by any water, rivers
  * on the ground of the land they run through, no tiny patches of one ground
  * inside another, no straight borders between grounds, and deserts and
  * snowfields mostly open.
  */
 export function checkLandscape({ map, tilesById }: LandscapeInput): LandscapeReport {
   const surface = surfaceOf(map);
+  inferLand(surface);
   const shore = markRivers(surface);
   markGrowth(surface, tilesById);
   const problems: LandscapeProblem[] = [
     ...riverCorners(surface),
+    ...riverFalls(surface),
+    ...lowSnow(surface),
     ...riverBeds(surface, shore),
     ...riverGrounds(surface),
     ...waterMud(surface),
@@ -237,7 +367,7 @@ function blockIsWet(wet: (x: number, y: number) => boolean, x: number, y: number
   return true;
 }
 
-/** Mud is the swamp's: it is dark against grass and slows whoever walks on it, so a river or a shore has dirt where it has anything. */
+/** Mud is the swamp's: it is dark against grass and slows whoever walks on it, so a river or a shore is bare ground where it is not grass. */
 function waterMud(surface: Map<string, Cell>): LandscapeProblem[] {
   const out: LandscapeProblem[] = [];
   for (const cell of surface.values()) {
@@ -249,7 +379,7 @@ function waterMud(surface: Map<string, Cell>): LandscapeProblem[] {
       x: cell.x,
       y: cell.y,
       z: cell.z,
-      message: `${cell.x},${cell.y} L${cell.z} is mud by water outside a swamp; a river's bed and banks are dirt`,
+      message: `${cell.x},${cell.y} L${cell.z} is mud by water outside a swamp; a river's bed and banks are bare ground`,
     });
   }
   return out;
@@ -275,19 +405,61 @@ function riverCorners(surface: Map<string, Cell>): LandscapeProblem[] {
   return out;
 }
 
+function lowSnow(surface: Map<string, Cell>): LandscapeProblem[] {
+  const out: LandscapeProblem[] = [];
+  for (const cell of surface.values()) {
+    if (cell.kind !== "snow" || cell.z >= SNOW_LEVEL) continue;
+    out.push({
+      kind: "low-snow",
+      x: cell.x,
+      y: cell.y,
+      z: cell.z,
+      message: `snow at ${cell.x},${cell.y} lies on L${cell.z}, below L${SNOW_LEVEL} where the snow starts`,
+    });
+  }
+  return out;
+}
+
+/** The two sides a drop faces the camera from: water spilling south or east over a cliff shows its face, so it needs a fall drawn there. */
+const FACING_DROPS = [
+  [0, 1],
+  [1, 0],
+] as const;
+
+const isFall = (placed: PlacedTile) => placed.tileId.startsWith("waterfall");
+
+function riverFalls(surface: Map<string, Cell>): LandscapeProblem[] {
+  const out: LandscapeProblem[] = [];
+  for (const cell of surface.values()) {
+    if (!cell.river) continue;
+    for (const [dx, dy] of FACING_DROPS) {
+      const below = surface.get(key(cell.x + dx, cell.y + dy));
+      if (!below?.water || below.z >= cell.z || below.stack.some(isFall)) continue;
+      out.push({
+        kind: "river-fall",
+        x: below.x,
+        y: below.y,
+        z: below.z,
+        message: `the river at ${cell.x},${cell.y} L${cell.z} drops into ${below.x},${below.y} L${below.z} with no waterfall drawn down the cliff`,
+      });
+    }
+  }
+  return out;
+}
+
 function riverBeds(surface: Map<string, Cell>, shore: Set<string>): LandscapeProblem[] {
   const out: LandscapeProblem[] = [];
   for (const cell of surface.values()) {
     if (!cell.river || cell.kind !== "grass") continue;
     const nearShore = near(cell.x, cell.y, SHORE_CLEAR_CELLS).some((k) => shore.has(k));
     if (nearShore) continue;
-    if (!cell.stack.some((p) => p.tileId === "dirt")) {
+    if (cell.stack.some(isGrass)) {
       out.push({
         kind: "river-bed",
         x: cell.x,
         y: cell.y,
         z: cell.z,
-        message: `the river at ${cell.x},${cell.y} L${cell.z} runs over grass with no dirt under the water`,
+        message: `the river at ${cell.x},${cell.y} L${cell.z} runs over grass; a river's bed is bare ground`,
       });
     }
     out.push(...bareBanks(surface, shore, cell));
@@ -295,10 +467,15 @@ function riverBeds(surface: Map<string, Cell>, shore: Set<string>): LandscapePro
   return out;
 }
 
+/** Grass the generator lays (`grass`), or the plain square an older map was painted with. */
+const isGrass = (placed: PlacedTile) => placed.tileId === "grass" || placed.tileId === "grass-2";
+
 /**
- * A bank on a cliff's edge keeps its brink, which draws the edge; a bank on
- * a shore is bare; and so is a bank where the land beside it changes ground,
- * since dirt there would draw a line of one ground into the other.
+ * A river on grass has bare banks, the grass stopping a cell short of the
+ * water. A bank on a cliff's edge keeps its brink, which draws the edge; a
+ * bank by a shore may keep its grass; and so may a bank where the land beside
+ * it changes ground, since bare ground there would draw a line of one ground
+ * into the other.
  */
 function bareBanks(surface: Map<string, Cell>, shore: Set<string>, cell: Cell): LandscapeProblem[] {
   const out: LandscapeProblem[] = [];
@@ -307,7 +484,7 @@ function bareBanks(surface: Map<string, Cell>, shore: Set<string>, cell: Cell): 
       const bank = surface.get(key(cell.x + dx, cell.y + dy));
       if (!bank || bank.water || bank.z !== cell.z || bank.kind !== "grass" || bank.covered)
         continue;
-      if (bank.stack[0]!.tileId !== "grass-2") continue;
+      if (!isGrass(bank.stack[0]!) && bank.stack[1]?.tileId !== "grass") continue;
       if (near(bank.x, bank.y, SHORE_CLEAR_CELLS).some((k) => shore.has(k))) continue;
       if (besideOtherGround(surface, bank)) continue;
       out.push({
@@ -315,21 +492,22 @@ function bareBanks(surface: Map<string, Cell>, shore: Set<string>, cell: Cell): 
         x: bank.x,
         y: bank.y,
         z: bank.z,
-        message: `${bank.x},${bank.y} L${bank.z} is bare grass beside the river at ${cell.x},${cell.y}; a river on grass has a bank of dirt`,
+        message: `${bank.x},${bank.y} L${bank.z} is grass beside the river at ${cell.x},${cell.y}; a river on grass has bare banks`,
       });
     }
   }
   return out;
 }
 
-const PLAIN_GROUNDS = new Set(["grass-2", "snow", "sand-dunes"]);
-
 function besideOtherGround(surface: Map<string, Cell>, bank: Cell): boolean {
   return near(bank.x, bank.y, 1).some((k) => {
     const other = surface.get(k);
-    const base = other?.stack[0]?.tileId;
     return (
-      other?.z === bank.z && !!base && PLAIN_GROUNDS.has(base) && base !== bank.stack[0]!.tileId
+      other?.z === bank.z &&
+      !other.water &&
+      !other.covered &&
+      !!other.kind &&
+      other.kind !== bank.kind
     );
   });
 }
@@ -533,6 +711,7 @@ function straightRuns(surface: Map<string, Cell>, ax: number, ay: number): Lands
       y: cell.y,
       z: cell.z,
       message: `${a} meets ${b} along a straight line ${length} cells long from ${cell.x},${cell.y} L${cell.z}`,
+      run: { dx: ax, dy: ay, cells: length },
     });
   }
   return out;

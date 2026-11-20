@@ -1,6 +1,7 @@
 import { CellHeap, N4, N8, components, distanceTo, fbm, perlin, type Grid } from "./grid";
 import { PLACES, ROADS, type PlaceId } from "./layout";
 import { sketchLand, type Sketch } from "./sketch";
+import { SNOW_LEVEL } from "../../app/verify/landscape";
 import {
   REF_H,
   REF_W,
@@ -138,22 +139,33 @@ export function buildIsland(options: IslandOptions): Island {
   const coast = distanceTo(grid, (i) => land[i] === 0);
 
   const ground = new Uint8Array(n);
-  /** Low ground is kept low so that the hill columns, which cost a cell per storey, are spent on the peak. */
-  const levelOf = (e: number) =>
-    Math.max(
-      0,
-      Math.min(peakLevel, Math.floor(Math.pow(Math.max(0, e) / maxE, 1.3) * (peakLevel + 0.999))),
-    );
+  /**
+   * Low ground is kept low so that the hill columns, which cost a cell per
+   * storey, are spent on the peak, and above `SNOW_LEVEL` each storey of the
+   * curve becomes `HIGHLAND_STEEPNESS` storeys, so the snow is a steep peak
+   * rather than more of the same hill.
+   */
+  const heightOf = (e: number) => {
+    const curve = Math.pow(Math.max(0, e) / maxE, 1.3) * (peakLevel + 0.999);
+    return curve <= SNOW_LEVEL ? curve : SNOW_LEVEL + (curve - SNOW_LEVEL) * HIGHLAND_STEEPNESS;
+  };
+  const levelOf = (e: number) => Math.max(0, Math.floor(heightOf(e)));
   const level = new Int8Array(n);
   const edgeNoise = perlin(seed ^ BOG_EDGE_SALT);
   for (let i = 0; i < n; i++) {
     const x = i % w;
     const y = (i - x) / w;
     const { e, east, forest, gorge } = samples[i]!;
-    /** The height's contours run nearly straight across the top of the peak, so the snow line is moved by noise as the bog's edge is. */
-    const snowJitter =
-      SNOW_LINE_NOISE *
-      fbm(edgeNoise, x / SNOW_LINE_SCALE_CELLS + 91.3, y / SNOW_LINE_SCALE_CELLS, 3);
+    /**
+     * Snow starts somewhere across the first storey of the peak, moved by
+     * noise as the bog's edge is, so its edge frays across that shelf rather
+     * than following the cliff at its foot.
+     */
+    const snowFrom =
+      SNOW_LEVEL +
+      SNOW_LINE_SPREAD_LEVELS *
+        (0.5 +
+          0.5 * fbm(edgeNoise, x / SNOW_LINE_SCALE_CELLS + 91.3, y / SNOW_LINE_SCALE_CELLS, 3));
     /** The bog's weight is a smooth bump, so a fixed threshold on it draws an exact oval; noise on the weight frays the edge. */
     const bog =
       samples[i]!.bog +
@@ -176,8 +188,7 @@ export function buildIsland(options: IslandOptions): Island {
     else if (bog > 0.3) ground[i] = Ground.Bog;
     else if (forest > 0.55) ground[i] = Ground.DeepWoods;
     else if (forest > 0.25) ground[i] = Ground.Woods;
-    else if (e > SNOW_LINE + snowJitter) ground[i] = Ground.Snow;
-    else if (e > ROCK_LINE + snowJitter) ground[i] = Ground.Rock;
+    else if (heightOf(e) >= snowFrom) ground[i] = Ground.Snow;
     else ground[i] = Ground.Grass;
     if (ground[i] === Ground.Lava) level[i] = Math.max(0, levelOf(e) - 1);
   }
@@ -260,9 +271,9 @@ export function buildIsland(options: IslandOptions): Island {
 const BOG_EDGE_SALT = 0x5b0c;
 const BOG_EDGE_NOISE = 0.14;
 const BOG_EDGE_SCALE_CELLS = 14;
-const SNOW_LINE = 0.5;
-const ROCK_LINE = 0.34;
-const SNOW_LINE_NOISE = 0.12;
+const HIGHLAND_STEEPNESS = 1.6;
+/** How many storeys up the first storey of the peak the snow line may wander. */
+const SNOW_LINE_SPREAD_LEVELS = 0.9;
 const SNOW_LINE_SCALE_CELLS = 6;
 /** A piece of one ground smaller than this is noise in the height or the land weights, not a place: a few cells of snow on a lowland meadow. */
 export const MIN_PATCH_CELLS = 40;

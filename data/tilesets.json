@@ -339,5 +339,13 @@
     "file": "cats.png",
     "width": 48,
     "height": 448
+  },
+  {
+    "id": "grass",
+    "name": "Grass",
+    "file": "grass.png",
+    "width": 48,
+    "height": 376,
+    "translucent": true
   }
 ]

@@ -26,7 +26,7 @@ const ROCK = new Set([
 /** What `raise:hills` laid on each kind of ground beside a drop, and the brink that replaces both. */
 const GROUNDS: Record<string, { ledge: string; brink: string }> = {
   "grass-2": { ledge: "grass-ledge", brink: "grass-brink" },
-  "sand-dunes": { ledge: "sand-ledge", brink: "sand-brink" },
+  sand: { ledge: "sand-ledge", brink: "sand-brink" },
   snow: { ledge: "snow-ledge", brink: "snow-brink" },
 };
 
