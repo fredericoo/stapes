@@ -3,6 +3,7 @@ import { emptyMap, getStack, setStacks } from "../../lib/mapData";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
+import { wrongTile } from "./field";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
 export type BuildContext = {
@@ -192,6 +193,11 @@ export function buildMap(
         problems.push({
           key: node.key,
           reason: path ? `${path}: ${issue.message}` : issue.message,
+        });
+      } else if (wrongTile(component.schema, parsed.output as Record<string, unknown>, tilesById)) {
+        problems.push({
+          key: node.key,
+          reason: wrongTile(component.schema, parsed.output as Record<string, unknown>, tilesById)!,
         });
       } else {
         const current = map;

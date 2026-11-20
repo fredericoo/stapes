@@ -9,7 +9,7 @@ import {
 } from "../../house";
 import { DEFAULT_HOUSE_CONFIG, STOREY_RANGE } from "../../proceduralSettings";
 import type { Component } from "../build";
-import { TileIdSchema } from "../doc";
+import { TILES, field } from "../field";
 
 const d = DEFAULT_HOUSE_CONFIG;
 
@@ -24,9 +24,9 @@ const HouseSchema = v.object({
     d.roofColour,
   ),
   roofPitch: v.optional(v.picklist(ROOF_PITCHES as [RoofPitch, ...RoofPitch[]]), d.roofPitch),
-  wall: v.optional(TileIdSchema, d.wallTileId),
-  floor: v.optional(TileIdSchema, d.floorTileId),
-  window: v.optional(v.nullable(TileIdSchema), d.windowTileId),
+  wall: v.optional(field.tile(TILES.wall), d.wallTileId),
+  floor: v.optional(field.tile(TILES.ground), d.floorTileId),
+  window: v.optional(v.nullable(field.tile(TILES.window)), d.windowTileId),
   windowSpacing: v.optional(
     v.pipe(
       v.number(),
@@ -36,7 +36,7 @@ const HouseSchema = v.object({
     ),
     d.windowSpacing,
   ),
-  door: v.optional(v.nullable(TileIdSchema), d.doorTileId),
+  door: v.optional(v.nullable(field.tile(TILES.door)), d.doorTileId),
   doorRow: v.optional(v.picklist(["north", "centre", "south"]), d.doorRow),
   doorColumn: v.optional(v.picklist(["west", "centre", "east"]), d.doorColumn),
 });

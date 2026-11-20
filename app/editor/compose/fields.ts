@@ -1,13 +1,17 @@
 import type * as v from "valibot";
+import type { FieldMeta, TileKind } from "./field";
 
 export type Field =
+  | { kind: "tile"; tiles: TileKind }
+  | { kind: "tiles"; tiles: TileKind }
+  | { kind: "weighted"; tiles: TileKind }
+  | { kind: "point"; level: boolean }
+  | { kind: "direction" }
+  | { kind: "percent" }
   | { kind: "number"; min?: number; max?: number; integer: boolean }
   | { kind: "string" }
-  | { kind: "tileId" }
-  | { kind: "tileList" }
   | { kind: "boolean" }
   | { kind: "enum"; options: string[] }
-  | { kind: "point" }
   | { kind: "nullable"; inner: Field }
   | { kind: "unknown" };
 
@@ -19,34 +23,33 @@ type Introspected = {
   default?: unknown;
   entries?: Record<string, Introspected>;
   options?: unknown[];
-  item?: Introspected;
-  pipe?: Array<{ type: string; requirement?: unknown; metadata?: { field?: string } }>;
+  pipe?: Array<{ type: string; requirement?: unknown; metadata?: unknown }>;
 };
-
-function marked(schema: Introspected): string | undefined {
-  return schema.pipe?.find((a) => a.type === "metadata")?.metadata?.field;
-}
 
 function requirement(schema: Introspected, type: string): number | undefined {
   const action = schema.pipe?.find((a) => a.type === type);
   return typeof action?.requirement === "number" ? action.requirement : undefined;
 }
 
+function fromMeta(meta: FieldMeta): Field {
+  if (meta.field === "point") return { kind: "point", level: meta.level };
+  if (meta.field === "direction" || meta.field === "percent") return { kind: meta.field };
+  return { kind: meta.field, tiles: meta.tiles };
+}
+
 /**
- * Reads the form a valibot schema asks for from the schema object itself:
- * its `type`, the actions in its `pipe`, and the `field` its `v.metadata`
- * names. Valibot keeps all of that on the schema at runtime, which is what
- * lets a component's schema be the only description of its form.
+ * Reads the form a valibot schema asks for from the schema object itself. A
+ * prop built with `field.*` names its widget in its `v.metadata`; any other
+ * prop gets one from its `type` and the actions in its pipe. Valibot keeps all
+ * of that on the schema at runtime, which is what lets a component's schema
+ * be the only description of its form.
  */
 export function fieldOf(schema: Introspected): Field {
-  const mark = marked(schema);
-  if (mark === "tileId") return { kind: "tileId" };
-  if (mark === "point") return { kind: "point" };
+  if (schema.type === "optional") return fieldOf(schema.wrapped!);
+  if (schema.type === "nullable") return { kind: "nullable", inner: fieldOf(schema.wrapped!) };
+  const meta = schema.pipe?.find((a) => a.type === "metadata")?.metadata as FieldMeta | undefined;
+  if (meta?.field) return fromMeta(meta);
   switch (schema.type) {
-    case "optional":
-      return fieldOf(schema.wrapped!);
-    case "nullable":
-      return { kind: "nullable", inner: fieldOf(schema.wrapped!) };
     case "number":
       return {
         kind: "number",
@@ -60,10 +63,6 @@ export function fieldOf(schema: Introspected): Field {
       return { kind: "boolean" };
     case "picklist":
       return { kind: "enum", options: (schema.options ?? []).map(String) };
-    case "array":
-      return schema.item && marked(schema.item) === "tileId"
-        ? { kind: "tileList" }
-        : { kind: "unknown" };
     default:
       return { kind: "unknown" };
   }

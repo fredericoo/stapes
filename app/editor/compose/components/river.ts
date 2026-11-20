@@ -2,14 +2,14 @@ import * as v from "valibot";
 import type { StackEdit } from "../../../lib/mapData";
 import { placed } from "../../generator";
 import type { Component } from "../build";
-import { PointSchema, TileIdSchema } from "../doc";
+import { TILES, field } from "../field";
 import { across, bandOffsets, isWet, lineCells } from "./line";
 
 const RiverSchema = v.object({
-  from: PointSchema,
-  to: PointSchema,
+  from: field.point(),
+  to: field.point(),
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
-  bed: v.optional(TileIdSchema, "dirt"),
+  bed: v.optional(field.tile(TILES.ground), "dirt"),
 });
 
 export type RiverProps = v.InferOutput<typeof RiverSchema>;

@@ -27,21 +27,21 @@ export const FrameSchema = v.object({
 
 export type Frame = v.InferOutput<typeof FrameSchema>;
 
-/** A point is read like a frame's corner, inside the frame of the node named by `in`, or of the node it belongs to. */
-export const PointSchema = v.pipe(
-  v.object({
-    in: v.optional(v.string()),
-    x: v.number(),
-    y: v.number(),
-    pinX: v.optional(v.picklist(PIN_X)),
-    pinY: v.optional(v.picklist(PIN_Y)),
-  }),
-  v.metadata({ field: "point" }),
-);
+/**
+ * A point is read like a frame's corner, inside the frame of the node named by
+ * `in`, or of the node it belongs to. `z` is levels above that node's level,
+ * for the components that place something on a level of its own.
+ */
+export const PointObject = v.object({
+  in: v.optional(v.string()),
+  x: v.number(),
+  y: v.number(),
+  z: v.optional(v.pipe(v.number(), v.integer())),
+  pinX: v.optional(v.picklist(PIN_X)),
+  pinY: v.optional(v.picklist(PIN_Y)),
+});
 
-export type Point = v.InferOutput<typeof PointSchema>;
-
-export const TileIdSchema = v.pipe(v.string(), v.minLength(1), v.metadata({ field: "tileId" }));
+export type Point = v.InferOutput<typeof PointObject>;
 
 export type MapNode = {
   type: string;

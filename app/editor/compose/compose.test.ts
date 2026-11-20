@@ -171,6 +171,22 @@ describe("buildMap", () => {
     expect(topAt(map, 5, 20)).toBe("cobblestone");
   });
 
+  it("refuses a tile that is not the kind its field asks for", () => {
+    const { problems } = build(
+      doc(
+        field([
+          {
+            type: "house",
+            key: "shed",
+            frame: { x: 2, y: 2, w: 6, h: 6 },
+            props: { wall: "tree" },
+          },
+        ]),
+      ),
+    );
+    expect(problems).toEqual([{ key: "shed", reason: "wall: Tree is not a wall" }]);
+  });
+
   it("writes nothing outside its parent's frame", () => {
     const { map } = build(
       doc(

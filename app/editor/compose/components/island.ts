@@ -13,17 +13,17 @@ import {
   type CellGrid,
 } from "../../generator";
 import type { Component } from "../build";
-import { TileIdSchema } from "../doc";
+import { TILES, field } from "../field";
 
 export const SHORE_RANGE = { min: 1, max: 3 } as const;
 
 const IslandSchema = v.object({
-  fill: v.optional(TileIdSchema, "sand"),
+  fill: v.optional(field.tile(TILES.ground), "sand"),
   shore: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(SHORE_RANGE.min), v.maxValue(SHORE_RANGE.max)),
     2,
   ),
-  roughness: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(100)), 40),
+  roughness: v.optional(field.percent(), 40),
 });
 
 export type IslandProps = v.InferOutput<typeof IslandSchema>;

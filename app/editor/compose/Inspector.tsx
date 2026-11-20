@@ -1,19 +1,24 @@
+import { IconCrosshair } from "@tabler/icons-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Button, Input, NumberInput, Select, Switch } from "../../ui";
+import { Button, Input, NumberInput, Segmented, Select, Switch, Tooltip } from "../../ui";
 import type { ComponentRegistry } from "./build";
 import { PIN_X, PIN_Y, type Frame, type MapDoc, type MapNode, type Point } from "./doc";
 import { allKeys, reframeNode, renameNode, updateNode } from "./edit";
 import { fieldsOf, type Field } from "./fields";
 import type { Bounds } from "../generator";
-import type { Layout, Placement } from "./layout";
-
-export const TILE_LIST_ID = "compose-tile-ids";
+import { pointFor, pointFrame, type Layout, type Placement } from "./layout";
+import { TilePicker, TileSet, WeightedTiles } from "./TilePicker";
 
 const UINT32 = 4294967296;
 const DEFAULT_FRAME_SPAN = 16;
 
 /** The select's value for "this node's frame"; an empty string reads as no selection. */
 const OWN_FRAME = "@own";
+
+/** A prop's name as a label: `undergrowthDensity` reads as "undergrowth density". */
+function spaced(name: string): string {
+  return name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+}
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -37,12 +42,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function TextField({
   value,
   onCommit,
-  list,
   ariaLabel,
 }: {
   value: string;
   onCommit: (value: string) => void;
-  list?: string;
   ariaLabel: string;
 }) {
   const [draft, setDraft] = useState(value);
@@ -52,7 +55,6 @@ function TextField({
       aria-label={ariaLabel}
       className="w-full min-w-0 shadow-none"
       value={draft}
-      list={list}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== value && onCommit(draft)}
       onKeyDown={(e) => {
@@ -91,31 +93,65 @@ function Num({
   );
 }
 
+type Cell = { x: number; y: number };
+
+/** Arms "pick on map": the next click on the map hands its cell to `apply` instead of selecting a layer. */
+export type PickCell = (apply: (cell: Cell) => void) => void;
+
+const COMPASS = [
+  { value: "n", label: "N" },
+  { value: "e", label: "E" },
+  { value: "s", label: "S" },
+  { value: "w", label: "W" },
+] as const;
+
 function PointEditor({
   point,
   onChange,
   keys,
   label,
+  level,
+  frameOf,
+  pickCell,
 }: {
   point: Point;
   onChange: (point: Point) => void;
   keys: string[];
   label: string;
+  level: boolean;
+  frameOf: (point: Point) => Bounds | null;
+  pickCell: PickCell;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <Select
-        ariaLabel={`${label}: measured in`}
-        value={point.in ?? OWN_FRAME}
-        onValueChange={(value) => {
-          const { in: _in, ...rest } = point;
-          onChange(value && value !== OWN_FRAME ? { ...rest, in: value } : rest);
-        }}
-        options={[
-          { value: OWN_FRAME, label: "this node's frame" },
-          ...keys.map((k) => ({ value: k, label: k })),
-        ]}
-      />
+      <span className="flex items-center gap-1">
+        <Select
+          ariaLabel={`${label}: measured in`}
+          value={point.in ?? OWN_FRAME}
+          onValueChange={(value) => {
+            const { in: _in, ...rest } = point;
+            onChange(value && value !== OWN_FRAME ? { ...rest, in: value } : rest);
+          }}
+          options={[
+            { value: OWN_FRAME, label: "this node's frame" },
+            ...keys.map((k) => ({ value: k, label: k })),
+          ]}
+        />
+        <Tooltip content="Click the map to put it there">
+          <Button
+            size="icon"
+            aria-label={`Pick ${label} on the map`}
+            onClick={() =>
+              pickCell((cell) => {
+                const frame = frameOf(point);
+                if (frame) onChange(pointFor(point, cell, frame));
+              })
+            }
+          >
+            <IconCrosshair size={16} aria-hidden="true" />
+          </Button>
+        </Tooltip>
+      </span>
       <span className="flex items-center gap-1">
         <Num
           label={`${label} x`}
@@ -146,6 +182,16 @@ function PointEditor({
           options={PIN_Y.map((p) => ({ value: p, label: p }))}
         />
       </span>
+      {level ? (
+        <span className="flex items-center gap-1">
+          <Num
+            label={`${label} level`}
+            value={point.z ?? 0}
+            onChange={(z) => onChange({ ...point, z })}
+          />
+          <span className="text-xs text-muted">levels above this node</span>
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -157,6 +203,8 @@ function FieldEditor({
   onChange,
   keys,
   label,
+  frameOf,
+  pickCell,
 }: {
   field: Field;
   value: unknown;
@@ -164,6 +212,8 @@ function FieldEditor({
   onChange: (value: unknown) => void;
   keys: string[];
   label: string;
+  frameOf: (point: Point) => Bounds | null;
+  pickCell: PickCell;
 }): ReactNode {
   switch (field.kind) {
     case "number":
@@ -177,30 +227,60 @@ function FieldEditor({
           onChange={onChange}
         />
       );
-    case "string":
-      return <TextField ariaLabel={label} value={String(value ?? "")} onCommit={onChange} />;
-    case "tileId":
+    case "percent": {
+      const n = typeof value === "number" ? value : 0;
       return (
-        <TextField
+        <span className="flex w-full items-center gap-2">
+          <input
+            type="range"
+            aria-label={label}
+            min={0}
+            max={100}
+            value={n}
+            className="hard-slider min-w-0 flex-1"
+            onChange={(e) => onChange(Number(e.target.value))}
+          />
+          <span className="w-10 text-right text-xs tabular-nums">{n}%</span>
+        </span>
+      );
+    }
+    case "direction":
+      return (
+        <Segmented
           ariaLabel={label}
-          value={String(value ?? "")}
-          onCommit={onChange}
-          list={TILE_LIST_ID}
+          size="sm"
+          value={String(value ?? "s")}
+          options={COMPASS.map((c) => ({ value: c.value as string, label: c.label }))}
+          onChange={onChange}
         />
       );
-    case "tileList":
+    case "string":
+      return <TextField ariaLabel={label} value={String(value ?? "")} onCommit={onChange} />;
+    case "tile":
       return (
-        <TextField
-          ariaLabel={label}
-          value={Array.isArray(value) ? value.join(", ") : ""}
-          onCommit={(text) =>
-            onChange(
-              text
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean),
-            )
-          }
+        <TilePicker
+          value={String(value ?? "")}
+          kind={field.tiles}
+          label={label}
+          onChange={onChange}
+        />
+      );
+    case "tiles":
+      return (
+        <TileSet
+          value={Array.isArray(value) ? (value as string[]) : []}
+          kind={field.tiles}
+          label={label}
+          onChange={onChange}
+        />
+      );
+    case "weighted":
+      return (
+        <WeightedTiles
+          value={Array.isArray(value) ? (value as Array<{ tile: string; weight: number }>) : []}
+          kind={field.tiles}
+          label={label}
+          onChange={onChange}
         />
       );
     case "boolean":
@@ -219,6 +299,9 @@ function FieldEditor({
         <PointEditor
           label={label}
           keys={keys}
+          level={field.level}
+          frameOf={frameOf}
+          pickCell={pickCell}
           point={(value as Point | undefined) ?? { x: 0, y: 0 }}
           onChange={onChange}
         />
@@ -240,6 +323,8 @@ function FieldEditor({
                 onChange={onChange}
                 keys={keys}
                 label={label}
+                frameOf={frameOf}
+                pickCell={pickCell}
               />
             </span>
           ) : null}
@@ -265,6 +350,7 @@ export function Inspector({
   problems,
   onChange,
   onRenamed,
+  pickCell,
 }: {
   doc: MapDoc;
   node: MapNode;
@@ -275,6 +361,7 @@ export function Inspector({
   problems: string[];
   onChange: (doc: MapDoc) => void;
   onRenamed: (key: string) => void;
+  pickCell: PickCell;
 }) {
   const component = components[node.type];
   const keys = allKeys(doc.root).filter((k) => k !== node.key);
@@ -417,7 +504,7 @@ export function Inspector({
       {component ? (
         <Section title="Props">
           {fieldsOf(component.schema).map(({ name, field, fallback }) => (
-            <Row key={name} label={name}>
+            <Row key={name} label={spaced(name)}>
               <FieldEditor
                 field={field}
                 label={name}
@@ -425,6 +512,8 @@ export function Inspector({
                 fallback={fallback}
                 value={node.props && name in node.props ? node.props[name] : fallback}
                 onChange={(value) => setProp(name, value)}
+                pickCell={pickCell}
+                frameOf={(point) => (placement ? pointFrame(built.layout, placement, point) : null)}
               />
             </Row>
           ))}

@@ -3,17 +3,17 @@ import { stackHeight, type StackEdit } from "../../../lib/mapData";
 import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
 import type { Component } from "../build";
-import { PointSchema, TileIdSchema } from "../doc";
+import { TILES, field } from "../field";
 import { across, bandOffsets, isWet, lineCells } from "./line";
 
 const RoadSchema = v.object({
-  from: PointSchema,
-  to: PointSchema,
-  tile: v.optional(TileIdSchema, "dirt"),
+  from: field.point(),
+  to: field.point(),
+  tile: v.optional(field.tile(TILES.ground), "dirt"),
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(3)), 1),
-  deck: v.optional(TileIdSchema, "wooden-floor"),
-  rail: v.optional(v.nullable(TileIdSchema), "fence"),
-  clears: v.optional(v.array(TileIdSchema), [
+  deck: v.optional(field.tile(TILES.ground), "wooden-floor"),
+  rail: v.optional(v.nullable(field.tile(TILES.wall)), "fence"),
+  clears: v.optional(field.tiles(TILES.standing), [
     "tree",
     "apple-tree",
     "old-tree",

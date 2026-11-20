@@ -31,7 +31,8 @@ import {
 } from "../../editor/compose/edit";
 import { fieldsOf } from "../../editor/compose/fields";
 import { FrameHandles, PointHandle } from "../../editor/compose/Handles";
-import { Inspector, TILE_LIST_ID } from "../../editor/compose/Inspector";
+import { Inspector, type PickCell } from "../../editor/compose/Inspector";
+import { TileCatalogue } from "../../editor/compose/TilePicker";
 import {
   frameFor,
   pointFor,
@@ -110,6 +111,9 @@ export default function ComposePage() {
   const { doc, commit, preview, settle, undo, redo, canUndo, canRedo } = useDocHistory(demoDoc);
   const [view, setView] = useState(() => viewOf(doc));
   const [jsonOpen, setJsonOpen] = useState(false);
+  const [picking, setPicking] = useState<((cell: { x: number; y: number }) => void) | null>(null);
+  const pickCell: PickCell = (apply) => setPicking(() => apply);
+  const catalogue = useMemo(() => ({ tiles, tilesets }), [tiles, tilesets]);
   const [playOpen, setPlayOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const { show: showToast } = useToast();
@@ -196,6 +200,10 @@ export default function ComposePage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && picking) {
+        setPicking(null);
+        return;
+      }
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable], [role=dialog]")) return;
       if ((e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey) {
@@ -218,233 +226,245 @@ export default function ComposePage() {
   });
 
   return (
-    <AdminShell
-      trailing={
-        <div className="flex items-center gap-1">
-          <Tooltip content="Undo (⌘Z)">
-            <Button
-              size="icon"
-              variant="ghost-inverse"
-              aria-label="Undo"
-              disabled={!canUndo}
-              onClick={undo}
-            >
-              <IconArrowBackUp size={18} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Redo (⌘⇧Z)">
-            <Button
-              size="icon"
-              variant="ghost-inverse"
-              aria-label="Redo"
-              disabled={!canRedo}
-              onClick={redo}
-            >
-              <IconArrowForwardUp size={18} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="The tree as JSON, to copy out or paste in">
-            <Button
-              size="icon"
-              variant="ghost-inverse"
-              aria-label="Edit as JSON"
-              onClick={() => setJsonOpen(true)}
-            >
-              <IconBraces size={18} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-          <Button size="sm" variant="ghost-inverse" onClick={() => commit(demoDoc())}>
-            Start from the demo
-          </Button>
-          <Button size="sm" variant="primary" onClick={() => setPlayOpen(true)}>
-            Play this map
-          </Button>
-        </div>
-      }
-    >
-      <div className="grid h-full min-h-0 grid-cols-[16rem_1fr_25rem]">
-        <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
-          <div className="flex items-center gap-1 border-b-2 border-border px-3 py-1.5">
-            <h2 className="mr-auto text-xs font-bold uppercase tracking-wide">Layers</h2>
-            <Tooltip content="Put the selected layer in a group (⌘G)">
+    <TileCatalogue.Provider value={catalogue}>
+      <AdminShell
+        trailing={
+          <div className="flex items-center gap-1">
+            <Tooltip content="Undo (⌘Z)">
               <Button
                 size="icon"
-                variant="ghost"
-                aria-label="Group layer"
-                disabled={!selected || selected === doc.root.key}
-                onClick={groupSelected}
+                variant="ghost-inverse"
+                aria-label="Undo"
+                disabled={!canUndo}
+                onClick={undo}
               >
-                <IconFolder size={16} aria-hidden="true" />
+                <IconArrowBackUp size={18} aria-hidden="true" />
               </Button>
             </Tooltip>
-            <Tooltip content="Duplicate the selected layer">
+            <Tooltip content="Redo (⌘⇧Z)">
               <Button
                 size="icon"
-                variant="ghost"
-                aria-label="Duplicate layer"
-                disabled={!selected || selected === doc.root.key}
-                onClick={duplicateSelected}
+                variant="ghost-inverse"
+                aria-label="Redo"
+                disabled={!canRedo}
+                onClick={redo}
               >
-                <IconCopy size={16} aria-hidden="true" />
+                <IconArrowForwardUp size={18} aria-hidden="true" />
               </Button>
             </Tooltip>
-            <Tooltip content="Delete the selected layer (Delete)">
+            <Tooltip content="The tree as JSON, to copy out or paste in">
               <Button
                 size="icon"
-                variant="ghost"
-                aria-label="Delete layer"
-                disabled={!selected || selected === doc.root.key}
-                onClick={deleteSelected}
+                variant="ghost-inverse"
+                aria-label="Edit as JSON"
+                onClick={() => setJsonOpen(true)}
               >
-                <IconTrash size={16} aria-hidden="true" />
+                <IconBraces size={18} aria-hidden="true" />
               </Button>
             </Tooltip>
-          </div>
-          <div className="border-b-2 border-border px-3 py-2">
-            <Select
-              ariaLabel="Add a layer"
-              className="w-full"
-              placeholder={`Add inside ${selectedNode?.key ?? doc.root.key}…`}
-              value={null}
-              onValueChange={(type) => type && addNode(type)}
-              options={Object.values(COMPONENTS).map((c) => ({ value: c.type, label: c.label }))}
-            />
-          </div>
-          <ScrollArea className="min-h-0 flex-1 p-2">
-            <LayersPanel
-              root={doc.root}
-              components={COMPONENTS}
-              selected={selected}
-              onSelect={setSelected}
-              expanded={expanded}
-              onExpandedChange={setExpanded}
-              problems={problemKeys}
-              onMove={(key, parent, index) => commit((d) => moveNode(d, key, parent, index))}
-            />
-          </ScrollArea>
-        </aside>
-        <div className="min-h-0">
-          <ComposeCanvas
-            map={built.map}
-            tilesById={tilesById}
-            tilesets={tilesets}
-            view={view}
-            onViewChange={setView}
-            lighting={false}
-            onPick={(cell) => setSelected(pick(built.layout, cell))}
-            overlay={(projection) => (
-              <>
-                <p className="pointer-events-none absolute bottom-2 left-2 bg-ink/80 px-2 py-1 text-xs tabular-nums text-paper">
-                  Built in {stats.ms.toFixed(1)} ms · {stats.rebuilt} of {stats.nodes} layers
-                  {stats.chunks === null ? "" : ` · ${stats.chunks} chunks changed`}
-                </p>
-                {placement && selectedNode ? (
-                  <>
-                    {selectedNode.frame ? (
-                      <FrameHandles
-                        bounds={placement.bounds}
-                        z={placement.z}
-                        projection={projection}
-                        onBounds={(bounds) =>
-                          preview((d) =>
-                            updateNode(d, placement.node.key, (n) => ({
-                              ...n,
-                              frame: frameFor(n.frame!, bounds, placement.parent),
-                            })),
-                          )
-                        }
-                        onEnd={settle}
-                      />
-                    ) : (
-                      <Outline placement={placement} projection={projection} />
-                    )}
-                    {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
-                      <PointHandle
-                        key={name}
-                        label={name}
-                        cell={cell}
-                        z={placement.z}
-                        projection={projection}
-                        onCell={(next) =>
-                          preview((d) =>
-                            updateNode(d, placement.node.key, (n) => ({
-                              ...n,
-                              props: { ...n.props, [name]: pointFor(point, next, frame) },
-                            })),
-                          )
-                        }
-                        onEnd={settle}
-                      />
-                    ))}
-                  </>
-                ) : null}
-              </>
-            )}
-          />
-        </div>
-        <aside className="flex min-h-0 flex-col border-l-2 border-border bg-paper">
-          <ScrollArea className="min-h-0 flex-1">
-            {selectedNode ? (
-              <Inspector
-                doc={doc}
-                node={selectedNode}
-                placement={placement}
-                built={built}
-                isRoot={selectedNode === doc.root}
-                components={COMPONENTS}
-                problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}
-                onChange={commit}
-                onRenamed={setSelected}
-              />
-            ) : (
-              <p className="p-3 text-sm text-muted">Select a layer to edit it.</p>
-            )}
-          </ScrollArea>
-        </aside>
-      </div>
-      <Dialog
-        open={playOpen}
-        onOpenChange={setPlayOpen}
-        title="Play this map"
-        footer={
-          <div className="flex w-full justify-end gap-2">
-            <Button onClick={() => setPlayOpen(false)}>Keep the world's map</Button>
-            <Button variant="danger" disabled={spawns !== 1 || playing} onClick={() => void play()}>
-              Replace the world's map
+            <Button size="sm" variant="ghost-inverse" onClick={() => commit(demoDoc())}>
+              Start from the demo
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => setPlayOpen(true)}>
+              Play this map
             </Button>
           </div>
         }
       >
-        <div className="flex flex-col gap-2 p-4 text-sm">
-          <p>
-            This replaces the map of the world this server runs with the one built here, for
-            everybody on it. Players keep their positions, so anybody standing where the new map has
-            sea is in the sea. The tree itself is not saved on the server.
-          </p>
-          {spawns !== 1 ? (
-            <p className="text-danger">
-              {spawns === 0
-                ? "The map has no spawn. Add a Spawn layer so new players have somewhere to start."
-                : `The map has ${spawns} spawns and a world takes exactly one.`}
-            </p>
-          ) : null}
-          {built.problems.length ? (
-            <p className="text-muted">
-              {built.problems.length === 1
-                ? "1 layer could not be built and is left out."
-                : `${built.problems.length} layers could not be built and are left out.`}
-            </p>
-          ) : null}
+        <div className="grid h-full min-h-0 grid-cols-[16rem_1fr_25rem]">
+          <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
+            <div className="flex items-center gap-1 border-b-2 border-border px-3 py-1.5">
+              <h2 className="mr-auto text-xs font-bold uppercase tracking-wide">Layers</h2>
+              <Tooltip content="Put the selected layer in a group (⌘G)">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Group layer"
+                  disabled={!selected || selected === doc.root.key}
+                  onClick={groupSelected}
+                >
+                  <IconFolder size={16} aria-hidden="true" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Duplicate the selected layer">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Duplicate layer"
+                  disabled={!selected || selected === doc.root.key}
+                  onClick={duplicateSelected}
+                >
+                  <IconCopy size={16} aria-hidden="true" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Delete the selected layer (Delete)">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Delete layer"
+                  disabled={!selected || selected === doc.root.key}
+                  onClick={deleteSelected}
+                >
+                  <IconTrash size={16} aria-hidden="true" />
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="border-b-2 border-border px-3 py-2">
+              <Select
+                ariaLabel="Add a layer"
+                className="w-full"
+                placeholder={`Add inside ${selectedNode?.key ?? doc.root.key}…`}
+                value={null}
+                onValueChange={(type) => type && addNode(type)}
+                options={Object.values(COMPONENTS).map((c) => ({ value: c.type, label: c.label }))}
+              />
+            </div>
+            <ScrollArea className="min-h-0 flex-1 p-2">
+              <LayersPanel
+                root={doc.root}
+                components={COMPONENTS}
+                selected={selected}
+                onSelect={setSelected}
+                expanded={expanded}
+                onExpandedChange={setExpanded}
+                problems={problemKeys}
+                onMove={(key, parent, index) => commit((d) => moveNode(d, key, parent, index))}
+              />
+            </ScrollArea>
+          </aside>
+          <div className="min-h-0">
+            <ComposeCanvas
+              map={built.map}
+              tilesById={tilesById}
+              tilesets={tilesets}
+              view={view}
+              onViewChange={setView}
+              lighting={false}
+              onPick={(cell) => {
+                if (picking) {
+                  picking(cell);
+                  setPicking(null);
+                } else setSelected(pick(built.layout, cell));
+              }}
+              overlay={(projection) => (
+                <>
+                  <p className="pointer-events-none absolute bottom-2 left-2 bg-ink/80 px-2 py-1 text-xs tabular-nums text-paper">
+                    Built in {stats.ms.toFixed(1)} ms · {stats.rebuilt} of {stats.nodes} layers
+                    {stats.chunks === null
+                      ? ""
+                      : ` · ${stats.chunks} ${stats.chunks === 1 ? "chunk" : "chunks"} changed`}
+                  </p>
+                  {picking ? (
+                    <p className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 border-2 border-ink bg-interact px-2 py-1 text-sm text-ink">
+                      Click the map to place it · Esc to cancel
+                    </p>
+                  ) : null}
+                  {placement && selectedNode ? (
+                    <>
+                      {selectedNode.frame ? (
+                        <FrameHandles
+                          bounds={placement.bounds}
+                          z={placement.z}
+                          projection={projection}
+                          onBounds={(bounds) =>
+                            preview((d) =>
+                              updateNode(d, placement.node.key, (n) => ({
+                                ...n,
+                                frame: frameFor(n.frame!, bounds, placement.parent),
+                              })),
+                            )
+                          }
+                          onEnd={settle}
+                        />
+                      ) : (
+                        <Outline placement={placement} projection={projection} />
+                      )}
+                      {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
+                        <PointHandle
+                          key={name}
+                          label={name}
+                          cell={cell}
+                          z={placement.z}
+                          projection={projection}
+                          onCell={(next) =>
+                            preview((d) =>
+                              updateNode(d, placement.node.key, (n) => ({
+                                ...n,
+                                props: { ...n.props, [name]: pointFor(point, next, frame) },
+                              })),
+                            )
+                          }
+                          onEnd={settle}
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                </>
+              )}
+            />
+          </div>
+          <aside className="flex min-h-0 flex-col border-l-2 border-border bg-paper">
+            <ScrollArea className="min-h-0 flex-1">
+              {selectedNode ? (
+                <Inspector
+                  doc={doc}
+                  node={selectedNode}
+                  placement={placement}
+                  built={built}
+                  isRoot={selectedNode === doc.root}
+                  components={COMPONENTS}
+                  problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}
+                  onChange={commit}
+                  onRenamed={setSelected}
+                  pickCell={pickCell}
+                />
+              ) : (
+                <p className="p-3 text-sm text-muted">Select a layer to edit it.</p>
+              )}
+            </ScrollArea>
+          </aside>
         </div>
-      </Dialog>
-      <JsonDialog open={jsonOpen} onOpenChange={setJsonOpen} doc={doc} onApply={commit} />
-      <datalist id={TILE_LIST_ID}>
-        {tiles.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </datalist>
-    </AdminShell>
+        <Dialog
+          open={playOpen}
+          onOpenChange={setPlayOpen}
+          title="Play this map"
+          footer={
+            <div className="flex w-full justify-end gap-2">
+              <Button onClick={() => setPlayOpen(false)}>Keep the world's map</Button>
+              <Button
+                variant="danger"
+                disabled={spawns !== 1 || playing}
+                onClick={() => void play()}
+              >
+                Replace the world's map
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-2 p-4 text-sm">
+            <p>
+              This replaces the map of the world this server runs with the one built here, for
+              everybody on it. Players keep their positions, so anybody standing where the new map
+              has sea is in the sea. The tree itself is not saved on the server.
+            </p>
+            {spawns !== 1 ? (
+              <p className="text-danger">
+                {spawns === 0
+                  ? "The map has no spawn. Add a Spawn layer so new players have somewhere to start."
+                  : `The map has ${spawns} spawns and a world takes exactly one.`}
+              </p>
+            ) : null}
+            {built.problems.length ? (
+              <p className="text-muted">
+                {built.problems.length === 1
+                  ? "1 layer could not be built and is left out."
+                  : `${built.problems.length} layers could not be built and are left out.`}
+              </p>
+            ) : null}
+          </div>
+        </Dialog>
+        <JsonDialog open={jsonOpen} onOpenChange={setJsonOpen} doc={doc} onApply={commit} />
+      </AdminShell>
+    </TileCatalogue.Provider>
   );
 }
