@@ -5,7 +5,7 @@ import { craftRecipeName, type CraftInput, type CraftOutput } from "../lib/inter
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
-import { LABEL_CLASS, PanelButton } from "./PanelButton";
+import { LABEL_CLASS, OPTION_CLASS, PanelButton } from "./PanelButton";
 import { HudWindow } from "./HudWindow";
 import { KeyHint } from "./KeyHint";
 import { Tooltip } from "../ui";
@@ -19,6 +19,13 @@ const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFrac
 
 const NO_RECIPES_TEXT = "No recipes";
 const NO_ROOM_TEXT = "No room";
+
+/**
+ * A recipe is three rows, so the button must not shrink in the scrolling
+ * column: a flex item shrinks below its content by default, and the rows then
+ * run into the next recipe.
+ */
+const RECIPE_CLASS = `${OPTION_CLASS} shrink-0 py-1`;
 
 type Props = {
   crafting: CraftingWindow;
@@ -84,28 +91,30 @@ export function CraftPanel({
         {recipes.map(({ index, recipe, block }, position) => (
           <PanelButton
             key={index}
+            className={RECIPE_CLASS}
             disabled={block != null}
             onPress={() => {
               if (!block) onCraft(index);
             }}
           >
             {hotkeys ? <KeyHint label={numberKeyLabel(position)} /> : null}
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="flex items-center gap-1">
                 <span className={LABEL_CLASS}>{craftRecipeName(crafting.craft, recipe)}</span>
                 {block === "noRoom" ? (
-                  <span className="shrink-0 text-2xs text-paper/70">{NO_ROOM_TEXT}</span>
+                  <span className="ml-auto shrink-0 text-2xs text-paper/70">{NO_ROOM_TEXT}</span>
                 ) : null}
-                <span className="ml-auto flex shrink-0 items-center gap-1">
-                  {recipe.inputs.map((input, i) => (
-                    <RecipeInput
-                      key={i}
-                      input={input}
-                      def={tilesById[input.tileId]}
-                      tilesets={tilesets}
-                    />
-                  ))}
-                </span>
+              </span>
+              <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="sr-only">Costs:</span>
+                {recipe.inputs.map((input, i) => (
+                  <RecipeInput
+                    key={i}
+                    input={input}
+                    def={tilesById[input.tileId]}
+                    tilesets={tilesets}
+                  />
+                ))}
               </span>
               <RecipeOutputs output={recipe.output} tilesById={tilesById} tilesets={tilesets} />
             </span>

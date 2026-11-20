@@ -10960,10 +10960,11 @@ luck.
   tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears
   whenever the crafter is in reach, affordable or not, so a player learns the
   forge exists before they can pay for anything. Pressing it opens `CraftPanel`
-  in the interaction list's place, the way Talk does, listing only the
-  affordable recipes by their authored names with their inputs drawn beside
-  them, or "No recipes available" when there are none. What a
-  recipe gives is deliberately not drawn — the odds are part of the game.
+  in the interaction list's place, the way Talk does. Every recipe is a button
+  of three rows: its authored name, what it costs, and what it may give with
+  the chance of each. One the kit cannot pay for, or has no room for, is
+  dimmed rather than left out. The buttons do not shrink in the scrolling
+  list, so a long list scrolls instead of squeezing the rows into each other.
 - **The window is the client's own.** `GameRenderer.setCrafting` holds a
   reference; `pushCrafting` re-asks `offeredRecipes` whenever the map, the
   viewer's cell or the kit changes identity, and drops the reference when the
