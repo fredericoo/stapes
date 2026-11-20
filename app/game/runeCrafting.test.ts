@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveBattler } from "../lib/battler";
 import { ELEMENTS } from "../lib/element";
 import { resolveCraft, type CraftRecipe } from "../lib/interactions";
 import { resolveStone } from "../lib/item";
@@ -150,5 +151,26 @@ describe("carving at the runemaster", () => {
 
     expect(session.craft(hesperRef(session), boneWithFire, "carver")).toBe(false);
     expect(piles(session.equipmentOf("carver"))).toEqual(kit);
+  });
+});
+
+describe("what a creature drops", () => {
+  const creatures = tiles.flatMap((def) => {
+    const battler = resolveBattler(def);
+    return battler && def.interactions?.respawn ? [{ id: def.id, battler }] : [];
+  });
+  const kitIds = (battler: NonNullable<ReturnType<typeof resolveBattler>>) =>
+    (battler.kit ?? []).flatMap((entry) => [
+      entry.tileId,
+      ...(entry.contents ?? []).map((c) => c.tileId),
+    ]);
+
+  it("is never a rune", () => {
+    for (const { id, battler } of creatures) {
+      expect(
+        kitIds(battler).filter((tileId) => tileId in RUNE_KINDS),
+        id,
+      ).toEqual([]);
+    }
   });
 });

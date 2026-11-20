@@ -100948,11 +100948,6 @@
         ],
         "kit": [
           {
-            "slot": "offhand",
-            "tileId": "rune-cinder",
-            "chance": 1
-          },
-          {
             "slot": "bag",
             "tileId": "basic-bag",
             "chance": 100,
@@ -101567,11 +101562,6 @@
         ],
         "kit": [
           {
-            "slot": "offhand",
-            "tileId": "rune-sleet",
-            "chance": 1
-          },
-          {
             "slot": "bag",
             "tileId": "basic-bag",
             "chance": 100,
@@ -102185,11 +102175,6 @@
           }
         ],
         "kit": [
-          {
-            "slot": "offhand",
-            "tileId": "rune-barbs",
-            "chance": 1
-          },
           {
             "slot": "bag",
             "tileId": "basic-bag",
@@ -137200,10 +137185,6 @@
             "tileId": "leather-backpack",
             "chance": 100,
             "contents": [
-              {
-                "tileId": "rune-frost",
-                "chance": 25
-              },
               {
                 "tileId": "wolf-skin",
                 "chance": 50

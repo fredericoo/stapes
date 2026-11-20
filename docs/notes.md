@@ -1912,6 +1912,9 @@ trip on their own. Each shop's Sell menu is one
 does not undercut Idris's leather prices: five skins sell for ten
 gold, and a leather cap costs those five skins.
 
+**No creature drops a rune**, not even in its kit; `runeCrafting.test.ts`
+checks that over every creature.
+
 **A shopkeeper is a `battler`, and that is load-bearing.** `resolveActor` is
 satisfied by a `dialog` alone, so a body that only talks would be adopted,
 driven and reachable exactly like one that fights. Every shopkeeper is a
