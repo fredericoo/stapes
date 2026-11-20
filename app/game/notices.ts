@@ -227,6 +227,12 @@ export function otherArrivalNotice(name: string, at: Coord): string {
   return `${name} is now at ${cellName(at)}`;
 }
 
+export function invisibleNotice(on: boolean): string {
+  return on
+    ? "You are invisible: nobody sees you and no creature notices you"
+    : "You are visible again";
+}
+
 export function faceNotice(name: string, direction: Direction): string {
   return `${name} turns to face ${DIRECTION_NAMES[direction]}`;
 }

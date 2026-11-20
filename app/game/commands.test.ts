@@ -1597,3 +1597,25 @@ describe("what a command answers", () => {
     expect(session.drainNotices("me")).toEqual(['No tile called "nothing"']);
   });
 });
+
+describe("going invisible", () => {
+  it("hides the author, and `off` shows them again", () => {
+    const session = world();
+    session.runCommand("/invisible", "me");
+    expect(session.hiddenOf("me")).toBe(true);
+    expect(session.drainNotices("me")).toEqual([
+      "You are invisible: nobody sees you and no creature notices you",
+    ]);
+
+    session.runCommand("/invisible off", "me");
+    expect(session.hiddenOf("me")).toBe(false);
+    expect(session.drainNotices("me")).toEqual(["You are visible again"]);
+  });
+
+  it("hands back the grammar for any other word", () => {
+    const session = world();
+    session.runCommand("/invisible maybe", "me");
+    expect(session.hiddenOf("me")).toBe(false);
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.invisible}`]);
+  });
+});

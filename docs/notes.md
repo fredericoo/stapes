@@ -10600,6 +10600,20 @@ that depends on facing can be looked at from each side without walking the
 body there. Only the four cardinals are accepted, because `turnActor` stores a
 `Direction`. A brain that is on turns the body again on its next step, so put
 it `off` with `/brain` first when the facing has to hold.
+### `/invisible` is the menu's Invisible switch, typed
+
+`/invisible` hides the administrator who types it and `/invisible off` shows
+them again, as the switch in the game menu does (see *A hidden administrator
+is a body left out of everybody else's `held`*). It is there so a script
+driving `/admin/play` can go where creatures are without being killed.
+
+- **The session hides the body; the server does the rest.** `runCommand`
+  calls `GameSession.setHidden`, and `GameServer` compares `hiddenOf` before
+  and after the command. On a change it does what the switch does, through the
+  same `noteHiddenChanged`: it saves the flag, sends `left` or `joined`,
+  updates the headcount, and sends `hidden` to the author's sockets so the
+  switch in the menu agrees.
+
 ### `/fire` sends a projectile's flight, and nothing that travels with one
 
 `/fire <projectile> <from> <to>` looses a projectile tile from one end to the

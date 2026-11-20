@@ -1324,14 +1324,20 @@ export class GameServer {
   private setHidden(actorId: string, enabled: boolean) {
     const session = this.session!;
     if (session.hiddenOf(actorId) !== enabled && session.setHidden(enabled, actorId)) {
-      this.ctx.storage
-        .put(this.hiddenKey(actorId), { on: enabled, savedAt: this.now() } satisfies SavedHidden)
-        .catch(GameServer.reportWriteFailure("hidden write"));
-      this.events.push({ kind: enabled ? "left" : "joined", actorId });
-      this.tellAdminsPlayerCount({});
-      this.wake();
+      this.noteHiddenChanged(actorId);
     }
     this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
+  }
+
+  /** What the menu's switch and `/invisible` both do once the session has hidden or shown a body. */
+  private noteHiddenChanged(actorId: string) {
+    const on = this.session!.hiddenOf(actorId);
+    this.ctx.storage
+      .put(this.hiddenKey(actorId), { on, savedAt: this.now() } satisfies SavedHidden)
+      .catch(GameServer.reportWriteFailure("hidden write"));
+    this.events.push({ kind: on ? "left" : "joined", actorId });
+    this.tellAdminsPlayerCount({});
+    this.wake();
   }
 
   private diedAwayKey(actorId: string): string {
@@ -1875,10 +1881,15 @@ export class GameServer {
     } else if (message.type === "attackMode") {
       session.setAttackMode(message.enabled, actorId);
     } else if (message.type === "command") {
+      const wasHidden = session.hiddenOf(actorId);
       const reply = admin
         ? session.runCommand(message.text, actorId)
         : session.refuseCommand(actorId);
       this.commandReplies.push({ ws, requestId: message.requestId, reply });
+      if (session.hiddenOf(actorId) !== wasHidden) {
+        this.noteHiddenChanged(actorId);
+        this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
+      }
     } else {
       this.queueAction(actorId, { kind: "act", message });
     }
