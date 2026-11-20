@@ -183,6 +183,17 @@ export class Builder {
     r.post = { ...at, facing };
   }
 
+  /**
+   * Leaves a building's door open, for a resident whose walk between bed and
+   * work goes through it: a brain's route never opens a door.
+   */
+  openDoor(b: Building) {
+    const stack = this.board.get(b.door.x, b.door.y, b.z);
+    const door = stack?.at(-1);
+    if (door?.tileId !== "door-closed") throw new Error(`${b.label} has no closed door`);
+    door.tileId = "door-open";
+  }
+
   /** A ladder from storey `z` to the floor above it. */
   ladder(x: number, y: number, z: number) {
     this.board.push(x, y, z, tile("ladder-up"));

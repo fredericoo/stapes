@@ -51990,7 +51990,7 @@
       "4,-88": [{"tileId":"grass-2"}],
       "4,-87": [{"tileId":"grass-2"},{"tileId":"dirt"}],
       "4,-86": [{"tileId":"grass-2"},{"tileId":"dirt"}],
-      "4,-85": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"door-closed","direction":"n"}],
+      "4,-85": [{"tileId":"grass-2"},{"tileId":"wooden-floor"},{"tileId":"door-open","direction":"n"}],
       "4,-84": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
       "4,-83": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],
       "4,-82": [{"tileId":"grass-2"},{"tileId":"wooden-floor"}],

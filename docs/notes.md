@@ -1688,7 +1688,8 @@ post by day, walk to a bed at night, and back to the post in the morning.
 
 - **The post is the work cell.** `returns-home` is what brings a body back in
   the morning, so a body placed beside its bed would spend the day there. The
-  exceptions are the three travellers, whose home is their inn guest bed.
+  exceptions are Tobiah Marsh, whose work is the lamp round his brain walks out
+  from home, and the three travellers, whose home is their inn guest bed.
 - **`keeps-hours` walks to the nearest `bed`, not the body's own.** It searches
   rings of Manhattan distance out to 16 cells, only on the levels the body
   sees (`sight`, 0 up and 0 down for most of the cast). It then routes there by
@@ -1696,16 +1697,22 @@ post by day, walk to a bed at night, and back to the post in the morning.
   route fails it sleeps where it stands.
 - **So a body sleeps in its own bed only when that bed is the nearest one from
   its post and a walk reaches it.** That holds for everybody whose post and bed
-  are in one room, and for Jory Thistlewood in the open.
+  are in one room, for Jory Thistlewood in the open, and for Wenna Pascoe,
+  Absalom Grieve and Tobiah Marsh, whose doors the generator leaves open
+  (`Builder.openDoor`) because only the door was in the way.
+- **A door is opened only where nobody else's nearest bed is behind it.** The
+  wardens' house stays shut because it is the nearest bed from Suvi Kallio's
+  garden, and Idris Kaya's awning because it is the nearest from the cookfire.
+  The north gatehouse stays shut for a different reason: Edda Kell has no
+  `returns-home`, so a body put to bed indoors never goes back to the gate.
 - **Everybody else sleeps at their post**, which is the same outcome as before
   the island had beds. That is Tove Arnesdatter, Ifeoma Nwachukwu, Suvi Kallio
   and Gideon Okafor, whose nearest bed is a neighbour's behind a closed door,
-  and Wenna Pascoe, Absalom Grieve and Edda Kell, whose own bed is behind
-  theirs. It
+  and Edda Kell, whose own bed is behind hers. It
   is Amaru Quispe, Brannoc Hale, Casimir Wren and Fen Achterberg, who sleep
   upstairs (a ladder, and a level they do not see). And it is Hesper Vaun,
-  Dagny Rook, Taavi Kask, Nadia Ferreira, Sigrun Halde and Tobiah Marsh, whose
-  beds are further than 16 cells from their posts. Kofi Asante and Rodrigo Vela
+  Dagny Rook, Taavi Kask, Nadia Ferreira and Sigrun Halde, whose beds are
+  further than 16 cells from their posts. Kofi Asante and Rodrigo Vela
   sleep beside Margit Oslund's bed, the nearest one on the inn's ground floor.
 - **The written routines are kept.** Iolanthe Sarno's walk to bed looks for
   `stone-stairs` and the council house has a ladder, so she stays at her post

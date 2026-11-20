@@ -3,8 +3,12 @@ import type { Builder, Building, Resident } from "./build";
 
 type Cell = { x: number; y: number; z: number };
 
-/** Who stands beside their bed rather than at their work cell: the travellers have no work cell. */
-const BY_THE_BED = new Set(["hamid-sarraf", "anselm-quaye", "yeva-kostenko"]);
+/**
+ * Who stands beside their bed rather than at their work cell. The
+ * lamplighter's work is the round his brain walks from home, and the
+ * travellers have no work cell.
+ */
+const BY_THE_BED = new Set(["tobiah-marsh", "hamid-sarraf", "anselm-quaye", "yeva-kostenko"]);
 
 /** Which way somebody at an outdoor post looks; indoors they face the door. */
 const LOOKS: Record<string, Direction> = {
