@@ -409,6 +409,15 @@ import {
   unsafeToStepOn,
   wadesIn,
 } from "./pathfinding";
+import {
+  BRAIN_PLAN_DETOUR_SLACK,
+  BRAIN_PLAN_MAX_NODES,
+  BRAIN_PLAN_MEMORY_MS,
+  cellGoal,
+  opensToIntangible,
+  planRoute,
+  type NavLeg,
+} from "./navigation";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog, type SwitchTo } from "../lib/dialog";
 import { dialogPlainText, pixelFontText } from "../lib/dialogText";
@@ -801,6 +810,16 @@ type BlowInFlight = {
   land: () => void;
 };
 
+type PlannedRoute = {
+  to: string;
+  arrive: "beside" | "on";
+  start: Coord;
+  legs: readonly NavLeg[];
+  next: number;
+};
+
+type DoorBehind = { door: Coord; openedTileId: string };
+
 type RouteAsked = {
   from: string;
   to: string;
@@ -869,6 +888,18 @@ type ActorRuntime = {
     maxNodes: number;
   } | null;
   failedRoute: (RouteAsked & { atMs: number }) | null;
+  /**
+   * A route through doors and up ladders, planned when a walk alone could
+   * not reach the goal; it outlives `walkOrder`, which a brain replaces on
+   * every call while it walks.
+   */
+  plan: PlannedRoute | null;
+  failedPlan: { key: string; atMs: number } | null;
+  /**
+   * A door this body opened on a planned route and shuts once it has left the
+   * doorway, kept apart from the plan so a walk cut short still shuts it.
+   */
+  doorBehind: DoorBehind | null;
   attackOrder: string | null;
   refuge: Coord | null;
   shelter: {
@@ -1214,6 +1245,9 @@ export class GameSession implements PlaySession {
       brainDeferredMs: 0,
       walkOrder: null,
       failedRoute: null,
+      plan: null,
+      failedPlan: null,
+      doorBehind: null,
       attackOrder: null,
       refuge: null,
       shelter: null,
@@ -4600,6 +4634,152 @@ export class GameSession implements PlaySession {
     );
   }
 
+  /**
+   * Plans a route to a cell with every leg a player has: doors opened by
+   * hand, ladders and portals used. Only asked once `findPath`, which walks,
+   * has failed, so the larger search is paid for the routes that need it.
+   */
+  private planAround(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    at: Coord,
+    order: { allowDrops: boolean | undefined; arrive: "beside" | "on" },
+  ): boolean {
+    const key = `${walkKey(at)}>${order.arrive}`;
+    const failed = actor.failedPlan;
+    if (failed?.key === key && !reached(this.elapsedMs - failed.atMs, BRAIN_PLAN_MEMORY_MS))
+      return false;
+    const occupied =
+      order.arrive === "on" &&
+      getStack(this.map, at.x, at.y, at.z).some(
+        (placed) => placed.owner && placed.owner !== actor.id,
+      );
+    if (occupied) {
+      actor.failedPlan = { key, atMs: this.elapsedMs };
+      return false;
+    }
+    const def = this.defFor(actor);
+    const board = removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex);
+    const from = { x: loc.x, y: loc.y, z: loc.z };
+    const outcome = planRoute(
+      {
+        board,
+        traveller: def,
+        tilesById: this.tilesById,
+        statusDefs: this.statusDefs,
+        who: actor.id,
+      },
+      from,
+      cellGoal(at, order.arrive),
+      BRAIN_PLAN_MAX_NODES,
+      BRAIN_PLAN_DETOUR_SLACK,
+    );
+    const keepsDry = !def.swims && !wadesIn(board, from, this.tilesById);
+    const usable =
+      outcome.ok &&
+      outcome.legs.length > 0 &&
+      outcome.legs.every(
+        (leg) =>
+          (leg.kind === "use" || !leg.drop || order.allowDrops === true) &&
+          !(keepsDry && wadesIn(board, leg.to, this.tilesById)),
+      );
+    if (!usable) {
+      actor.failedPlan = { key, atMs: this.elapsedMs };
+      return false;
+    }
+    actor.failedPlan = null;
+    actor.plan = {
+      to: walkKey(at),
+      arrive: order.arrive,
+      start: from,
+      legs: outcome.legs,
+      next: 0,
+    };
+    return true;
+  }
+
+  /**
+   * Takes the next leg of the planned route, as the bots' `Pilot` does: a
+   * door is pressed before the step through it, and noted in `doorBehind`
+   * to be shut once the body has left the doorway. Null when there is no plan for this goal or the
+   * body has left it, so the caller routes afresh.
+   */
+  private followPlan(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    at: Coord,
+    arrive: "beside" | "on",
+  ): WalkOrderState | null {
+    const plan = actor.plan;
+    if (!plan) return null;
+    if (plan.to !== walkKey(at) || plan.arrive !== arrive) {
+      actor.plan = null;
+      return null;
+    }
+    const here = { x: loc.x, y: loc.y, z: loc.z };
+    while (plan.next < plan.legs.length && sameCoord(here, plan.legs[plan.next]!.to)) plan.next++;
+    if (plan.next >= plan.legs.length) {
+      actor.plan = null;
+      return "arrived";
+    }
+    const from = plan.next === 0 ? plan.start : plan.legs[plan.next - 1]!.to;
+    if (!sameCoord(here, from)) {
+      actor.plan = null;
+      return null;
+    }
+    const leg = plan.legs[plan.next]!;
+    if (leg.kind === "use") {
+      if (this.activateTeleport(this.refreshRef(leg.ref, null), actor.id)) return "walking";
+      actor.plan = null;
+      return null;
+    }
+    let doorway: DoorBehind | null = null;
+    if (leg.opens) {
+      const door = this.refreshRef(leg.opens, (placed) => {
+        const def = this.tilesById[placed.tileId];
+        return def && resolveSwitch(def);
+      });
+      const shut = getStack(this.map, door.x, door.y, door.z)[door.stackIndex];
+      if (shut && opensToIntangible(shut, this.tilesById)) {
+        if (this.activateSwitch(door, actor.id)) return "walking";
+        actor.plan = null;
+        return null;
+      }
+      if (shut)
+        doorway = { door: { x: leg.to.x, y: leg.to.y, z: leg.to.z }, openedTileId: shut.tileId };
+    }
+    if (!this.applyStepRequest(actor, { directions: [leg.direction], flyToLevel: leg.to.z })) {
+      actor.plan = null;
+      return null;
+    }
+    actor.doorBehind = doorway ?? actor.doorBehind;
+    return "walking";
+  }
+
+  /**
+   * The stack index a planned leg named can have moved since, as bodies came
+   * and went in that cell, so the thing is found again by what it is.
+   */
+  private refreshRef(ref: ObjectRef, is: ((placed: PlacedTile) => unknown) | null): ObjectRef {
+    if (!is) return ref;
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    if (stack[ref.stackIndex] && is(stack[ref.stackIndex]!)) return ref;
+    const found = stack.findIndex((placed) => is(placed));
+    return found < 0 ? ref : { ...ref, stackIndex: found };
+  }
+
+  private closeDoorBehind(actor: ActorRuntime, behind: DoorBehind) {
+    const { door, openedTileId } = behind;
+    for (const z of [door.z, door.z + 1]) {
+      const stack = getStack(this.map, door.x, door.y, z);
+      const stackIndex = stack.findIndex((placed) => placed.tileId === openedTileId);
+      if (stackIndex >= 0) {
+        this.activateSwitch({ x: door.x, y: door.y, z, stackIndex }, actor.id);
+        return;
+      }
+    }
+  }
+
   private routeStep(
     actor: ActorRuntime,
     loc: ActorLocation,
@@ -4725,12 +4905,25 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
+    const behind = actor.doorBehind;
+    if (behind && !sameCoord(loc, behind.door)) {
+      this.closeDoorBehind(actor, behind);
+      actor.doorBehind = null;
+    }
+    if (order.goal.of === "cell") {
+      const planned = this.followPlan(actor, loc, at, order.arrive);
+      if (planned) return planned;
+    }
     const step = this.routeStep(actor, loc, at, {
       allowDrops: order.allowDrops,
       arrive: order.arrive,
       aroundBody: order.goal.of === "body",
       maxNodes: order.maxNodes,
     });
+    if (step === null && order.goal.of === "cell" && this.planAround(actor, loc, at, order)) {
+      const planned = this.followPlan(actor, loc, at, order.arrive);
+      if (planned) return planned;
+    }
     if (step === null || step === "arrived") {
       actor.walkOrder = null;
       return step === "arrived" ? "arrived" : "blocked";
@@ -7166,4 +7359,8 @@ function giveSlot(def: TileDef, square: GiveCommand["square"]): GiveSlot {
 
 function slotsAfterInsert(slots: readonly number[], at: number): number[] {
   return [...slots.map((slot) => (slot >= at ? slot + 1 : slot)), at];
+}
+
+function sameCoord(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
 }

@@ -3732,6 +3732,46 @@ searched for twice. The slimes ask it only on the round they are hit, which
 is the case it was written for: something shooting them from where they
 cannot follow.
 
+## A brain walk falls back to `planRoute`
+
+A creature's walk to a cell is `findPath`: it only walks, searches 512 nodes
+and gives up on a route more than 16 steps longer than the plan distance. That
+keeps a round of creature turns cheap, and it is enough for most walks. When
+it fails, `GameSession.planAround` asks `planRoute` (`app/game/navigation.ts`),
+the search the bots use, which also opens doors and uses ladders and portals.
+
+- **Only walks to a cell plan this way**: home, a spot, a thing, shelter. A
+  chase does not, because its goal moves every step.
+- **The plan is kept on the actor (`plan`), not on `walkOrder`.** A brain calls
+  `walkTo` every round, and each call replaces the walk order. The plan stays
+  while the goal is the same, and is dropped when the body is not where the
+  next leg starts from, so a shove or a blow sends it back to `findPath`.
+- **Each leg is taken as the bots' `Pilot` takes it.** A door is pressed with
+  `activateSwitch`, then stepped through, and shut again once the body has
+  left the doorway. A ladder is pressed with `activateTeleport`. The door to
+  shut is kept on the actor (`doorBehind`), not on the plan, so a walk cut
+  short still shuts it on the body's next step. A body far from every player
+  takes a turn only now and then, and can be in bed before that step comes;
+  its door then stays open until it walks again.
+- **The budget is 4,096 nodes and 48 steps of detour** (`BRAIN_PLAN_MAX_NODES`,
+  `BRAIN_PLAN_DETOUR_SLACK`). The detour limit is what makes a goal nobody can
+  reach cheap: without it Margit Oslund, pottering beside a post somebody
+  stood on, spent the whole budget, about 100ms, every few seconds. A goal
+  cell another body stands on is not planned for at all, and a goal that
+  failed is not asked again for 5 seconds (`BRAIN_PLAN_MEMORY_MS`), wherever
+  the body has moved since. A plan that drops, for a body that may not drop,
+  or wades, for one that keeps dry, is refused.
+- **What it costs, measured on the generated island** with a player in each
+  town, over seven simulated minutes around bedtime and morning: 66 plans, 7ms
+  on average. The longest were Tobiah Marsh's walks home along the streets
+  from his last lamp, 50 to 70 steps, at up to about 50ms, which is longer
+  than a 33ms tick. A budget of 1,024 nodes did not bring the worst case down
+  and left him short of his lamps, so it stays at 4,096.
+- **The legs out of a doorway are planned with the door open.** On the board as
+  stored the door is shut, so a body in the doorway was read as standing on
+  top of it. Under a storey, as at every house door, that left no way out of
+  the doorway, so no route could enter a house.
+
 ## Clicking walks you there, following walks you after them, and neither travels
 
 `app/game/walkTo.ts` holds an errand — a cell, or a body — and hands the step
