@@ -15841,9 +15841,49 @@ component is handed the map and must not keep it: `planHouse` builds a
 provisional copy of its own, which is fine because it is discarded.
 
 What a tree does not do yet: a road stays on its own level and does not climb
-(Rune Isle's ramps are `planIsland`'s), a road goes round nothing and leaves a
-cell where anything but the plants in `clears` stands, and there is no editor
-for it. The demo builds 96×72 cells in about 150ms.
+(Rune Isle's ramps are `planIsland`'s), and a road goes round nothing and
+leaves a cell where anything but the plants in `clears` stands. The demo
+builds 96×72 cells in about 150ms, which is fast enough to rebuild on every
+drag step.
+
+### `/admin/compose` edits a tree and rebuilds it in the tab
+
+Three panes: the layers on the left, the built map in the middle, and the
+selected node's form on the right. The tree lives in the browser
+(`localStorage`, under `stapes:compose:v1`) and nowhere else; the JSON button
+copies it out or pastes one in.
+
+- **The map is drawn by `WorldRenderer`, not the map editor's
+  `EditorRenderer`.** `EditorRenderer` reads the tile editor's zustand store
+  directly, and this page has its own state. `ComposeCanvas` keeps a DOM layer
+  over the canvas for outlines and handles, and converts between cells and
+  screen pixels through `baseCellWorldOrigin`, so a box on level 1 is drawn
+  with that level's oblique shift.
+- **The form is the component's schema.** `fieldsOf` reads a valibot schema at
+  runtime — its `type`, the `min_value`/`max_value`/`integer` actions in its
+  pipe, and the `field` its `v.metadata` names — and picks a widget for each
+  prop. A component with a prop the reader does not know gets "Edit this in
+  the JSON" for it rather than a broken form.
+- **A dragged box is written back through `frameFor`**, the inverse of the pin
+  arithmetic, so it keeps its pins and only its offsets change; `pointFor` does
+  the same for a point. `layout.test.ts` round-trips every pair of pins,
+  because an off-by-one there nudges a frame on every drag.
+- **A drag is one undo step.** Every cell it crosses is a `preview` and its
+  release a `settle`; `useDocHistory` files the tree from before the first
+  preview as the step.
+- **The layers are the UI SDK's `Tree` (`@ui-sdk/react`, pinned at a beta)
+  with `@dnd-kit/react` for dragging, because the Tree has no drag and drop.**
+  The drop row is found with `elementsFromPoint` at dnd-kit's
+  `operation.position`, not from dnd-kit's collision, which measures the
+  dragged row's whole shape and named a neighbour of the row under the
+  pointer. The window does not see `pointermove` during a dnd-kit drag, so the
+  position has to come from the operation. The drag shows a `DragOverlay`:
+  without one dnd-kit lifts the row itself out of the list, and React's
+  re-render after the drop left a copy of it behind.
+- **"Play this map" is `POST /api/map`**, the map editor's Save, so it
+  replaces the running world's map for everyone on it and, under `bun dev`,
+  writes `data/map.json` on disk. It refuses a map without exactly one spawn,
+  because `requireSinglePlayer` would refuse to load it.
 
 ## A cave is rock you take away from
 
