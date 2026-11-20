@@ -24,9 +24,9 @@ const KIND: Record<number, Kind> = {
 
 const BASE: Record<Kind, string> = {
   grass: "grass-2",
-  sand: "sand-dunes",
+  sand: "sand",
   snow: "snow",
-  basalt: "sand-dunes",
+  basalt: "sand",
 };
 const WALL: Record<Kind, string> = {
   grass: "hill-wall",
@@ -56,9 +56,9 @@ const RAMP: Record<Kind, { slope: string; block: string }> = {
  */
 const UNDER_WALL: Record<Kind, string[]> = {
   grass: ["grass-2"],
-  sand: ["sand-dunes"],
+  sand: ["sand"],
   snow: ["snow"],
-  basalt: ["sand-dunes", "basalt"],
+  basalt: ["sand", "basalt"],
 };
 
 const KINDS: readonly Kind[] = ["grass", "sand", "snow", "basalt"];
@@ -246,14 +246,14 @@ export function writeTerrain(island: Island, plan: Plan): Board {
           : [tile(ground0), tile("mud")];
         break;
       case Ground.Lava:
-        top = [tile("sand-dunes"), tile("basalt"), tile("lava-crust"), tile("lava")];
+        top = [tile("sand"), tile("basalt"), tile("lava-crust"), tile("lava")];
         break;
       case Ground.Basalt:
         top = edge
           ? [tile(ground0)]
           : lavaNear[i]
-            ? [tile("sand-dunes"), tile("basalt"), tile("lava-crust")]
-            : [tile("sand-dunes"), tile("basalt")];
+            ? [tile("sand"), tile("basalt"), tile("lava-crust")]
+            : [tile("sand"), tile("basalt")];
         break;
       default:
         top = [tile(ground0)];
@@ -431,7 +431,7 @@ export function plainGround(island: Island, i: number): PlacedTile[] {
     case Ground.Bog:
       return [base, tile("mud")];
     case Ground.Basalt:
-      return [tile("sand-dunes"), tile("basalt")];
+      return [tile("sand"), tile("basalt")];
     default:
       return [base];
   }
@@ -514,7 +514,7 @@ function besideOtherGround(island: Island, board: Board, i: number): boolean {
   return other;
 }
 
-const FULL_GROUNDS = new Set(["grass-2", "snow", "sand-dunes"]);
+const FULL_GROUNDS = new Set(["grass-2", "snow", "sand"]);
 
 /** A river's bank stops this far from a shore, so a river's mouth opens onto the beach as a lake's edge does. */
 const SHORE_CLEAR_CELLS = 2;
@@ -714,8 +714,8 @@ function seaStack(island: Island, i: number): PlacedTile[] {
     if (g === Ground.Beach || g === Ground.Desert) besideSand = true;
   });
   return besideSand
-    ? [tile("sand-dunes"), tile("water"), tile("shore-foam")]
-    : [tile("sand-dunes"), tile("water")];
+    ? [tile("sand"), tile("water"), tile("shore-foam")]
+    : [tile("sand"), tile("water")];
 }
 
 /** Open water in the bog lies in pools a few cells across, between banks of mud. */

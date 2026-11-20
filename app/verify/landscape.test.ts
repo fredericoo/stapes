@@ -8,14 +8,15 @@ import { SNOW_LEVEL, checkLandscape, type LandscapeProblemKind } from "./landsca
 const tilesById = tilesByIdFromList(shippedTiles());
 
 const t = (tileId: string): PlacedTile => ({ tileId });
-const GRASS = [t("grass-2")];
-const SAND = [t("sand-dunes")];
+const GRASS = [t("sand"), t("grass")];
+const SAND = [t("sand")];
 const SNOW = [t("snow")];
-const GRASS_RIVER = [t("grass-2"), t("dirt"), t("water")];
-const GRASS_BANK = [t("grass-2"), t("dirt")];
-const MUD = [t("grass-2"), t("mud")];
+/** Grass stops short of a river: its bed and its banks are the bare ground under the grass. */
+const GRASS_RIVER = [t("sand"), t("water")];
+const GRASS_BANK = [t("sand")];
+const MUD = [t("sand"), t("grass"), t("mud")];
 const SNOW_RIVER = [t("snow"), t("water")];
-const SEA = [t("sand-dunes"), t("water")];
+const SEA = [t("sand"), t("water")];
 
 const FIELD_CELLS = 30;
 /** Wide enough for one window of the crowding rule to see a whole desert. */
@@ -57,16 +58,16 @@ const stepped = (y: number) => (y < FIELD_CELLS / 2 ? RIVER_X : RIVER_X + 1);
 
 describe("checkLandscape", () => {
   it.each<[string, MapFile, LandscapeProblemKind[]]>([
-    ["a river on grass with a dirt bed and dirt banks", meadowRiver(straight), []],
+    ["a river on grass with a bare bed and bare banks", meadowRiver(straight), []],
     ["a river on grass with mud banks", meadowRiver(straight, { bank: MUD }), ["water-mud"]],
     ["a river that steps sideways only at a corner", meadowRiver(stepped), ["river-corner"]],
     [
-      "a river on grass with no dirt under the water",
-      meadowRiver(straight, { river: [t("grass-2"), t("water")] }),
+      "a river on grass laid over the grass",
+      meadowRiver(straight, { river: [t("sand"), t("grass"), t("water")] }),
       ["river-bed"],
     ],
     [
-      "a river on grass with bare grass banks",
+      "a river on grass with grass up to the water",
       meadowRiver(straight, { bank: GRASS }),
       ["river-bank"],
     ],
@@ -76,8 +77,8 @@ describe("checkLandscape", () => {
       [],
     ],
     [
-      "a river laid on grass through a snowfield",
-      meadowRiver(straight, { bank: SNOW, land: SNOW }),
+      "a river laid on snow through a meadow",
+      meadowRiver(straight, { river: SNOW_RIVER, bank: GRASS_BANK }),
       ["river-ground"],
     ],
   ])("%s", (_, map, expected) => {
@@ -121,6 +122,12 @@ describe("checkLandscape", () => {
       field(FIELD_CELLS, (x) => (x < SEA_CELLS ? SEA : x === SEA_CELLS ? bank : GRASS));
     expect(kindsOf(coast(GRASS))).toEqual([]);
     expect(kindsOf(coast(MUD))).toEqual(["water-mud"]);
+  });
+
+  it("reads a path through a meadow as the meadow's, not as a strip of sand", () => {
+    const PATH_X = 15;
+    const map = field(FIELD_CELLS, (x) => (x === PATH_X ? SAND : GRASS));
+    expect(kindsOf(map)).toEqual([]);
   });
 
   it.each<[string, PlacedTile[], number, LandscapeProblemKind[]]>([

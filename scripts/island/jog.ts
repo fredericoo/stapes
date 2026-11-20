@@ -4,7 +4,7 @@ import { KIND_OF_BASE, checkLandscape, type Kind } from "../../app/verify/landsc
 import { tile, type Board } from "./board";
 import type { Island } from "./terrain";
 
-const FULL: Record<Kind, string> = { grass: "grass-2", snow: "snow", sand: "sand-dunes" };
+const FULL: Record<Kind, string> = { grass: "grass-2", snow: "snow", sand: "sand" };
 /** How many cells of the line's middle are pushed across it: two, so the jog reads as a step in the border and not a speck. */
 const JOG_CELLS = 2;
 

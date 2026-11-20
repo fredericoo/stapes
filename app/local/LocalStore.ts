@@ -1,5 +1,8 @@
-import { renameTileIdsInJson } from "../lib/tileRenames";
+import { TILE_ID_RENAMES, renameTileIdsInJson } from "../lib/tileRenames";
 import { type CheckpointBatch, type Checkpoints, memoryCheckpoints } from "./checkpoints";
+
+/** How many of `TILE_ID_RENAMES` this world has applied, stored beside its values. */
+const RENAMES_APPLIED_KEY = "meta:tileRenamesApplied";
 
 export class LocalStore {
   private readonly values = new Map<string, string>();
@@ -22,13 +25,19 @@ export class LocalStore {
     /**
      * A tab's world outlives a deploy, so ids renamed since it was stored are
      * rewritten here, as `server/db.ts` does for a server's on open, and the
-     * next checkpoint keeps the rewrite.
+     * next checkpoint keeps the rewrite. An empty world has nothing to
+     * rename, and a world stored before the count was kept has applied none.
      */
+    const counted = stored.values.get(RENAMES_APPLIED_KEY);
+    const applied =
+      stored.values.size === 0 ? TILE_ID_RENAMES.length : counted ? Number(JSON.parse(counted)) : 0;
     for (const [key, value] of stored.values) {
-      const renamed = renameTileIdsInJson(value);
+      const renamed = renameTileIdsInJson(value, applied);
       this.values.set(key, renamed);
       if (renamed !== value) this.written.add(key);
     }
+    if (applied !== TILE_ID_RENAMES.length || counted === undefined)
+      this.write(RENAMES_APPLIED_KEY, TILE_ID_RENAMES.length);
     this.alarmAtMs = stored.alarmAtMs;
   }
 

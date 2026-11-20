@@ -2979,7 +2979,11 @@ behind it.
   them still wins the depth test by its stack bias.
 - **Two translucent sprites do not sort against each other.** Neither writes
   depth, so where two overlap the one drawn second is on top, whichever is in
-  front. Everything opaque is drawn before them and sorts correctly.
+  front. Everything opaque is drawn before them and sorts correctly. A
+  translucent mesh of its own, such as a wisp, draws at
+  `TRANSLUCENT_SEPARATE_RENDER_ORDER`, after the merged batches, because those
+  are flat ground (`grass`) and liquids that anything with a mesh of its own
+  stands over.
 
 ### A `reflective` tile shows what stands beside it, blended over the water
 
@@ -18426,7 +18430,7 @@ ordinary authored content: nothing in the game knows a hill from a platform
 somebody stacked by hand.
 
 **What is raised.** Only open country: a level-0 stack of `grass-2`,
-`sand-dunes` or `snow` with nothing on it but trees, bushes, flowers and grass, with
+`sand` or `snow` with nothing on it but trees, bushes, flowers and grass, with
 nothing on any level above it, outside the town's rectangle and its margin.
 Everything else is a blocker — paths, water, swamp, buildings, creatures, the
 sand dunes with a footprint, the cave mouth — and ground within `margin` cells
@@ -18912,20 +18916,31 @@ walks out from the cell past each end of the deck, on its own level, to the
 nearest road, and lays road along that walk. Where no road is within 16
 cells, the cell past the deck is road on its own.
 
-Grass is drawn over the ground it gives way to. `edgeGrass`
-(`scripts/island/grassEdge.ts`) runs after the ground loop and gives every
-grass cell beside sand or snow on its own level that ground as its base,
-under a `grass-edge-sand-N` or `grass-edge-snow-N` autotile. The
-autotile is the grass with a ragged edge and a shadow cast south and east
-in that ground's darker shade. Only border cells change, so a meadow is
-still one quad a cell. An autotile draws one sprite per slice, so each
-ground has six tiles with different edges (`generate:grass-edge`), and
-the cell's position picks one. The check reads a cell under a grass edge as
-grass. A cell beside a floor or a road on grass that does not connect to
-sand keeps plain grass, or the grass under that floor would show as a line.
-The shadow is opaque, one tile set per ground: a translucent shadow
-could serve both, but a translucent sheet is drawn after the level and would
-cover what stands on the cell.
+Grass is a layer over the ground, not a ground. The generator works with
+`grass-2` and `dirt` laid on it until the last step; `layGrass`
+(`scripts/island/grass.ts`) then turns every `grass-2` into the ground under
+it (sand, or snow where the grass meets snow) with the `grass` autotile on
+top, and every cell with dirt on its grass into that ground bare. A path,
+a yard or a river's bank is where the grass is not. A tunnel floor keeps
+its dirt. Lakes and the sea keep their grass to the water's edge; only a
+river's banks are bare.
+
+`grass` is one translucent autotile for every ground. Its shadow is black
+at 35% alpha, and the palette pass snaps the blend to the ground's darker
+shade, so one sheet serves sand and snow. A translucent sheet is drawn
+after the level with no depth write; the merged batch draws at
+`TRANSLUCENT_RENDER_ORDER`, before translucent meshes of their own
+(`TRANSLUCENT_SEPARATE_RENDER_ORDER`), so grass does not cover a wisp
+standing on it. An autotile draws one sprite per slice, so the sheet has
+six columns of edges and `sliceColumns: 6` lets the renderer pick a column
+per cell by position (`spriteInColumn`). It connects to `grass-2`, the
+brinks and ledges, and the foot of every hill wall, so it does not fray
+against a cliff.
+
+`verify landscape` reads a cell with `grass` in its stack as grass. Bare
+sand is a path or a desert, and the check tells them apart by shape: sand
+in, or within two cells of, a 5×5 block is desert; any other piece of bare
+sand takes the kind of the land around it and counts as covered.
 
 A cell shut in by cliff on three sides with a waterfall on the fourth
 cannot be left, since a fall is not walked through, so `raiseFallPockets`

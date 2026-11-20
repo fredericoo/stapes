@@ -32,7 +32,7 @@ const BRINKS: Brink[] = [
   {
     id: "sand-brink",
     name: "Sand brink",
-    ground: "sand-dunes",
+    ground: "sand",
     rim: hex("#cd683d"),
     lip: hex("#e6904e"),
   },

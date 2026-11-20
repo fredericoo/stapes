@@ -193,28 +193,28 @@ const STYLES = (() => {
     },
     grotto: {
       wall: "cave-wall-sloped-grey",
-      ground: "sand-dunes",
-      floor: (x, y) => (flood(x, y) ? [tile("water")] : sand(x, y) ? [tile("sand-dunes")] : []),
+      ground: "sand",
+      floor: (x, y) => (flood(x, y) ? [tile("water")] : sand(x, y) ? [tile("sand")] : []),
       props: [["stalagmite-grey", 60]],
     },
     sandstone: {
       wall: "hill-wall-sandstone",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) => [
-        ...(sand(x, y) ? [tile("sand-dunes")] : []),
+        ...(sand(x, y) ? [tile("sand")] : []),
         ...(bones(x, y) ? [tile("bleached-bones")] : []),
       ],
       props: [["stalagmite", 40]],
     },
     basalt: {
       wall: "hill-wall-basalt",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) => (crust(x, y) ? [tile("basalt"), tile("lava-crust")] : [tile("basalt")]),
       props: [["rock-pillar", 70]],
     },
     lava: {
       wall: "hill-wall-basalt",
-      ground: "sand-dunes",
+      ground: "sand",
       floor: (x, y) =>
         lavaPool(x, y)
           ? [tile("basalt"), tile("lava-crust"), tile("lava")]

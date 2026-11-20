@@ -311,8 +311,8 @@ function cellSprite(rect: { x: number; y: number; w: number; h: number }): TileS
 
 function tiles(): TileDef[] {
   const sand: TileDef = {
-    id: "sand-dunes",
-    name: "Sand dunes",
+    id: "sand",
+    name: "Sand",
     height: 0,
     type: "scatter",
     kind: "prop",
@@ -386,7 +386,7 @@ async function writePreview(dir: string, sheet: PNG, sand: TileDef) {
     }
   }
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, "sand-dunes.png"), PNG.sync.write(out));
+  await fs.writeFile(path.join(dir, "sand.png"), PNG.sync.write(out));
 }
 
 async function main() {

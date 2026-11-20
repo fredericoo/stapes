@@ -409,10 +409,9 @@ export function buildWreck(b: Builder) {
       .get(x, y, z)
       ?.map((p) => p.tileId)
       .join(",");
-  const sand = (x: number, y: number) =>
-    top(x, y) === "sand-dunes" && !b.plan.road[y * island.width + x];
+  const sand = (x: number, y: number) => top(x, y) === "sand" && !b.plan.road[y * island.width + x];
   const surf = (x: number, y: number) =>
-    top(x, y)?.startsWith("sand-dunes,water") === true && !top(x, y)!.includes("deep");
+    top(x, y)?.startsWith("sand,water") === true && !top(x, y)!.includes("deep");
   const taken = new Set<string>();
   const place = (
     tileId: string,

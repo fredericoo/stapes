@@ -4,7 +4,7 @@
   "look": [8, 7],
   "cells": [
     { "from": [-10, -8], "to": [26, 20], "tiles": ["beach-sand"] },
-    { "from": [-10, -8], "to": [26, -2], "tiles": ["sand-dunes"] },
+    { "from": [-10, -8], "to": [26, -2], "tiles": ["sand"] },
     { "from": [-10, 10], "to": [26, 20], "tiles": ["beach-sand", "water"] },
     { "from": [-10, 10], "to": [26, 10], "tiles": ["beach-sand", "water", "shore-foam"] },
     { "from": [-10, 15], "to": [26, 20], "tiles": ["beach-sand", "water", "deep-water"] },

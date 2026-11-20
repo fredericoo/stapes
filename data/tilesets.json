@@ -341,10 +341,11 @@
     "height": 448
   },
   {
-    "id": "grass-edge",
-    "name": "Grass edge",
-    "file": "grass-edge.png",
-    "width": 96,
-    "height": 376
+    "id": "grass",
+    "name": "Grass",
+    "file": "grass.png",
+    "width": 48,
+    "height": 376,
+    "translucent": true
   }
 ]

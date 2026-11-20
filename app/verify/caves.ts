@@ -66,7 +66,7 @@ const isRock = (stack: readonly PlacedTile[]) => stack.some((t) => ROCK_TILES.ha
 const GROUND_TILES = new Set([
   "grass-2",
   "snow",
-  "sand-dunes",
+  "sand",
   "grass-brink",
   "snow-brink",
   "sand-brink",

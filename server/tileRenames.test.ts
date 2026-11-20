@@ -2,11 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  TILE_ID_PREFIX_RENAMES,
-  renameTileIdsInJson,
-  renameTileIdsSql,
-} from "../app/lib/tileRenames";
+import { TILE_ID_RENAMES, renameTileIdsInJson, renameTileIdsSql } from "../app/lib/tileRenames";
 import { openDatabase, type Database } from "./db";
 
 let dir: string;
@@ -29,6 +25,9 @@ const STORED: Record<string, unknown> = {
   },
   "chunk:0:0": [
     [
+      { tileId: "sand-dunes" },
+      { tileId: "grass" },
+      { tileId: "grass-2" },
       {
         tileId: "chest",
         rewardTileIds: ["arcane-stone-of-bolt"],
@@ -44,8 +43,7 @@ describe("renamed tile ids", () => {
     const put = await db.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
     for (const [key, value] of Object.entries(STORED)) await put.run([key, JSON.stringify(value)]);
 
-    for (const rename of TILE_ID_PREFIX_RENAMES)
-      await db.exec(renameTileIdsSql(rename, "kv", "value"));
+    for (const rename of TILE_ID_RENAMES) await db.exec(renameTileIdsSql(rename, "kv", "value"));
 
     const read = await db.prepare("SELECT value FROM kv WHERE key = ?");
     for (const [key, value] of Object.entries(STORED)) {
@@ -63,5 +61,9 @@ describe("renamed tile ids", () => {
     expect(text).toContain('"rune-bolt":3');
     expect(text).toContain('"arcane-stone"');
     expect(text).toContain('"test-arcane-stone-of-x"');
+    expect(text).toContain('{"tileId":"sand"}');
+    expect(text).not.toContain('"sand-dunes"');
+    expect(text).toContain('{"tileId":"tuft"}');
+    expect(text).toContain('{"tileId":"grass-2"}');
   });
 });

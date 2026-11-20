@@ -33,7 +33,7 @@
     "generate:snow-beasts": "bun scripts/generate-snow-beasts.ts",
     "generate:cats": "bun scripts/generate-cats.ts",
     "generate:ledges": "bun scripts/generate-ledges.ts",
-    "generate:grass-edge": "bun scripts/generate-grass-edge.ts",
+    "generate:grass": "bun scripts/generate-grass.ts",
     "generate:brinks": "bun scripts/generate-brinks.ts",
     "generate:stalagmites": "bun scripts/generate-stalagmites.ts",
     "generate:deep-woods": "bun scripts/generate-deep-woods.ts",

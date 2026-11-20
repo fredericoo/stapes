@@ -2,36 +2,33 @@ import { PNG } from "pngjs";
 import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
 import { CELL_SIZE, type TileDef, type TileSprite } from "../app/lib/types";
 import { mulberry32 } from "./island/grid";
-import { paint, writeTileset } from "./tileset-output";
+import { paint, paintRgba, writeTileset, type Rgba } from "./tileset-output";
 
-const TILESET_ID = "grass-edge";
+const TILESET_ID = "grass";
+const GRASS_ID = "grass";
 
-/** `grass-2`'s own green: the edge is the same grass, only ragged. */
+/** `grass-2`'s own green, ragged where it stops. */
 const GRASS = 15;
 
 /**
- * One edge per ground it lies on, as the shadow it casts is that ground's
- * own darker shade: the dunes' ripple colour on sand, the grey of the ice
- * sheet's cracks on snow. A translucent shadow would serve both, but a
- * translucent sheet is drawn after the level and would cover what stands on
- * the cell.
+ * The shadow grass casts on its south and east is black at this alpha, so it
+ * darkens whatever the grass lies on. The sheet is translucent, and the palette
+ * pass turns each darkened pixel into the palette colour nearest it: the
+ * dunes' ripple colour over sand, the ice sheet's grey over snow.
  */
-const GROUNDS = [
-  { id: "grass-edge-sand", name: "Grass edge (sand)", shadow: 18 },
-  { id: "grass-edge-snow", name: "Grass edge (snow)", shadow: 25 },
-] as const;
+const SHADOW_ALPHA = 0.35;
+const CHANNEL_MAX = 255;
+const SHADOW: Rgba = [0, 0, 0, Math.round(SHADOW_ALPHA * CHANNEL_MAX)];
 
 /**
- * Each ground's edge comes in this many tiles, each with its own lobes on
- * every side, and `generate:island` picks one per cell from its position.
- * An autotile draws one sprite per slice, so one tile alone repeats the same
- * eight pixels of edge down every side.
+ * Grass comes in this many columns, each with its own lobes on every side, and
+ * the renderer picks one per cell from its position (`sliceColumns`). One
+ * column alone repeats the same eight pixels of edge down every side.
  */
-export const GRASS_EDGE_VARIANTS = 6;
+const COLUMNS = 6;
 const PROFILE_SALT = 0x9e55;
 
 type Profiles = { n: number[]; w: number[]; s: number[]; e: number[] };
-type Edge = { id: string; name: string; shadow: number; cut: Profiles };
 
 /** How deep the cut is at both ends of every side, so a cell meets its neighbour's edge whichever variant either is. */
 const END_CUT = 1;
@@ -59,22 +56,32 @@ function profile(next: () => number): number[] {
   return cut;
 }
 
-const EDGES: Edge[] = GROUNDS.flatMap((g) => {
-  const next = mulberry32(PROFILE_SALT);
-  return Array.from({ length: GRASS_EDGE_VARIANTS }, (_, v) => ({
-    id: `${g.id}-${v}`,
-    name: `${g.name} ${v + 1}`,
-    shadow: g.shadow,
-    cut: { n: profile(next), w: profile(next), s: profile(next), e: profile(next) },
-  }));
-});
+const next = mulberry32(PROFILE_SALT);
+const CUTS: Profiles[] = Array.from({ length: COLUMNS }, () => ({
+  n: profile(next),
+  w: profile(next),
+  s: profile(next),
+  e: profile(next),
+}));
+
+/** Older grass that this grass runs into without an edge, as well as itself. */
+const GRASS_GROUND = ["grass-2", "grass-brink", "grass-ledge"];
 
 /**
- * The grounds a grass edge lies beside without drawing an edge: everything
- * whose top is grass. The ground the edge is laid on (sand, snow) is not
- * here, so the edge is drawn towards it.
+ * Grass runs up to the foot of a cliff without an edge: the wall stands on
+ * the hill's own ground, which is snow or sand under a frost or sandstone
+ * wall, so an edge there would show a line of the grass's ground against it.
  */
-const GRASS_GROUND = ["grass-2", "grass-brink", "grass-ledge"];
+const CLIFF_FEET = [
+  "hill-wall",
+  "hill-wall-frost",
+  "hill-wall-sandstone",
+  "hill-wall-basalt",
+  "hill-cave-mouth",
+  "hill-cave-mouth-frost",
+  "hill-cave-mouth-sandstone",
+  "hill-cave-mouth-basalt",
+];
 
 const LAST = CELL_SIZE - 1;
 
@@ -123,49 +130,49 @@ function shadowedAt(cut: Profiles, mask: number, x: number, y: number): boolean 
   return west || north;
 }
 
-function paintEdge(sheet: PNG, { cut, shadow }: Edge, column: number) {
+function paintColumn(sheet: PNG, cut: Profiles, column: number) {
   AUTOTILE_SLICE_MASKS.forEach((mask, slice) => {
     for (let y = 0; y < CELL_SIZE; y++) {
       for (let x = 0; x < CELL_SIZE; x++) {
         const at = [column * CELL_SIZE + x, slice * CELL_SIZE + y] as const;
         if (grassAt(cut, mask, x, y)) paint(sheet, ...at, GRASS);
-        else if (shadowedAt(cut, mask, x, y)) paint(sheet, ...at, shadow);
+        else if (shadowedAt(cut, mask, x, y)) paintRgba(sheet, ...at, SHADOW);
       }
     }
   });
 }
 
-function edgeTile(id: string, name: string, column: number): TileDef {
+/** Burning grass leaves the ground it lay on. */
+const BURNS_AWAY = { endure: { durability: 12, suffers: [{ statusId: "burned", tileId: "" }] } };
+
+function grassTile(): TileDef {
   const slices = AUTOTILE_SLICE_MASKS.map((_, slice): TileSprite => ({
     frames: [
       { sprite: { rect: { x: 0, y: slice, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 },
     ],
   }));
   return {
-    id,
-    name,
+    id: GRASS_ID,
+    name: "Grass",
     height: 0,
     type: "autotile",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: TILESET_ID, x: column, y: 0 },
+    anchor: { tilesetId: TILESET_ID, x: 0, y: 0 },
     lightPassing: true,
-    connectsTo: [...GRASS_GROUND, ...EDGES.map((e) => e.id).filter((e) => e !== id)],
+    connectsTo: [...GRASS_GROUND, ...CLIFF_FEET],
+    sliceColumns: COLUMNS,
+    interactions: BURNS_AWAY,
     slices: Object.fromEntries(slices.map((s, i) => [i, s])),
   } as TileDef;
 }
 
 if (import.meta.main) {
   const sheet = new PNG({
-    width: EDGES.length * CELL_SIZE,
+    width: COLUMNS * CELL_SIZE,
     height: AUTOTILE_SLICE_MASKS.length * CELL_SIZE,
   });
   sheet.data.fill(0);
-  EDGES.forEach((e, column) => paintEdge(sheet, e, column));
-  await writeTileset(
-    TILESET_ID,
-    "Grass edge",
-    sheet,
-    EDGES.map((e, column) => edgeTile(e.id, e.name, column)),
-  );
+  CUTS.forEach((cut, column) => paintColumn(sheet, cut, column));
+  await writeTileset(TILESET_ID, "Grass", sheet, [grassTile()], { translucent: true });
 }

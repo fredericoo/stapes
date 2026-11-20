@@ -33,13 +33,13 @@ const RAMPS = {
 const RAMP = "ramp";
 const FILL = "half-stone";
 const WALL = "hill-wall";
-const GROUND = new Set(["grass-2", "sand-dunes", "snow"]);
+const GROUND = new Set(["grass-2", "sand", "snow"]);
 /** What a ramp's head may land on: the hilltops over the caves are topped with `dirt`. */
 const HEAD_GROUND = new Set([...GROUND, "dirt"]);
 /** The ground each brink is cut from, so the head of a ramp lands on a full block. */
 const BRINK_GROUND: Record<string, string> = {
   "grass-brink": "grass-2",
-  "sand-brink": "sand-dunes",
+  "sand-brink": "sand",
   "snow-brink": "snow",
 };
 /** Small things on a hilltop that a body walks over and a ramp head may replace. */

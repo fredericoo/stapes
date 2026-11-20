@@ -22,7 +22,7 @@ import { mergeSpecks } from "./island/specks";
 import { buildIsland } from "./island/terrain";
 import { digUnderground } from "./island/caves";
 import { frayClearings } from "./island/fray";
-import { edgeGrass } from "./island/grassEdge";
+import { layGrass } from "./island/grass";
 import { jogStraightBorders } from "./island/jog";
 
 /**
@@ -106,7 +106,7 @@ for (let pass = 0; pass < GROUND_PASSES; pass++) {
     mergeSpecks(island, board);
   if (changed === 0 && jogStraightBorders(island, board, tilesById) === 0) break;
 }
-edgeGrass(island, board, tilesById);
+layGrass(island, board);
 
 for (const layer of board.levels.values()) {
   for (const stack of layer.values()) {
