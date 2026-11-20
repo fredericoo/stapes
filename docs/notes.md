@@ -15947,6 +15947,13 @@ before it is lit so the light still comes from the south-west. They are phased
 along y. There is no west- or north-facing fall, because those faces of a
 cliff are never drawn.
 
+`generate:island` places them: wherever river or lake water is one storey
+above shallow water to the north or west of it, the lower cell gets a base and
+a top, two segments being one storey. A river that leaves a cliff to the north
+or west gets nothing, since the face it would fall down is behind the cliff,
+and a cell gets one fall at most, so a river turning a corner over a cliff
+does not stack two.
+
 ## An apple tree is drawn in bundles, and drops what it bears
 
 `bun run generate:apple-trees` ray-traces `apple-tree` in the game's

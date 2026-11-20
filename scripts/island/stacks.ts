@@ -209,7 +209,46 @@ export function writeTerrain(island: Island, plan: Plan): Board {
       }
     }
   }
+  placeWaterfalls(island, board);
   return board;
+}
+
+/**
+ * A fall stands in the lower cell, against the face of the cliff it comes
+ * down, and only a cliff's south and east faces are drawn: water leaving a
+ * cliff north or west goes over an edge nobody can see.
+ */
+const FALLS = [
+  { dx: 0, dy: -1, segments: ["waterfall-base", "waterfall-top"] },
+  { dx: -1, dy: 0, segments: ["waterfall-east-base", "waterfall-east-top"] },
+] as const;
+
+const FALLING_WATER = new Set([Ground.River, Ground.Lake]);
+
+/**
+ * Every cliff is one storey, and two segments are one storey, so each fall is
+ * a base and a top. A cell is given one fall at most: a river turning a
+ * corner over a cliff would otherwise stack two, a storey too tall.
+ */
+function placeWaterfalls(island: Island, board: Board) {
+  const { width: w, height: h, level, ground } = island;
+  for (let j = 0; j < w * h; j++) {
+    if (!FALLING_WATER.has(ground[j]!)) continue;
+    const x = j % w;
+    const y = (j - x) / w;
+    const z = level[j]!;
+    const fall = FALLS.find((f) => fallsInto(island, x + f.dx, y + f.dy, z));
+    const pool = board.get(x, y, z);
+    if (!fall || pool?.at(-1)?.tileId !== "water") continue;
+    board.set(x, y, z, [...pool, ...fall.segments.map((id) => tile(id))]);
+  }
+}
+
+/** Whether the cell at `x, y` holds water one storey above `z`. */
+function fallsInto(island: Island, x: number, y: number, z: number): boolean {
+  if (x < 0 || y < 0 || x >= island.width || y >= island.height) return false;
+  const i = y * island.width + x;
+  return FALLING_WATER.has(island.ground[i]!) && island.level[i] === z + 1;
 }
 
 /** Open sea is bare `deep-water`; the cells next to the shallows have `water` under it, and the shallows foam where they meet dry sand. */
