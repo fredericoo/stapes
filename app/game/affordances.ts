@@ -11,6 +11,7 @@ import type {
   PlacedReward,
   PlacedTeleport,
   RemoveStatusInteraction,
+  SetSpawnInteraction,
   CraftInteraction,
 } from "../lib/interactions";
 import {
@@ -19,6 +20,7 @@ import {
   resolvePush,
   resolveRemoveStatus,
   resolveReward,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
   resolveCraft,
@@ -764,6 +766,48 @@ export function canRemoveStatusFrom(
   ref: ObjectRef,
 ): boolean {
   return reachableRemoveStatusAt(map, tilesById, actor, ref) != null;
+}
+
+export function reachableSetSpawnAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): SetSpawnInteraction | null {
+  const def = interactiveDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+
+  const setSpawn = resolveSetSpawn(def);
+  if (!setSpawn) return null;
+
+  if (setSpawn.trigger === "interact") {
+    return pushDirectionFrom(actor, ref) ? setSpawn : null;
+  }
+  if (setSpawn.trigger === "interactOver") {
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    return over ? setSpawn : null;
+  }
+  return null;
+}
+
+export function canSetSpawnFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  return reachableSetSpawnAt(map, tilesById, actor, ref) != null;
+}
+
+export function setSpawnTileAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  cell: Coord,
+): boolean {
+  return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
+    const def = tilesById[placed.tileId];
+    return def != null && resolveSetSpawn(def) != null;
+  });
 }
 
 export function canOpenFrom(

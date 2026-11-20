@@ -63739,6 +63739,12 @@
       "x": 0,
       "y": 0
     },
+    "interactions": {
+      "setSpawn": {
+        "actionName": "Set respawn point",
+        "trigger": "interactOver"
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -63756,8 +63762,8 @@
           },
           "durationMs": 700,
           "light": {
-            "radius": 3,
-            "intensity": 0.5,
+            "radius": 2,
+            "intensity": 0.2,
             "color": "#8ae2ff"
           }
         },
@@ -63776,8 +63782,8 @@
           },
           "durationMs": 700,
           "light": {
-            "radius": 3,
-            "intensity": 0.5,
+            "radius": 2,
+            "intensity": 0.2,
             "color": "#8ae2ff"
           }
         }

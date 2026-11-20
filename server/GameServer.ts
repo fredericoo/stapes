@@ -73,6 +73,7 @@ import type {
   TileDef,
 } from "../app/lib/types";
 import { parseCoordKey } from "../app/lib/types";
+import { setSpawnTileAt } from "../app/game/affordances";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
@@ -378,8 +379,11 @@ const TAGS_KEY_PREFIX = "tags:";
 
 const MASTERIES_KEY_PREFIX = "mast:";
 
-/** Where a `setSpawn` mark used to send a player. Nothing reads these rows; load deletes them. */
-const RETIRED_SPAWN_KEY_PREFIX = "spawn:";
+/**
+ * Keyed by character. A death leaves it alone, so a reborn character comes
+ * back at the respawn point it last marked.
+ */
+const SPAWN_KEY_PREFIX = "spawn:";
 
 const STATUSES_KEY_PREFIX = "status:";
 
@@ -415,6 +419,8 @@ type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type SavedTags = { tags: string[]; savedAt: number };
 
+type SavedSpawn = Coord & { savedAt: number };
+
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
 
 type SavedStatuses = { statuses: StatusInstance[]; savedAt: number };
@@ -434,6 +440,7 @@ export type CharacterSheet = {
   live: boolean;
   dead: boolean;
   position: ActorPosition | null;
+  spawn: Coord | null;
   equipment: Equipment | null;
   masteryXp: MasteryXp;
   statuses: StatusInstance[];
@@ -883,6 +890,7 @@ export class GameServer {
   private silenced = new Set<string>();
   private justDied: Death[] = [];
   private readonly subscribed = new Map<string, Set<string>>();
+  private readonly spawns = new Map<string, Coord>();
   private readonly subscriptionCentre = new WeakMap<Set<string>, string>();
   private readonly lingering = new Map<string, number>();
   private static readonly MAX_LINGER_MS = 15 * 60_000;
@@ -1208,6 +1216,50 @@ export class GameServer {
     return `${POSITION_KEY_PREFIX}${actorId}`;
   }
 
+  private spawnKey(actorId: string): string {
+    return `${SPAWN_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * A mark counts only while a `setSpawn` tile still stands on its cell: the
+   * editor can take the point away and `replaceWorld` can swap the whole map,
+   * and either leaves the row naming a cell that is no longer a respawn point.
+   * Such a row is deleted, and the character comes back at the world's spawn.
+   */
+  private async spawnMarkOf(actorId: string): Promise<Coord | null> {
+    const known = this.spawns.get(actorId);
+    const mark = known ?? (await this.storedSpawnOf(actorId));
+    if (!mark) return null;
+    if (setSpawnTileAt(this.session!.getMap(), tilesByIdFromList(this.tiles), mark)) {
+      this.spawns.set(actorId, mark);
+      return mark;
+    }
+    this.spawns.delete(actorId);
+    this.ctx.storage
+      .delete(this.spawnKey(actorId))
+      .catch(GameServer.reportWriteFailure("spawn clear"));
+    return null;
+  }
+
+  private async storedSpawnOf(actorId: string): Promise<Coord | null> {
+    const saved = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
+    return saved ? { x: saved.x, y: saved.y, z: saved.z } : null;
+  }
+
+  private flushSpawnMarks() {
+    const session = this.session;
+    if (!session) return;
+
+    for (const { actorId, at } of session.drainSpawnMarks()) {
+      const mark = { x: at.x, y: at.y, z: at.z };
+      this.spawns.set(actorId, mark);
+      this.ctx.storage
+        .put(this.spawnKey(actorId), { ...mark, savedAt: this.now() })
+        .catch(GameServer.reportWriteFailure("spawn write"));
+      this.sendTo(actorId, { type: "spawnPoint", at: { ...mark } });
+    }
+  }
+
   private depotKey(accountId: string): string {
     return `${DEPOT_KEY_PREFIX}${accountId}`;
   }
@@ -1332,7 +1384,11 @@ export class GameServer {
   }
 
   async characterSheet(actorId: string): Promise<CharacterSheet> {
-    const common = { dead: this.dead.has(actorId) };
+    const spawn = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
+    const common = {
+      dead: this.dead.has(actorId),
+      spawn: spawn ? { x: spawn.x, y: spawn.y, z: spawn.z } : null,
+    };
     const session = this.session;
     const at = session?.actorPosition(actorId);
     if (!session || !at) return { ...common, ...(await this.savedSheetOf(actorId)) };
@@ -1355,7 +1411,7 @@ export class GameServer {
    * `restoredEquipment`, which needs the tile catalogue of a loaded world and
    * would hide an item it no longer accepts.
    */
-  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead">> {
+  private async savedSheetOf(actorId: string): Promise<Omit<CharacterSheet, "dead" | "spawn">> {
     const [position, equipment, tags, masteryXp, statuses, hp, pvp, hidden] = await Promise.all([
       this.lastPositionOf(actorId),
       this.ctx.storage.get<SavedEquipment>(this.equipmentKey(actorId)),
@@ -1580,13 +1636,7 @@ export class GameServer {
     await this.pruneOldest(HP_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
     await this.pruneOldest(DIED_AWAY_KEY_PREFIX);
-    await this.deleteRetiredSpawns();
-  }
-
-  private async deleteRetiredSpawns() {
-    const stored = await this.ctx.storage.list({ prefix: RETIRED_SPAWN_KEY_PREFIX });
-    if (stored.size === 0) return;
-    await this.ctx.storage.delete([...stored.keys()]);
+    await this.pruneOldest(SPAWN_KEY_PREFIX);
   }
 
   private async pruneOldest(prefix: string) {
@@ -1750,6 +1800,7 @@ export class GameServer {
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       depots: this.depots.of(actorId),
       tags: [...(session.tagsOf(actorId) ?? [])],
+      spawnAt: this.spawns.get(actorId) ?? null,
       extracting: session.extractionOf(actorId),
       nextBlow: this.rememberNextBlow(actorId),
       masteryXp: { ...session.masteryXpOf(actorId) },
@@ -1837,6 +1888,7 @@ export class GameServer {
     this.flushSounds();
     this.flushBlows();
     this.flushTags();
+    this.flushSpawnMarks();
     this.flushConversations();
     this.flushExtracting();
     /**
@@ -2546,10 +2598,12 @@ export class GameServer {
     this.silenced.clear();
     this.lastSaidAt.clear();
     this.queuedIntents.clear();
+    this.spawns.clear();
     this.events = [];
 
     for (const actorId of present) {
       const kit = carried.get(actorId);
+      const spawnAt = await this.spawnMarkOf(actorId);
       this.session.spawn(
         actorId,
         {
@@ -2562,6 +2616,7 @@ export class GameServer {
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
           hidden: await this.lastHiddenOf(actorId),
+          ...(spawnAt ? { spawnAt } : {}),
         },
         { announce: false },
       );
@@ -2789,6 +2844,7 @@ export class GameServer {
     this.flushEquipment();
     this.flushDepots();
     this.flushTags();
+    this.flushSpawnMarks();
     this.flushConversations();
     this.flushExtracting();
     this.flushNextBlow();
@@ -2923,6 +2979,7 @@ export class GameServer {
     this.silenced.delete(actorId);
     this.forgetDeathNotice(actorId);
     const restored = await this.restoredActor(actorId);
+    const spawnAt = await this.spawnMarkOf(actorId);
     this.storedVitals.set(actorId, {
       hp: restored.hp ?? null,
       statuses: restored.statuses ?? null,
@@ -2932,6 +2989,8 @@ export class GameServer {
       name: (await this.env.nameOf?.(actorId)) ?? null,
       appearance: (await this.env.appearanceOf?.(actorId)) ?? null,
       ...restored,
+      at: restored.at ?? (spawnAt ? { ...spawnAt } : undefined),
+      ...(spawnAt ? { spawnAt } : {}),
     });
     this.collectTransitionEvents(this.session!);
   }

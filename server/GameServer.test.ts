@@ -2882,6 +2882,124 @@ describe("what a flush writes", () => {
   });
 });
 
+describe("respawn points", () => {
+  const MARKER = "respawn-point";
+  const MARKER_REF = { x: AWAY_FROM_SPAWN, y: 0, z: 0, stackIndex: 1 };
+
+  function checkpointWithMarker() {
+    const checkpoint = checkpointWith(["alice"]);
+    const cell = `${AWAY_FROM_SPAWN},0`;
+    checkpoint.map.levels["0"]![cell] = [
+      { tileId: "grass" },
+      { tileId: MARKER },
+      ...checkpoint.map.levels["0"]![cell]!.slice(1),
+    ];
+    return checkpoint;
+  }
+
+  function mapWithMarker(): FlatMapFile {
+    const map = authoredMap();
+    map.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "grass" }, { tileId: MARKER }];
+    return map;
+  }
+
+  async function anchorHere(ws: TestSocket) {
+    send(ws, { type: "interact", ref: MARKER_REF });
+    return await nextMessageOfType(ws, "notice");
+  }
+
+  async function storedSpawn(actorId: string) {
+    return await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<Record<string, unknown>>(`spawn:${actorId}`),
+    );
+  }
+
+  async function rebornAt(alice: { ws: TestSocket }): Promise<number | undefined> {
+    await killAndTick("alice");
+    send(alice.ws, { type: "rebirth" });
+    await messageWithin(alice.ws, "hello", MESSAGE_TIMEOUT_MS);
+    return (await stub().characterSheet("alice")).position?.x;
+  }
+
+  it("stores the marker's cell for that character when they activate it", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    expect(await storedSpawn("alice")).toBeUndefined();
+
+    const notice = await anchorHere(alice.ws);
+
+    expect(notice).toMatchObject({ text: "You will respawn here." });
+    expect(await storedSpawn("alice")).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
+  });
+
+  it("tells that socket where it comes back now, so its point can glow", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    expect(alice.hello.spawnAt).toBeNull();
+
+    send(alice.ws, { type: "interact", ref: MARKER_REF });
+    const moved = await nextMessageOfType(alice.ws, "spawnPoint");
+
+    expect(moved).toMatchObject({ at: { x: AWAY_FROM_SPAWN, y: 0, z: 0 } });
+  });
+
+  it("brings a death back at the marked point, and keeps the mark for the next one", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    await anchorHere(alice.ws);
+
+    expect(await rebornAt(alice)).toBe(AWAY_FROM_SPAWN);
+    expect(await storedSpawn("alice")).toMatchObject({ x: AWAY_FROM_SPAWN });
+    expect(await rebornAt(alice)).toBe(AWAY_FROM_SPAWN);
+  });
+
+  it("brings an unmarked death back at the world's spawn", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+
+    expect(await rebornAt(alice)).toBe(SPAWN_CELL);
+  });
+
+  it("keeps a mark through a world save that keeps the point", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    await anchorHere(alice.ws);
+
+    const fresh = nextMessageOfType(alice.ws, "hello");
+    await stub().replaceWorld(mapWithMarker(), { keepPositions: true });
+
+    expect((await fresh).spawnAt).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
+    expect(await rebornAt(alice)).toBe(AWAY_FROM_SPAWN);
+  });
+
+  it("forgets a mark whose point a world save took away", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    await anchorHere(alice.ws);
+
+    const fresh = nextMessageOfType(alice.ws, "hello");
+    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+
+    expect((await fresh).spawnAt).toBeNull();
+    expect(await storedSpawn("alice")).toBeUndefined();
+    expect(await rebornAt(alice)).toBe(SPAWN_CELL);
+  });
+
+  it("shows on the character sheet", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    expect((await stub().characterSheet("alice")).spawn).toBeNull();
+
+    await anchorHere(alice.ws);
+
+    expect((await stub().characterSheet("alice")).spawn).toEqual({
+      x: AWAY_FROM_SPAWN,
+      y: 0,
+      z: 0,
+    });
+  });
+});
+
 describe("dying and coming back", () => {
   /** Not the starter `rusty-sword`, so the one picked up is told apart from the one in hand. */
   const SWORD = "iron-sword";

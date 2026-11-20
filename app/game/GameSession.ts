@@ -37,6 +37,7 @@ import {
   pullEffect,
   resolveAddStatus,
   resolveRemoveStatus,
+  resolveSetSpawn,
   resolveEmit,
   resolveExtract,
   resolveSwitch,
@@ -112,6 +113,7 @@ import {
 import {
   canAddStatusFrom,
   canRemoveStatusFrom,
+  canSetSpawnFrom,
   canConsumeFrom,
   canEquipFrom,
   canTalkFrom,
@@ -128,6 +130,7 @@ import {
   interactiveDefAt,
   reachableAddStatusAt,
   reachableRemoveStatusAt,
+  reachableSetSpawnAt,
   reachableRewardAt,
   reachableTeleportAt,
   stowReward,
@@ -162,6 +165,8 @@ import {
   otherStatusRemovedNotice,
   statusRemovedNotice,
   statusesClearedNotice,
+  spawnMarkNotice,
+  spawnMarkUnchangedNotice,
   tileNotice,
   timeNotice,
   weatherNotice,
@@ -642,6 +647,7 @@ export type GameSnapshot = {
   flightEffects: FlightEffect[];
   equipment: Equipment;
   tags: readonly string[];
+  spawnAt: Coord | null;
   conversation: Conversation | null;
   extracting: Extraction | null;
   nextBlow: Progress | null;
@@ -881,6 +887,7 @@ type ActorRuntime = {
   brainAttentive: boolean;
   conversation: Conversation | null;
   home: Coord | null;
+  spawnMark: Coord | null;
   hp: number | null;
   statuses: readonly StatusInstance[];
   standingStatusMs: number;
@@ -1051,6 +1058,7 @@ export class GameSession implements PlaySession {
   private liveNoise: NoiseEmission[] = [];
   private nextNoiseId = 0;
   private pendingDeaths: Death[] = [];
+  private pendingSpawnMarks: { actorId: string; at: Coord }[] = [];
   private pendingFades: string[] = [];
   private settledEmitters = "";
 
@@ -1188,6 +1196,7 @@ export class GameSession implements PlaySession {
       hp?: number;
       pvp?: boolean;
       hidden?: boolean;
+      spawnAt?: Coord;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -1220,6 +1229,7 @@ export class GameSession implements PlaySession {
       brainAttentive: false,
       conversation: null,
       home: this.residentHomes.get(id) ?? null,
+      spawnMark: resident ? null : (opts.spawnAt ?? null),
       hp: opts.hp === undefined ? null : Math.max(1, opts.hp),
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       standingStatusMs: 0,
@@ -1268,6 +1278,7 @@ export class GameSession implements PlaySession {
       hp?: number;
       pvp?: boolean;
       hidden?: boolean;
+      spawnAt?: Coord;
     } = {},
     { announce = true }: { announce?: boolean } = {},
   ) {
@@ -2675,6 +2686,12 @@ export class GameSession implements PlaySession {
     const died = this.pendingDeaths;
     this.pendingDeaths = [];
     return died;
+  }
+
+  drainSpawnMarks(): { actorId: string; at: Coord }[] {
+    const moved = this.pendingSpawnMarks;
+    this.pendingSpawnMarks = [];
+    return moved;
   }
 
   private advanceCooldowns(tickMs: number) {
@@ -6539,6 +6556,53 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.readyToAct(actor)) return false;
+    if (actor.resident) return false;
+    return canSetSpawnFrom(this.map, this.tilesById, this.locate(actor), ref);
+  }
+
+  activateSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.readyToAct(actor)) return false;
+    if (actor.resident) return false;
+
+    const loc = this.locate(actor);
+    if (!reachableSetSpawnAt(this.map, this.tilesById, loc, ref)) return false;
+
+    if (!this.markSpawn(actor, ref)) {
+      this.say(actor.id, spawnMarkUnchangedNotice());
+    }
+    return true;
+  }
+
+  private markSpawn(actor: ActorRuntime, at: Coord): boolean {
+    const cell = { x: at.x, y: at.y, z: at.z };
+    const mark = actor.spawnMark;
+    if (mark && mark.x === cell.x && mark.y === cell.y && mark.z === cell.z) {
+      return false;
+    }
+    actor.spawnMark = cell;
+    this.pendingSpawnMarks.push({ actorId: actor.id, at: cell });
+    this.say(actor.id, spawnMarkNotice());
+    return true;
+  }
+
+  private spawnMarkOnArrival(actor: ActorRuntime) {
+    if (actor.resident) return;
+
+    const loc = this.locate(actor);
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    for (let i = Math.min(loc.stackIndex, stack.length) - 1; i >= 0; i--) {
+      const def = this.tilesById[stack[i]!.tileId];
+      if (def && resolveSetSpawn(def)?.trigger === "step") {
+        this.markSpawn(actor, loc);
+        return;
+      }
+    }
+  }
+
   private statusOnArrival(actor: ActorRuntime) {
     actor.standingStatusMs = 0;
     this.clearStandingStatus(actor);
@@ -6653,6 +6717,7 @@ export class GameSession implements PlaySession {
       this.activateSwitch(ref, id) ||
       this.activateAddStatus(ref, id) ||
       this.activateRemoveStatus(ref, id) ||
+      this.activateSetSpawn(ref, id) ||
       this.extract(ref, id) ||
       this.equip(ref, id) ||
       this.pickUp(ref, id) ||
@@ -6670,6 +6735,7 @@ export class GameSession implements PlaySession {
       this.canSwitch(ref, id) ||
       this.canAddStatus(ref, id) ||
       this.canRemoveStatus(ref, id) ||
+      this.canSetSpawn(ref, id) ||
       this.canExtract(ref, id) ||
       this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
@@ -6699,6 +6765,7 @@ export class GameSession implements PlaySession {
 
   private arriveIn(actor: ActorRuntime) {
     this.statusOnArrival(actor);
+    this.spawnMarkOnArrival(actor);
     this.teleportOnArrival(actor);
   }
 
@@ -6805,6 +6872,7 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      spawnAt: self.spawnMark,
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
       nextBlow: this.nextBlowOf(self.id),

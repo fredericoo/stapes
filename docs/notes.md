@@ -2031,20 +2031,31 @@ their tile off the board, and at that moment the map stops being the record. So
 positions are kept a second time, per actor, under `pos:<id>` — and the two are
 not redundant.
 
-**Everybody comes back at the world's spawn.** There is no per-player row for
-it: a death deletes `pos:<id>`, and a body seated with no position row stands
-on the session's spawn, the cell the authored `player` marker gave it. That is
-the whole of respawning — asked for from the death screen's Rebirth button, or
-by reloading. Deleting the row rather than overwriting it with coordinates is
-what keeps a re-authored map honest: `replaceWorld` moves the spawn, and a row
-holding the old cell would put the dead back where the marker used to be.
+**A death comes back at the character's respawn point, or the world's spawn.**
+A death deletes `pos:<id>`, and a body seated with no position row stands on
+the cell its `spawn:<id>` row names, or, with none, on the session's spawn —
+the cell the authored `player` marker gave it. That is the whole of respawning,
+asked for from the death screen's Rebirth button or by reloading. Deleting the
+position rather than overwriting it with coordinates is what keeps a
+re-authored map honest: `replaceWorld` moves the spawn, and a row holding the
+old cell would put the dead back where the marker used to be.
 
-There used to be a `spawn:<id>` row and a `setSpawn` interaction that moved it,
-so a player could anchor themselves to a `respawn-point` tile. Both went with
-permadeath, which made a new life start in the tutorial, and were not brought
-back when death stopped being permanent. `GameServer.load` deletes any
-`spawn:` rows still in storage. The `respawn-point` tile is still in the
-catalogue, with no interaction, because the map has one placed.
+`spawn:<id>` is written only when a player activates a tile with
+`interactions.setSpawn` (the `respawn-point` tile, "Set respawn point" while
+standing on it). It is keyed by character and a death leaves it alone, so it
+lasts across lives until the character marks another. Nothing mints one: an
+unmarked character has no row. `GameServer.spawnMarkOf` trusts a row only
+while a `setSpawn` tile still stands on its cell, so a point the editor took
+away or a `replaceWorld` without it deletes the row instead of sending the
+dead to a cell that is no longer a respawn point. `replaceWorld` clears the
+in-memory `spawns` so every mark is checked against the new board.
+
+The mark reaches the client in `hello.spawnAt` and the `spawnPoint` message.
+The row on the point you are anchored to reads "You respawn here" and is
+grey. The point itself glows for you alone: the tile authors a dim light that
+everybody sees, and `GameRenderer.activeSpawnGlow` adds an emitter override of
+the same light, wider and brighter (`ACTIVE_SPAWN_*`), on the cell `spawnAt`
+names. An override is per viewer and additive, so nobody else's view changes.
 
 **The write must not gate the broadcast.** The platform used to hold outgoing
 messages until preceding writes were durable, which was right for anything the
