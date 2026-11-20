@@ -601,3 +601,30 @@ describe("fill and scatter", () => {
     }
   });
 });
+
+describe("bridges", () => {
+  it("crosses water as one straight bridge resting one cell on each bank, however the road meets it", () => {
+    const { map } = build(
+      doc(
+        field([
+          {
+            type: "river",
+            key: "brook",
+            props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 3 },
+          },
+          {
+            type: "road",
+            key: "lane",
+            props: { tile: "cobblestone", from: { x: 0, y: 5 }, to: { x: 39, y: 25 }, rail: null },
+          },
+        ]),
+      ),
+    );
+    const deck = cellsWith(map, "wooden-floor", 40, 30).map(
+      (c) => c.split(",").map(Number) as [number, number],
+    );
+    const rows = new Set(deck.map(([, y]) => y));
+    expect(rows.size).toBe(1);
+    expect(deck.map(([x]) => x).sort((a, b) => a - b)).toEqual([18, 19, 20, 21, 22]);
+  });
+});
