@@ -39,6 +39,7 @@
     "generate:deep-woods": "bun scripts/generate-deep-woods.ts",
     "generate:mushrooms": "bun scripts/generate-mushrooms.ts",
     "generate:lanterns": "bun scripts/generate-lanterns.ts",
+    "generate:bookshelves": "bun scripts/generate-bookshelves.ts",
     "generate:runes": "bun scripts/generate-runes.ts",
     "generate:spoils": "bun scripts/generate-spoils.ts",
     "generate:rune-temple": "bun scripts/generate-rune-temple.ts",

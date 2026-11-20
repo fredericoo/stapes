@@ -349,6 +349,13 @@
     "translucent": true
   },
   {
+    "id": "bookshelves",
+    "name": "Bookshelves",
+    "file": "bookshelves.png",
+    "width": 64,
+    "height": 48
+  },
+  {
     "id": "lanterns",
     "name": "Lanterns",
     "file": "lanterns.png",
