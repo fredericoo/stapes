@@ -2935,10 +2935,35 @@ picture:
   a hash of the cell and its own id, so a twin with another id would pick
   another clump. Its `scatterSeed` is `scatterSeedMatching(twin, plant)`, which
   makes the two hashes equal; the generator writes it.
-- **Every plant on the map is a plate cell.** `settlePlates` walks all of them
-  each time the board settles, wherever the players are. With the 431 on the
-  map that walk is about 56µs; `bun scripts/bench-server.ts --scenario spread`
-  read 2.46ms at p50 before and 2.40ms after.
+- **Every plant on the map is a plate cell, so a settle skips the plates
+  nothing touched.** Rune Isle has 4,151 of them. `GameSession.plateCells` is a
+  `ChunkedCells` (`app/game/chunkedCells.ts`) that groups them by level and
+  chunk. Each group remembers the chunks on its own level and on the levels
+  above and below, as they were when it last settled to no change. A settle
+  walks only the groups where one of those chunks was replaced or written in
+  place since then. Inside a group, `settlePlates` skips a plate whose own
+  stack and the stacks directly above and below it are the same arrays as
+  last time. Those three stacks are all a swap reads: the load comes from its
+  own stack, and `canReplaceStack` reads the level below for overflow and the
+  level above when the swap would overflow into it. A plate that swapped is
+  read again on the next pass, so a self-triggering pair still flips once a
+  pass (`docs/terrain.md`).
+  - Skipping per cell alone saved little. The three `getStack` calls for each
+    of 4,151 plates cost about 0.27ms, about as much as settling them, so the
+    walk has to skip whole chunks.
+  - Over a 36,903-tick day with four players spread over the island (camp,
+    both towns, the inn), the board settled on 7,838 ticks. `settleBoardNow`
+    went from 471–515µs a tick (31% of tick time) to 156–161µs with the plate
+    groups. Grouping `looseGravityCells` the same way (below) brought it to
+    78–80µs (8%). Mean tick went from 1.52–1.62ms to 1.00–1.07ms, and p99
+    from 6.5–7.2ms to 3.6–3.8ms.
+- **Loose gravity cells are grouped the same way, reaching one level down.**
+  There are 65 on the map at load and about 830 after a day of shed fruit.
+  `isSupported` reads a body's own stack and the one below it, so a group
+  whose two chunks are unchanged stays where it is. A body that is
+  unsupported but has nowhere lower to land marks its group `restless`, and
+  that group is read on every pass, because a landing can appear anywhere
+  down the column.
 
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:

@@ -11,6 +11,7 @@ import {
 import { pourInto } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { ChunkedCells } from "./chunkedCells";
 import { MAX_CLIMB_HEIGHT } from "./constants";
 import { placeEntityOnSurface, removeEntity } from "./mapMutations";
 import { findLandingAbs, standingAbs } from "./movement";
@@ -94,9 +95,19 @@ export function findLooseGravityCells(map: MapFile, tilesById: Record<string, Ti
   return out;
 }
 
+/** `settleGravity` reads a body's own stack and, through `isSupported`, the one below it. */
+export function looseGravityIndex(): ChunkedCells<Coord> {
+  return new ChunkedCells(1, 0, (cell) => cell);
+}
+
 export type GravityResult = {
   map: MapFile;
   changed: Coord[];
+  /**
+   * A body is unsupported but found nowhere lower to land. Where it lands
+   * depends on the whole column under it, not only the level below.
+   */
+  restless: boolean;
 };
 
 function unsupportedGravityIndex(
@@ -120,6 +131,7 @@ export function settleGravity(
 ): GravityResult {
   const changed: Coord[] = [];
   let next = map;
+  let restless = false;
 
   for (const cell of cells) {
     const stackIndex = unsupportedGravityIndex(next, cell, tilesById);
@@ -131,7 +143,10 @@ export function settleGravity(
       z: cell.z,
       stackIndex,
     });
-    if (landing == null || landing >= feetAbs) continue;
+    if (landing == null || landing >= feetAbs) {
+      restless = true;
+      continue;
+    }
 
     const body = { ...placed! };
     const { z: destZ } = cellForFeetAbs(landing);
@@ -150,7 +165,7 @@ export function settleGravity(
     changed.push({ x: cell.x, y: cell.y, z: destZ });
   }
 
-  return { map: next, changed };
+  return { map: next, changed, restless };
 }
 
 export function cellForFeetAbs(feetAbs: number): { z: number; elevInLevel: number } {
