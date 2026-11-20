@@ -43,9 +43,9 @@ export function mapDoc(
     "`docs/lore-map.webp`, inside the sketch's coastline. A step takes",
     `${WALK_DURATION_MS} ms and movement is four-way, so a road's length in cells is its walking time.`,
     "",
-    "No character or creature is placed yet. The tile ids below are the ones draft",
-    "PR #699 gives the cast, so placing each character is putting their tile on the",
-    "cell beside their bed or at their place of work.",
+    "Each character's tile stands in the cell under *Stands*, which their routines",
+    "read as their home; `docs/notes.md`, *The cast is placed at work*, says why",
+    "that is the work cell for most of them. No wild creature is placed.",
     "",
     "## Places",
     "",
@@ -62,14 +62,21 @@ export function mapDoc(
     "",
     "## Who lives and works where",
     "",
-    "| Tile id | Name | Home | Bed | Works at | Work cell |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Tile id | Name | Home | Bed | Works at | Work cell | Stands |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
   );
   for (const r of b.residents) {
     if (!r.tileId) continue;
     lines.push(
-      `| \`${r.tileId}\` | ${r.name} | ${r.home} | ${cell(r.bed)} | ${r.work} | ${cell(r.workCell)} |`,
+      `| \`${r.tileId}\` | ${r.name} | ${r.home} | ${cell(r.bed)} | ${r.work} | ${cell(r.workCell)} | ${r.post ? `${cell(r.post)}, facing ${r.post.facing}` : "—"} |`,
     );
+  }
+  if (b.cats.length) {
+    lines.push("", "The named cats live with their owners:", "");
+    for (const c of b.cats) {
+      const owner = b.residents.find((r) => r.tileId === c.owner)!;
+      lines.push(`- \`${c.tileId}\` with ${owner.name}, at ${cell(c)}`);
+    }
   }
   const spare = b.residents.filter((r) => !r.tileId);
   if (spare.length) {
@@ -87,8 +94,9 @@ export function mapDoc(
     const a = w(bd.rect.x0, bd.rect.y0, bd.z);
     const c = w(bd.rect.x1, bd.rect.y1, bd.z);
     const d = w(bd.door.x, bd.door.y, bd.z);
+    const open = b.board.get(bd.door.x, bd.door.y, bd.z)?.at(-1)?.tileId === "door-open";
     lines.push(
-      `| ${bd.label} | ${a.x}, ${a.y} | ${c.x}, ${c.y} | ${bd.z} | ${bd.storeys} | ${d.x}, ${d.y} (${bd.door.wall}) |`,
+      `| ${bd.label} | ${a.x}, ${a.y} | ${c.x}, ${c.y} | ${bd.z} | ${bd.storeys} | ${d.x}, ${d.y} (${bd.door.wall}${open ? ", open" : ""}) |`,
     );
   }
   lines.push("", "## The lamplighters' routes", "");

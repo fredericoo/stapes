@@ -17,6 +17,9 @@ export type Resident = {
   bed: { x: number; y: number; z: number } | null;
   work: string;
   workCell: { x: number; y: number; z: number } | null;
+  /** Which way they look at their work cell, where the post itself does not say. */
+  faces?: Direction;
+  post?: { x: number; y: number; z: number; facing: Direction };
 };
 
 export type Building = {
@@ -46,6 +49,7 @@ export class Builder {
   readonly residents: Resident[] = [];
   readonly buildings: Building[] = [];
   readonly lamps: Array<{ x: number; y: number; z: number; route: string }> = [];
+  readonly cats: Array<{ tileId: string; owner: string; x: number; y: number; z: number }> = [];
   private spans = 0;
 
   constructor(
@@ -170,6 +174,26 @@ export class Builder {
     );
     if (resident) this.residents.push({ ...resident, bed: this.world(x, y, z) });
     return true;
+  }
+
+  /** Puts a character's tile on the board, standing on free floor at `at` (map coordinates). */
+  stand(r: Resident, at: { x: number; y: number; z: number }, facing: Direction) {
+    const x = at.x - this.board.ox;
+    const y = at.y - this.board.oy;
+    if (!this.put(x, y, at.z, r.tileId, facing))
+      throw new Error(`${r.name}: no free floor at ${at.x}, ${at.y}, L${at.z}`);
+    r.post = { ...at, facing };
+  }
+
+  /**
+   * Leaves a building's door open, for a resident whose walk between bed and
+   * work goes through it: a brain's route never opens a door.
+   */
+  openDoor(b: Building) {
+    const stack = this.board.get(b.door.x, b.door.y, b.z);
+    const door = stack?.at(-1);
+    if (door?.tileId !== "door-closed") throw new Error(`${b.label} has no closed door`);
+    door.tileId = "door-open";
   }
 
   /** A ladder from storey `z` to the floor above it. */

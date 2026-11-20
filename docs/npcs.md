@@ -254,7 +254,7 @@ than in either town.
 - **Where**: the camp, by a barrow at the path's fork towards the two towns.
 - **What he does**: rag-and-bone man. He buys the small spoils of the first hunts:
   rat tails, bat wings, rabbit feet, bones. He pays less than the towns, and says
-  so. By day he sits at the barrow; at night he sleeps beside it.
+  so. By day he sits at the barrow; at night he sleeps in a lean-to behind it.
 - **Before Wyrd**: aged 23. Born on the island. A harbour pickpocket.
 - **Backstory**: he likes the island now, because nobody can hang him. He has
   died fourteen times, more than anyone else at the camp, because he once tried
@@ -1172,6 +1172,13 @@ each would need.
   chain of waypoint markers along the road, each a distinct tile, with a brain
   state per leg, or a new action that follows a named route. Routing does not
   open doors, so routes should not cross one.
+- **Going to one's own bed.** `keeps-hours` walks to the nearest `bed` within
+  16 cells on the levels a body sees, and the walk opens no door and climbs no
+  ladder. A character whose bed is upstairs, behind a closed door, further
+  than 16 cells from their post, or further than a neighbour's, sleeps at
+  their post instead. Each of those needs a bed that names its sleeper, read by
+  `keeps-hours`, and brain routes that open doors and climb ladders. Who that
+  is today is in `docs/notes.md`, *The cast is placed at work*.
 - **Animal skulls do not exist.** No creature drops a skull today. Magda's trade
   needs a skull spoil per animal, or one generic `animal-skull`.
 - **Sparring.** Absalom offering a fight from dialog that stops before death does

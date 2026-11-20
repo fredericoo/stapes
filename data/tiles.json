@@ -19861,6 +19861,13 @@
               "to": 7,
               "spell": 2
             }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 1,
+              "near": 1
+            }
           }
         ]
       },
