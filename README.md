@@ -381,6 +381,13 @@ an agent drives", lists every call.
   faces. The sprites are 3D models cast through the game's projection by
   `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
   times larger
+- `bun run generate:lanterns` — draw `data/tilesets/lanterns.png` and write
+  `lantern` and `candle`, each with its unlit tile and a `switch` between the
+  two. A lantern is an iron-framed glass box lit from inside, short enough to
+  lift onto a wall with a placement's foot; a candle is a taper on a brass dish
+  whose flame is a particle emitter on the lit tile. The sprites are 3D models cast by
+  `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each frame cast four
+  times larger
 - `bun run generate:bookshelves` — draw `data/tilesets/bookshelves.png` and
   write the bookshelves: `bookshelf`, `bookshelf-sparse` and `bookshelf-tomes`,
   each facing four ways, with its back to the edge of the cell behind it. Each

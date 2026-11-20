@@ -3653,5 +3653,255 @@
         "to": "rest"
       }
     ]
+  },
+  {
+    "id": "tends-lights",
+    "name": "Tends lights",
+    "hint": "Lights the unlit lanterns and candles near it for the hours given, and puts the lit ones out outside them. Walks to each light and throws it, one at a time, and gives up on one it cannot reach. Called before keeps-hours, a body whose hours end at bedtime puts its lights out before it goes to bed.",
+    "params": {
+      "from": {
+        "kind": "hour",
+        "label": "from"
+      },
+      "to": {
+        "kind": "hour",
+        "label": "to"
+      },
+      "unlit": {
+        "kind": "things",
+        "default": ["lantern-off", "candle-off"],
+        "label": "lights"
+      },
+      "lit": {
+        "kind": "things",
+        "default": ["lantern", "candle"],
+        "label": "puts out"
+      },
+      "within": {
+        "kind": "cells",
+        "default": 6,
+        "label": "looks within"
+      },
+      "patience": {
+        "kind": "ms",
+        "default": 20000,
+        "label": "walks to a light for at most"
+      }
+    },
+    "slots": {
+      "light": "thing"
+    },
+    "states": {
+      "lighting": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "switch",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "light"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "light"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      },
+      "dousing": {
+        "band": "errand",
+        "do": [
+          {
+            "action": "switch",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "light"
+              }
+            }
+          },
+          {
+            "action": "step_toward",
+            "of": {
+              "type": "slot",
+              "data": {
+                "name": "light"
+              }
+            }
+          },
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "time_of_day",
+              "fromHour": {
+                "arg": "from"
+              },
+              "toHour": {
+                "arg": "to"
+              }
+            },
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "unlit"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "light": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "unlit"
+              }
+            }
+          }
+        },
+        "to": "lighting"
+      },
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "time_of_day",
+                  "fromHour": {
+                    "arg": "from"
+                  },
+                  "toHour": {
+                    "arg": "to"
+                  }
+                }
+              ]
+            },
+            {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": {
+                    "arg": "lit"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "within"
+              }
+            }
+          ]
+        },
+        "bind": {
+          "light": {
+            "type": "thing",
+            "data": {
+              "tileIds": {
+                "arg": "lit"
+              }
+            }
+          }
+        },
+        "to": "dousing"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "lighting",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "light"
+            }
+          },
+          "cells": {
+            "arg": "within"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "lighting",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "lighting",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "dousing",
+        "if": {
+          "cond": "out_of_range",
+          "of": {
+            "type": "slot",
+            "data": {
+              "name": "light"
+            }
+          },
+          "cells": {
+            "arg": "within"
+          }
+        },
+        "to": "rest"
+      },
+      {
+        "from": "dousing",
+        "if": {
+          "cond": "stuck"
+        },
+        "to": "rest"
+      },
+      {
+        "from": "dousing",
+        "if": {
+          "cond": "after",
+          "ms": {
+            "arg": "patience"
+          }
+        },
+        "to": "rest"
+      }
+    ]
   }
 ]

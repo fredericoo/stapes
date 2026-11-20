@@ -150,6 +150,8 @@ bun run scene scripts/scenes/cyclops-pond.json --out before.png
 - **Later entries replace earlier stacks**, so fill the ground with a `from`/`to`
   rectangle first and place things after. A stack is listed bottom first, as
   in `data/map.json`. `z` goes third in `at`, or as `z` beside `from`/`to`.
+  A placement's `foot` lifts it within its level, as in `data/map.json`:
+  `{ "tile": "lantern", "foot": 2 }` hangs a lantern on the wall behind it.
 - **Before and after from one scene file.** Render it on the base commit and on
   the branch, with the same `--size`, and the only difference is the change.
   Keep a scene that shows something worth checking again in `scripts/scenes/`.
@@ -159,7 +161,9 @@ bun run scene scripts/scenes/cyclops-pond.json --out before.png
 - **It takes about 20 seconds**, most of it starting `bun dev`. With `bun dev`
   already running, `--url <client origin>` skips that.
 - **What it cannot show:** anything that needs the game running, such as a
-  walk, a projectile, a status tint or a creature's state. Use `/admin/play`
+  walk, a projectile, a status tint or a creature's state, and particles: the
+  page draws one frame without advancing them, so a candle's flame or a
+  campfire's smoke is missing. Use `/admin/play`
   with `/brain off` and `/face` for those.
 
 ## Handing the evidence over

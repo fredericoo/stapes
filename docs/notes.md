@@ -1644,6 +1644,18 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   the opposite of `potters`'s, so the two never compete for the same idle
   moment: a shopkeeper potters on an empty street and cries their wares to a
   passer-by.
+- **`tends-lights` lights the lanterns and candles near a body for the hours it
+  is given and puts them out outside them**, one at a time, nearest first,
+  within 6 cells unless told otherwise. It is the lamplighter's routine as a
+  trait: a `switch` from the cell beside the light, finished when
+  `out_of_range` of the slot reads the flipped tile as gone, with 20 seconds
+  and `stuck` as the ways out of a light it cannot reach. Both its triggers
+  fire at `errand`, as `keeps-hours`'s do, so a body called with
+  `tends-lights` first and hours that end at its bedtime puts its lights out
+  and then goes to bed: the tie goes to the order of the calls. While `abed`
+  holds at `rest` it does not get up to put out a light, so hours that run
+  past bedtime leave the lights burning until it wakes. Outside its hours it
+  also puts out a light a player lit near it.
 - **Bots do not read any of this as noticing them.** `noticeCells` reads every
   `in_los` of the player tile in a brain, and both traits have one, but bots
   never count a body with a dialog as a creature (`creaturesAround`).
@@ -2544,6 +2556,44 @@ being copied.
 The lighting bake reads the field too — `occlusionSignature` carries it, because
 a foot moves both the elevation every emitter above it sits at and the solid gap
 it leaves under it. Leave it out and lifting a floor relights nothing.
+
+### A lantern hangs on a wall by its foot
+
+`lantern` and `candle` are lamppost pairs: each has an unlit tile, and a
+`switch` between the two that a player or a brain throws.
+`scripts/generate-lanterns.ts` draws both and writes all four tiles.
+
+**A wall lantern is a lantern with `foot: 2`, not a tile of its own.** A
+lantern is two units tall, so lifted two units it ends at the top of its level,
+which is as far as `fitsFoot` lets it go. The gap a foot leaves is solid (*A
+placement may say where its own foot is*), so a lantern on a wall takes the
+floor cell in front of the wall exactly as one standing on that floor does.
+That is why both lanterns and candles are `walkable: false`: a walkable lantern
+lifted one unit would be a step a body could climb onto and stand on, in the
+air. The wall torch is the other way to do it, a tile drawn high in its sprite
+and `intangible`, which leaves the cell walkable but cannot also stand on a
+floor.
+
+**A candle is one unit tall so it stands on what holds it up**: a `table` is
+two, so a candle on one tops out at three, inside the level.
+
+**A candle's flame is particles and nothing else.** Drawn into the sprite, a
+flame a few pixels across came out of the cast as a blob that read as part of
+the wax. The lit tile's emitter puts a stream of one-pixel motes just over the
+wick that rise about half a unit and redden as they fade; the sprite is the
+same candle as the unlit one with an ember for a wick. A rise is drawn up and
+to the left like every height, so that is a flame of one or two pixels.
+
+**A lit lantern's light rises and falls over four frames**, between 0.76 and
+0.95 of its intensity, with the tall flame on the bright frames and the short
+one on the dim. Each frame is one more cached bake for every chunk a lantern
+reaches (*A flicker is cached per phase, never rebaked per frame*), so the
+cycle stays short, and the radius never changes, because a radius that changed
+would change which chunks the light reaches. Every lantern reads the same
+animation clock, so all of them brighten and dim together. The
+first colour of the ramp is amber rather than white because the wax is white,
+and a white base reads as a taller candle. `bun run scene` draws one frame
+without advancing particles, so the flame is not in its picture.
 
 ### A ramp between two levels needs a hole above it
 

@@ -354,5 +354,12 @@
     "file": "bookshelves.png",
     "width": 64,
     "height": 48
+  },
+  {
+    "id": "lanterns",
+    "name": "Lanterns",
+    "file": "lanterns.png",
+    "width": 32,
+    "height": 64
   }
 ]

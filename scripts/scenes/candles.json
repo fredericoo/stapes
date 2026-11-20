@@ -1,0 +1,11 @@
+{
+  "time": "22:00",
+  "zoom": 12,
+  "look": [2, 1],
+  "cells": [
+    { "from": [-3, -3], "to": [7, 5], "tiles": ["grass-2", "wooden-floor"] },
+    { "at": [1, 1], "tiles": ["grass-2", "wooden-floor", "table", "candle"] },
+    { "at": [2, 1], "tiles": ["grass-2", "wooden-floor", "table", "candle-off"] },
+    { "at": [4, 1], "tiles": ["grass-2", "wooden-floor", "candle"] }
+  ]
+}
