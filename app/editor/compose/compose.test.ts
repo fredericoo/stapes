@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 import tilesRaw from "../../../data/tiles.json";
-import { getStack, serializeMap } from "../../lib/mapData";
+import { chunkKeyFor, getStack, serializeMap } from "../../lib/mapData";
 import type { MapFile } from "../../lib/types";
 import { normalizeTiles } from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
@@ -237,5 +237,47 @@ describe("island", () => {
         nearest = Math.min(nearest, Math.abs(dx - lx) + Math.abs(dy - ly));
     }
     expect(nearest).toBe(shore + 1);
+  });
+});
+
+describe("rebuilding after an edit", () => {
+  const tree = (townX: number) =>
+    doc(
+      field(
+        [
+          {
+            type: "road",
+            key: "lane",
+            props: {
+              tile: "cobblestone",
+              from: { in: "town", x: 0, y: -1, pinX: "center" },
+              to: { x: 0, y: 40, pinY: "bottom" },
+            },
+          },
+          {
+            type: "ground",
+            key: "town",
+            frame: { x: townX, y: 20, w: 8, h: 8 },
+            props: { tile: "dirt" },
+          },
+          wood(),
+        ],
+        { x: 0, y: 0, w: 64, h: 64 },
+      ),
+    );
+
+  it("builds what a full build would, even for a node measured in one that moved after it", () => {
+    const previous = build(tree(30));
+    const resumed = buildMap(tree(44), tilesById, registry, undefined, previous);
+    expect(resumed.reused).toBe(1);
+    expect(serializeMap(resumed.map)).toBe(serializeMap(build(tree(44)).map));
+  });
+
+  it("hands back the previous chunk object for a node rebuilt over cells that came out the same", () => {
+    const previous = build(tree(30));
+    const resumed = buildMap(tree(44), tilesById, registry, undefined, previous);
+    const forestChunk = chunkKeyFor(8, 8);
+    expect(resumed.reused).toBe(1);
+    expect(resumed.map.levels["0"]![forestChunk]).toBe(previous.map.levels["0"]![forestChunk]);
   });
 });

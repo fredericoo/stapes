@@ -5,10 +5,10 @@ import {
   IconCopy,
   IconTrash,
 } from "@tabler/icons-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
-import { buildMap } from "../../editor/compose/build";
+import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
 import {
   ComposeCanvas,
@@ -43,7 +43,7 @@ import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { useDocHistory } from "../../editor/compose/useDocHistory";
 import { findPlayers } from "../../game/player";
 import { fetchBootstrap, saveMapText } from "../../lib/api";
-import { serializeMap } from "../../lib/mapData";
+import { changedChunks, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import { baseCellWorldOrigin } from "../../lib/geometry";
 import { tilesByIdFromList } from "../../lib/validation";
@@ -113,7 +113,23 @@ export default function ComposePage() {
   const { show: showToast } = useToast();
   const [selected, setSelected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => branchKeys(doc.root));
-  const built = useMemo(() => buildMap(doc, tilesById, COMPONENTS), [doc, tilesById]);
+  const lastBuild = useRef<BuildResult | null>(null);
+  const { built, stats } = useMemo(() => {
+    const previous = lastBuild.current;
+    const started = performance.now();
+    const result = buildMap(doc, tilesById, COMPONENTS, undefined, previous);
+    const ms = performance.now() - started;
+    lastBuild.current = result;
+    return {
+      built: result,
+      stats: {
+        ms,
+        rebuilt: result.steps.length - result.reused,
+        nodes: result.steps.length,
+        chunks: previous ? changedChunks(previous.map, result.map).length : null,
+      },
+    };
+  }, [doc, tilesById]);
   const problemKeys = useMemo(() => new Set(built.problems.map((p) => p.key)), [built]);
   const placement = selected ? built.layout.placements.get(selected) : undefined;
   const selectedNode = selected ? findNode(doc.root, selected) : null;
@@ -289,48 +305,54 @@ export default function ComposePage() {
             onViewChange={setView}
             lighting={false}
             onPick={(cell) => setSelected(pick(built.layout, cell))}
-            overlay={(projection) =>
-              placement && selectedNode ? (
-                <>
-                  {selectedNode.frame ? (
-                    <FrameHandles
-                      bounds={placement.bounds}
-                      z={placement.z}
-                      projection={projection}
-                      onBounds={(bounds) =>
-                        preview((d) =>
-                          updateNode(d, placement.node.key, (n) => ({
-                            ...n,
-                            frame: frameFor(n.frame!, bounds, placement.parent),
-                          })),
-                        )
-                      }
-                      onEnd={settle}
-                    />
-                  ) : (
-                    <Outline placement={placement} projection={projection} />
-                  )}
-                  {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
-                    <PointHandle
-                      key={name}
-                      label={name}
-                      cell={cell}
-                      z={placement.z}
-                      projection={projection}
-                      onCell={(next) =>
-                        preview((d) =>
-                          updateNode(d, placement.node.key, (n) => ({
-                            ...n,
-                            props: { ...n.props, [name]: pointFor(point, next, frame) },
-                          })),
-                        )
-                      }
-                      onEnd={settle}
-                    />
-                  ))}
-                </>
-              ) : null
-            }
+            overlay={(projection) => (
+              <>
+                <p className="pointer-events-none absolute bottom-2 left-2 bg-ink/80 px-2 py-1 text-xs tabular-nums text-paper">
+                  Built in {stats.ms.toFixed(1)} ms · {stats.rebuilt} of {stats.nodes} layers
+                  {stats.chunks === null ? "" : ` · ${stats.chunks} chunks changed`}
+                </p>
+                {placement && selectedNode ? (
+                  <>
+                    {selectedNode.frame ? (
+                      <FrameHandles
+                        bounds={placement.bounds}
+                        z={placement.z}
+                        projection={projection}
+                        onBounds={(bounds) =>
+                          preview((d) =>
+                            updateNode(d, placement.node.key, (n) => ({
+                              ...n,
+                              frame: frameFor(n.frame!, bounds, placement.parent),
+                            })),
+                          )
+                        }
+                        onEnd={settle}
+                      />
+                    ) : (
+                      <Outline placement={placement} projection={projection} />
+                    )}
+                    {pointsOf(built.layout, placement).map(({ name, point, cell, frame }) => (
+                      <PointHandle
+                        key={name}
+                        label={name}
+                        cell={cell}
+                        z={placement.z}
+                        projection={projection}
+                        onCell={(next) =>
+                          preview((d) =>
+                            updateNode(d, placement.node.key, (n) => ({
+                              ...n,
+                              props: { ...n.props, [name]: pointFor(point, next, frame) },
+                            })),
+                          )
+                        }
+                        onEnd={settle}
+                      />
+                    ))}
+                  </>
+                ) : null}
+              </>
+            )}
           />
         </div>
         <aside className="flex min-h-0 flex-col border-l-2 border-border bg-paper">

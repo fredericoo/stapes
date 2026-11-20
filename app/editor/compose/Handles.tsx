@@ -10,7 +10,8 @@ const HANDLE_PX = 10;
 
 /**
  * Follows one pointer from press to release in cells on level `z`, reporting
- * how far it has moved since the press. The handle keeps the pointer, so a
+ * how far it has moved since the press, at most once a frame: the pointer can
+ * cross several cells between frames, and only the last needs a rebuild. The handle keeps the pointer, so a
  * drag that leaves the box still drags it, and the press never reaches the
  * canvas underneath, which would pan.
  */
@@ -27,14 +28,23 @@ function dragCells(
   target.setPointerCapture(e.pointerId);
   const start = projection.clientToCell(e.clientX, e.clientY, z);
   let last = { dx: 0, dy: 0 };
+  let frame = 0;
+  const flush = () => {
+    frame = 0;
+    onMove(last.dx, last.dy);
+  };
   const move = (m: PointerEvent) => {
     const at = projection.clientToCell(m.clientX, m.clientY, z);
     const next = { dx: at.x - start.x, dy: at.y - start.y };
     if (next.dx === last.dx && next.dy === last.dy) return;
     last = next;
-    onMove(next.dx, next.dy);
+    frame ||= requestAnimationFrame(flush);
   };
   const up = () => {
+    if (frame) {
+      cancelAnimationFrame(frame);
+      flush();
+    }
     target.removeEventListener("pointermove", move);
     target.removeEventListener("pointerup", up);
     target.removeEventListener("pointercancel", up);
