@@ -69,14 +69,21 @@ export class Board {
    * Only the cells inside `rect`, with `ring` cells of open sea round them,
    * since the sea is all that keeps a body from walking off the map
    * (`docs/terrain.md`). The first cell of sea past land has `water` under it.
+   * A cave below level 0 is kept only if all of it is inside, since one cut by
+   * the crop would open on to the edge of the map.
    */
   crop(rect: { x0: number; y0: number; x1: number; y1: number }, ring: number): Board {
     const out = new Board(this.width, this.height, this.ox, this.oy);
+    const inside = (i: number) => {
+      const x = i % this.width;
+      const y = (i - x) / this.width;
+      return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1;
+    };
     for (const [z, layer] of this.levels) {
+      const kept = z >= 0 ? null : this.wholePiecesInside(layer, inside);
       for (const [i, stack] of layer) {
-        const x = i % this.width;
-        const y = (i - x) / this.width;
-        if (x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1) out.set(x, y, z, stack);
+        if (!inside(i) || (kept && !kept.has(i))) continue;
+        out.set(i % this.width, Math.floor(i / this.width), z, stack);
       }
     }
     for (let y = rect.y0 - ring; y <= rect.y1 + ring; y++) {
@@ -88,6 +95,33 @@ export class Board {
       }
     }
     return out;
+  }
+
+  /** The cells of every eight-way piece of `layer` that lies wholly inside. */
+  private wholePiecesInside(
+    layer: Map<number, PlacedTile[]>,
+    inside: (i: number) => boolean,
+  ): Set<number> {
+    const kept = new Set<number>();
+    const seen = new Set<number>();
+    for (const start of layer.keys()) {
+      if (seen.has(start)) continue;
+      const piece = [start];
+      seen.add(start);
+      for (let k = 0; k < piece.length; k++) {
+        const i = piece[k]!;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const j = i + dy * this.width + dx;
+            if (layer.has(j) && !seen.has(j)) {
+              seen.add(j);
+              piece.push(j);
+            }
+          }
+      }
+      if (piece.every(inside)) for (const i of piece) kept.add(i);
+    }
+    return kept;
   }
 
   cellCount(): number {

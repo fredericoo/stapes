@@ -11,7 +11,7 @@ export const PLACES = {
   druids: { x: 510, y: 540, label: "The druids' town", note: "rune temple" },
   barrow: { x: 634, y: 654, label: "The barrow", note: "skeletons, bone" },
   frostCaves: { x: 622, y: 438, label: "Frost caves", note: "crystal" },
-  bearCaves: { x: 494, y: 374, label: "Bear caves", note: "deep woods" },
+  bearCaves: { x: 564, y: 418, label: "Bear caves", note: "deep woods" },
   deepWoods: { x: 345, y: 405, label: "Deep woods", note: "" },
   bog: { x: 365, y: 678, label: "The bog", note: "" },
   witch: { x: 452, y: 640, label: "Witch's house", note: "on stilts, bog's edge" },
@@ -25,9 +25,9 @@ export const PLACES = {
   peak: { x: 705, y: 285, label: "The White Peak", note: "" },
   icyCave: { x: 820, y: 340, label: "Ice hollow", note: "under the peak" },
   bayCave: { x: 900, y: 905, label: "Sea grotto", note: "flooded" },
-  snakeHollow: { x: 1010, y: 690, label: "Snake hollow", note: "desert edge lair" },
+  snakeHollow: { x: 1074, y: 698, label: "Snake hollow", note: "desert edge lair" },
   wolfDen: { x: 640, y: 560, label: "Wolf den", note: "" },
-  trollCave: { x: 400, y: 520, label: "Troll cave", note: "deep woods" },
+  trollCave: { x: 364, y: 556, label: "Troll cave", note: "deep woods" },
 } as const;
 
 export type PlaceId = keyof typeof PLACES;

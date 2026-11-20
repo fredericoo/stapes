@@ -16,6 +16,7 @@ import { plant } from "./island/plants";
 import { buildCamp, buildDruids, buildInn, buildWarriors, buildWitch } from "./island/settlements";
 import { writeTerrain } from "./island/stacks";
 import { buildIsland } from "./island/terrain";
+import { digUnderground } from "./island/caves";
 
 /**
  * Writes Rune Isle to `data/map.json`: the island from the reference
@@ -59,6 +60,7 @@ buildLighthouse(builder, sites.get("lighthouse")!);
 buildWreck(builder);
 placeCast(builder);
 plant(builder);
+const underground = digUnderground(builder, tilesById);
 {
   const at = island.place("wreckBeach");
   const z = island.level[at.y * island.width + at.x]!;
@@ -131,11 +133,12 @@ console.log(
     residents: builder.residents.filter((r) => r.tileId).length,
     lamps: builder.lamps.length,
     cats: builder.cats.length,
+    underground: underground.cells,
   }),
 );
 await Bun.write(
   argValue("--doc") ?? "docs/map.md",
-  mapDoc(builder, plan, island, { seed, cellsPerPixel }),
+  mapDoc(builder, plan, island, { seed, cellsPerPixel }, underground),
 );
 const record = argValue("--record");
 if (record) {

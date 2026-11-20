@@ -3,6 +3,7 @@ import type { Builder } from "./build";
 import { PLACES, type PlaceId } from "./layout";
 import type { Plan } from "./plan";
 import type { Island } from "./terrain";
+import type { Underground } from "./underground";
 
 const cell = (c: { x: number; y: number; z: number } | null) =>
   c ? `${c.x}, ${c.y}, L${c.z}` : "—";
@@ -27,6 +28,7 @@ export function mapDoc(
   plan: Plan,
   island: Island,
   settings: { seed: number; cellsPerPixel: number },
+  underground: Underground,
 ): string {
   const w = (x: number, y: number, z: number) => b.world(x, y, z);
   const lines: string[] = [];
@@ -126,6 +128,29 @@ export function mapDoc(
     `${plan.bridges.length} bridges carry roads over rivers; elsewhere a road wades the river at a ford.`,
     `${plan.ramps.length} ramps join the terraces, and every cell a player can reach has a way back.`,
     "",
+    "## Underground",
+    "",
+    "The caves are dug by `scripts/island/caves.ts`. Each elemental land goes down",
+    "from its own entrances and gets harder the deeper it goes; the deep way on",
+    "level -4 joins every descent, and the Ember heart on -6 is the lowest floor.",
+    "Floors are joined by `stone-stairs`, ladders and holes, and every hole has a",
+    "way back up. Nothing lives in them yet. No cave runs under a chunk of either",
+    `town. The underground adds ${underground.cells.toLocaleString("en")} cells to the map.`,
+    "",
+    "| Place | Levels | Where | What |",
+    "| --- | --- | --- | --- |",
   );
+  for (const p of underground.places) {
+    lines.push(`| ${p.name} | ${p.levels} | ${cell(p.at)} | ${p.note} |`);
+  }
+  lines.push(
+    "",
+    "### Ways in from the surface",
+    "",
+    "| Into | By | Where |",
+    "| --- | --- | --- |",
+  );
+  for (const e of underground.entrances) lines.push(`| ${e.place} | ${e.by} | ${cell(e.at)} |`);
+  lines.push("");
   return lines.join("\n");
 }

@@ -46,7 +46,6 @@
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "generate:island": "bun scripts/generate-island.ts",
     "preview:island": "bun scripts/preview-island.ts",
-    "carve:caves": "bun scripts/carve-caves.ts",
     "raise:hills": "bun scripts/raise-hills.ts",
     "slope:hills": "bun scripts/slope-hills.ts",
     "carve:hill-caves": "bun scripts/carve-hill-caves.ts",

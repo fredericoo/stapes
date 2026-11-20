@@ -3345,16 +3345,15 @@ lighting one:
   is a property of the thing standing on it — and until it is fixed, a cave
   simply does not run under those cells.
 
-The check that catches all three is the last thing `scripts/carve-caves.ts`
-does: bake the map it just wrote and assert no carved cell has any sky in it
-away from the mouth. Everything above was found by that assertion failing.
+The check that catches all three is `bun run verify caves`: it bakes the map
+and asserts no cave cell has any sky in it away from an opening. Everything
+above was found by that assertion failing.
 
-The mouth is not the only way daylight is meant to get in any more. Two holes
-were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
-with a ladder beside it, and a hole in the floor of a roofless house at
-(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
-treats them as it treats the mouth. A new hole is a line there; anything else
-that lets the sky in is still reported.
+The openings are read from the map rather than listed: every cell holding a
+`hill-cave-mouth` (any of the four), a `hole` or `stone-stairs` that the sky
+can see. Those tiles let daylight in on purpose, so light within
+`MAX_LIGHT_LEVEL` of one is its light. Anything else that lets the sky in is
+still reported.
 
 ## A full cell's top face is lit from the cell above it
 
@@ -3392,18 +3391,17 @@ the walls, and the palette turns most of it into the darkest browns. Drawing a
 full cell whose top is a floor of the level above with that level's light map
 would fix it; that was considered and not done.
 
-## `carve:caves --verify` walks the underground the way a player gets around it
+## `verify caves` walks the underground the way a player gets around it
 
-Straight after a carve, the script checks only the cells it carved. With
-`--verify` it checks every dirt cell on levels -1 to -3, and a good part of
-those were built by hand: the tutorial rooms around the spawn, the cellars
-under houses, rooms behind doors, a floor reached only by ladder. A walk that
-started at the mouth and only took `canWalk` steps reached none of them: it
-reported 355 cells nobody could walk to, and a bat walled in behind a door.
+A cave cell is a `dirt` cell that is not rock and is either below level 0 or
+has raised ground over it: a stack on the level above whose first tile is one
+of the grounds a hill is filled with. That is what tells a cave dug into a
+hill from a road on top of one, which is `dirt` too.
 
-The walk now starts at the `player` marker as well as at the mouth, because
-that is where everybody enters the world, and the tutorial's only way out
-starts with a drop nobody can climb back up. The walk is `reachableCells` in
+The walk starts at the `player` marker, because that is where everybody
+enters the world, and every cave has to be reached from there. On the old map
+the walk started at the den's mouth and only took `canWalk` steps, and it
+reached none of the rooms built by hand behind doors and ladders. The walk is `reachableCells` in
 `app/game/navigation.ts`, the same graph `planRoute` searches: it walks
 through a door as though it were open, since anybody who reaches one can open
 it, falls wherever a step leaves a body in the air, and takes every ladder and
@@ -3421,8 +3419,8 @@ for a three-unit body, so nobody can stand in any of those cells.
 
 ## `verify caves` excuses a problem only by kind and area
 
-The cave check moved out of `scripts/carve-caves.ts` into `checkCaves` in
-`app/verify/caves.ts`, so `bun run verify caves` can run it in CI. It reports
+The cave check is `checkCaves` in `app/verify/caves.ts`, so
+`bun run verify caves` can run it in CI. It reports
 one problem per cell, each with a kind (`open-sky`, `daylight`, `unreachable`,
 `ramp-climbs-nowhere`, ...), where it used to report a count.
 
@@ -18773,3 +18771,58 @@ harbour ruins and the lighthouse, widened until the crop cuts no hill off from
 its ramps and ringed with sea. It is seeded where `SEED_MAP=map-staging.json`
 (`docs/deploy.md`) and needs about 180 MB.
 
+
+## Rune Isle's underground is dug by the generator, a cell of rock at a time
+
+`scripts/island/caves.ts` says where every cave is, in map cells, and
+`scripts/island/underground.ts` (`Digger`) digs them after the surface and its
+plants are written. `docs/map.md` lists each place and every way in from the
+surface. Each elemental land goes down from its own entrances: the frost caves
+inside the White Peak on levels 1 to 3, crystal galleries on 0 and -1, the
+frozen lake on -2 and -3; the rootways under the deep woods on -1 to -3; the
+Ember deeps from 0 to -5 and the Ember heart on -6. The deep way on -4 joins
+the descents of the Greenwood, the peak, the heartland and the Red Waste.
+
+**What a cave costs is its floor and one cell of rock round it.** Below level 0
+nothing exists until a cave is dug, so a cave there adds its floor and a shell
+of `[dirt, wall]` on every cell next to it, and nothing else: the empty cells
+past the shell stay dark, because light comes underground only through an
+opening and the shell stops it sideways. The whole underground is 57,635
+cells on top of the surface's 405,381. Loaded into the real `GameServer` with
+one player in, the heap after a collection went from 111 MB to 127 MB, and the
+first join took 3.4–3.9 s on both maps; resident memory moved between 313 and
+396 MB from run to run on either map, so it does not show the difference.
+Above level 0 a cave is dug into the fill of a hill and costs nothing, since
+the cells were already there.
+
+**A cave in a hill keeps two cells of fill on every side.** A cell above level
+0 is dug only where every cell within two of it is fill (`[ground, hill-wall]`)
+and the cell over it seals the sky, so the cave's wall is fill that is inside
+the hill and the face of the cliff outside is untouched. The fill next to the
+cave has its ground tile changed to the cave's own (`Style.ground`), and every
+floor there is that ground under `dirt`. Without that, `dirt` draws an edge
+towards fill whose ground is a different one (snow beside grass in the
+mountain), and `verify content` warns.
+
+**The roof over a mouth is a brink, which lets light through.** The cell over
+the outermost cell of a hill is cut to a brink, so the mouth cells are the
+only cave cells allowed an open roof. They are openings to `verify caves`
+anyway.
+
+**No cave runs under a chunk of either town.** Every level of a chunk is sent
+to whoever stands on it, so a cave under the druids' town would be sent to
+everybody in it. `Digger` refuses every cell within two of a chunk that
+overlaps the druids' or the warriors' site, and the deep way goes round both.
+
+**A level is settled before it is written.** Every floor cell has to be in a
+fully open two-by-two square, as in the editor's caves, and every piece of a
+level that holds none of the pinned cells (the ends of its stairs, ladders,
+holes and mouths) is filled back in, because a room nobody can walk into is
+worse than no room. The generator prints each piece of more than 40 cells it
+filled back. A pinned cell that cannot be dug, or a surface entrance on
+anything but bare ground, stops the generator with the cell named.
+
+**`/tile` reads a number with a sign as an offset.** Lighting a cave for a
+screenshot with `/tile torch -5 -292 -3` puts the torch five cells west, 292
+north and three down from the player, not at that cell. `/goto` takes the
+cell.
