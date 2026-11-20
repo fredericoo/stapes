@@ -161,7 +161,9 @@ bun run scene scripts/scenes/cyclops-pond.json --out before.png
 - **It takes about 20 seconds**, most of it starting `bun dev`. With `bun dev`
   already running, `--url <client origin>` skips that.
 - **What it cannot show:** anything that needs the game running, such as a
-  walk, a projectile, a status tint or a creature's state. Use `/admin/play`
+  walk, a projectile, a status tint or a creature's state, and particles: the
+  page draws one frame without advancing them, so a candle's flame or a
+  campfire's smoke is missing. Use `/admin/play`
   with `/brain off` and `/face` for those.
 
 ## Handing the evidence over
