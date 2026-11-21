@@ -54,6 +54,18 @@ function axisValue(raw: string): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+export type PlacementWriter = Pick<
+  ReturnType<typeof useEditorStore.getState>,
+  | "setStackChannel"
+  | "setStackReward"
+  | "setStackDepotTag"
+  | "setStackTeleport"
+  | "setStackContents"
+  | "setStackInscription"
+  | "setStackDescription"
+  | "setStackEngraving"
+>;
+
 export function PlacementSettingsDialog({
   placed,
   def,
@@ -69,6 +81,7 @@ export function PlacementSettingsDialog({
   tilesets,
   channelListId,
   onClose,
+  writer,
 }: {
   placed: PlacedTile;
   def: TileDef;
@@ -84,6 +97,11 @@ export function PlacementSettingsDialog({
   tilesets: TilesetDef[];
   channelListId: string;
   onClose: () => void;
+  /**
+   * Where the edits go. The map editor's store when absent; the map tree
+   * editor passes one that edits a placement held in a tree instead.
+   */
+  writer?: PlacementWriter;
 }) {
   const [channel, setChannel] = useState(placed.channel ?? "");
   const [inscription, setInscription] = useState(placed.inscription ?? "");
@@ -106,7 +124,7 @@ export function PlacementSettingsDialog({
   const engravable = isEngravable(def.name);
 
   const commitAndClose = () => {
-    const store = useEditorStore.getState();
+    const store = writer ?? useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
     if (gives) {
       store.setStackReward(stackIndex, {

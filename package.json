@@ -47,6 +47,7 @@
     "generate:bear": "bun scripts/generate-bear.ts",
     "generate:gold": "bun scripts/generate-gold.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
+    "build:map": "bun scripts/build-map.ts",
     "generate:island": "bun scripts/generate-island.ts",
     "preview:island": "bun scripts/preview-island.ts",
     "raise:hills": "bun scripts/raise-hills.ts",
@@ -74,6 +75,7 @@
     "format:check": "oxfmt --check"
   },
   "dependencies": {
+    "@dnd-kit/dom": "^0.5.0",
     "@tanstack/ai": "^0.63.0",
     "@tanstack/ai-openai": "^0.25.1",
     "@tursodatabase/database": "0.7.2",
@@ -100,6 +102,8 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.3",
+    "@ui-sdk/core": "0.1.0-beta.13",
+    "@ui-sdk/react": "0.1.0-beta.13",
     "isbot": "^5.1.36",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
