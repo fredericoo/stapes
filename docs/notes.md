@@ -16043,9 +16043,13 @@ A hidden child is left out, so hiding the roof builds the house without one.
   not a corner, facing out of that wall. A floor takes any number, and so
   does an upper floor, where a door opens onto a drop.
 - **Every storey is joined to the one nearer the ground**, by what its
-  `reachedBy` asks for. A flight of `stone-stairs` is the three cells *A ramp
-  between two levels needs a hole above it* describes; where none fits, a
-  ladder (`ladder-up` under `ladder-top` on a floor tile) takes one cell, and
+  `reachedBy` asks for. A flight is two `stone-stairs` in a row, the second
+  on a `half-stone`, as a hill's ramp is, so the pair rises a whole level
+  and the stairs fill the height they climb. Both cells over them are a hole
+  on the storey above, because a body on either stair stands partly in that
+  level (*A ramp between two levels needs a hole above it*). Where no flight
+  fits, a ladder (`ladder-up` under `ladder-top` on a floor tile) takes one
+  cell, and
   a house where not even a ladder fits is refused. `building.test.ts` walks
   every storey with `reachableCells`, out and back.
 - **Ways up go in first, then rooms, then furniture**, and each later step
@@ -16053,6 +16057,11 @@ A hidden child is left out, so hiding the roof builds the house without one.
   side of a doorway, the foot and head of a stair). A wall or a piece of
   furniture that would cut any floor off from the rest is not placed
   (`connected`), so `rooms` is the most rooms a storey gets, not a promise.
+- **The cell south of a stair or ladder stays bare floor.** A wall there is
+  drawn over it and hides it, so none is placed against the south wall, and
+  the cell is kept so no wall between rooms or furniture lands there later.
+  Only a house one cell deep inside, which has no other cell, gets a ladder
+  against its south wall.
 - **The hole over a flight is railed on every side but its landing**
   (`railHole`), with `fence`, so the stairs are entered only from their head.
   A floor autotile draws a cut edge towards a cell with no floor, so every

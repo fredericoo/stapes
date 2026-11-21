@@ -74,6 +74,7 @@ export type BuildingSpec = {
 };
 
 const STAIRS_TILE_ID = "stone-stairs";
+const STAIR_BLOCK_TILE_ID = "half-stone";
 const LADDER_UP_TILE_ID = "ladder-up";
 const LADDER_TOP_TILE_ID = "ladder-top";
 
@@ -88,6 +89,7 @@ const LADDER_TOP = 7;
 const FURNITURE = 8;
 const RAIL = 9;
 const ROOM_DOOR = 10;
+const STAIR_HIGH = 11;
 
 const RAIL_TILE_ID = "fence";
 
@@ -222,14 +224,29 @@ function bare(storey: Storey, at: number): boolean {
 }
 
 /**
- * A flight is three cells: the step before it and the stair itself on the
- * lower storey, and on the upper one a hole over the stair with the landing
- * beyond it, which is what `docs/notes.md` asks of any ramp between levels.
+ * Whether a stair or ladder at a cell can be seen: a wall on the cell south
+ * of it is drawn over it. The south cell is then kept bare, so no wall
+ * between rooms and no furniture goes there later.
+ */
+function seenFromSouth(grid: Grid, storey: Storey, at: number): boolean {
+  return storey.kinds[at + grid.width] === FLOOR;
+}
+
+function keepSouthClear(grid: Grid, storey: Storey, at: number) {
+  storey.keep[at + grid.width] = 1;
+}
+
+/**
+ * A flight is two stairs on the lower storey, the second on a half block so
+ * the pair rises a whole level, with the step before them (`foot`). On the
+ * upper storey both cells over the stairs are a hole, since a body on either
+ * stair stands partly in that level, and the landing (`head`) is beyond it.
  * Flights against a wall are tried first.
  */
 function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => number): boolean {
   const options: Array<{
-    at: number;
+    low: number;
+    high: number;
     foot: number;
     head: number;
     climb: Direction;
@@ -237,36 +254,55 @@ function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => num
   }> = [];
   for (let y = 1; y < grid.depth - 1; y++) {
     for (let x = 1; x < grid.width - 1; x++) {
-      const at = y * grid.width + x;
-      if (!bare(lower, at) || !bare(upper, at)) continue;
+      const low = y * grid.width + x;
+      if (!bare(lower, low) || !bare(upper, low) || !seenFromSouth(grid, lower, low)) continue;
       for (const climb of SIDES) {
         const [dx, dy] = DELTA[climb];
-        const foot = (y - dy) * grid.width + x - dx;
-        const head = (y + dy) * grid.width + x + dx;
+        const step = dy * grid.width + dx;
+        const high = low + step;
+        const foot = low - step;
+        const head = high + step;
+        if (x + 2 * dx < 1 || x + 2 * dx > grid.width - 2) continue;
+        if (y + 2 * dy < 1 || y + 2 * dy > grid.depth - 2) continue;
+        if (!bare(lower, high) || !bare(upper, high)) continue;
+        if (climb !== "n" && !seenFromSouth(grid, lower, high)) continue;
         if (lower.kinds[foot] !== FLOOR || upper.kinds[head] !== FLOOR) continue;
         options.push({
-          at,
+          low,
+          high,
           foot,
           head,
           climb,
-          walls: wallNeighbours(grid, lower, at) + wallNeighbours(grid, upper, at),
+          walls:
+            wallNeighbours(grid, lower, low) +
+            wallNeighbours(grid, lower, high) +
+            wallNeighbours(grid, upper, low) +
+            wallNeighbours(grid, upper, high),
         });
       }
     }
   }
   const ordered = shuffled(options, random).sort((a, b) => b.walls - a.walls);
   for (const option of ordered) {
-    lower.kinds[option.at] = STAIR;
-    upper.kinds[option.at] = HOLE;
+    lower.kinds[option.low] = STAIR;
+    lower.kinds[option.high] = STAIR_HIGH;
+    upper.kinds[option.low] = HOLE;
+    upper.kinds[option.high] = HOLE;
     if (connected(grid, lower) && connected(grid, upper)) {
-      lower.facing.set(option.at, OPPOSITE[option.climb]);
+      lower.facing.set(option.low, OPPOSITE[option.climb]);
+      lower.facing.set(option.high, OPPOSITE[option.climb]);
       lower.keep[option.foot] = 1;
       upper.keep[option.head] = 1;
-      railHole(grid, upper, option.at, option.climb);
+      for (const at of [option.low, option.high]) {
+        if (lower.kinds[at + grid.width] === FLOOR) keepSouthClear(grid, lower, at);
+      }
+      railHole(grid, upper, option.low, option.climb);
       return true;
     }
-    lower.kinds[option.at] = FLOOR;
-    upper.kinds[option.at] = FLOOR;
+    for (const storey of [lower, upper]) {
+      storey.kinds[option.low] = FLOOR;
+      storey.kinds[option.high] = FLOOR;
+    }
   }
   return false;
 }
@@ -279,31 +315,46 @@ function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => num
  * off, or stand in a cell that has to stay bare, is left out.
  */
 function railHole(grid: Grid, upper: Storey, hole: number, climb: Direction) {
+  /** `hole` is the cell over the lower stair; the hole runs one cell on from it towards the landing. */
   const [cx, cy] = DELTA[climb];
   const x = hole % grid.width;
   const y = (hole - x) / grid.width;
   const cell = (along: number, across: number) =>
     (y + cy * along + cx * across) * grid.width + x + cx * along - cy * across;
-  for (const at of [cell(-1, 0), cell(0, 1), cell(0, -1), cell(-1, 1), cell(-1, -1)]) {
+  const beside = [cell(-1, 0), cell(0, 1), cell(0, -1), cell(1, 1), cell(1, -1)];
+  for (const at of [...beside, cell(-1, 1), cell(-1, -1)]) {
     if (!bare(upper, at)) continue;
     upper.kinds[at] = RAIL;
     if (!connected(grid, upper)) upper.kinds[at] = FLOOR;
   }
 }
 
-/** A ladder is one cell on both storeys and can stand inside a door, since a body walks through it. */
+/**
+ * A ladder is one cell on both storeys and can stand inside a door, since a
+ * body walks through it. It goes where it can be seen from the south, and
+ * only a house with no such cell, one a single cell deep inside, gets it
+ * against the south wall.
+ */
 function placeLadder(grid: Grid, lower: Storey, upper: Storey, random: () => number): boolean {
-  const options: Array<{ at: number; rank: number }> = [];
+  const options: Array<{ at: number; rank: number; seen: boolean }> = [];
   for (let at = 0; at < lower.kinds.length; at++) {
     if (lower.kinds[at] !== FLOOR || upper.kinds[at] !== FLOOR) continue;
     const kept = lower.keep[at]! + upper.keep[at]!;
     options.push({
       at,
       rank: wallNeighbours(grid, lower, at) + wallNeighbours(grid, upper, at) - kept * 8,
+      seen: seenFromSouth(grid, lower, at) && seenFromSouth(grid, upper, at),
     });
   }
-  const best = shuffled(options, random).sort((a, b) => b.rank - a.rank)[0];
+  const visible = options.filter((option) => option.seen);
+  const best = shuffled(visible.length > 0 ? visible : options, random).sort(
+    (a, b) => b.rank - a.rank,
+  )[0];
   if (!best) return false;
+  if (best.seen) {
+    keepSouthClear(grid, lower, best.at);
+    keepSouthClear(grid, upper, best.at);
+  }
   lower.kinds[best.at] = LADDER_UP;
   upper.kinds[best.at] = LADDER_TOP;
   lower.keep[best.at] = 1;
@@ -816,13 +867,15 @@ function storeyEdits(
               ? [placed(spec.windowTileId!, tilesById, facing)]
               : kind === STAIR
                 ? [placed(STAIRS_TILE_ID, tilesById, facing)]
-                : kind === LADDER_UP
-                  ? [placed(LADDER_UP_TILE_ID, tilesById)]
-                  : kind === LADDER_TOP
-                    ? [placed(LADDER_TOP_TILE_ID, tilesById)]
-                    : kind === RAIL
-                      ? [{ tileId: RAIL_TILE_ID }]
-                      : (storey.furniture.get(at) ?? []);
+                : kind === STAIR_HIGH
+                  ? [{ tileId: STAIR_BLOCK_TILE_ID }, placed(STAIRS_TILE_ID, tilesById, facing)]
+                  : kind === LADDER_UP
+                    ? [placed(LADDER_UP_TILE_ID, tilesById)]
+                    : kind === LADDER_TOP
+                      ? [placed(LADDER_TOP_TILE_ID, tilesById)]
+                      : kind === RAIL
+                        ? [{ tileId: RAIL_TILE_ID }]
+                        : (storey.furniture.get(at) ?? []);
       const boards = besideHole(gx, gy) ? [{ ...floor }, { tileId: innerId }] : [{ ...floor }];
       edits.push({ x, y, z, stack: [...under(x, y).map((p) => ({ ...p })), ...boards, ...on] });
     }
