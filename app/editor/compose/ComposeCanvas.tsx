@@ -130,6 +130,7 @@ export function ComposeCanvas({
   tool,
   focus,
   raisedAt,
+  pressLevel,
   overlay,
   onPick,
   onDrag,
@@ -144,6 +145,8 @@ export function ComposeCanvas({
   focus?: CanvasFocus | null;
   /** How many levels the ground at a cell is raised, so a press on a hilltop finds the cell drawn there. */
   raisedAt?: (x: number, y: number) => number;
+  /** The level a press is read on when the page knows it, as when a point is picked for one floor of a house. */
+  pressLevel?: number | null;
   overlay?: (projection: Projection) => ReactNode;
   onPick?: (cell: { x: number; y: number }, keys: PressKeys) => void;
   onDrag?: (cell: { x: number; y: number }, keys: PressKeys) => CanvasDrag | null;
@@ -317,6 +320,7 @@ export function ComposeCanvas({
    * level whose ground really is that high, and the ground level otherwise.
    */
   const pressedCell = (clientX: number, clientY: number) => {
+    if (pressLevel != null) return proj.clientToCell(clientX, clientY, pressLevel);
     for (let level = MAX_RAISED; level > 0 && raisedAt; level--) {
       const cell = proj.clientToCell(clientX, clientY, level);
       if (raisedAt(cell.x, cell.y) === level) return cell;

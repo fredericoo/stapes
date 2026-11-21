@@ -499,80 +499,87 @@ export function Inspector({
           ) : null}
         </Row>
       </Section>
-      <Section title="Frame">
-        {node.frame ? (
-          <>
-            <Row label="x, y">
-              <Num label="x" value={node.frame.x} onChange={(x) => setFrame({ x })} />
-              <Num label="y" value={node.frame.y} onChange={(y) => setFrame({ y })} />
-            </Row>
-            <Row label="width, height">
-              <Num label="width" min={1} value={node.frame.w} onChange={(w) => setFrame({ w })} />
-              <Num label="height" min={1} value={node.frame.h} onChange={(h) => setFrame({ h })} />
-            </Row>
-            <Row label="level">
-              <Num label="level" value={node.frame.z ?? 0} onChange={(z) => setFrame({ z })} />
-            </Row>
-            {isRoot ? null : (
-              <>
-                <Row label="x from">
-                  <Select
-                    ariaLabel="x from"
-                    value={node.frame.pinX ?? "left"}
-                    onValueChange={(pinX) => setFrame({ pinX: pinX as Frame["pinX"] })}
-                    options={PIN_X.map((p) => ({ value: p, label: p }))}
-                  />
-                </Row>
-                <Row label="y from">
-                  <Select
-                    ariaLabel="y from"
-                    value={node.frame.pinY ?? "top"}
-                    onValueChange={(pinY) => setFrame({ pinY: pinY as Frame["pinY"] })}
-                    options={PIN_Y.map((p) => ({ value: p, label: p }))}
-                  />
-                </Row>
-                <Row label="absolute">
-                  <Switch
-                    ariaLabel="absolute"
-                    checked={node.frame.absolute === true}
-                    onCheckedChange={(absolute) => setFrame({ absolute })}
-                  />
-                </Row>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onChange(reframeNode(doc, built, node.key, null))}
-                >
-                  Fill the parent instead
-                </Button>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-muted">Fills its parent.</p>
-            <Button
-              size="sm"
-              onClick={() =>
-                onChange(
-                  reframeNode(
-                    doc,
-                    built,
-                    node.key,
-                    node.children?.some((c) => c.frame)
-                      ? "fit"
-                      : { x: 0, y: 0, w: DEFAULT_FRAME_SPAN, h: DEFAULT_FRAME_SPAN },
-                  ),
-                )
-              }
-            >
-              {node.children?.some((c) => c.frame)
-                ? "Frame round its children"
-                : "Give it its own frame"}
-            </Button>
-          </>
-        )}
-      </Section>
+      {component?.within ? null : (
+        <Section title="Frame">
+          {node.frame ? (
+            <>
+              <Row label="x, y">
+                <Num label="x" value={node.frame.x} onChange={(x) => setFrame({ x })} />
+                <Num label="y" value={node.frame.y} onChange={(y) => setFrame({ y })} />
+              </Row>
+              <Row label="width, height">
+                <Num label="width" min={1} value={node.frame.w} onChange={(w) => setFrame({ w })} />
+                <Num
+                  label="height"
+                  min={1}
+                  value={node.frame.h}
+                  onChange={(h) => setFrame({ h })}
+                />
+              </Row>
+              <Row label="level">
+                <Num label="level" value={node.frame.z ?? 0} onChange={(z) => setFrame({ z })} />
+              </Row>
+              {isRoot ? null : (
+                <>
+                  <Row label="x from">
+                    <Select
+                      ariaLabel="x from"
+                      value={node.frame.pinX ?? "left"}
+                      onValueChange={(pinX) => setFrame({ pinX: pinX as Frame["pinX"] })}
+                      options={PIN_X.map((p) => ({ value: p, label: p }))}
+                    />
+                  </Row>
+                  <Row label="y from">
+                    <Select
+                      ariaLabel="y from"
+                      value={node.frame.pinY ?? "top"}
+                      onValueChange={(pinY) => setFrame({ pinY: pinY as Frame["pinY"] })}
+                      options={PIN_Y.map((p) => ({ value: p, label: p }))}
+                    />
+                  </Row>
+                  <Row label="absolute">
+                    <Switch
+                      ariaLabel="absolute"
+                      checked={node.frame.absolute === true}
+                      onCheckedChange={(absolute) => setFrame({ absolute })}
+                    />
+                  </Row>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onChange(reframeNode(doc, built, node.key, null))}
+                  >
+                    Fill the parent instead
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted">Fills its parent.</p>
+              <Button
+                size="sm"
+                onClick={() =>
+                  onChange(
+                    reframeNode(
+                      doc,
+                      built,
+                      node.key,
+                      node.children?.some((c) => c.frame)
+                        ? "fit"
+                        : { x: 0, y: 0, w: DEFAULT_FRAME_SPAN, h: DEFAULT_FRAME_SPAN },
+                    ),
+                  )
+                }
+              >
+                {node.children?.some((c) => c.frame)
+                  ? "Frame round its children"
+                  : "Give it its own frame"}
+              </Button>
+            </>
+          )}
+        </Section>
+      )}
       {component ? (
         <Section title="Props">
           {fieldsOf(component.schema).map(({ name, field, fallback }) => (

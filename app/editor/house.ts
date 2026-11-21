@@ -80,7 +80,7 @@ export { MAX_FOOTPRINT } from "./generator";
 
 const DOOR_MIN_FROM_CORNER = 2;
 const WINDOW_MIN_FROM_CORNER = 1;
-const WINDOW_MIN_FROM_DOOR = 2;
+export const WINDOW_MIN_FROM_DOOR = 2;
 
 export const WINDOW_SPACING_RANGE = { min: 2, max: 12 } as const;
 
@@ -96,7 +96,7 @@ export function roofLevelsFor(span: number, pitch: RoofPitch = "steep"): number 
  * running north-south its east face. That is the convention every window in
  * `data/map.json` is authored with.
  */
-function windowDirectionFor(wall: Direction): Direction {
+export function windowDirectionFor(wall: Direction): Direction {
   return wall === "n" || wall === "s" ? "s" : "e";
 }
 
@@ -258,10 +258,10 @@ function roofStack(
   return fromEdge === 0 ? [top] : [{ ...fill }, top];
 }
 
-function roofEdits(
+export function roofEdits(
   bounds: Bounds,
   baseLevel: number,
-  config: HouseConfig,
+  config: Pick<HouseConfig, "roofColour" | "roofPitch">,
   orientation: RoofOrientation,
   tilesById: Record<string, TileDef>,
 ): StackEdit[] {
@@ -301,7 +301,7 @@ function roofEdits(
   return edits;
 }
 
-function measureSite(
+export function measureSite(
   map: MapFile,
   bounds: Bounds,
   z: number,

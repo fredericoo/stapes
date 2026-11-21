@@ -37,10 +37,25 @@ export type BuildContext = {
   point(point: Point): { x: number; y: number } | null;
   /** Whether the node's masks leave x,y in; true everywhere for a node with none. */
   covered(x: number, y: number): boolean;
+  /** The node's visible children of the types its component lists in `parts`, in tree order, props validated. */
+  readonly parts: readonly Part[];
 };
 
-/** What a node of this type starts as when the editor adds one. */
-export type Starter = { frame?: Frame; props?: Record<string, unknown> };
+/** A child its parent builds. `point` resolves one of the child's own points to a cell. */
+export type Part = {
+  readonly key: string;
+  readonly type: string;
+  readonly seed: number;
+  readonly props: unknown;
+  point(point: Point): { x: number; y: number } | null;
+};
+
+/** What a node of this type starts as when the editor adds one; the editor gives each child a key. */
+export type Starter = {
+  frame?: Frame;
+  props?: Record<string, unknown>;
+  children?: ReadonlyArray<{ type: string; props?: Record<string, unknown> }>;
+};
 
 export type Component<Props> = {
   readonly type: string;
@@ -64,6 +79,14 @@ export type Component<Props> = {
    * house, reads `ctx.raisedAt` and places itself.
    */
   readonly ownLevels?: true;
+  /**
+   * Child types this component builds itself. Such a child writes nothing of
+   * its own: the parent reads it from `ctx.parts`, the way a layer reads its
+   * masks, because the parts of a house only make sense planned together.
+   */
+  readonly parts?: readonly string[];
+  /** The parent types this component is a part of. Anywhere else it is refused. */
+  readonly within?: readonly string[];
   build(ctx: BuildContext, props: Props): ComponentPlan;
 };
 
@@ -162,15 +185,29 @@ function namedFrames(value: unknown, layout: Layout, into: Record<string, unknow
  * layer needs nothing more, because that layer comes earlier, and any change
  * to it already stops the build reusing what follows.
  */
-function inputsOf(placement: Placement, layout: Layout): string {
+function inputsOf(placement: Placement, layout: Layout, parts: readonly MapNode[]): string {
   const named: Record<string, unknown> = {};
   namedFrames(placement.node.props, layout, named);
+  const built = parts.map((part) => {
+    namedFrames(part.props, layout, named);
+    return [part.type, part.props ?? null, layout.placements.get(part.key)?.seed];
+  });
   const { node, seed, bounds, clip, z } = placement;
   const masks = masksOf(node).map((m) => {
     const p = layout.placements.get(m.key);
     return [m.props ?? null, p?.seed, p?.bounds];
   });
-  return JSON.stringify([node.type, node.props ?? null, seed, bounds, clip, z, named, masks]);
+  return JSON.stringify([
+    node.type,
+    node.props ?? null,
+    seed,
+    bounds,
+    clip,
+    z,
+    named,
+    masks,
+    built,
+  ]);
 }
 
 function sameStack(a: readonly PlacedTile[] | undefined, b: readonly PlacedTile[] | undefined) {
@@ -243,17 +280,41 @@ function shapesFor(
   });
 }
 
-function visibleOrder(doc: MapDoc, layout: Layout): Placement[] {
-  const out: Placement[] = [];
-  const visit = (node: MapNode) => {
+function visibleOrder(
+  doc: MapDoc,
+  layout: Layout,
+): Array<{ placement: Placement; parent: MapNode | null }> {
+  const out: Array<{ placement: Placement; parent: MapNode | null }> = [];
+  const visit = (node: MapNode, parent: MapNode | null) => {
     if (node.hidden) return;
     const placement = layout.placements.get(node.key);
     if (placement?.node !== node) return;
-    out.push(placement);
-    for (const child of node.children ?? []) visit(child);
+    out.push({ placement, parent });
+    for (const child of node.children ?? []) visit(child, node);
   };
-  visit(doc.root);
+  visit(doc.root, null);
   return out;
+}
+
+function partNodes(node: MapNode, component: Component<never> | undefined): MapNode[] {
+  const types = component?.parts;
+  if (!types) return [];
+  return (node.children ?? []).filter((c) => types.includes(c.type) && !c.hidden);
+}
+
+function validProps(
+  component: Component<never>,
+  node: MapNode,
+  tilesById: Record<string, TileDef>,
+): { ok: true; props: unknown } | { ok: false; reason: string } {
+  const parsed = v.safeParse(component.schema, node.props ?? {});
+  if (!parsed.success) {
+    const issue = parsed.issues[0];
+    const path = issue.path?.map((item) => String(item.key)).join(".");
+    return { ok: false, reason: path ? `${path}: ${issue.message}` : issue.message };
+  }
+  const wrong = wrongTile(component.schema, parsed.output as Record<string, unknown>, tilesById);
+  return wrong ? { ok: false, reason: wrong } : { ok: true, props: parsed.output };
 }
 
 /**
@@ -287,8 +348,9 @@ export function buildMap(
   let terrain = FLAT;
   let resuming = true;
 
-  for (const placement of visibleOrder(doc, layout)) {
-    const inputs = inputsOf(placement, layout);
+  for (const { placement, parent } of visibleOrder(doc, layout)) {
+    const partsOfNode = partNodes(placement.node, components[placement.node.type]);
+    const inputs = inputsOf(placement, layout, partsOfNode);
     const prior = usable[steps.length];
     if (resuming && prior?.key === placement.node.key && prior.inputs === inputs) {
       steps.push(prior);
@@ -306,21 +368,16 @@ export function buildMap(
     const component = components[node.type];
     if (!component) {
       problems.push({ key: node.key, reason: `There is no component called ${node.type}` });
+    } else if (component.within && !component.within.includes(parent?.type ?? "")) {
+      const homes = component.within.map((type) => components[type]?.label ?? type).join(" or ");
+      problems.push({
+        key: node.key,
+        reason: `A ${component.label.toLowerCase()} is part of a ${homes.toLowerCase()} and builds nothing anywhere else. Drag it into one.`,
+      });
     } else {
-      const parsed = v.safeParse(component.schema, node.props ?? {});
-      if (!parsed.success) {
-        const issue = parsed.issues[0];
-        const path = issue.path?.map((item) => String(item.key)).join(".");
-        problems.push({
-          key: node.key,
-          reason: path ? `${path}: ${issue.message}` : issue.message,
-        });
-      } else if (wrongTile(component.schema, parsed.output as Record<string, unknown>, tilesById)) {
-        problems.push({
-          key: node.key,
-          reason: wrongTile(component.schema, parsed.output as Record<string, unknown>, tilesById)!,
-        });
-      } else {
+      const valid = validProps(component, node, tilesById);
+      if (!valid.ok) problems.push({ key: node.key, reason: valid.reason });
+      else {
         const current = map;
         const known = terrain;
         const raisedAt = (x: number, y: number) => known.elevation.get(`${x},${y}`) ?? 0;
@@ -343,8 +400,26 @@ export function buildMap(
               return frame ? pointIn(point, frame) : null;
             },
             covered: (x, y) => keeps(shapes, x, y, ""),
+            parts: partsOfNode.flatMap((part): Part[] => {
+              const made = components[part.type];
+              const at = layout.placements.get(part.key);
+              const checked = made && at ? validProps(made, part, tilesById) : null;
+              if (!checked?.ok || !at) return [];
+              return [
+                {
+                  key: part.key,
+                  type: part.type,
+                  seed: at.seed,
+                  props: checked.props,
+                  point: (point) => {
+                    const frame = pointFrame(layout, at, point);
+                    return frame ? pointIn(point, frame) : null;
+                  },
+                },
+              ];
+            }),
           },
-          parsed.output as never,
+          valid.props as never,
         );
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
         else {

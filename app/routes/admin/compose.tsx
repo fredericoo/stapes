@@ -13,6 +13,8 @@ import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
+import { ROOF_TYPE, partLevels } from "../../editor/compose/components/house";
+import { cutAbove } from "../../editor/compose/cutaway";
 import {
   ComposeCanvas,
   type CanvasDrag,
@@ -29,6 +31,7 @@ import {
   duplicateNode,
   duplicateTo,
   findNode,
+  findParent,
   freeKey,
   hitsLayer,
   insertNode,
@@ -157,7 +160,8 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
   if (!component) return [];
   const props = placement.node.props ?? {};
   const entries = fieldsOf(component.schema);
-  const via = entries.find((e) => e.field.kind === "points")?.name;
+  const routed = entries.some((e) => e.field.kind === "point");
+  const via = routed ? entries.find((e) => e.field.kind === "points")?.name : undefined;
   const viaCount = via ? ((props[via] as Point[] | undefined) ?? []).length : 0;
   let pastVia = false;
   return entries.flatMap(({ name, field }): PointHandleSpec[] => {
@@ -179,7 +183,7 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
               [name]: (p[name] as Point[]).map((q, j) => (j === i ? next : q)),
             }),
             remove: (p) => ({ ...p, [name]: (p[name] as Point[]).filter((_, j) => j !== i) }),
-            insertAt: { name, index: i },
+            ...(routed ? { insertAt: { name, index: i } } : {}),
           },
         ];
       });
@@ -277,8 +281,18 @@ export default function ComposePage() {
     if (!component) return;
     const parent = selectedNode ?? doc.root;
     const key = freeKey(doc.root, type);
+    const { children: parts, ...starter } = component.starter;
+    const children = parts?.map((part) => ({
+      ...part,
+      key: freeKey(doc.root, `${key}-${part.type}`),
+    }));
     commit((d) =>
-      insertNode(d, parent.key, parent.children?.length ?? 0, { type, key, ...component.starter }),
+      insertNode(d, parent.key, parent.children?.length ?? 0, {
+        type,
+        key,
+        ...starter,
+        ...(children ? { children } : {}),
+      }),
     );
     setExpanded((keys) => (keys.includes(parent.key) ? keys : [...keys, parent.key]));
     setSelection([key]);
@@ -326,6 +340,31 @@ export default function ComposePage() {
     );
 
   /**
+   * The selected layer when its parent builds it, as a house builds its
+   * floors: the parent's placement and how many levels above the parent's
+   * ground the part is. A floor or cellar cuts the view down to its level.
+   */
+  const part = useMemo(() => {
+    const parent = selectedNode ? findParent(doc.root, selectedNode.key) : null;
+    if (!selectedNode || !parent) return null;
+    if (!COMPONENTS[selectedNode.type]?.within?.includes(parent.type)) return null;
+    const home = built.layout.placements.get(parent.key);
+    const level = partLevels(parent).get(selectedNode.key);
+    if (!home || level === undefined) return null;
+    return { home, level, cuts: selectedNode.type !== ROOF_TYPE };
+  }, [doc, selectedNode, built]);
+  const partLevel = part ? levelOf(part.home) + part.level : null;
+  const shown = useMemo(
+    () =>
+      part?.cuts && partLevel !== null
+        ? cutAbove(built.map, part.home.bounds, partLevel)
+        : built.map,
+    [built, part, partLevel],
+  );
+  /** How far above its placement's own level the selected layer is drawn. */
+  const lift = part?.level ?? 0;
+
+  /**
    * The box that shows where layers are: a frame where a layer has one, and
    * otherwise the cells it and the layers under it wrote, since a layer
    * without a frame has its parent's.
@@ -335,6 +374,7 @@ export default function ComposePage() {
       const p = built.layout.placements.get(key);
       if (!p) return [];
       if (p.node.frame) return [{ bounds: p.bounds, z: levelOf(p) }];
+      if (COMPONENTS[p.node.type]?.within) return [{ bounds: p.bounds, z: levelOf(p) }];
       return allKeys(p.node).flatMap((k) => {
         const bounds = built.written.get(k);
         return bounds ? [{ bounds, z: levelOf(p, bounds) }] : [];
@@ -565,7 +605,9 @@ export default function ComposePage() {
                 placeholder={`Add inside ${selectedNode?.key ?? doc.root.key}…`}
                 value={null}
                 onValueChange={(type) => type && addNode(type)}
-                options={Object.values(COMPONENTS).map((c) => ({ value: c.type, label: c.label }))}
+                options={Object.values(COMPONENTS)
+                  .filter((c) => !c.within || c.within.includes((selectedNode ?? doc.root).type))
+                  .map((c) => ({ value: c.type, label: c.label }))}
               />
             </div>
             <ScrollArea className="min-h-0 flex-1 p-2">
@@ -597,7 +639,7 @@ export default function ComposePage() {
           </aside>
           <div className="min-h-0">
             <ComposeCanvas
-              map={built.map}
+              map={shown}
               tilesById={tilesById}
               tilesets={tilesets}
               view={view}
@@ -606,6 +648,7 @@ export default function ComposePage() {
               tool={picking ? "select" : activeTool}
               focus={focus}
               raisedAt={raisedAt}
+              pressLevel={picking ? partLevel : null}
               onPick={pickOnMap}
               onDrag={dragOnMap}
               overlay={(projection) => (
@@ -675,7 +718,7 @@ export default function ComposePage() {
                       {selectedNode.frame && activeTool === "select" ? (
                         <FrameHandles
                           bounds={placement.bounds}
-                          z={levelOf(placement)}
+                          z={levelOf(placement) + lift}
                           projection={projection}
                           onBounds={(bounds) =>
                             preview((d) =>
@@ -690,7 +733,7 @@ export default function ComposePage() {
                       ) : (
                         <Outline
                           bounds={placement.bounds}
-                          z={levelOf(placement)}
+                          z={levelOf(placement) + lift}
                           projection={projection}
                         />
                       )}
@@ -706,7 +749,7 @@ export default function ComposePage() {
                                     x: Math.round((before.cell.x + spec.cell.x) / 2),
                                     y: Math.round((before.cell.y + spec.cell.y) / 2),
                                   }}
-                                  z={placement.z + raisedAt(spec.cell.x, spec.cell.y)}
+                                  z={placement.z + raisedAt(spec.cell.x, spec.cell.y) + lift}
                                   projection={projection}
                                   onInsert={(cell) =>
                                     commit((d) =>
@@ -733,7 +776,7 @@ export default function ComposePage() {
                                 label={spec.glyph}
                                 title={spec.title}
                                 cell={spec.cell}
-                                z={placement.z + raisedAt(spec.cell.x, spec.cell.y)}
+                                z={placement.z + raisedAt(spec.cell.x, spec.cell.y) + lift}
                                 projection={projection}
                                 onCell={(next) =>
                                   preview((d) =>

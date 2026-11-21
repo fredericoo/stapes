@@ -1,0 +1,177 @@
+import { describe, expect, it } from "vitest";
+import tilesRaw from "../../data/tiles.json";
+import { PLAYER_TILE_ID } from "../game/constants";
+import { reachableCells } from "../game/navigation";
+import { emptyMap, getStack, setStacks, type StackEdit } from "../lib/mapData";
+import type { MapFile } from "../lib/types";
+import { normalizeTiles } from "../lib/types";
+import { tilesByIdFromList } from "../lib/validation";
+import {
+  FLOOR_USES,
+  planBuilding,
+  type Access,
+  type BuildingSpec,
+  type FloorSpec,
+  type FloorUse,
+} from "./building";
+
+const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
+
+function lawn(size: number): MapFile {
+  const edits: StackEdit[] = [];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) edits.push({ x, y, z: 0, stack: [{ tileId: "grass" }] });
+  }
+  return setStacks(emptyMap(), edits);
+}
+
+function storey(name: string, over: Partial<FloorSpec> = {}): FloorSpec {
+  return {
+    name,
+    use: "house",
+    seed: 1,
+    rooms: 1,
+    access: "stairs",
+    doors: [],
+    wallTileId: "sw2",
+    floorTileId: "wooden-floor",
+    windowTileId: "window-1",
+    windowSpacing: 3,
+    doorTileId: "door-closed",
+    ...over,
+  };
+}
+
+const RECT = { x0: 4, y0: 4, x1: 12, y1: 11 };
+const FRONT_DOOR = { x: 8, y: 11 };
+const OUTSIDE = { x: 8, y: 13, z: 0 };
+
+function built(spec: BuildingSpec, rect = RECT) {
+  const map = lawn(20);
+  const plan = planBuilding(map, tilesById, rect, 0, spec);
+  if (!plan.ok) throw new Error(plan.reason);
+  return setStacks(map, plan.edits);
+}
+
+/** The levels a player who starts on the lawn outside can get to and get back from. */
+function levelsWalked(map: MapFile, from = OUTSIDE): number[] {
+  const world = { board: map, traveller: tilesById[PLAYER_TILE_ID]!, tilesById, statusDefs: {} };
+  const out = [...reachableCells(world, [from]).values()];
+  const home = `${from.x},${from.y},${from.z}`;
+  const levels = new Set<number>();
+  for (const cell of out) {
+    if (levels.has(cell.z)) continue;
+    const back = reachableCells(world, [cell]);
+    if ([...back.values()].some((c) => `${c.x},${c.y},${c.z}` === home)) levels.add(cell.z);
+  }
+  return [...levels].sort((a, b) => a - b);
+}
+
+function tower(access: Access, use: FloorUse, seed: number, rooms: number): BuildingSpec {
+  const of = (name: string, over: Partial<FloorSpec> = {}) =>
+    storey(name, { access, use, seed: seed + name.length, rooms, ...over });
+  return {
+    floors: [of("ground", { doors: [FRONT_DOOR] }), of("first"), of("second-floor")],
+    cellars: [of("cellar"), of("deep-cellar")],
+    roof: { colour: "red", pitch: "steep", orientation: "auto" },
+  };
+}
+
+describe("planBuilding", () => {
+  it.each(FLOOR_USES.flatMap((use) => [1, 2, 3].map((seed) => [use, seed] as const)))(
+    "joins every floor and cellar of a %s by stairs, seed %i",
+    (use, seed) => {
+      const map = built(tower("stairs", use, seed, 3));
+      expect(levelsWalked(map)).toEqual([-2, -1, 0, 1, 2]);
+    },
+  );
+
+  it("joins every floor and cellar by ladders when asked to", () => {
+    const map = built(tower("ladder", "house", 5, 2));
+    expect(levelsWalked(map)).toEqual([-2, -1, 0, 1, 2]);
+    const ladders = (z: number, tileId: string) => {
+      let count = 0;
+      for (let y = 4; y <= 11; y++) {
+        for (let x = 4; x <= 12; x++) {
+          if (getStack(map, x, y, z).some((p) => p.tileId === tileId)) count++;
+        }
+      }
+      return count;
+    };
+    expect([-2, -1, 0, 1].map((z) => ladders(z, "ladder-up"))).toEqual([1, 1, 1, 1]);
+    expect([-1, 0, 1, 2].map((z) => ladders(z, "stone-stairs"))).toEqual([0, 0, 0, 0]);
+  });
+
+  it("rails the hole over a flight so it is entered only from the head of the stairs", () => {
+    const spec: BuildingSpec = {
+      floors: [storey("ground", { use: "empty" }), storey("upper", { use: "empty" })],
+      cellars: [],
+      roof: null,
+    };
+    const map = built(spec);
+    const tops = (x: number, y: number, z: number) => getStack(map, x, y, z).at(-1)?.tileId;
+    const holes: Array<{ x: number; y: number }> = [];
+    for (let y = 5; y <= 10; y++) {
+      for (let x = 5; x <= 11; x++) if (tops(x, y, 0) === "stone-stairs") holes.push({ x, y });
+    }
+    expect(holes).toHaveLength(1);
+    const { x, y } = holes[0]!;
+    expect(getStack(map, x, y, 1)).toEqual([]);
+    const beside = [tops(x, y - 1, 1), tops(x + 1, y, 1), tops(x, y + 1, 1), tops(x - 1, y, 1)];
+    expect(beside.filter((id) => id === "wooden-floor-inner")).toHaveLength(1);
+    expect(beside.filter((id) => id === "fence" || id === "sw2" || id === "window-1")).toHaveLength(
+      3,
+    );
+  });
+
+  it("falls back to a ladder where a flight of stairs does not fit", () => {
+    const spec: BuildingSpec = {
+      floors: [storey("ground", { doors: [{ x: 5, y: 6 }], use: "empty" }), storey("loft")],
+      cellars: [],
+      roof: null,
+    };
+    const map = built(spec, { x0: 4, y0: 4, x1: 6, y1: 6 });
+    expect(getStack(map, 5, 5, 0).at(-1)?.tileId).toBe("ladder-up");
+    expect(levelsWalked(map, { x: 5, y: 8, z: 0 })).toEqual([0, 1]);
+  });
+
+  it("refuses a building with no room for any way up, rather than building floors nobody can reach", () => {
+    const spec: BuildingSpec = {
+      floors: [storey("ground"), storey("middle"), storey("top")],
+      cellars: [],
+      roof: null,
+    };
+    const plan = planBuilding(lawn(20), tilesById, { x0: 4, y0: 4, x1: 6, y1: 6 }, 0, spec);
+    expect(plan).toEqual({
+      ok: false,
+      reason: "There is no room for a way between middle and top. Make the house larger.",
+    });
+  });
+
+  it("puts a door in the outer wall nearest each point and never in a corner", () => {
+    const doors = [
+      { x: 8, y: 20 },
+      { x: 0, y: 7 },
+      { x: 9, y: 5 },
+      { x: 4, y: 4 },
+    ];
+    const map = built({ floors: [storey("ground", { doors })], cellars: [], roof: null });
+    const doorAt = (x: number, y: number) => {
+      const top = getStack(map, x, y, 0).at(-1);
+      return top?.tileId === "door-closed" ? top.direction : null;
+    };
+    expect(doorAt(8, 11)).toBe("s");
+    expect(doorAt(4, 7)).toBe("w");
+    expect(doorAt(9, 4)).toBe("n");
+    expect([doorAt(5, 4), doorAt(4, 5)].filter(Boolean)).toHaveLength(1);
+    expect(doorAt(4, 4)).toBeNull();
+  });
+
+  it("builds the same building from the same seeds and a different one from another", () => {
+    const a = planBuilding(lawn(20), tilesById, RECT, 0, tower("stairs", "pub", 4, 3));
+    const b = planBuilding(lawn(20), tilesById, RECT, 0, tower("stairs", "pub", 4, 3));
+    const c = planBuilding(lawn(20), tilesById, RECT, 0, tower("stairs", "pub", 9, 3));
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    expect(JSON.stringify(a)).not.toBe(JSON.stringify(c));
+  });
+});

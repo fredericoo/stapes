@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "seed": 20261120,
   "root": {
     "type": "sea",
@@ -227,10 +227,41 @@
               "w": 7,
               "h": 6
             },
-            "props": {
-              "roofPitch": "low",
-              "doorRow": "south"
-            }
+            "children": [
+              {
+                "type": "floor",
+                "key": "cottage-ground",
+                "props": {
+                  "doors": [
+                    {
+                      "x": 0,
+                      "y": 0,
+                      "pinX": "center",
+                      "pinY": "bottom"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "floor",
+                "key": "cottage-loft",
+                "props": {
+                  "use": "inn",
+                  "reachedBy": "ladder"
+                }
+              },
+              {
+                "type": "cellar",
+                "key": "cottage-cellar"
+              },
+              {
+                "type": "roof",
+                "key": "cottage-roof",
+                "props": {
+                  "pitch": "low"
+                }
+              }
+            ]
           },
           {
             "type": "road",
