@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import type { StackEdit } from "../../../lib/mapData";
+import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
@@ -18,9 +19,34 @@ const RiverSchema = v.object({
 export type RiverProps = v.InferOutput<typeof RiverSchema>;
 
 /**
+ * A fall stands in the lower cell, against the face of the cliff the water
+ * comes down. Only water leaving a cliff south or east gets one, because the
+ * north and west faces of a cliff are never drawn. South comes first, so a
+ * cell under a corner of the cliff takes the south-facing fall. The lower
+ * cell has to be open water, which a bridge's deck is not and shore foam is.
+ */
+const FALLS = [
+  { dx: 0, dy: 1, segments: ["waterfall-base", "waterfall-middle", "waterfall-top"] },
+  {
+    dx: 1,
+    dy: 0,
+    segments: ["waterfall-east-base", "waterfall-east-middle", "waterfall-east-top"],
+  },
+] as const;
+
+/** A fall segment is half a level tall, and a stack may not reach past its own level. */
+const SEGMENTS_PER_LEVEL = 2;
+
+const isFall = (p: PlacedTile) => p.tileId.startsWith("waterfall");
+
+/**
  * Keeps the bottom tile of every dry cell it crosses and replaces the rest
  * with a bed and `water`, so a road or a tree in its way is washed out. Cells
  * that are already water, a bridge's among them, are left alone.
+ *
+ * Laid after a hill it runs over the hill's top, and wherever its water
+ * stands above open water to the south or east it draws a waterfall down the
+ * cliff between them, as many levels tall as the drop.
  *
  * It builds no bridge. It declares how its water is crossed, and a road that
  * crosses it later builds the bridge in that deck and rail, or stops at the
@@ -40,7 +66,8 @@ export const river: Component<RiverProps> = {
       if (id && !ctx.tilesById[id]) return { ok: false, reason: `There is no tile called ${id}` };
     }
     const seen = new Set<string>();
-    const edits: StackEdit[] = [];
+    const pools = new Map<string, StackEdit>();
+    const wet: Array<{ x: number; y: number }> = [];
     const cellsCovered: Array<{ x: number; y: number }> = [];
     for (const c of cells) {
       for (const o of bandOffsets(props.width)) {
@@ -51,10 +78,54 @@ export const river: Component<RiverProps> = {
         cellsCovered.push({ x, y });
         const stack = ctx.stackAt(x, y);
         const ground = stack[0];
-        if (!ground || isWet(stack)) continue;
+        if (!ground) continue;
+        wet.push({ x, y });
+        if (isWet(stack)) continue;
         const bed =
           ground.tileId === props.bed ? [ground] : [ground, placed(props.bed, ctx.tilesById)];
-        edits.push({ x, y, z: ctx.z, stack: [...bed, placed("water", ctx.tilesById)] });
+        pools.set(`${x},${y}`, {
+          x,
+          y,
+          z: ctx.z,
+          stack: [...bed, placed("water", ctx.tilesById)],
+        });
+      }
+    }
+    const edits = [...pools.values()];
+    for (const fall of FALLS) {
+      for (const top of wet) {
+        const x = top.x + fall.dx;
+        const y = top.y + fall.dy;
+        const levels = ctx.raisedAt(top.x, top.y) - ctx.raisedAt(x, y);
+        const pool = pools.get(`${x},${y}`);
+        const stack = pool?.stack ?? ctx.stackAt(x, y);
+        const surface = stack.filter((p) => !ctx.tilesById[p.tileId]?.intangible).at(-1);
+        if (levels <= 0 || !surface || !isWet([surface]) || stack.some(isFall)) continue;
+        const [base, middle, crest] = fall.segments;
+        const segments = [
+          base,
+          ...Array.from({ length: levels * SEGMENTS_PER_LEVEL - 2 }, () => middle),
+          crest,
+        ].map((id) => placed(id, ctx.tilesById));
+        const filled = {
+          x,
+          y,
+          z: ctx.z,
+          stack: [...stack, ...segments.slice(0, SEGMENTS_PER_LEVEL)],
+        };
+        if (pool) pool.stack = filled.stack;
+        else {
+          pools.set(`${x},${y}`, filled);
+          edits.push(filled);
+        }
+        for (let k = SEGMENTS_PER_LEVEL; k < segments.length; k += SEGMENTS_PER_LEVEL) {
+          edits.push({
+            x,
+            y,
+            z: ctx.z + k / SEGMENTS_PER_LEVEL,
+            stack: segments.slice(k, k + SEGMENTS_PER_LEVEL),
+          });
+        }
       }
     }
     const bridge = props.bridged ? { deck: props.deck, rail: props.rail, arc: props.arc } : null;
