@@ -47,13 +47,7 @@ function cellsOf(file: MapFile) {
         cells.push({
           at: [x, y, Number(zk)],
           tiles: stack.map((p) =>
-            p.direction || p.span
-              ? {
-                  tile: p.tileId,
-                  ...(p.direction ? { facing: p.direction } : {}),
-                  ...(p.span ? { span: p.span } : {}),
-                }
-              : p.tileId,
+            p.direction ? { tile: p.tileId, facing: p.direction } : p.tileId,
           ),
         });
       }

@@ -1,25 +1,11 @@
 import { emptyMap, replaceStack } from "./mapData";
 import type { WeatherKind } from "./weather";
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
-import {
-  DIRECTIONS,
-  type Direction,
-  type MapFile,
-  type PlacedTile,
-  type Span,
-  type TileDef,
-} from "./types";
+import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
 
 export type ScenePlacement =
   | string
-  | {
-      tile: string;
-      facing?: Direction;
-      variant?: string;
-      count?: number;
-      foot?: number;
-      span?: Span;
-    };
+  | { tile: string; facing?: Direction; variant?: string; count?: number; foot?: number };
 
 export type SceneCells =
   | { at: [number, number] | [number, number, number]; tiles: ScenePlacement[] }
@@ -127,7 +113,6 @@ function placed(placement: ScenePlacement, tilesById: Record<string, TileDef>): 
     ...(spec.variant ? { variant: spec.variant } : {}),
     ...(spec.count !== undefined && spec.count > 1 ? { count: spec.count } : {}),
     ...(spec.foot ? { foot: spec.foot } : {}),
-    ...(spec.span ? { span: spec.span } : {}),
   };
 }
 
