@@ -380,6 +380,7 @@ import {
   cellHasLooseGravity,
   findLooseGravityCells,
   gravityPullOn,
+  looseGravityIndex,
   settleGravity,
 } from "./gravity";
 import {
@@ -487,7 +488,7 @@ import {
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { evictionsFor } from "./doorway";
-import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
+import { cellHasPlate, cellKey, findPlateCells, plateIndex, settlePlates } from "./pressurePlates";
 import {
   cellIsWired,
   channelPowered,
@@ -1076,9 +1077,9 @@ export class GameSession implements PlaySession {
   private pendingClockSet: MinutesOfDay | null = null;
   private pendingWeatherSet: { weather: WeatherKind | null } | null = null;
   private readonly clock: () => MinutesOfDay;
-  private readonly plateCells = new Map<string, Coord>();
+  private readonly plateCells = plateIndex();
   private readonly wiredCells = new Map<string, Coord>();
-  private readonly looseGravityCells = new Map<string, Coord>();
+  private readonly looseGravityCells = looseGravityIndex();
   private readonly decay: DecayIndex;
   private readonly weathering: Weathering;
   private readonly shedding: Shedding;
@@ -1189,13 +1190,13 @@ export class GameSession implements PlaySession {
     this.map = clearExtractReservations(this.map);
 
     for (const cell of findPlateCells(this.map, this.tilesById)) {
-      this.plateCells.set(cellKey(cell), cell);
+      this.plateCells.add(cell);
     }
     for (const cell of findWiredCells(this.map)) {
       this.wiredCells.set(cellKey(cell), cell);
     }
     for (const cell of findLooseGravityCells(this.map, this.tilesById)) {
-      this.looseGravityCells.set(cellKey(cell), cell);
+      this.looseGravityCells.add(cell);
     }
     for (const cell of findAfflictCells(this.map, this.tilesById)) {
       this.afflictCells.set(cellKey(cell), { cell, stack: null, holds: [] });
@@ -1554,9 +1555,9 @@ export class GameSession implements PlaySession {
       this.weathering.index(this.map, cell, this.tilesById);
       this.shedding.index(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
-        this.plateCells.set(key, cell);
+        this.plateCells.add(cell);
       } else {
-        this.plateCells.delete(key);
+        this.plateCells.delete(cell);
       }
       if (cellIsWired(this.map, cell)) {
         this.wiredCells.set(key, cell);
@@ -1564,9 +1565,9 @@ export class GameSession implements PlaySession {
         this.wiredCells.delete(key);
       }
       if (cellHasLooseGravity(this.map, cell, this.tilesById)) {
-        this.looseGravityCells.set(key, cell);
+        this.looseGravityCells.add(cell);
       } else {
-        this.looseGravityCells.delete(key);
+        this.looseGravityCells.delete(cell);
       }
       if (cellAfflicts(this.map, cell, this.tilesById)) {
         if (!this.afflictCells.has(key))
@@ -1586,17 +1587,17 @@ export class GameSession implements PlaySession {
     this.settledEmitters = emitterSig;
 
     if (this.looseGravityCells.size > 0) {
-      const { map, changed } = settleGravity(
-        this.map,
-        this.looseGravityCells.values(),
-        this.tilesById,
+      const { map, changed } = this.looseGravityCells.settle(this.map, (map, cells) =>
+        settleGravity(map, cells, this.tilesById),
       );
       this.map = map;
       this.reindexCells(changed);
     }
 
     if (this.plateCells.size > 0) {
-      const { map, changed } = settlePlates(this.map, this.plateCells.values(), this.tilesById);
+      const { map, changed } = this.plateCells.settle(this.map, (map, plates) =>
+        settlePlates(map, plates, this.tilesById),
+      );
       this.map = map;
       this.reindexCells(changed);
     }
