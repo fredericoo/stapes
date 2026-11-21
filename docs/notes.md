@@ -15782,8 +15782,12 @@ arming the tool with an id nothing can draw.
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
-`island`, `forest`, `house`, `road`, `river`, `tile`, `fill`, `scatter`,
-`mask` and `clear`. `bun run build:map <tree.json>`
+`sea`, `island`, `forest`, `house`, `road`, `river`, `tile`, `fill`,
+`scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`water` on every cell so deep water's faded edge shows shallows where it
+meets them, and an island writes only its land and shallows into it. Islands
+merge: shallows are never laid over land already there, so two islands
+whose land overlaps are one coast. `bun run build:map <tree.json>`
 builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is still
 `generate:island`; nothing ships from a tree yet.
 
