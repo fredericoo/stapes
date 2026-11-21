@@ -29,6 +29,16 @@ describe("buildScene", () => {
     ]);
   });
 
+  it("keeps a wide tile's span, so its parts are drawn as one tile rather than one each", () => {
+    const span = { id: "roof", dx: 1, dy: 0 };
+    const { map } = buildScene(
+      { cells: [{ at: [0, 0], tiles: [{ tile: "hound", span }] }] },
+      tiles,
+    );
+
+    expect(getStack(map, 0, 0, 0)).toEqual([{ tileId: "hound", span }]);
+  });
+
   it("looks at the middle of the scene unless told where to look", () => {
     const cells = [
       { from: [-2, 0] as [number, number], to: [4, 6] as [number, number], tiles: ["grass"] },
