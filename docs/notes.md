@@ -16672,6 +16672,43 @@ where the wood's is cut, and their `-inner` tiles are the complement, as
 the script runs. The joints are broken and one palette step from the stone:
 a floor with more contrast than that competes with whatever is standing on it.
 
+## A temple is a colonnade under a slab, not a house
+
+The `temple` component (`app/editor/compose/components/temple.ts`) replaces the
+rune temple's idea of a temple, a one-storey house with pillars indoors, with
+the Greek one: a stone floor ringed by marble pillars on every corner and every
+`gap` (1 or 2) cells between, `height` levels tall, carrying a roof of
+`marble-block` half blocks. Nothing stands between the pillars, so it is walked
+into from any side.
+
+- **A side is shortened to a whole number of bays.** A pillar stands on every
+  corner, so a frame whose side is not a multiple of `gap + 1` would leave one
+  bay wider than the rest. The spare cells come off both ends, and the temple
+  sits centred in its frame.
+- **The roof is on its own level.** A pillar fills each level it passes
+  through, and the slab sits on the level above the last one, so every cell
+  under the roof is a free storey. `gabled` rises one half block for every two
+  cells in from the eaves along the long side, which keeps it as shallow as a
+  pediment; a steeper one reads as a pyramid.
+- **A podium is raised ground.** With `base: "podium"` the floor is one level
+  up and a ring of `marble-block` round it is the step, half a level, that a
+  body climbs. The podium cells are declared in `raised`, so a `tile` child
+  stands on the temple floor without knowing it is there.
+- **`marble-block` has no outline.** A roof is dozens of them side by side and
+  must read as one slab. Each block is marked off by a joint one step darker
+  along the north and west of its top and the west of its south face, and its
+  south-east corner takes the east face's colour; lit, that column drew a white
+  diagonal at every block of a wall seen from the east.
+- **`ruin` (0–100) turns one temple into many ruins.** Each pillar rolls once
+  against `ruin^1.5`, so a light ruin cracks segments before anything falls; a
+  pillar that fails keeps a stump under `marble-pillar-broken`, or falls to
+  rubble. A roof cell stays only while a whole pillar is near enough, a reach
+  that shrinks with `ruin`, and only if it joins through the roof to a cell
+  over a whole pillar, so no slab floats. Moss, vines, ivy at pillar feet,
+  ferns and flowers grow with `ruin`. Every roll is per cell against the
+  node's seed, so raising `ruin` only ever takes more away, and two ruins with
+  different keys fall differently.
+
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 
 `bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk
