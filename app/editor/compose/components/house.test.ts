@@ -1,23 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { BuildResult } from "../build";
 import type { MapNode } from "../doc";
-import { buildTree, frame, land, node, reach, sketch, type Spot } from "../testTree";
+import { buildTree, frame, land, levelsWalked, node, sketch } from "../testTree";
 
 const SIZE = { w: 40, h: 30 };
 const SITE = frame(10, 8, 9, 8);
 const STREET = { x: 14, y: 17 };
 const FRONT_DOOR = { x: 0, y: 0, pinX: "center", pinY: "bottom" };
-
-/** The levels a player starting at `from` can walk to and walk back from. */
-function levelsWalked(built: BuildResult, from: Spot): number[] {
-  const out = reach(built, from);
-  const home = out.keys().next().value!;
-  const levels = new Set<number>();
-  for (const cell of out.values()) {
-    if (!levels.has(cell.z) && reach(built, cell).has(home)) levels.add(cell.z);
-  }
-  return [...levels].sort((a, b) => a - b);
-}
 
 const house = (children: MapNode[]) => node("house", {}, { frame: SITE, children });
 
