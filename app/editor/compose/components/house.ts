@@ -151,6 +151,7 @@ export const house: Component<HouseProps> = {
   schema: HouseSchema,
   ownLevels: true,
   parts: [FLOOR_TYPE, CELLAR_TYPE, ROOF_TYPE, PORCH_TYPE],
+  partLevels,
   build(ctx, props) {
     const { minX, minY, maxX, maxY } = ctx.bounds;
     const raised = ctx.raisedAt(minX, minY);

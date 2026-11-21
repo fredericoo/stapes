@@ -13,8 +13,8 @@ import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
-import { DUNGEON_TYPE, dungeonLevels } from "../../editor/compose/components/dungeon";
-import { ROOF_TYPE, partLevels } from "../../editor/compose/components/house";
+import { DUNGEON_TYPE } from "../../editor/compose/components/dungeon";
+import { ROOF_TYPE } from "../../editor/compose/components/house";
 import { cutAbove } from "../../editor/compose/cutaway";
 import {
   ComposeCanvas,
@@ -340,7 +340,7 @@ export default function ComposePage() {
     if (!COMPONENTS[selectedNode.type]?.within?.includes(parent.type)) return null;
     const home = built.layout.placements.get(parent.key);
     const dug = parent.type === DUNGEON_TYPE;
-    const level = (dug ? dungeonLevels(parent) : partLevels(parent)).get(selectedNode.key);
+    const level = COMPONENTS[parent.type]?.partLevels?.(parent).get(selectedNode.key);
     if (!home || level === undefined) return null;
     return { home, level, dug, cuts: selectedNode.type !== ROOF_TYPE };
   }, [doc, selectedNode, built]);

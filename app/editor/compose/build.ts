@@ -93,6 +93,12 @@ export type Component<Props> = {
    * masks, because the parts of a house only make sense planned together.
    */
   readonly parts?: readonly string[];
+  /**
+   * How many levels above this node's ground each of its parts is built, by
+   * the part's key. The editor cuts the view down to that level when the
+   * part is selected, so it must be the level the build puts the part on.
+   */
+  partLevels?(node: MapNode): Map<string, number>;
   /** The parent types this component is a part of. Anywhere else it is refused. */
   readonly within?: readonly string[];
   build(ctx: BuildContext, props: Props): ComponentPlan;

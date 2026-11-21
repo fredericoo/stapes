@@ -62,6 +62,7 @@ export const dungeon: Component<DungeonProps> = {
   shapesItself: true,
   ownLevels: true,
   parts: [LEVEL_TYPE],
+  partLevels: dungeonLevels,
   build(ctx) {
     const levels = ctx.parts.filter((p) => p.type === LEVEL_TYPE);
     if (levels.length === 0) {

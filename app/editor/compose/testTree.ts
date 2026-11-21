@@ -170,6 +170,17 @@ export function walks(built: BuildResult, from: Spot, to: Spot, opts: WalkOption
   return reach(built, from, opts).has(cellKey(standingAt(built, to)));
 }
 
+/** The levels a player starting at `from` can walk to and walk back from. */
+export function levelsWalked(built: BuildResult, from: Spot): number[] {
+  const out = reach(built, from);
+  const home = out.keys().next().value!;
+  const levels = new Set<number>();
+  for (const cell of out.values()) {
+    if (!levels.has(cell.z) && reach(built, cell).has(home)) levels.add(cell.z);
+  }
+  return [...levels].sort((a, b) => a - b);
+}
+
 export type Stood = { x: number; y: number; z: number; tileId: string };
 
 function eachPlaced(built: BuildResult, visit: (at: Stood, placed: PlacedTile) => void) {

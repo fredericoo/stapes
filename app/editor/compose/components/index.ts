@@ -9,6 +9,7 @@ import { group } from "./group";
 import { hill } from "./hill";
 import { cellar, floor, house, porch, roof } from "./house";
 import { island } from "./island";
+import { lighthouse, tier } from "./lighthouse";
 import { mask } from "./mask";
 import { river } from "./river";
 import { road } from "./road";
@@ -34,6 +35,8 @@ const all: ReadonlyArray<Component<never>> = [
   cellar,
   roof,
   porch,
+  lighthouse,
+  tier,
   temple,
   road,
   wall,
