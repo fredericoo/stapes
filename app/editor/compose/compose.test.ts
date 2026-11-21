@@ -755,3 +755,33 @@ describe("a mask on a layer that shapes itself", () => {
     expect(ids(24, 18)).toEqual(["water", "deep-water"]);
   });
 });
+
+describe("fill in ground mode", () => {
+  it("replaces the tile under what stands on a cell and leaves water as it is", () => {
+    const { map } = build(
+      doc(
+        field([
+          wood(),
+          {
+            type: "river",
+            key: "brook",
+            props: { from: { x: 30, y: 0 }, to: { x: 30, y: 29 }, width: 1 },
+          },
+          {
+            type: "fill",
+            key: "meadow",
+            frame: { x: 0, y: 0, w: 40, h: 30 },
+            props: { tiles: ["grass-2"], mode: "ground", edge: [], onlyOn: ["sand"] },
+          },
+        ]),
+      ),
+    );
+    const trees = cellsWith(map, "tree", 40, 30);
+    expect(trees.length).toBeGreaterThan(0);
+    for (const cell of trees) {
+      const [x, y] = cell.split(",").map(Number) as [number, number];
+      expect(getStack(map, x, y, 0)[0]?.tileId, cell).toBe("grass-2");
+    }
+    expect(cellsWith(map, "sand", 40, 30)).toEqual(cellsWith(map, "water", 40, 30));
+  });
+});

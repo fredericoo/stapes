@@ -4,10 +4,11 @@ import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { isWet } from "./line";
 
 const FillSchema = v.object({
   tiles: v.optional(field.tiles(TILES.any, 1), ["water", "deep-water"]),
-  mode: v.optional(v.picklist(["replace", "on top", "whole stack"]), "replace"),
+  mode: v.optional(v.picklist(["replace", "ground", "on top", "whole stack"]), "replace"),
   edge: v.optional(field.tiles(TILES.any), ["water"]),
   edgeWidth: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(4)), 2),
   onlyOn: v.optional(field.tiles(TILES.ground), []),
@@ -26,8 +27,12 @@ const N4 = [
  * Lays a stack of tiles, bottom first, over every cell of its frame its masks
  * leave in: a lake is a fill of water with a ragged oval mask. `replace`
  * keeps each cell's bottom tile and replaces what stands on it, which is how
- * water goes in over a road; `on top` adds to bare ground and passes over
- * anything standing; `whole stack` replaces everything. Cells within
+ * water goes in over a road; `ground` does the opposite, replacing the bottom
+ * tile under everything that stands on it, which is how sand becomes grass
+ * without a hole under each tree, and leaves water alone; `on top` adds to
+ * bare ground and passes over anything standing; `whole stack` replaces
+ * everything. `onlyOn` reads the top tile of a cell, or the bottom one for
+ * `ground`, since that is the tile it replaces. Cells within
  * `edgeWidth` steps of the area's edge get the `edge` stack instead, so a
  * lake can be shallow round a deep middle.
  */
@@ -47,7 +52,10 @@ export const fill: Component<FillProps> = {
         if (!ctx.covered(x, y)) continue;
         const stack = ctx.stackAt(x, y);
         if (stack.length === 0 && props.mode !== "whole stack") continue;
-        if (onlyOn.size && !onlyOn.has(stack.at(-1)?.tileId ?? "")) continue;
+        const ground = props.mode === "ground";
+        if (ground && isWet(stack)) continue;
+        const read = ground ? stack[0] : stack.at(-1);
+        if (onlyOn.size && !onlyOn.has(read?.tileId ?? "")) continue;
         inArea[(y - minY) * width + (x - minX)] = 1;
       }
     }
@@ -94,6 +102,7 @@ export const fill: Component<FillProps> = {
       let next: PlacedTile[];
       if (props.mode === "whole stack") next = laid;
       else if (props.mode === "replace") next = [...stack.slice(0, 1), ...laid];
+      else if (props.mode === "ground") next = [...laid, ...stack.slice(1)];
       else if (stackHeight(stack, ctx.tilesById) > 0) continue;
       else next = [...stack, ...laid];
       edits.push({ x, y, z: ctx.z, stack: next });
