@@ -218853,5 +218853,37 @@
         }
       ]
     }
+  },
+  {
+    "id": "marble-block",
+    "name": "Marble block",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "masonry",
+      "x": 12,
+      "y": 2
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]
