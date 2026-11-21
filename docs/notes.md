@@ -15932,6 +15932,33 @@ cell where anything but the plants in `clears` stands, and a mask on a group
 does not shape the group's children. The demo builds 96×72 cells in about
 50ms, which is fast enough to rebuild on every drag step.
 
+### A component that builds round its own shape applies its masks itself
+
+The build passes a layer's edits through its masks (`applyMasks`), which is
+right for a layer whose cells are independent, like a forest. It is wrong for
+one that builds something round its outline: an island masked that way loses
+land and gets nothing in its place, so the sea meets the sand with no shallows
+or foam. Such a component sets `shapesItself`, cuts its shape with
+`ctx.covered` before it builds, and the build then applies only the masks that
+name tiles (`only`). `island` and `hill` do this; `fill` reads `ctx.covered`
+for its edge band too, and needs no flag because it writes nothing outside
+what is covered.
+
+### A hill is the columns `docs/terrain.md` describes, counted in from its foot
+
+`hill` raises ground the nodes before it left. A cell's level is how many
+terraces it lies from the nearest cell that is not raised, in eight-neighbour
+steps, capped at `levels`. That one rule gives everything the terrain rules
+ask for: each level is the one below drawn in on every side, corners included,
+so ground and brinks always sit over rock and no cliff is two levels high.
+Whatever stood on a cell goes to the top of its column. Ramps are the two-cell
+kind (`ramp`, then `half-stone` under a `ramp`, with two `half-stone` in the
+head's column), one per level, each the candidate nearest the head of the one
+below.
+
+Layers after a hill still build on their own frame's level. To put a forest
+on a hill's top, give its frame that level; nothing follows the ground up yet.
+
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
 Three panes: the layers on the left, the built map in the middle, and the
@@ -15975,6 +16002,13 @@ copies it out or pastes one in.
   position has to come from the operation. The drag shows a `DragOverlay`:
   without one dnd-kit lifts the row itself out of the list, and React's
   re-render after the drop left a copy of it behind.
+- **Picking a layer in the list fits the view to it**: `fitted` centres its
+  frame, or the cells it wrote when it has none, at the closest step of
+  `ZOOMS` that shows all of it. A click on the map does not, since the layer
+  is already under the pointer and the view would jump away from it.
+- **Arrow keys nudge the selection** a cell, or five with Shift. The listener
+  is in the capture phase and stops the event, because the Tree moves its
+  highlight on the same keys; with nothing selected they are the Tree's again.
 - **A press on the map belongs to the tool, not to what is under it.** With
   the select tool (V) `ComposeCanvas` reports a click and a drag to the page;
   with the pan tool (H, or Space held) a drag moves the view. A selected
