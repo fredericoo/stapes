@@ -316,6 +316,15 @@ export default function ComposePage() {
     setSelection(copied.moves.map((m) => m.to));
   };
 
+  const raisedAt = (x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+  /** The level a box is drawn on: its node's, plus however far the ground at its middle has been raised. */
+  const levelOf = (p: Placement, bounds: Bounds = p.bounds) =>
+    p.z +
+    raisedAt(
+      Math.floor((bounds.minX + bounds.maxX) / 2),
+      Math.floor((bounds.minY + bounds.maxY) / 2),
+    );
+
   /**
    * The box that shows where layers are: a frame where a layer has one, and
    * otherwise the cells it and the layers under it wrote, since a layer
@@ -325,10 +334,10 @@ export default function ComposePage() {
     const boxes = keys.flatMap((key) => {
       const p = built.layout.placements.get(key);
       if (!p) return [];
-      if (p.node.frame) return [{ bounds: p.bounds, z: p.z }];
+      if (p.node.frame) return [{ bounds: p.bounds, z: levelOf(p) }];
       return allKeys(p.node).flatMap((k) => {
         const bounds = built.written.get(k);
-        return bounds ? [{ bounds, z: p.z }] : [];
+        return bounds ? [{ bounds, z: levelOf(p, bounds) }] : [];
       });
     });
     if (boxes.length === 0) return;
@@ -596,6 +605,7 @@ export default function ComposePage() {
               lighting={false}
               tool={picking ? "select" : activeTool}
               focus={focus}
+              raisedAt={raisedAt}
               onPick={pickOnMap}
               onDrag={dragOnMap}
               overlay={(projection) => (
@@ -628,7 +638,12 @@ export default function ComposePage() {
                         const p = built.layout.placements.get(key)!;
                         const bounds = p.node.frame ? p.bounds : built.written.get(key);
                         return bounds ? (
-                          <Outline key={key} bounds={bounds} z={p.z} projection={projection} />
+                          <Outline
+                            key={key}
+                            bounds={bounds}
+                            z={levelOf(p, bounds)}
+                            projection={projection}
+                          />
                         ) : null;
                       })
                     : null}
@@ -660,7 +675,7 @@ export default function ComposePage() {
                       {selectedNode.frame && activeTool === "select" ? (
                         <FrameHandles
                           bounds={placement.bounds}
-                          z={placement.z}
+                          z={levelOf(placement)}
                           projection={projection}
                           onBounds={(bounds) =>
                             preview((d) =>
@@ -675,7 +690,7 @@ export default function ComposePage() {
                       ) : (
                         <Outline
                           bounds={placement.bounds}
-                          z={placement.z}
+                          z={levelOf(placement)}
                           projection={projection}
                         />
                       )}
@@ -691,7 +706,7 @@ export default function ComposePage() {
                                     x: Math.round((before.cell.x + spec.cell.x) / 2),
                                     y: Math.round((before.cell.y + spec.cell.y) / 2),
                                   }}
-                                  z={placement.z}
+                                  z={placement.z + raisedAt(spec.cell.x, spec.cell.y)}
                                   projection={projection}
                                   onInsert={(cell) =>
                                     commit((d) =>
@@ -718,7 +733,7 @@ export default function ComposePage() {
                                 label={spec.glyph}
                                 title={spec.title}
                                 cell={spec.cell}
-                                z={placement.z}
+                                z={placement.z + raisedAt(spec.cell.x, spec.cell.y)}
                                 projection={projection}
                                 onCell={(next) =>
                                   preview((d) =>

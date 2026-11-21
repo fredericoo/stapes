@@ -54,6 +54,9 @@ const PINCH_RATIO_STEP = 1.25;
 
 const LINE_PX = 16;
 
+/** The most levels a hill raises ground by, which is as far up as a press looks for the cell under it. */
+const MAX_RAISED = 6;
+
 /**
  * The view's top-left in world pixels, snapped to a whole art pixel, or to two
  * at half zoom. With the camera between art pixels every tile edge lands on
@@ -126,6 +129,7 @@ export function ComposeCanvas({
   lighting,
   tool,
   focus,
+  raisedAt,
   overlay,
   onPick,
   onDrag,
@@ -138,6 +142,8 @@ export function ComposeCanvas({
   lighting: boolean;
   tool: CanvasTool;
   focus?: CanvasFocus | null;
+  /** How many levels the ground at a cell is raised, so a press on a hilltop finds the cell drawn there. */
+  raisedAt?: (x: number, y: number) => number;
   overlay?: (projection: Projection) => ReactNode;
   onPick?: (cell: { x: number; y: number }, keys: PressKeys) => void;
   onDrag?: (cell: { x: number; y: number }, keys: PressKeys) => CanvasDrag | null;
@@ -305,6 +311,19 @@ export function ComposeCanvas({
     };
   };
 
+  /**
+   * Raised ground is drawn shifted up the screen, so one point on screen is a
+   * different cell on each level. The cell pressed is the one on the highest
+   * level whose ground really is that high, and the ground level otherwise.
+   */
+  const pressedCell = (clientX: number, clientY: number) => {
+    for (let level = MAX_RAISED; level > 0 && raisedAt; level--) {
+      const cell = proj.clientToCell(clientX, clientY, level);
+      if (raisedAt(cell.x, cell.y) === level) return cell;
+    }
+    return proj.clientToCell(clientX, clientY, 0);
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -320,7 +339,7 @@ export function ComposeCanvas({
               kind: "press",
               x: e.clientX,
               y: e.clientY,
-              cell: proj.clientToCell(e.clientX, e.clientY, 0),
+              cell: pressedCell(e.clientX, e.clientY),
               keys: { shift: e.shiftKey, alt: e.altKey },
               moved: false,
               drag: null,
