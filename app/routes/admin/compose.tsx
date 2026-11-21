@@ -16,6 +16,7 @@ import { COMPONENTS } from "../../editor/compose/components";
 import {
   ComposeCanvas,
   type CanvasDrag,
+  type CanvasFocus,
   type CanvasTool,
   type ComposeView,
   type PressKeys,
@@ -24,6 +25,7 @@ import {
 import demo from "../../editor/compose/demo.json";
 import { parseMapDoc, type MapDoc, type Point } from "../../editor/compose/doc";
 import {
+  allKeys,
   duplicateNode,
   duplicateTo,
   findNode,
@@ -109,6 +111,17 @@ function MaskOutline({ placement, projection }: { placement: Placement; projecti
     />
   );
 }
+
+const NUDGE: Record<string, readonly [number, number] | undefined> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+const NUDGE_FAR = 5;
+/** Where arrow keys already mean something: typing, and the controls that step through their options with them. */
+const NO_NUDGE =
+  "input, textarea, select, [contenteditable], [role=dialog], [role=listbox], [role=menu], [role=combobox], [role=radiogroup], [role=slider]";
 
 const TOOLS: ReadonlyArray<{
   tool: CanvasTool;
@@ -203,6 +216,7 @@ export default function ComposePage() {
   const [playing, setPlaying] = useState(false);
   const { show: showToast } = useToast();
   const [picked, setSelection] = useState<string[]>([]);
+  const [focus, setFocus] = useState<CanvasFocus | null>(null);
   const [tool, setTool] = useState<CanvasTool>("select");
   const [spaceHeld, setSpaceHeld] = useState(false);
   const activeTool = spaceHeld ? "pan" : tool;
@@ -302,6 +316,33 @@ export default function ComposePage() {
     setSelection(copied.moves.map((m) => m.to));
   };
 
+  /**
+   * The box that shows where layers are: a frame where a layer has one, and
+   * otherwise the cells it and the layers under it wrote, since a layer
+   * without a frame has its parent's.
+   */
+  const focusOn = (keys: readonly string[]) => {
+    const boxes = keys.flatMap((key) => {
+      const p = built.layout.placements.get(key);
+      if (!p) return [];
+      if (p.node.frame) return [{ bounds: p.bounds, z: p.z }];
+      return allKeys(p.node).flatMap((k) => {
+        const bounds = built.written.get(k);
+        return bounds ? [{ bounds, z: p.z }] : [];
+      });
+    });
+    if (boxes.length === 0) return;
+    setFocus({
+      z: boxes[0]!.z,
+      bounds: {
+        minX: Math.min(...boxes.map((b) => b.bounds.minX)),
+        minY: Math.min(...boxes.map((b) => b.bounds.minY)),
+        maxX: Math.max(...boxes.map((b) => b.bounds.maxX)),
+        maxY: Math.max(...boxes.map((b) => b.bounds.maxY)),
+      },
+    });
+  };
+
   const hits = (key: string, cell: { x: number; y: number }) => {
     const p = built.layout.placements.get(key);
     return p ? hitsLayer(p, footprints.get(key) ?? null, cell) : false;
@@ -394,10 +435,30 @@ export default function ComposePage() {
       setSpaceHeld(false);
     };
     const onBlur = () => setSpaceHeld(false);
+    /**
+     * Arrows nudge the selection, a cell a press or `NUDGE_FAR` with Shift.
+     * It listens in the capture phase and stops the event, because the layers
+     * tree moves its highlight on the same keys and would do both; with
+     * nothing selected the arrows are the tree's again.
+     */
+    const onArrow = (e: KeyboardEvent) => {
+      const step = NUDGE[e.key];
+      if (!step || !movable.length || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest(NO_NUDGE)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const by = e.shiftKey ? NUDGE_FAR : 1;
+      const { layout } = built;
+      const moves = movable.map((key) => ({ from: key, to: key }));
+      commit((d) => translateNodes(d, layout, moves, step[0] * by, step[1] * by));
+    };
+    window.addEventListener("keydown", onArrow, true);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
     return () => {
+      window.removeEventListener("keydown", onArrow, true);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
@@ -503,7 +564,10 @@ export default function ComposePage() {
                 root={doc.root}
                 components={COMPONENTS}
                 selection={selection}
-                onSelect={setSelection}
+                onSelect={(keys) => {
+                  setSelection(keys);
+                  focusOn(keys);
+                }}
                 expanded={expanded}
                 onExpandedChange={setExpanded}
                 problems={problemKeys}
@@ -531,6 +595,7 @@ export default function ComposePage() {
               onViewChange={setView}
               lighting={false}
               tool={picking ? "select" : activeTool}
+              focus={focus}
               onPick={pickOnMap}
               onDrag={dragOnMap}
               overlay={(projection) => (

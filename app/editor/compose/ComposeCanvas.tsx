@@ -13,6 +13,30 @@ export type Projection = {
 
 export type CanvasTool = "select" | "pan";
 
+/** A box of cells on a level for the view to fit. A new object asks again, so the same box can be fitted twice. */
+export type CanvasFocus = {
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  z: number;
+};
+
+/** Screen pixels left clear round a fitted box, for its handles and its size label. */
+const FOCUS_MARGIN_PX = 40;
+
+/** The view centred on a box at the closest zoom of `ZOOMS` that shows all of it. */
+function fitted(focus: CanvasFocus, width: number, height: number): ComposeView {
+  const { bounds, z } = focus;
+  const a = baseCellWorldOrigin(bounds.minX, bounds.minY, z, 0);
+  const b = baseCellWorldOrigin(bounds.maxX + 1, bounds.maxY + 1, z, 0);
+  const fits = (zoom: number) =>
+    (b.x - a.x) * zoom <= width - 2 * FOCUS_MARGIN_PX &&
+    (b.y - a.y) * zoom <= height - 2 * FOCUS_MARGIN_PX;
+  return {
+    cx: (a.x + b.x) / 2,
+    cy: (a.y + b.y) / 2,
+    zoom: [...ZOOMS].reverse().find(fits) ?? ZOOMS[0]!,
+  };
+}
+
 export type PressKeys = { shift: boolean; alt: boolean };
 
 /** What a drag that started on the map does: `move` gets the whole cells since the press, at most once a frame. */
@@ -101,6 +125,7 @@ export function ComposeCanvas({
   onViewChange,
   lighting,
   tool,
+  focus,
   overlay,
   onPick,
   onDrag,
@@ -112,6 +137,7 @@ export function ComposeCanvas({
   onViewChange: (view: ComposeView) => void;
   lighting: boolean;
   tool: CanvasTool;
+  focus?: CanvasFocus | null;
   overlay?: (projection: Projection) => ReactNode;
   onPick?: (cell: { x: number; y: number }, keys: PressKeys) => void;
   onDrag?: (cell: { x: number; y: number }, keys: PressKeys) => CanvasDrag | null;
@@ -166,6 +192,12 @@ export function ComposeCanvas({
 
   const viewRef = useRef(view);
   viewRef.current = view;
+
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  useEffect(() => {
+    if (focus) onViewChange(fitted(focus, sizeRef.current.width, sizeRef.current.height));
+  }, [focus, onViewChange]);
 
   const fromMiddle = (clientX: number, clientY: number) => {
     const rect = hostRef.current!.getBoundingClientRect();
