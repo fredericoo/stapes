@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getStack } from "../../../lib/mapData";
 import { buildTree, frame, land, node, sketch, walks } from "../testTree";
 
 const SIZE = { w: 40, h: 28 };
@@ -21,5 +22,28 @@ describe("hill", () => {
   it("is climbed by the ramp a point of its own puts on the nearest cliff", () => {
     const built = raised({ levels: 1, ramps: [{ x: 0, y: 10 }] });
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
+  });
+
+  it("keeps its brinks uncovered when grass was laid on the ground it raised", () => {
+    const { map, elevation } = buildTree(
+      land(
+        SIZE,
+        [
+          node("grass"),
+          node("hill", { roughness: 0, levels: 2, terrace: 2 }, { frame: frame(8, 4, 24, 20) }),
+        ],
+        "sand",
+      ),
+    );
+    const levelAt = (x: number, y: number) => elevation.get(`${x},${y}`) ?? 0;
+    const brinks = [...elevation].flatMap(([key, level]) => {
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      const drop = [-1, 0, 1].some((dy) =>
+        [-1, 0, 1].some((dx) => levelAt(x + dx, y + dy) < level),
+      );
+      return drop ? [getStack(map, x, y, level).map((p) => p.tileId)] : [];
+    });
+    expect(brinks.length).toBeGreaterThan(20);
+    for (const stack of brinks) expect(stack).toEqual(["grass-brink"]);
   });
 });
