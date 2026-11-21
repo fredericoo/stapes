@@ -16058,6 +16058,36 @@ which cell a click on raised ground lands on (`pressedCell`).
 
 A river across a cliff is laid on both levels with nothing joining them.
 
+### A component's behaviour is tested by walking a small tree
+
+Each component has a `<name>.test.ts` beside it in
+`app/editor/compose/components/` that builds a tree of a few nodes and asks
+whether a player can walk it. `app/editor/compose/testTree.ts` is the helper:
+
+- `land(size, children)` is flat grass and `isle(size, children)` a sea with
+  one smooth island; `node(type, props, rest)` is any component, keyed by
+  `buildTree` from its type and its place in the tree, so adding a test does
+  not re-roll the seeds of the ones after it.
+- `buildTree(root)` builds with `COMPONENTS` and `data/tiles.json` and throws
+  when a node is refused, so a scenario that did not build cannot pass as
+  "cannot be walked".
+- `walks(built, from, to)` and `reach(built, from)` search with
+  `navigationLegs`, the legs the game plans a route from: steps, ramps, doors,
+  ladders and drops. A drop is why a hill is walked down and not up.
+- A walker keeps its feet dry unless `{ wading: true }`. A river is `water`,
+  which a body wades at half speed, so "a bridge makes the river crossable"
+  is only true of dry feet; the game's click to walk keeps dry the same way
+  (`avoidWade`). Deep water is crossed by nobody.
+- A spot is `x,y` on the ground as raised there (`elevation`), and a spot
+  with nothing to stand on throws.
+- `sketch(built)` draws the map as text. Pass it as the message of an
+  `expect`, and a failed walk prints the map it failed on.
+
+A test builds the obstacle first and shows it is not walked, then adds the
+component and shows it is. Without the first half a test of a road passes on
+flat ground. `house`, `scatter`, `tile`, `sea` and `group` have no such file
+yet.
+
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
 Three panes: the layers on the left, the built map in the middle, and the
