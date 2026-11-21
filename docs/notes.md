@@ -15975,6 +15975,37 @@ copies it out or pastes one in.
   position has to come from the operation. The drag shows a `DragOverlay`:
   without one dnd-kit lifts the row itself out of the list, and React's
   re-render after the drop left a copy of it behind.
+- **A press on the map belongs to the tool, not to what is under it.** With
+  the select tool (V) `ComposeCanvas` reports a click and a drag to the page;
+  with the pan tool (H, or Space held) a drag moves the view. A selected
+  frame's box takes no pointer events, only its eight resize handles do, so a
+  click inside a selected island still reaches the layer drawn over it there.
+  A drag that starts on a selected layer moves the selection whatever is drawn
+  over it; one that starts anywhere else selects the layer under the pointer
+  and moves that. The root is left out of both, because every press is inside
+  it.
+- **A layer without a frame is found by the cells it wrote** (`hitsLayer`
+  reads the build step's `footprint`), since its frame is its parent's and says
+  nothing about where it is. A mask is found only while its layer or another of
+  that layer's masks is selected, so a click on a lake selects the lake.
+- **Several layers move together and are never resized together**, since a
+  resize needs one box to measure against. `translateNodes` takes the layout
+  from when the drag began and the whole distance since, so each call replaces
+  the last instead of adding to it. A framed node gets a new frame; one
+  without has its points moved, except a point measured in a node that is also
+  moving. With Alt the drag first copies each layer and then moves the copies,
+  reading each copy's geometry from its original, which is still in that
+  layout.
+- **The Tree toggles the pressed row in `mode="multiple"` whatever keys are
+  held**, so `LayersPanel` works out the selection itself from the one row the
+  old and new lists differ by: alone it is the selection, ⌘ or Ctrl keeps the
+  toggle, and Shift takes every row shown between it and the last row pressed.
+- **A row is dragged from anywhere on it, by the pointer only.** dnd-kit's
+  keyboard sensor and its `Accessibility` plugin are left out, which is why
+  `@dnd-kit/dom` is a dependency of its own: with them every row becomes a
+  focusable `role="button"`, which takes the Tree's single tab stop and its
+  Enter and Space. dnd-kit's drag events carry no modifier keys, so Alt for
+  "drop a copy" is followed from the window's key events.
 - **"Play this map" is `POST /api/map`**, the map editor's Save, so it
   replaces the running world's map for everyone on it and, under `bun dev`,
   writes `data/map.json` on disk. It refuses a map without exactly one `player`
