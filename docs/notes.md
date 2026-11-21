@@ -15807,8 +15807,8 @@ arming the tool with an id nothing can draw.
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
-`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
-and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`,
+`roof` and `porch`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -16180,13 +16180,36 @@ A hidden child is left out, so hiding the roof builds the house without one.
   the map; an id made at build time would be shared by every world built
   from the tree.
 - **`use` picks the furniture**: `house`, `inn`, `pub`, `shop`, `library`,
-  `storage` or `empty`. The node's seed moves the stairs, the walls and the
+  `storage`, `smithy`, `barracks` or `empty`. The node's seed moves the stairs, the walls and the
   furniture together; re-rolling one floor leaves the others, except that the
   floor above has its hole where this one's stair now is.
 - **A bed is two cells with one `span` id**, made from its cell and level so
   two beds never share one.
 - **Every part fills the house's frame.** A frame on a part is not read, and
   the form does not offer one.
+- **A porch takes its depth off its side of the house's frame**
+  (`walledBounds` in `app/editor/porch.ts`), so the walls stand on what is
+  left and the whole plot stays the frame the editor drags. It is a deck of
+  the house's floor tile, or its own, as long as the wall it is against, at
+  most one a side. The ground under it has to stand as high as under the
+  house. A ground floor with no door on that side gets one in the middle of
+  it; one that has a door there keeps it.
+- **A porch of two or more rows is railed along its open edges**, across
+  both ends too once the wall is `RAILED_ENDS_FROM` cells long, with one gap
+  straight out from the first door. The cells straight out from every door
+  stay bare, so the way from the street to that door is a line.
+- **Porch furniture stands off the wall's shadow.** A wall is drawn over
+  the cell north and west of it, so on a north or west porch furniture goes
+  in the second row out; on the south and east it goes against the wall.
+  `use` picks it: `seating` (a table between two stools), `smithy` (the
+  `SMITHY_STATIONS` in order, then barrels and boxes) or `drill` (training
+  dummies along the front row).
+- **`SMITHY_STATIONS` lists `kiln` before it has a tile.** Both the smithy
+  floor and the smithy porch skip a station the catalogue does not hold, so
+  drawing a `kiln` tile puts one in every smithy without touching the code.
+- **A `smithy` floor** has the stations in its largest room and a bed in
+  the next; a **`barracks` floor** fills every room with as many beds as fit
+  and a lit table with stools in the largest.
 
 **Selecting a part cuts the view to it.** The page draws `cutAbove(map, the
 house's bounds, the part's level)`, so a floor shows with the storeys and

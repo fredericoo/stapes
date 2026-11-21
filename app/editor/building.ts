@@ -26,8 +26,19 @@ import {
   type RoofOrientationSetting,
   type RoofPitch,
 } from "./house";
+import { SMITHY_STATIONS, planPorch, porchBounds, walledBounds, type PorchSpec } from "./porch";
 
-export const FLOOR_USES = ["empty", "house", "inn", "pub", "shop", "library", "storage"] as const;
+export const FLOOR_USES = [
+  "empty",
+  "house",
+  "inn",
+  "pub",
+  "shop",
+  "library",
+  "storage",
+  "smithy",
+  "barracks",
+] as const;
 
 export type FloorUse = (typeof FLOOR_USES)[number];
 
@@ -68,11 +79,16 @@ export type RoofSpec = {
   pitch: RoofPitch;
 };
 
-/** `floors` count up from the ground and `cellars` down from it, each in order. */
+/**
+ * `floors` count up from the ground and `cellars` down from it, each in
+ * order. Each porch takes its depth off its side of the plot, and the walls
+ * stand on what is left.
+ */
 export type BuildingSpec = {
   floors: readonly FloorSpec[];
   cellars: readonly FloorSpec[];
   roof: RoofSpec | null;
+  porches?: readonly PorchSpec[];
 };
 
 export const DEFAULT_STAIRS_TILE_ID = "stone-stairs";
@@ -222,6 +238,25 @@ function placeDoors(grid: Grid, storey: Storey) {
     const [dx, dy] = DELTA[OPPOSITE[spot.wall]];
     storey.keep[(spot.y + dy) * grid.width + spot.x + dx] = 1;
   }
+}
+
+function doorsOn(grid: Grid, storey: Storey, wall: Direction): Array<{ x: number; y: number }> {
+  const out: Array<{ x: number; y: number }> = [];
+  for (const [at, facing] of storey.facing) {
+    if (storey.kinds[at] !== DOOR || facing !== wall) continue;
+    const x = at % grid.width;
+    out.push({ x: grid.bounds.minX + x, y: grid.bounds.minY + (at - x) / grid.width });
+  }
+  return out;
+}
+
+/** The middle of each outer wall, as a point `doorSpot` puts on that wall. */
+function wallMiddle(bounds: Bounds, wall: Direction): { x: number; y: number } {
+  const x = Math.floor((bounds.minX + bounds.maxX) / 2);
+  const y = Math.floor((bounds.minY + bounds.maxY) / 2);
+  if (wall === "n") return { x, y: bounds.minY };
+  if (wall === "s") return { x, y: bounds.maxY };
+  return { x: wall === "w" ? bounds.minX : bounds.maxX, y };
 }
 
 function wallNeighbours(grid: Grid, storey: Storey, at: number): number {
@@ -521,6 +556,8 @@ type Furnisher = {
   clear(x: number, y: number): boolean;
   tables: Array<{ x: number; y: number }>;
   level: number;
+  /** Whether the tile catalogue holds a tile. */
+  has(id: string): boolean;
 };
 
 function alongWalls(f: Furnisher, room: Room, share: number, ids: readonly string[]) {
@@ -698,6 +735,28 @@ const FURNISH: Record<FloorUse, (f: Furnisher, rooms: readonly Room[]) => void> 
   storage(f, rooms) {
     for (const room of rooms) heaps(f, room, 0.3);
   },
+  smithy(f, rooms) {
+    const forge = largest(rooms);
+    SMITHY_STATIONS.filter((id) => f.has(id)).forEach((id, i) => {
+      const cells = i === 0 ? f.wallCells(forge) : [...f.openCells(forge), ...f.wallCells(forge)];
+      for (const cell of cells) if (f.put(cell.x, cell.y, [f.tile(id)])) break;
+    });
+    alongWalls(f, forge, 0.1, ["barrel", "table"]);
+    heaps(f, forge, 0.04);
+    const others = rooms.filter((room) => room !== forge);
+    if (others[0]) bed(f, others[0]);
+    for (const room of others) heaps(f, room, 0.15);
+  },
+  barracks(f, rooms) {
+    for (const room of rooms) {
+      const bunks = Math.max(1, Math.floor(((room.maxX - room.minX + 1) * 2) / 3));
+      for (let i = 0; i < bunks; i++) bed(f, room);
+      alongWalls(f, room, 0.1, ["crate-chest"]);
+    }
+    const mess = largest(rooms);
+    tableSet(f, mess, "stool", true);
+    alongWalls(f, mess, 0.06, ["barrel"]);
+  },
 };
 
 /** What the containers of a storey are stocked from, by its use: an item and the most of it one slot holds. */
@@ -752,6 +811,26 @@ const STOCK: Record<FloorUse, ReadonlyArray<readonly [string, number]>> = {
     ["cheese", 4],
     ["ale", 4],
     ["empty-bottle", 8],
+  ],
+  smithy: [
+    ["simple-hammer", 1],
+    ["rusty-sword", 1],
+    ["iron-sword", 1],
+    ["simple-axe", 1],
+    ["wooden-shield", 1],
+    ["iron-shield", 1],
+    ["gold", 15],
+  ],
+  barracks: [
+    ["rusty-sword", 1],
+    ["wooden-shield", 1],
+    ["simple-bow", 1],
+    ["leather-cap", 1],
+    ["worn-boots", 1],
+    ["cloth-tunic", 1],
+    ["bread", 3],
+    ["ale", 2],
+    ["gold", 6],
   ],
 };
 
@@ -841,6 +920,7 @@ function furnish(
     openCells: (room) => within(room, (x, y) => wallsOf(x, y).length === 0),
     tile: (id, direction) => placed(id, tilesById, direction),
     tables: [],
+    has: (id) => tilesById[id] !== undefined,
     clear: (x, y) => {
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
@@ -933,8 +1013,9 @@ function storeyEdits(
 }
 
 /**
- * Plans a building of any number of floors and cellars on one footprint.
- * Every storey is joined to the one under it, by the stairs or ladder it asks
+ * Plans a building of any number of floors and cellars on one footprint,
+ * with a porch on any of its sides. `rect` is the whole plot, porches
+ * included. Every storey is joined to the one under it, by the stairs or ladder it asks
  * for, or by a ladder where a flight of stairs does not fit; a building where
  * not even a ladder fits is refused. Ways up are placed before rooms and
  * furniture, which then keep clear of them.
@@ -946,11 +1027,25 @@ export function planBuilding(
   z: number,
   spec: BuildingSpec,
 ): GeneratedPlan {
-  const bounds = boundsOf(rect);
+  const porches = spec.porches ?? [];
+  const twice = porches.find((porch, i) => porches.some((p, j) => j < i && p.side === porch.side));
+  if (twice) {
+    return {
+      ok: false,
+      reason: `${twice.name} is on a side that already has a porch. Move it to another side or remove it.`,
+    };
+  }
+  const bounds = walledBounds(boundsOf(rect), porches);
   const width = bounds.maxX - bounds.minX + 1;
   const depth = bounds.maxY - bounds.minY + 1;
   if (width < MIN_FOOTPRINT || depth < MIN_FOOTPRINT) {
-    return { ok: false, reason: `A house is at least ${MIN_FOOTPRINT}×${MIN_FOOTPRINT} cells` };
+    return {
+      ok: false,
+      reason:
+        porches.length > 0
+          ? `The porches leave the house less than ${MIN_FOOTPRINT}×${MIN_FOOTPRINT} cells. Make the house larger or the porches shallower.`
+          : `A house is at least ${MIN_FOOTPRINT}×${MIN_FOOTPRINT} cells`,
+    };
   }
   if (width > MAX_FOOTPRINT || depth > MAX_FOOTPRINT) {
     return { ok: false, reason: `A house is at most ${MAX_FOOTPRINT}×${MAX_FOOTPRINT} cells` };
@@ -973,6 +1068,16 @@ export function planBuilding(
 
   const site = measureSite(map, bounds, z, tilesById);
   if (!site.ok) return site;
+  for (const porch of porches) {
+    const deck = measureSite(map, porchBounds(bounds, porch), z, tilesById);
+    if (!deck.ok) return deck;
+    if (deck.height !== site.height) {
+      return {
+        ok: false,
+        reason: `The ground under ${porch.name} stands ${deck.height} units and the house stands on ${site.height}. Move the house onto level ground.`,
+      };
+    }
+  }
   const heightOf = (id: string) => {
     const def = tilesById[id];
     return def ? physicalHeight(def) : 0;
@@ -991,6 +1096,14 @@ export function planBuilding(
     ...spec.floors.map((floor, i) => newStorey(grid, floor, z + i, false)),
   ];
   for (const storey of storeys) if (!storey.underground) placeDoors(grid, storey);
+  const groundStorey = storeys[spec.cellars.length]!;
+  for (const porch of porches) {
+    if (doorsOn(grid, groundStorey, porch.side).length > 0) continue;
+    placeDoors(grid, {
+      ...groundStorey,
+      spec: { ...ground, doors: [wallMiddle(bounds, porch.side)] },
+    });
+  }
 
   for (let i = 0; i + 1 < storeys.length; i++) {
     const lower = storeys[i]!;
@@ -1022,6 +1135,11 @@ export function planBuilding(
         tilesById,
         storey.level === z ? (x, y) => getStack(map, x, y, z) : () => [],
       ),
+    );
+  }
+  for (const porch of porches) {
+    edits.push(
+      ...planPorch(map, tilesById, bounds, z, porch, doorsOn(grid, groundStorey, porch.side)),
     );
   }
   if (spec.roof) {
