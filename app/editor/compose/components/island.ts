@@ -138,18 +138,24 @@ function distanceFrom(g: CellGrid, land: Uint8Array, limit: number): Int32Array 
  * over land that is already there, and where its land meets an earlier
  * island's shallows those are foamed as its own are, so two islands whose
  * land touches are one coast rather than two separated by a channel.
- * Shallows are `water` on a bed of the fill, as Rune Isle's are.
+ * Shallows are `water` on a bed of the fill, as Rune Isle's are. Masks cut
+ * the land, not the finished island, so a hole a mask makes has shallows and
+ * foam round it like any other coast.
  */
 export const island: Component<IslandProps> = {
   type: "island",
   label: "Island",
   starter: { frame: { x: 0, y: 0, w: 48, h: 36 } },
   schema: IslandSchema,
+  shapesItself: true,
   build(ctx, props) {
     const g = newGrid(ctx.bounds);
     const land = landOf(g, ctx.seed, props);
+    for (let i = 0; i < land.length; i++) {
+      if (land[i] && !ctx.covered(gridX(g, i), gridY(g, i))) land[i] = 0;
+    }
     if (!land.includes(1)) {
-      return { ok: false, reason: "The frame is too small for any land inside its shore" };
+      return { ok: false, reason: "No land is left inside the frame's shore and its masks" };
     }
     const distance = distanceFrom(g, land, props.shore + 1);
     const tile = (id: string) => placed(id, ctx.tilesById);

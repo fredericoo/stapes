@@ -37,6 +37,13 @@ export type Component<Props> = {
   readonly label: string;
   readonly starter: Starter;
   readonly schema: v.GenericSchema<unknown, Props>;
+  /**
+   * Set by a component that cuts its own shape with `ctx.covered` and then
+   * builds on what is left, like an island laying shallows round a hole a
+   * mask cut in it. The build then applies only the masks that name tiles;
+   * applying the shape masks again would take out what it built in the hole.
+   */
+  readonly shapesItself?: true;
   build(ctx: BuildContext, props: Props): GeneratedPlan;
 };
 
@@ -275,7 +282,8 @@ export function buildMap(
         );
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
         else {
-          const masked = applyMasks(plan.edits, shapes, (x, y, z) => getStack(current, x, y, z));
+          const applied = component.shapesItself ? shapes.filter((s) => s.only) : shapes;
+          const masked = applyMasks(plan.edits, applied, (x, y, z) => getStack(current, x, y, z));
           const kept = masked.filter((e) => inside(placement.clip, e.x, e.y));
           map = setStacks(map, kept);
           written = boundsOf(kept);

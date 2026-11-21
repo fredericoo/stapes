@@ -721,3 +721,37 @@ describe("bridges with rails", () => {
     );
   });
 });
+
+describe("a mask on a layer that shapes itself", () => {
+  it("rings a hole cut in an island with shallows and foam instead of leaving the sea against the sand", () => {
+    const { map, problems } = build(
+      doc({
+        type: "sea",
+        key: "sea",
+        frame: { x: 0, y: 0, w: 48, h: 36 },
+        children: [
+          {
+            type: "island",
+            key: "isle",
+            frame: { x: 0, y: 0, w: 48, h: 36 },
+            props: { roughness: 0 },
+            children: [
+              {
+                type: "mask",
+                key: "hole",
+                frame: { x: 18, y: 12, w: 12, h: 12 },
+                props: { shape: "rect", op: "subtract" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(problems).toEqual([]);
+    const ids = (x: number, y: number) => getStack(map, x, y, 0).map((p) => p.tileId);
+    expect(ids(17, 18)).toEqual(["sand"]);
+    expect(ids(18, 18)).toEqual(["sand", "water", "shore-foam"]);
+    expect(ids(19, 18)).toEqual(["sand", "water"]);
+    expect(ids(24, 18)).toEqual(["water", "deep-water"]);
+  });
+});
