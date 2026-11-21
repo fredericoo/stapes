@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { MapDoc, MapNode } from "./doc";
 import {
+  allKeys,
   duplicateTo,
   moveNode,
   pickLayer,
   renameNode,
+  starterNode,
   topmost,
   translateNodes,
   wrapInGroup,
 } from "./edit";
+import { COMPONENTS } from "./components";
 import { layOut, pointIn } from "./layout";
 
 const leaf = (key: string, props?: Record<string, unknown>): MapNode => ({
@@ -188,5 +191,15 @@ describe("pickLayer", () => {
   it("finds a layer without a frame on the cells it wrote and nowhere else", () => {
     expect(pickLayer(doc.root, built, { x: 21, y: 20 }, [])).toBe("road");
     expect(pickLayer(doc.root, built, { x: 20, y: 20 }, [])).toBe("root");
+  });
+});
+
+describe("starterNode", () => {
+  it("gives every child its own key when two children share a type", () => {
+    const root = tree([leaf("dungeon"), leaf("dungeon-2-level")]).root;
+    const node = starterNode(root, "dungeon", COMPONENTS.dungeon!.starter);
+    const keys = [...allKeys(root), ...allKeys(node)];
+    expect(node.children?.map((c) => c.type)).toEqual(["level", "level"]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });

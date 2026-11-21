@@ -15808,7 +15808,7 @@ document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
 `sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`,
-`roof` and `porch`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`roof` and `porch`, `cave`, `dungeon` with its `level`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -16222,6 +16222,69 @@ part is read on the part's level (`pressLevel`).
 kept `storeys`, `doorRow`, `doorColumn` and the roof in props; they become
 `floor` children with `use: "empty"`, a door point on the ground floor and a
 `roof` child, which build the house it built before.
+### A cave digs into rock that is already there
+
+`cave` (`components/cave.ts`) digs one level, the level of its frame, and
+digs only rock: on level 0 and up that is the fill of a hill with fill over
+it as well, and below 0 it is any empty cell whose column has a level that
+keeps the sky out, by `stackOcclusion`, up to the ground. Every cave cell
+then has two cells of such rock on every side. A cave with no way in is
+refused, so a tree never holds a cave nobody can walk into.
+
+- **`grass` lets light through and `grass-2` does not.** A cell of `grass`
+  alone roofs nothing, so a cave under it is refused. On an island the `grass`
+  layer lies on the island's `sand`, which does roof it, and a hill's ground
+  is `grass-2`. A test of an underground cave lays `land(..., "grass-2")`.
+- **The ways in are points, and each finds the nearest place it fits.**
+  `mouths` open a cliff on the cave's own level. `stairs` and `ladders`
+  climb to flat floor on the level above: the surface, or the floor of a cave
+  built earlier in the tree. So caves are stacked top down, each with a way
+  up to the one before it, and the build order is what makes that work.
+- **The `crypt` shape is rooms and corridors** (`components/crypt.ts`):
+  rectangles `spacing` cells apart joined along a tree of corridors
+  `corridor` cells wide, where one room in four also gets a corridor to a
+  second room already joined, making a loop, in `flagstone-floor` and `brick-wall` unless the props name other
+  tiles. A crypt's walls are its own tile inside a hill too, where a natural
+  cave keeps the hill's. A crypt skips the pass that widens every floor cell
+  into a 2×2 block, which would make a one-wide corridor two wide.
+- **A `door` goes only where a corridor meets a room and both cells across
+  it are wall.** The crypt marks each doorway; the cave places the door only
+  where the walk reached it and the two cells beside it are wall or another
+  doorway, so a door never stands in open floor a body walks round.
+- **Two floors of a crypt never have exactly two cells of rock between
+  them.** That is two walls side by side, which draws as a grid of brick
+  (beside a flight's kept rock most of all), so the cell that can be dug is
+  opened and the floors share one wall.
+- **Rock the cave encloses is filled.** Below 0, a cell inside the frame
+  that is neither floor nor wall and that no path of such cells joins to the
+  frame's border is filled with `rock` (the crypt's default is grey cave
+  wall, so the space between rooms reads as rock and not a grid of bricks).
+  Without it the underground between passages was open sky to the level
+  below. The only openings left are the shafts over a level's stairs.
+- **Floor a way in cannot reach is joined back, not dropped.** The rock a
+  flight keeps standing can cut a passage the carving made, so every piece of
+  floor of `MIN_PIECE` cells or more that the ways in do not reach gets a
+  tunnel to the nearest one they do. Without it most of a crypt was dropped
+  whenever its stairs landed on a corridor.
+- **A flight keeps rock beyond its top step and beside it** on the cave's
+  level. Floor there is a lower floor to step onto from the top step, and
+  the walk took it instead of the level above, so stairs that looked right
+  could not be climbed out of. On the level above, floor beside the shaft has
+  to be floor anyway or rock: a flight already there leaves a cell between
+  the two that only the shaft reaches.
+
+### A dungeon is caves stacked one level apart
+
+`dungeon` (`components/dungeon.ts`) builds its `level` children itself, the
+way a house builds its floors: the first on the dungeon's frame level, each
+one after it a level deeper, each built by `cave.build` against the map the
+levels above it left, with stairs, a ramp or a ladder (`upBy`) at its `up` point. A ramp is the
+same flight as stairs, built from `ramp` instead of `stone-stairs`. A
+first level on level 0 or above is inside a hill, and its `up` is a mouth
+instead. `dungeonLevels` is what both the dungeon and `/admin/compose` read,
+so selecting a Level cuts the view to the level it is dug on, counted from
+the frame's level rather than from the ground a hill raised.
+
 ### A component's behaviour is tested by walking a small tree
 
 Each component has a `<name>.test.ts` beside it in

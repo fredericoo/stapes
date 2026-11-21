@@ -1,5 +1,6 @@
 import type { Bounds } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
+import type { Starter } from "./build";
 import type { Footprint } from "./components/mask";
 import {
   frameBounds,
@@ -106,9 +107,30 @@ export function moveNode(doc: MapDoc, key: string, parentKey: string, index: num
 }
 
 export function freeKey(root: MapNode, base: string): string {
-  const taken = new Set(allKeys(root));
+  return freeIn(new Set(allKeys(root)), base);
+}
+
+function freeIn(taken: ReadonlySet<string>, base: string): string {
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
+/**
+ * A new node of `type` as its component's starter describes it, with a key
+ * free in `root` for it and for each child. Each key is taken before the next
+ * is chosen, so two children of one type get two keys.
+ */
+export function starterNode(root: MapNode, type: string, starter: Starter): MapNode {
+  const taken = new Set(allKeys(root));
+  const take = (base: string) => {
+    const key = freeIn(taken, base);
+    taken.add(key);
+    return key;
+  };
+  const { children: parts, ...rest } = starter;
+  const key = take(type);
+  const children = parts?.map((part) => ({ ...part, key: take(`${key}-${part.type}`) }));
+  return { type, key, ...rest, ...(children ? { children } : {}) };
 }
 
 /**
