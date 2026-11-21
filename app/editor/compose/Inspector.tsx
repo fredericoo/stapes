@@ -299,9 +299,7 @@ function FieldEditor({
       const points = Array.isArray(value) ? (value as Point[]) : [];
       return (
         <span className="flex w-full flex-col gap-1">
-          {points.length === 0 ? (
-            <span className="text-xs text-muted">Straight from start to end</span>
-          ) : null}
+          {points.length === 0 ? <span className="text-xs text-muted">No points yet</span> : null}
           {points.map((p, i) => (
             <span key={i} className="flex items-center gap-1 text-xs tabular-nums">
               <span className="w-5 text-muted">{i + 1}</span>

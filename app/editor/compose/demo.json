@@ -270,14 +270,53 @@
             "type": "hill",
             "key": "knoll",
             "frame": {
-              "x": 31,
-              "y": 47,
-              "w": 24,
-              "h": 16
+              "x": 28,
+              "y": 46,
+              "w": 30,
+              "h": 20
             },
             "props": {
-              "levels": 2,
-              "terrace": 3
+              "levels": 1,
+              "terrace": 4
+            }
+          },
+          {
+            "type": "hill",
+            "key": "peak",
+            "frame": {
+              "x": 33,
+              "y": 49,
+              "w": 20,
+              "h": 14
+            },
+            "props": {
+              "levels": 1,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            }
+          },
+          {
+            "type": "road",
+            "key": "way-up",
+            "props": {
+              "tile": null,
+              "from": {
+                "in": "cottage",
+                "x": 0,
+                "y": -1,
+                "pinX": "center",
+                "pinY": "bottom"
+              },
+              "to": {
+                "in": "peak",
+                "x": 0,
+                "y": 0,
+                "pinX": "center",
+                "pinY": "center"
+              }
             }
           }
         ]
