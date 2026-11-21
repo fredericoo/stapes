@@ -672,12 +672,12 @@ describe("bridges", () => {
           {
             type: "river",
             key: "brook",
-            props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 3 },
+            props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 3, rail: null, arc: 0 },
           },
           {
             type: "road",
             key: "lane",
-            props: { tile: "cobblestone", from: { x: 0, y: 5 }, to: { x: 39, y: 25 }, rail: null },
+            props: { tile: "cobblestone", from: { x: 0, y: 5 }, to: { x: 39, y: 25 } },
           },
         ]),
       ),
@@ -1045,5 +1045,106 @@ describe("raised ground", () => {
     const full = build(tree(6));
     expect(serializeMap(resumed.map)).toBe(serializeMap(full.map));
     expect([...resumed.elevation]).toEqual([...full.elevation]);
+  });
+});
+
+describe("a road over a cliff", () => {
+  const over = (tile: string | null) =>
+    build(
+      doc(
+        field([
+          {
+            type: "hill",
+            key: "knoll",
+            frame: { x: 6, y: 2, w: 30, h: 26 },
+            props: { levels: 1, roughness: 0 },
+          },
+          {
+            type: "road",
+            key: "lane",
+            props: { tile, from: { x: 0, y: 12 }, to: { x: 22, y: 15 } },
+          },
+        ]),
+      ),
+    );
+  const count = (map: MapFile, z: number, test: (ids: string[]) => boolean) => {
+    let n = 0;
+    for (let y = 0; y < 30; y++) {
+      for (let x = 0; x < 40; x++) {
+        if (test(getStack(map, x, y, z).map((p) => p.tileId))) n++;
+      }
+    }
+    return n;
+  };
+
+  it("climbs by one ramp in the hill's tiles and is laid on both levels", () => {
+    const { map, problems, elevation } = over("cobblestone");
+    expect(problems).toEqual([]);
+    expect(count(map, 0, (ids) => ids.at(-1) === "ramp" && ids.at(-2) !== "half-stone")).toBe(1);
+    expect(count(map, 0, (ids) => ids.at(-1) === "ramp" && ids.at(-2) === "half-stone")).toBe(1);
+    expect(count(map, 0, (ids) => ids.slice(-2).join() === "half-stone,half-stone")).toBe(1);
+    expect(count(map, 0, (ids) => ids.at(-1) === "cobblestone")).toBeGreaterThan(3);
+    expect(count(map, 1, (ids) => ids.at(-1) === "cobblestone")).toBeGreaterThan(3);
+    expect(elevation.get("22,15")).toBe(1);
+    expect(getStack(map, 22, 15, 1).at(-1)?.tileId).toBe("cobblestone");
+  });
+
+  it("lays the ramp and nothing else when it has no tile", () => {
+    const paved = over("cobblestone").map;
+    const { map, problems } = over(null);
+    expect(problems).toEqual([]);
+    for (const z of [0, 1]) {
+      expect(count(map, z, (ids) => ids.includes("cobblestone"))).toBe(0);
+      expect(count(map, z, (ids) => ids.includes("ramp"))).toBe(
+        count(paved, z, (ids) => ids.includes("ramp")),
+      );
+    }
+    expect(count(map, 0, (ids) => ids.includes("ramp"))).toBe(2);
+  });
+});
+
+describe("a bridge takes its style from the water under it", () => {
+  const crossing = (river: Record<string, unknown>) =>
+    build(
+      doc(
+        field([
+          {
+            type: "river",
+            key: "brook",
+            props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 5, ...river },
+          },
+          {
+            type: "road",
+            key: "lane",
+            props: { tile: "cobblestone", from: { x: 0, y: 14 }, to: { x: 39, y: 14 } },
+          },
+        ]),
+      ),
+    ).map;
+  const row = (map: MapFile, tileId: string) =>
+    Array.from({ length: 40 }, (_, x) => getStack(map, x, 14, 0).find((p) => p.tileId === tileId));
+
+  it("builds in the deck and rail the river names, lifted towards the middle by its arc", () => {
+    const map = crossing({ deck: "flagstone-floor", rail: "brick-wall", arc: 2 });
+    const deck = row(map, "flagstone-floor");
+    expect(deck.map((p, x) => (p ? x : -1)).filter((x) => x >= 0)).toEqual([
+      17, 18, 19, 20, 21, 22, 23,
+    ]);
+    expect(deck.slice(17, 24).map((p) => p?.foot ?? 0)).toEqual([0, 1, 2, 2, 2, 1, 0]);
+    expect(
+      getStack(map, 20, 13, 0)
+        .map((p) => p.tileId)
+        .slice(-2),
+    ).toEqual(["flagstone-floor", "brick-wall"]);
+    expect(row(map, "wooden-floor").filter(Boolean)).toEqual([]);
+  });
+
+  it("builds nothing over a river that is not bridged and carries on from the far bank", () => {
+    const map = crossing({ bridged: false });
+    for (let x = 18; x <= 22; x++) {
+      expect(getStack(map, x, 14, 0).at(-1)?.tileId, `${x}`).toBe("water");
+    }
+    expect(topAt(map, 17, 14)).toBe("cobblestone");
+    expect(topAt(map, 23, 14)).toBe("cobblestone");
   });
 });

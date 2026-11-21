@@ -1,11 +1,17 @@
 import type { PlacedTile } from "../../../lib/types";
 import * as v from "valibot";
 import { fbm } from "../../generator";
-import type { BuildContext } from "../build";
+import type { BridgeStyle, BuildContext } from "../build";
 import type { Point } from "../doc";
 import { field } from "../field";
 
 export type Cell = { x: number; y: number };
+
+/** The bridge a road builds over water no layer declared a crossing for, such as the sea's shallows or a lake laid with a fill. */
+export const DEFAULT_BRIDGE: BridgeStyle = { deck: "wooden-floor", rail: "fence", arc: 0 };
+
+/** The highest a deck is lifted in the middle, in height units: a body steps up one unit a cell without a ramp. */
+export const MAX_ARC = 2;
 
 const WATER_TILE_IDS = new Set(["water", "deep-water"]);
 
