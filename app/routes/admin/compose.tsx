@@ -33,7 +33,7 @@ import {
   duplicateTo,
   findNode,
   findParent,
-  freeKey,
+  starterNode,
   hitsLayer,
   insertNode,
   moveNode,
@@ -281,22 +281,10 @@ export default function ComposePage() {
     const component = COMPONENTS[type];
     if (!component) return;
     const parent = selectedNode ?? doc.root;
-    const key = freeKey(doc.root, type);
-    const { children: parts, ...starter } = component.starter;
-    const children = parts?.map((part) => ({
-      ...part,
-      key: freeKey(doc.root, `${key}-${part.type}`),
-    }));
-    commit((d) =>
-      insertNode(d, parent.key, parent.children?.length ?? 0, {
-        type,
-        key,
-        ...starter,
-        ...(children ? { children } : {}),
-      }),
-    );
+    const node = starterNode(doc.root, type, component.starter);
+    commit((d) => insertNode(d, parent.key, parent.children?.length ?? 0, node));
     setExpanded((keys) => (keys.includes(parent.key) ? keys : [...keys, parent.key]));
-    setSelection([key]);
+    setSelection([node.key]);
   };
 
   const deleteSelected = () => {
