@@ -151,6 +151,61 @@ describe("cave", () => {
       expect(walls.length).toBeGreaterThan(0);
     });
 
+    it.each([["caverns"], ["crypt"]])(
+      "leaves no hole down through the level inside a %s, only open rock outside it",
+      (shape) => {
+        const built = buildTree(ground([below(-1, { shape, stairs: [MIDDLE] })]));
+        const empty = (x: number, y: number) => getStack(built.map, x, y, -1).length === 0;
+        const outside = new Set<string>();
+        const queue: Array<[number, number]> = [];
+        for (let x = 0; x < SIZE.w; x++) queue.push([x, 0], [x, SIZE.h - 1]);
+        for (let y = 0; y < SIZE.h; y++) queue.push([0, y], [SIZE.w - 1, y]);
+        for (let head = 0; head < queue.length; head++) {
+          const [x, y] = queue[head]!;
+          if (x < 0 || y < 0 || x >= SIZE.w || y >= SIZE.h || outside.has(`${x},${y}`)) continue;
+          if (!empty(x, y)) continue;
+          outside.add(`${x},${y}`);
+          queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+        const holes: string[] = [];
+        for (let y = 0; y < SIZE.h; y++) {
+          for (let x = 0; x < SIZE.w; x++) {
+            if (empty(x, y) && !outside.has(`${x},${y}`)) holes.push(`${x},${y}`);
+          }
+        }
+        expect(holes).toEqual([]);
+      },
+    );
+
+    it("puts a door in each narrow corridor where it leaves a room, with rock either side", () => {
+      const built = buildTree(
+        ground([
+          below(-1, {
+            shape: "crypt",
+            corridor: 1,
+            spacing: 5,
+            door: "door-closed",
+            stairs: [MIDDLE],
+          }),
+        ]),
+      );
+      expect(unreached(built, [-1])).toEqual([]);
+      const doors: Array<{ x: number; y: number; facing: string }> = [];
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = 0; x < SIZE.w; x++) {
+          const top = getStack(built.map, x, y, -1).at(-1);
+          if (top?.tileId === "door-closed") doors.push({ x, y, facing: top.direction! });
+        }
+      }
+      expect(doors.length).toBeGreaterThan(1);
+      const solid = (x: number, y: number) =>
+        tilesById[getStack(built.map, x, y, -1).at(-1)?.tileId ?? ""]?.walkable === false;
+      for (const { x, y, facing } of doors) {
+        const [dx, dy] = facing === "e" ? [0, 1] : [1, 0];
+        expect(solid(x + dx, y + dy) && solid(x - dx, y - dy), `${x},${y}`).toBe(true);
+      }
+    });
+
     it("stacks under another cave, reached through the stairs of the one above", () => {
       const built = buildTree(
         ground([below(-1, { stairs: [MIDDLE] }), below(-2, { stairs: [MIDDLE] })]),
@@ -179,18 +234,19 @@ describe("cave", () => {
               { shape: "crypt" },
               { shape: "caverns" },
               { shape: "tunnels", upBy: "ladder" },
+              { shape: "crypt", upBy: "ramp", corridor: 1, door: "door-closed" },
             ]),
           ],
           "grass-2",
         ),
       );
       const walked = reach(built, OUTSIDE);
-      for (const z of [-1, -2, -3]) {
+      for (const z of [-1, -2, -3, -4]) {
         const floor = floorCells(built, z);
         expect(floor.length, `level ${z}`).toBeGreaterThan(40);
         expect(floor.filter((c) => !walked.has(`${z}:${c.x},${c.y}`))).toEqual([]);
       }
-      expect(walks(built, { ...floorCells(built, -3)[0]!, z: -3 }, OUTSIDE)).toBe(true);
+      expect(walks(built, { ...floorCells(built, -4)[0]!, z: -4 }, OUTSIDE)).toBe(true);
     });
 
     it("opens its first level from a hill's cliff and goes on down under the hill", () => {

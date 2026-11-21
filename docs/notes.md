@@ -16218,10 +16218,22 @@ refused, so a tree never holds a cave nobody can walk into.
   built earlier in the tree. So caves are stacked top down, each with a way
   up to the one before it, and the build order is what makes that work.
 - **The `crypt` shape is rooms and corridors** (`components/crypt.ts`):
-  rectangles two cells apart joined along the shortest tree of two-wide
-  corridors, in `flagstone-floor` and `brick-wall` unless the props name
-  other tiles. A crypt's walls are its own tile inside a hill too, where a
-  natural cave keeps the hill's.
+  rectangles `spacing` cells apart joined along a tree of corridors
+  `corridor` cells wide, where one room in four also gets a corridor to a
+  second room already joined, making a loop, in `flagstone-floor` and `brick-wall` unless the props name other
+  tiles. A crypt's walls are its own tile inside a hill too, where a natural
+  cave keeps the hill's. A crypt skips the pass that widens every floor cell
+  into a 2×2 block, which would make a one-wide corridor two wide.
+- **A `door` goes only where a corridor meets a room and both cells across
+  it are wall.** The crypt marks each doorway; the cave places the door only
+  where the walk reached it and the two cells beside it are wall or another
+  doorway, so a door never stands in open floor a body walks round.
+- **Rock the cave encloses is filled.** Below 0, a cell inside the frame
+  that is neither floor nor wall and that no path of such cells joins to the
+  frame's border is filled with `rock` (the crypt's default is grey cave
+  wall, so the space between rooms reads as rock and not a grid of bricks).
+  Without it the underground between passages was open sky to the level
+  below. The only openings left are the shafts over a level's stairs.
 - **Floor a way in cannot reach is joined back, not dropped.** The rock a
   flight keeps standing can cut a passage the carving made, so every piece of
   floor of `MIN_PIECE` cells or more that the ways in do not reach gets a
@@ -16239,7 +16251,8 @@ refused, so a tree never holds a cave nobody can walk into.
 `dungeon` (`components/dungeon.ts`) builds its `level` children itself, the
 way a house builds its floors: the first on the dungeon's frame level, each
 one after it a level deeper, each built by `cave.build` against the map the
-levels above it left, with stairs or a ladder (`upBy`) at its `up` point. A
+levels above it left, with stairs, a ramp or a ladder (`upBy`) at its `up` point. A ramp is the
+same flight as stairs, built from `ramp` instead of `stone-stairs`. A
 first level on level 0 or above is inside a hill, and its `up` is a mouth
 instead. `dungeonLevels` is what both the dungeon and `/admin/compose` read,
 so selecting a Level cuts the view to the level it is dug on, counted from

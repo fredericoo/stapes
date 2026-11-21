@@ -12,7 +12,9 @@ const DungeonSchema = v.object({});
 
 type DungeonProps = v.InferOutput<typeof DungeonSchema>;
 
-const WAYS = ["stairs", "ladder"] as const;
+const WAYS = ["stairs", "ramp", "ladder"] as const;
+/** A ramp is laid as a flight is, in the ramp tile in place of the level's steps. */
+const RAMP_TILE = "ramp";
 
 const { mouths: _m, stairs: _s, ladders: _l, ...shared } = CaveSchema.entries;
 
@@ -74,7 +76,8 @@ export const dungeon: Component<DungeonProps> = {
       const { up, upBy, ...own } = part.props as LevelProps;
       const z = ctx.z - i;
       const way = i === 0 && z >= 0 ? "mouths" : upBy === "ladder" ? "ladders" : "stairs";
-      const props = v.parse(CaveSchema, { ...own, [way]: [up] });
+      const steps = upBy === "ramp" ? RAMP_TILE : own.steps;
+      const props = v.parse(CaveSchema, { ...own, steps, [way]: [up] });
       const current = map;
       const plan = cave.build(
         {

@@ -18,8 +18,13 @@ const SHAPES = ["caverns", "veins", "tunnels", CRYPT] as const satisfies Readonl
 
 /** What a cave is made of when its props leave a tile out, by whether it was dug by water or by hand. */
 const LOOK = {
-  natural: { floor: "dirt", wall: "cave-wall-sloped", prop: "stalagmite" },
-  crypt: { floor: "flagstone-floor", wall: "brick-wall", prop: null },
+  natural: { floor: "dirt", wall: "cave-wall-sloped", rock: null, prop: "stalagmite" },
+  crypt: {
+    floor: "flagstone-floor",
+    wall: "brick-wall",
+    rock: "cave-wall-sloped-grey",
+    prop: null,
+  },
 } as const;
 
 export const CaveSchema = v.object({
@@ -27,6 +32,8 @@ export const CaveSchema = v.object({
   density: v.optional(field.percent(), 30),
   floor: v.optional(field.tile(TILES.ground)),
   wall: v.optional(field.tile(TILES.any)),
+  /** What fills the rock a cave closes round below ground, where no wall faces its floor; its wall when left out. */
+  rock: v.optional(v.nullable(field.tile(TILES.any))),
   mouth: v.optional(field.tile(TILES.any), "hill-cave-mouth"),
   mouths: v.optional(field.points(), []),
   steps: v.optional(field.tile(TILES.stairs), "stone-stairs"),
@@ -34,6 +41,12 @@ export const CaveSchema = v.object({
   ladders: v.optional(field.points(), []),
   prop: v.optional(v.nullable(field.tile(TILES.standing))),
   propEvery: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 22),
+  /** A crypt's cells of rock between two rooms, the length of its shortest corridor. */
+  spacing: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(12)), 2),
+  /** How many cells across a crypt's corridors are. */
+  corridor: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(3)), 2),
+  /** The door a crypt puts where a corridor leaves a room, or none. */
+  door: v.optional(v.nullable(field.tile(TILES.door)), null),
 });
 
 export type CaveProps = v.InferOutput<typeof CaveSchema>;
@@ -117,6 +130,7 @@ export const cave: Component<CaveProps> = {
       ...given,
       floor: given.floor ?? look.floor,
       wall: given.wall ?? look.wall,
+      rock: given.rock ?? look.rock ?? given.wall ?? look.wall,
       prop: given.prop === undefined ? look.prop : given.prop,
     };
     const z = ctx.z;
@@ -390,14 +404,22 @@ export const cave: Component<CaveProps> = {
         kept.add(key(flight(s, n, k).x, flight(s, n, k).y));
       }
     }
-    const carved =
+    const crypt =
       props.shape === CRYPT
-        ? carveCrypt(ctx.bounds, ctx.seed, props.density)
-        : carveCave(ctx.bounds, {
+        ? carveCrypt(ctx.bounds, {
             seed: ctx.seed,
-            shape: props.shape,
             density: props.density,
-          } as CaveConfig);
+            spacing: props.spacing,
+            width: props.corridor,
+          })
+        : null;
+    const carved =
+      crypt?.grid ??
+      carveCave(ctx.bounds, {
+        seed: ctx.seed,
+        shape: props.shape as CaveShape,
+        density: props.density,
+      } as CaveConfig);
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         if (isOpen(carved, x, y) && diggable(x, y)) open.add(key(x, y));
@@ -455,11 +477,12 @@ export const cave: Component<CaveProps> = {
     /**
      * A floor cell outside every two-by-two square of floor is a passage one
      * cell wide, which a prop or a creature blocks; filling those back can
-     * cut a piece off, so the pieces no way in reaches go after it.
+     * cut a piece off, so the pieces no way in reaches go after it. A crypt's
+     * corridors are as wide as it asks, so it is left as it was dug.
      */
     const square = (x: number, y: number) =>
       isOpenAt(x, y) && isOpenAt(x + 1, y) && isOpenAt(x, y + 1) && isOpenAt(x + 1, y + 1);
-    for (let changed = true; changed;) {
+    for (let changed = !crypt; changed;) {
       changed = false;
       for (const k of [...open]) {
         if (pinned.has(k)) continue;
@@ -586,6 +609,57 @@ export const cave: Component<CaveProps> = {
             : ctx.stackAt(x + dx, y + dy, z).at(-1)!;
         edits.push({ x: x + dx, y: y + dy, z, stack: [...floorAt(x + dx, y + dy), wall] });
       }
+    }
+    /**
+     * Below ground nothing is drawn where nothing is written, so rock the
+     * cave closes round, with no floor beside it, would show as a hole down
+     * through the level. Every cell no step from outside the frame reaches
+     * without crossing floor or wall is walled as well.
+     */
+    if (underground) {
+      const outside = new Set<string>();
+      const queue: Cell[] = [];
+      for (let x = minX - 1; x <= maxX + 1; x++) queue.push({ x, y: minY - 1 }, { x, y: maxY + 1 });
+      for (let y = minY; y <= maxY; y++) queue.push({ x: minX - 1, y }, { x: maxX + 1, y });
+      for (const c of queue) outside.add(key(c.x, c.y));
+      for (let head = 0; head < queue.length; head++) {
+        for (const [dx, dy] of N4) {
+          const x = queue[head]!.x + dx;
+          const y = queue[head]!.y + dy;
+          const k = key(x, y);
+          if (!inFrame(x, y) || outside.has(k) || reached.has(k) || walls.has(k)) continue;
+          outside.add(k);
+          queue.push({ x, y });
+        }
+      }
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const k = key(x, y);
+          if (outside.has(k) || reached.has(k) || walls.has(k) || !isRock(x, y)) continue;
+          walls.add(k);
+          edits.push({ x, y, z, stack: [...floorAt(x, y), tile(props.rock)] });
+        }
+      }
+    }
+    for (const doorway of props.door ? (crypt?.doorways ?? []) : []) {
+      const k = key(doorway.x, doorway.y);
+      if (!reached.has(k) || pinned.has(k) || propped.has(k)) continue;
+      const side = doorway.facing === "e" ? { x: 0, y: 1 } : { x: 1, y: 0 };
+      const shut = (x: number, y: number) =>
+        walls.has(key(x, y)) ||
+        (crypt!.doorways.some((d) => d.x === x && d.y === y) && reached.has(key(x, y)));
+      if (
+        !shut(doorway.x + side.x, doorway.y + side.y) ||
+        !shut(doorway.x - side.x, doorway.y - side.y)
+      ) {
+        continue;
+      }
+      edits.push({
+        x: doorway.x,
+        y: doorway.y,
+        z,
+        stack: [...floorAt(doorway.x, doorway.y), tile(props.door!, doorway.facing)],
+      });
     }
     for (const mouth of mouths) {
       const out = STEP[mouth.facing];
