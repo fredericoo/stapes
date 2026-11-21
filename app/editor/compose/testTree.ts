@@ -64,15 +64,27 @@ export function land(size: Size, children: MapNode[], tile = "grass"): MapNode {
   );
 }
 
-/** A sea holding one smooth island `margin` cells in from each edge. */
-export function isle(size: Size, children: MapNode[], margin = 4): MapNode {
+/**
+ * A sea holding one smooth island `margin` cells in from each edge. `children`
+ * are laid beside the island, after it; `island.under` are its own children,
+ * which is what a rule an island keeps over its descendants applies to.
+ */
+export function isle(
+  size: Size,
+  children: MapNode[],
+  margin = 4,
+  island: { under?: MapNode[]; props?: Record<string, unknown> } = {},
+): MapNode {
   const shore = frame(margin, margin, size.w - margin * 2, size.h - margin * 2);
   return node(
     "sea",
     {},
     {
       frame: frame(0, 0, size.w, size.h),
-      children: [node("island", { roughness: 0 }, { frame: shore }), ...children],
+      children: [
+        node("island", { roughness: 0, ...island.props }, { frame: shore, children: island.under }),
+        ...children,
+      ],
     },
   );
 }

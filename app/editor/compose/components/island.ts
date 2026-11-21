@@ -25,6 +25,7 @@ const IslandSchema = v.object({
     2,
   ),
   roughness: v.optional(field.percent(), 40),
+  beach: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(6)), 2),
 });
 
 export type IslandProps = v.InferOutput<typeof IslandSchema>;
@@ -140,7 +141,9 @@ function distanceFrom(g: CellGrid, land: Uint8Array, limit: number): Int32Array 
  * land touches are one coast rather than two separated by a channel.
  * Shallows are `water` on a bed of the fill, as Rune Isle's are. Masks cut
  * the land, not the finished island, so a hole a mask makes has shallows and
- * foam round it like any other coast.
+ * foam round it like any other coast. The land within `beach` cells of the
+ * coast is declared `bare`, and the build lays none of the ground this
+ * island's descendants add there.
  */
 export const island: Component<IslandProps> = {
   type: "island",
@@ -178,6 +181,15 @@ export const island: Component<IslandProps> = {
         edits.push({ x, y, z: ctx.z, stack: [...stack, tile("shore-foam")] });
       }
     }
-    return { ok: true, edits };
+    const inland = distanceFrom(
+      g,
+      landNow.map((l) => (l ? 0 : 1)),
+      props.beach,
+    );
+    const bare: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < land.length; i++) {
+      if (land[i] && inland[i]! >= 1) bare.push({ x: gridX(g, i), y: gridY(g, i) });
+    }
+    return { ok: true, edits, bare };
   },
 };

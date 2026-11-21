@@ -14,7 +14,8 @@ import {
   type MaskProps,
   type MaskShape,
 } from "./components/mask";
-import { wrongTile } from "./field";
+import { isWet } from "./components/line";
+import { TILES, wrongTile } from "./field";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 
 export type BuildContext = {
@@ -87,6 +88,7 @@ export type ComponentPlan =
         ramp: RampStyle;
       };
       crossing?: { cells: ReadonlyArray<{ x: number; y: number }>; bridge: BridgeStyle | null };
+      bare?: ReadonlyArray<{ x: number; y: number }>;
     };
 
 export type Elevation = ReadonlyMap<string, number>;
@@ -112,6 +114,8 @@ type Step = {
   written: Bounds | null;
   footprint: Footprint | null;
   terrain: Terrain;
+  /** Cells, keyed `x,y`, the node keeps its descendants' ground off. */
+  bare: ReadonlySet<string> | null;
 };
 
 export type BuildResult = {
@@ -243,16 +247,57 @@ function shapesFor(
   });
 }
 
-function visibleOrder(doc: MapDoc, layout: Layout): Placement[] {
-  const out: Placement[] = [];
-  const visit = (node: MapNode) => {
+type Visit = { placement: Placement; ancestors: readonly string[] };
+
+function visibleOrder(doc: MapDoc, layout: Layout): Visit[] {
+  const out: Visit[] = [];
+  const visit = (node: MapNode, ancestors: readonly string[]) => {
     if (node.hidden) return;
     const placement = layout.placements.get(node.key);
     if (placement?.node !== node) return;
-    out.push(placement);
-    for (const child of node.children ?? []) visit(child);
+    out.push({ placement, ancestors });
+    const below = [...ancestors, node.key];
+    for (const child of node.children ?? []) visit(child, below);
   };
-  visit(doc.root);
+  visit(doc.root, []);
+  return out;
+}
+
+/**
+ * Takes the flat ground a layer adds out of every edit on a cell an ancestor
+ * keeps bare, the way `applyMasks` reads what a layer added. An edit that
+ * leaves the cell wet is passed whole, so a river still reaches the sea
+ * across a beach with its bed under it.
+ */
+function offBare(
+  edits: readonly StackEdit[],
+  bare: readonly ReadonlySet<string>[],
+  stackAt: (x: number, y: number, z: number) => readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): StackEdit[] {
+  if (bare.length === 0) return [...edits];
+  const out: StackEdit[] = [];
+  for (const edit of edits) {
+    if (isWet(edit.stack) || !bare.some((cells) => cells.has(`${edit.x},${edit.y}`))) {
+      out.push(edit);
+      continue;
+    }
+    const before = stackAt(edit.x, edit.y, edit.z);
+    let kept = 0;
+    while (
+      kept < edit.stack.length &&
+      kept < before.length &&
+      sameStack([edit.stack[kept]!], [before[kept]!])
+    ) {
+      kept++;
+    }
+    const stack = edit.stack.filter((p, i) => {
+      const def = tilesById[p.tileId];
+      return i < kept || !def || !TILES.ground.test(def);
+    });
+    if (stack.length === edit.stack.length) out.push(edit);
+    else if (!sameStack(stack, before)) out.push({ ...edit, stack });
+  }
   return out;
 }
 
@@ -287,7 +332,7 @@ export function buildMap(
   let terrain = FLAT;
   let resuming = true;
 
-  for (const placement of visibleOrder(doc, layout)) {
+  for (const { placement, ancestors } of visibleOrder(doc, layout)) {
     const inputs = inputsOf(placement, layout);
     const prior = usable[steps.length];
     if (resuming && prior?.key === placement.node.key && prior.inputs === inputs) {
@@ -301,6 +346,7 @@ export function buildMap(
     const problems: BuildProblem[] = [];
     let written: Bounds | null = null;
     let footprint: Footprint | null = null;
+    let bare: ReadonlySet<string> | null = null;
     const { node } = placement;
     const shapes = shapesFor(node, layout, built, problems);
     const component = components[node.type];
@@ -350,7 +396,11 @@ export function buildMap(
         else {
           const applied = component.shapesItself ? shapes.filter((s) => s.only) : shapes;
           const masked = applyMasks(plan.edits, applied, stackAt);
-          const kept = masked
+          const reserved =
+            component.ownLevels || component.shapesItself
+              ? []
+              : ancestors.flatMap((key) => built.get(key)?.bare ?? []);
+          const kept = offBare(masked, reserved, stackAt, tilesById)
             .filter((e) => inside(placement.clip, e.x, e.y))
             .map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
           map = setStacks(map, kept);
@@ -372,12 +422,15 @@ export function buildMap(
             }
             terrain = { ...terrain, crossings };
           }
+          if ("bare" in plan && plan.bare) {
+            bare = new Set(within(plan.bare).map((c) => `${c.x},${c.y}`));
+          }
           written = boundsOf(kept);
           footprint = footprintOf(kept);
         }
       }
     }
-    const step = { key: node.key, inputs, map, problems, written, footprint, terrain };
+    const step = { key: node.key, inputs, map, problems, written, footprint, terrain, bare };
     steps.push(step);
     built.set(step.key, step);
   }
