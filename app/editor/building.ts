@@ -1,3 +1,5 @@
+import { pileMax, resolveContainer } from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
 import { getStack, setStacks, type StackEdit } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, physicalHeight } from "../lib/types";
@@ -45,6 +47,10 @@ export type FloorSpec = {
   use: FloorUse;
   seed: number;
   rooms: number;
+  /** Whether the doorway in each wall between rooms holds a door. */
+  roomDoors: boolean;
+  /** Whether the containers among the furniture are stocked with items. */
+  stocked: boolean;
   access: Access;
   doors: ReadonlyArray<{ x: number; y: number }>;
   wallTileId: string;
@@ -81,6 +87,7 @@ const LADDER_UP = 6;
 const LADDER_TOP = 7;
 const FURNITURE = 8;
 const RAIL = 9;
+const ROOM_DOOR = 10;
 
 const RAIL_TILE_ID = "fence";
 
@@ -119,7 +126,7 @@ function shuffled<T>(items: readonly T[], random: () => number): T[] {
 }
 
 function passable(kind: number): boolean {
-  return kind === FLOOR || kind === LADDER_UP || kind === LADDER_TOP;
+  return kind === FLOOR || kind === LADDER_UP || kind === LADDER_TOP || kind === ROOM_DOOR;
 }
 
 /** Whether every cell a body can stand on in this storey can be walked to from every other. */
@@ -337,6 +344,10 @@ function partition(grid: Grid, storey: Storey, random: () => number) {
           }
           for (const at of cells) if (at !== doorway) storey.kinds[at] = WALL;
           if (connected(grid, storey)) {
+            if (storey.spec.roomDoors) {
+              storey.kinds[doorway] = ROOM_DOOR;
+              storey.facing.set(doorway, axis === "x" ? "e" : "s");
+            }
             storey.keep[doorway] = 1;
             storey.keep[doorway - step] = 1;
             storey.keep[doorway + step] = 1;
@@ -598,6 +609,102 @@ const FURNISH: Record<FloorUse, (f: Furnisher, rooms: readonly Room[]) => void> 
   },
 };
 
+/** What the containers of a storey are stocked from, by its use: an item and the most of it one slot holds. */
+const STOCK: Record<FloorUse, ReadonlyArray<readonly [string, number]>> = {
+  empty: [],
+  house: [
+    ["bread", 2],
+    ["cheese", 2],
+    ["apple", 4],
+    ["berry", 6],
+    ["empty-bottle", 2],
+    ["cloth-tunic", 1],
+    ["worn-boots", 1],
+    ["gold", 12],
+  ],
+  inn: [
+    ["bread", 3],
+    ["ale", 2],
+    ["cheese", 2],
+    ["cloth-tunic", 1],
+    ["hand-lantern", 1],
+    ["gold", 8],
+  ],
+  pub: [
+    ["ale", 4],
+    ["ale", 4],
+    ["bread", 3],
+    ["cheese", 3],
+    ["cooked-meat", 2],
+    ["empty-bottle", 6],
+  ],
+  shop: [
+    ["empty-bottle", 6],
+    ["hand-lantern", 1],
+    ["cloth-tunic", 1],
+    ["leather-cap", 1],
+    ["worn-boots", 1],
+    ["apple", 6],
+    ["bread", 3],
+    ["gold", 20],
+  ],
+  library: [
+    ["rune-blank-bone", 3],
+    ["empty-bottle", 2],
+    ["hand-lantern", 1],
+    ["gold", 6],
+  ],
+  storage: [
+    ["apple", 8],
+    ["berry", 12],
+    ["bread", 3],
+    ["cheese", 4],
+    ["ale", 4],
+    ["empty-bottle", 8],
+  ],
+};
+
+const STOCK_SHARE = { min: 0.25, spread: 0.35 };
+
+/**
+ * Stocks a storey's containers from its use's list: a share of all their
+ * slots is filled, each item going to a container picked at random among
+ * those with a slot free, so the same seed stocks the same shelves. An item
+ * carries no id; the world gives it one when it loads the map, as it does
+ * for every item placed without one.
+ */
+function stock(storey: Storey, tilesById: Record<string, TileDef>, random: () => number) {
+  const list = STOCK[storey.spec.use].filter(([id]) => tilesById[id]);
+  if (!storey.spec.stocked || list.length === 0) return;
+  const holders: Array<{ at: number; index: number; free: number; contents: ItemInstance[] }> = [];
+  for (const at of [...storey.furniture.keys()].sort((a, b) => a - b)) {
+    storey.furniture.get(at)!.forEach((placement, index) => {
+      const def = tilesById[placement.tileId];
+      const container = def ? resolveContainer(def) : null;
+      if (container) holders.push({ at, index, free: container.size, contents: [] });
+    });
+  }
+  const slots = holders.reduce((sum, holder) => sum + holder.free, 0);
+  const share = STOCK_SHARE.min + random() * STOCK_SHARE.spread;
+  for (let n = Math.round(slots * share); n > 0; n--) {
+    const open = holders.filter((holder) => holder.free > 0);
+    if (open.length === 0) break;
+    const holder = open[Math.floor(random() * open.length)]!;
+    const [tileId, most] = list[Math.floor(random() * list.length)]!;
+    const count = 1 + Math.floor(random() * Math.min(most, pileMax(tilesById[tileId]!)));
+    holder.contents.push(count > 1 ? { id: "", tileId, count } : { id: "", tileId });
+    holder.free--;
+  }
+  for (const holder of holders) {
+    if (holder.contents.length === 0) continue;
+    const stack = storey.furniture.get(holder.at)!;
+    storey.furniture.set(
+      holder.at,
+      stack.map((p, i) => (i === holder.index ? { ...p, contents: holder.contents } : p)),
+    );
+  }
+}
+
 function furnish(
   grid: Grid,
   storey: Storey,
@@ -658,6 +765,7 @@ function furnish(
       if (furnisher.put(cell.x, cell.y, [furnisher.tile("lantern")])) break;
     }
   }
+  stock(storey, tilesById, random);
 }
 
 function storeyEdits(
@@ -702,7 +810,7 @@ function storeyEdits(
       const on: PlacedTile[] =
         kind === WALL
           ? [placed(spec.wallTileId, tilesById)]
-          : kind === DOOR
+          : kind === DOOR || kind === ROOM_DOOR
             ? [placed(spec.doorTileId, tilesById, facing)]
             : kind === WINDOW
               ? [placed(spec.windowTileId!, tilesById, facing)]

@@ -16063,6 +16063,16 @@ A hidden child is left out, so hiding the roof builds the house without one.
   spreads to cells beside it, and a cell holds a barrel, a sack, a
   `crate-chest`, or a `wooden-box` with a second box or a sack on it.
   Tables keep `TABLE_GAP` between them.
+- **A wall between rooms has one doorway, with a door in it unless
+  `roomDoors` is off.** The door is the house's door tile, closed, facing
+  along the way through.
+- **Containers are stocked from the storey's `use` (`STOCK`)** unless
+  `stocked` is off: a share of all their slots is filled, each item going to
+  a container picked from those with a slot free, a pile never past the
+  item's `pile`. Nothing nests, so the lists hold no containers. An item is
+  written with an empty `id`, which `mintItemIds` fills when a world loads
+  the map; an id made at build time would be shared by every world built
+  from the tree.
 - **`use` picks the furniture**: `house`, `inn`, `pub`, `shop`, `library`,
   `storage` or `empty`. The node's seed moves the stairs, the walls and the
   furniture together; re-rolling one floor leaves the others, except that the

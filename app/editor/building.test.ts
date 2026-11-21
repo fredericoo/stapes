@@ -31,6 +31,8 @@ function storey(name: string, over: Partial<FloorSpec> = {}): FloorSpec {
     use: "house",
     seed: 1,
     rooms: 1,
+    roomDoors: true,
+    stocked: true,
     access: "stairs",
     doors: [],
     wallTileId: "sw2",
@@ -165,6 +167,59 @@ describe("planBuilding", () => {
     expect(doorAt(9, 4)).toBe("n");
     expect([doorAt(5, 4), doorAt(4, 5)].filter(Boolean)).toHaveLength(1);
     expect(doorAt(4, 4)).toBeNull();
+  });
+
+  it("hangs a door in each doorway between rooms, and leaves it open when told to", () => {
+    const of = (roomDoors: boolean): BuildingSpec => ({
+      floors: [storey("ground", { use: "empty", rooms: 3, roomDoors, doors: [] })],
+      cellars: [],
+      roof: null,
+    });
+    const inside = (map: MapFile) => {
+      let doors = 0;
+      for (let y = 5; y <= 10; y++) {
+        for (let x = 5; x <= 11; x++) {
+          if (getStack(map, x, y, 0).at(-1)?.tileId === "door-closed") doors++;
+        }
+      }
+      return doors;
+    };
+    expect(inside(built(of(true)))).toBe(2);
+    expect(inside(built(of(false)))).toBe(0);
+  });
+
+  it("stocks containers with items that fit their slots and their piles, the same for the same seed", () => {
+    const spec = (seed: number, stocked = true): BuildingSpec => ({
+      floors: [storey("ground", { use: "storage", seed, stocked, doors: [FRONT_DOOR] })],
+      cellars: [],
+      roof: null,
+    });
+    const held = (map: MapFile) => {
+      const out: string[] = [];
+      for (let y = 5; y <= 10; y++) {
+        for (let x = 5; x <= 11; x++) {
+          for (const p of getStack(map, x, y, 0)) {
+            if (!p.contents) continue;
+            const size = { sack: 1, "crate-chest": 2 }[p.tileId];
+            expect(size, p.tileId).toBeDefined();
+            expect(p.contents.length).toBeLessThanOrEqual(size!);
+            for (const item of p.contents) {
+              const pile = (
+                tilesById[item.tileId] as { interactions?: { item?: { pile?: number } } }
+              ).interactions?.item?.pile;
+              expect(item.count ?? 1, item.tileId).toBeLessThanOrEqual(pile ?? 1);
+              out.push(`${x},${y}:${item.tileId}x${item.count ?? 1}`);
+            }
+          }
+        }
+      }
+      return out;
+    };
+    const first = held(built(spec(21)));
+    expect(first.length).toBeGreaterThan(0);
+    expect(held(built(spec(21)))).toEqual(first);
+    expect(held(built(spec(22)))).not.toEqual(first);
+    expect(held(built(spec(21, false)))).toEqual([]);
   });
 
   it("builds the same building from the same seeds and a different one from another", () => {

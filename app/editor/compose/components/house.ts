@@ -55,6 +55,8 @@ const FloorSchema = v.object({
   use: v.optional(v.picklist(FLOOR_USES), "house"),
   rooms: v.optional(rooms, 1),
   reachedBy: v.optional(v.picklist(ACCESS), "stairs"),
+  roomDoors: v.optional(v.boolean(), true),
+  stocked: v.optional(v.boolean(), true),
   doors: v.optional(field.points(), []),
   windows: v.optional(v.boolean(), true),
   wall: v.optional(v.nullable(field.tile(TILES.wall)), null),
@@ -67,6 +69,8 @@ const CellarSchema = v.object({
   use: v.optional(v.picklist(FLOOR_USES), "storage"),
   rooms: v.optional(rooms, 1),
   reachedBy: v.optional(v.picklist(ACCESS), "stairs"),
+  roomDoors: v.optional(v.boolean(), true),
+  stocked: v.optional(v.boolean(), true),
   wall: v.optional(v.nullable(field.tile(TILES.wall)), "brick-wall"),
   floor: v.optional(v.nullable(field.tile(TILES.ground)), "flagstone-floor"),
 });
@@ -138,6 +142,8 @@ export const house: Component<HouseProps> = {
       use: own.use,
       seed: part.seed,
       rooms: own.rooms,
+      roomDoors: own.roomDoors,
+      stocked: own.stocked,
       access: own.reachedBy,
       doors:
         "doors" in own
