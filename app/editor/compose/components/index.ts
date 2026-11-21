@@ -13,6 +13,7 @@ import { road } from "./road";
 import { scatter } from "./scatter";
 import { sea } from "./sea";
 import { tile } from "./tile";
+import { wall } from "./wall";
 
 const all: ReadonlyArray<Component<never>> = [
   group,
@@ -26,6 +27,7 @@ const all: ReadonlyArray<Component<never>> = [
   cellar,
   roof,
   road,
+  wall,
   river,
   tile,
   fill,
