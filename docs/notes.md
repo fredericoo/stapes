@@ -15808,7 +15808,7 @@ document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
 `sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
-and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -15817,8 +15817,8 @@ builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is stil
 `generate:island`; nothing ships from a tree yet.
 
 **A tile wider than a cell is placed whole or not at all.** `placer`
-(`app/editor/compose/placing.ts`) is what `tile`, `scatter` and `forest`
-stand tiles on the ground with. For a tile with a `footprint`
+(`app/editor/compose/placing.ts`) is what `tile`, `scatter`, `forest` and
+`shipwreck` stand tiles on the ground with. For a tile with a `footprint`
 (old trees, dunes, fallen logs, the wreck pieces) it writes the anchor in the
 south-east cell and a part carrying `span` in each other one, and refuses the
 spot unless every cell has ground at one height and level and room under the
