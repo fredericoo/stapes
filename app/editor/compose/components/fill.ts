@@ -1,8 +1,8 @@
 import * as v from "valibot";
-import { stackHeight, type StackEdit } from "../../../lib/mapData";
+import { getStack, stackHeight, type StackEdit } from "../../../lib/mapData";
 import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
-import type { Component } from "../build";
+import type { BuildContext, Component } from "../build";
 import { TILES, field } from "../field";
 import { brinkOf, groundOf, isBrink, isFlat } from "../brinks";
 import { isWet } from "./line";
@@ -17,12 +17,60 @@ const FillSchema = v.object({
 
 export type FillProps = v.InferOutput<typeof FillSchema>;
 
+const N8 = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+] as const;
+
 const N4 = [
   [1, 0],
   [-1, 0],
   [0, 1],
   [0, -1],
 ] as const;
+
+/**
+ * The ground at the foot of a cliff is in the column of the raised cell, under
+ * its wall, which a layer working on each cell's top never reads. Wherever
+ * this layer laid flat ground beside a cliff, the same ground goes under the
+ * wall, so the cliff stands on it. An edit's `z` is lowered by the cell's own
+ * rise because the build raises every edit of a layer by it.
+ */
+function feet(
+  ctx: BuildContext,
+  props: FillProps,
+  edits: readonly StackEdit[],
+  inner: readonly PlacedTile[],
+  onlyOn: ReadonlySet<string>,
+): StackEdit[] {
+  if (props.mode !== "on top" && props.mode !== "ground") return [];
+  const flat = inner.filter((p) => isFlat(p, ctx.tilesById));
+  if (flat.length === 0) return [];
+  const out = new Map<string, StackEdit>();
+  for (const edit of edits) {
+    const level = ctx.raisedAt(edit.x, edit.y);
+    for (const [dx, dy] of N8) {
+      const x = edit.x + dx;
+      const y = edit.y + dy;
+      const rise = ctx.raisedAt(x, y);
+      if (rise <= level || out.has(`${x},${y}`) || !ctx.covered(x, y)) continue;
+      const column = getStack(ctx.map, x, y, ctx.z + level);
+      const ground = column[0];
+      if (column.length !== 2 || !ground || !isFlat(ground, ctx.tilesById)) continue;
+      const read = props.mode === "ground" ? ground.tileId : groundOf(ground.tileId);
+      if (onlyOn.size && !onlyOn.has(read)) continue;
+      const stack = props.mode === "ground" ? [...flat, column[1]!] : [ground, ...flat, column[1]!];
+      out.set(`${x},${y}`, { x, y, z: ctx.z + level - rise, stack });
+    }
+  }
+  return [...out.values()];
+}
 
 /**
  * Lays a stack of tiles, bottom first, over every cell of its frame its masks
@@ -119,6 +167,7 @@ export const fill: Component<FillProps> = {
       else next = [...stack, ...laid];
       edits.push({ x, y, z: ctx.z, stack: next });
     }
+    edits.push(...feet(ctx, props, edits, inner, onlyOn));
     return { ok: true, edits };
   },
 };
