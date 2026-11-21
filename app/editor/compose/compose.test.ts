@@ -5,6 +5,7 @@ import { chunkKeyFor, getStack, serializeMap } from "../../lib/mapData";
 import type { MapFile } from "../../lib/types";
 import { normalizeTiles } from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
+import { DEFAULT_HOUSE_CONFIG } from "../proceduralSettings";
 import { buildMap, type Component, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
 import type { Frame, MapDoc, MapNode } from "./doc";
@@ -904,5 +905,98 @@ describe("hill", () => {
     expect(getStack(map, 18, 14, 0).some((p) => p.tileId === "hill-wall")).toBe(false);
     expect(topLevel(map, 15, 14)).toBe(1);
     expect(getStack(map, 15, 14, 1)[0]?.tileId).toBe("grass-brink");
+  });
+});
+
+describe("raised ground", () => {
+  const knoll = (extra: Partial<MapNode> = {}): MapNode => ({
+    type: "hill",
+    key: "knoll",
+    frame: { x: 2, y: 2, w: 34, h: 26 },
+    props: { levels: 1, roughness: 0, ramps: false },
+    ...extra,
+  });
+  const cottage = (x: number, y: number): MapNode => ({
+    type: "house",
+    key: "cottage",
+    frame: { x, y, w: 7, h: 6 },
+  });
+  const wallsOn = (map: MapFile, z: number) => {
+    const cells: string[] = [];
+    for (let y = 0; y < 30; y++) {
+      for (let x = 0; x < 40; x++) {
+        if (getStack(map, x, y, z).some((p) => p.tileId === DEFAULT_HOUSE_CONFIG.wallTileId)) {
+          cells.push(`${x},${y}`);
+        }
+      }
+    }
+    return cells;
+  };
+  const levelsWith = (map: MapFile, x: number, y: number) =>
+    [0, 1, 2, 3, 4].filter((z) => getStack(map, x, y, z).length > 0);
+
+  it("stands a house laid after a hill on the hill, whole", () => {
+    const flat = build(doc(field([cottage(16, 12)])));
+    const { map, problems } = build(doc(field([knoll(), cottage(16, 12)])));
+    expect(problems).toEqual([]);
+    expect(wallsOn(flat.map, 0).length).toBeGreaterThan(0);
+    expect(wallsOn(map, 1)).toEqual(wallsOn(flat.map, 0));
+    expect(wallsOn(map, 0)).toEqual([]);
+    expect(levelsWith(map, 19, 14).at(-1)).toBe(levelsWith(flat.map, 19, 14).at(-1)! + 1);
+  });
+
+  it("refuses a house whose ground is on two levels and writes none of it", () => {
+    const { map, problems } = build(doc(field([knoll(), cottage(3, 12)])));
+    expect(problems.map((p) => p.key)).toEqual(["cottage"]);
+    expect(wallsOn(map, 0)).toEqual([]);
+    expect(wallsOn(map, 1)).toEqual([]);
+  });
+
+  it("raises a hill round a house laid before it, leaving the house and the cells beside it flat", () => {
+    const flat = build(doc(field([cottage(16, 12)])));
+    const { map, problems, elevation } = build(doc(field([cottage(16, 12), knoll()])));
+    expect(problems).toEqual([]);
+    for (let y = 11; y <= 18; y++) {
+      for (let x = 15; x <= 23; x++) {
+        expect(elevation.get(`${x},${y}`) ?? 0, `${x},${y}`).toBe(0);
+        for (const z of [0, 1, 2]) {
+          expect(getStack(map, x, y, z), `${x},${y},${z}`).toEqual(getStack(flat.map, x, y, z));
+        }
+      }
+    }
+    expect(elevation.get("10,14")).toBe(1);
+  });
+
+  it("lays a layer that comes after a hill on top of it", () => {
+    const { map, elevation } = build(
+      doc(
+        field([
+          knoll(),
+          {
+            type: "fill",
+            key: "paving",
+            frame: { x: 0, y: 14, w: 40, h: 1 },
+            props: { tiles: ["cobblestone"], mode: "on top", edge: [] },
+          },
+        ]),
+      ),
+    );
+    for (let x = 0; x < 40; x++) {
+      const up = elevation.get(`${x},14`) ?? 0;
+      expect(getStack(map, x, 14, up).at(-1)?.tileId, `${x}`).toBe("cobblestone");
+      if (up) expect(getStack(map, x, 14, 0).at(-1)?.tileId, `${x}`).toBe("hill-wall");
+    }
+    expect(elevation.get("20,14")).toBe(1);
+    expect(elevation.get("0,14")).toBeUndefined();
+  });
+
+  it("builds the same map when resumed after a hill moves as when built in full", () => {
+    const tree = (x: number) =>
+      doc(field([knoll({ frame: { x, y: 2, w: 30, h: 26 } }), cottage(16, 12)]));
+    const first = buildMap(tree(2), tilesById, registry);
+    const resumed = buildMap(tree(6), tilesById, registry, undefined, first);
+    const full = build(tree(6));
+    expect(serializeMap(resumed.map)).toBe(serializeMap(full.map));
+    expect([...resumed.elevation]).toEqual([...full.elevation]);
   });
 });

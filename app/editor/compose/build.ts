@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { emptyMap, getStack, setStacks } from "../../lib/mapData";
+import { emptyMap, getStack, setStacks, type StackEdit } from "../../lib/mapData";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
@@ -24,6 +24,8 @@ export type BuildContext = {
   readonly z: number;
   readonly seed: number;
   stackAt(x: number, y: number, z?: number): PlacedTile[];
+  /** How many levels the ground at x,y has been raised by the nodes built so far. */
+  raisedAt(x: number, y: number): number;
   point(point: Point): { x: number; y: number } | null;
   /** Whether the node's masks leave x,y in; true everywhere for a node with none. */
   covered(x: number, y: number): boolean;
@@ -44,8 +46,31 @@ export type Component<Props> = {
    * applying the shape masks again would take out what it built in the hole.
    */
   readonly shapesItself?: true;
-  build(ctx: BuildContext, props: Props): GeneratedPlan;
+  /**
+   * Set by a component that works in the map's own levels. For every other
+   * component the build hides raised ground: `ctx.stackAt` reads each cell
+   * that many levels up and its edits are written that many levels up, so a
+   * forest or a road laid after a hill lies on the hill without knowing it
+   * is there. That only suits a layer whose cells are independent. One that
+   * raises ground, or that has to stand on one level throughout like a
+   * house, reads `ctx.raisedAt` and places itself.
+   */
+  readonly ownLevels?: true;
+  build(ctx: BuildContext, props: Props): ComponentPlan;
 };
+
+/** A plan, and for a component that raises ground the cells it raised and by how many levels in all. */
+export type ComponentPlan =
+  | GeneratedPlan
+  | {
+      ok: true;
+      edits: StackEdit[];
+      raised: ReadonlyArray<{ x: number; y: number; levels: number }>;
+    };
+
+export type Elevation = ReadonlyMap<string, number>;
+
+const NO_ELEVATION: Elevation = new Map();
 
 export type ComponentRegistry = Record<string, Component<never>>;
 
@@ -58,6 +83,7 @@ type Step = {
   problems: BuildProblem[];
   written: Bounds | null;
   footprint: Footprint | null;
+  elevation: Elevation;
 };
 
 export type BuildResult = {
@@ -68,6 +94,8 @@ export type BuildResult = {
   written: ReadonlyMap<string, Bounds>;
   /** How many nodes were reused from the previous build rather than built again. */
   reused: number;
+  /** How many levels each raised cell stands above its node's own, keyed `x,y`. */
+  elevation: Elevation;
   readonly steps: readonly Step[];
   readonly from: { base: MapFile; tilesById: object; components: object };
 };
@@ -228,6 +256,7 @@ export function buildMap(
   const steps: Step[] = [];
   const built = new Map<string, Step>();
   let map = base;
+  let elevation = NO_ELEVATION;
   let resuming = true;
 
   for (const placement of visibleOrder(doc, layout)) {
@@ -237,6 +266,7 @@ export function buildMap(
       steps.push(prior);
       built.set(prior.key, prior);
       map = prior.map;
+      elevation = prior.elevation;
       continue;
     }
     resuming = false;
@@ -264,6 +294,11 @@ export function buildMap(
         });
       } else {
         const current = map;
+        const heights = elevation;
+        const raisedAt = (x: number, y: number) => heights.get(`${x},${y}`) ?? 0;
+        const lift = component.ownLevels ? () => 0 : raisedAt;
+        const stackAt = (x: number, y: number, z: number) =>
+          getStack(current, x, y, z + lift(x, y));
         const plan = component.build(
           {
             map: current,
@@ -271,7 +306,8 @@ export function buildMap(
             bounds: placement.bounds,
             z: placement.z,
             seed: placement.seed,
-            stackAt: (x, y, z = placement.z) => getStack(current, x, y, z),
+            stackAt: (x, y, z = placement.z) => stackAt(x, y, z),
+            raisedAt,
             point: (point) => {
               const frame = pointFrame(layout, placement, point);
               return frame ? pointIn(point, frame) : null;
@@ -283,15 +319,24 @@ export function buildMap(
         if (!plan.ok) problems.push({ key: node.key, reason: plan.reason });
         else {
           const applied = component.shapesItself ? shapes.filter((s) => s.only) : shapes;
-          const masked = applyMasks(plan.edits, applied, (x, y, z) => getStack(current, x, y, z));
-          const kept = masked.filter((e) => inside(placement.clip, e.x, e.y));
+          const masked = applyMasks(plan.edits, applied, stackAt);
+          const kept = masked
+            .filter((e) => inside(placement.clip, e.x, e.y))
+            .map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
           map = setStacks(map, kept);
+          if ("raised" in plan && plan.raised.length) {
+            const next = new Map(elevation);
+            for (const r of plan.raised) {
+              if (inside(placement.clip, r.x, r.y)) next.set(`${r.x},${r.y}`, r.levels);
+            }
+            elevation = next;
+          }
           written = boundsOf(kept);
           footprint = footprintOf(kept);
         }
       }
     }
-    const step = { key: node.key, inputs, map, problems, written, footprint };
+    const step = { key: node.key, inputs, map, problems, written, footprint, elevation };
     steps.push(step);
     built.set(step.key, step);
   }
@@ -305,6 +350,7 @@ export function buildMap(
     written: new Map(steps.flatMap((s) => (s.written ? [[s.key, s.written] as const] : []))),
     reused,
     steps,
+    elevation,
     from: { base, tilesById, components },
   };
 }

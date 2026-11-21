@@ -162,6 +162,11 @@ function rampsOf(g: CellGrid, level: Uint8Array, props: HillProps, flat: (i: num
  * every cell with a drop beside it and `ground` elsewhere. Water and empty
  * cells are not raised, and masks cut the foot of the hill, not the finished
  * one, so a hole a mask makes is ringed by its own cliffs.
+ * Nothing built is raised either: a cell holding more than ground and
+ * plants, or with something on the level above it, stays where it is along
+ * with the cells round it, so a house laid before the hill keeps its floor,
+ * its roof and the ground at its door, and the hill rises round it. Ground an
+ * earlier hill raised is left to that hill.
  */
 export const hill: Component<HillProps> = {
   type: "hill",
@@ -169,12 +174,24 @@ export const hill: Component<HillProps> = {
   starter: { frame: { x: 2, y: 2, w: 22, h: 18 } },
   schema: HillSchema,
   shapesItself: true,
+  ownLevels: true,
   build(ctx, props) {
     const g = newGrid(ctx.bounds);
     const before = (i: number) => ctx.stackAt(gridX(g, i), gridY(g, i));
+    const built = (x: number, y: number) =>
+      ctx.stackAt(x, y, ctx.z + 1).length > 0 ||
+      ctx
+        .stackAt(x, y)
+        .slice(1)
+        .some((p) => {
+          const def = ctx.tilesById[p.tileId];
+          return !def || (def.height > 0 && !TILES.standing.test(def));
+        });
     const level = levelsOf(g, props, ctx.seed, (x, y) => {
       const stack = ctx.stackAt(x, y);
-      return stack.length > 0 && !isWet(stack) && ctx.covered(x, y);
+      if (stack.length === 0 || isWet(stack) || !ctx.covered(x, y)) return false;
+      if (ctx.raisedAt(x, y) > 0) return false;
+      return !built(x, y) && !N8.some(([dx, dy]) => built(x + dx, y + dy));
     });
     if (!level.some((l) => l > 0)) {
       return { ok: false, reason: "There is no dry ground inside the frame to raise" };
@@ -222,6 +239,9 @@ export const hill: Component<HillProps> = {
     for (const [i, stack] of tops) {
       edits.push({ x: gridX(g, i), y: gridY(g, i), z: ctx.z + level[i]!, stack });
     }
-    return { ok: true, edits };
+    const raised = [...tops.keys()]
+      .filter((i) => level[i]! > 0)
+      .map((i) => ({ x: gridX(g, i), y: gridY(g, i), levels: level[i]! }));
+    return { ok: true, edits, raised };
   },
 };

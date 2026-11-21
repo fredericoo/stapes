@@ -43,14 +43,32 @@ const HouseSchema = v.object({
 
 export type HouseProps = v.InferOutput<typeof HouseSchema>;
 
+/**
+ * Stands on whatever level the ground under it is on, and only on one: a
+ * house whose walls started on two levels would have half its roof inside
+ * the hill, so on uneven ground it is refused rather than built broken.
+ */
 export const house: Component<HouseProps> = {
   type: "house",
   label: "House",
   starter: { frame: { x: 2, y: 2, w: 7, h: 6 } },
   schema: HouseSchema,
+  ownLevels: true,
   build(ctx, props) {
     const { minX, minY, maxX, maxY } = ctx.bounds;
-    return planHouse(ctx.map, ctx.tilesById, { x0: minX, y0: minY, x1: maxX, y1: maxY }, ctx.z, {
+    const raised = ctx.raisedAt(minX, minY);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (ctx.raisedAt(x, y) === raised) continue;
+        return {
+          ok: false,
+          reason:
+            "The ground under this house is on more than one level. Move it onto flat ground, or put it before the hill in the layers so the hill is raised round it.",
+        };
+      }
+    }
+    const z = ctx.z + raised;
+    return planHouse(ctx.map, ctx.tilesById, { x0: minX, y0: minY, x1: maxX, y1: maxY }, z, {
       generator: "house",
       storeys: props.storeys,
       roofOrientation: props.roofOrientation,
