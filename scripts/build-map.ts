@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { buildMap } from "../app/editor/compose/build";
 import { COMPONENTS } from "../app/editor/compose/components";
 import { parseMapDoc } from "../app/editor/compose/doc";
+import { isSpanPart } from "../app/lib/footprint";
 import { serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";
@@ -46,9 +47,9 @@ function cellsOf(file: MapFile) {
         const [x, y] = ck.split(",").map(Number) as [number, number];
         cells.push({
           at: [x, y, Number(zk)],
-          tiles: stack.map((p) =>
-            p.direction ? { tile: p.tileId, facing: p.direction } : p.tileId,
-          ),
+          tiles: stack
+            .filter((p) => !isSpanPart(p))
+            .map((p) => (p.direction ? { tile: p.tileId, facing: p.direction } : p.tileId)),
         });
       }
     }

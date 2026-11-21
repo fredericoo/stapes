@@ -15816,6 +15816,18 @@ whose land overlaps are one coast. `bun run build:map <tree.json>`
 builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is still
 `generate:island`; nothing ships from a tree yet.
 
+**A tile wider than a cell is placed whole or not at all.** `placer`
+(`app/editor/compose/placing.ts`) is what `tile`, `scatter` and `forest`
+stand tiles on the ground with. For a tile with a `footprint`
+(old trees, dunes, fallen logs, the wreck pieces) it writes the anchor in the
+south-east cell and a part carrying `span` in each other one, and refuses the
+spot unless every cell has ground at one height and level and room under the
+next level. The span id is hashed from the anchor and the tile, not minted, so
+a tree builds the same map every time. A mask or clip can still cut a
+footprint after the component planned it, so `buildMap` drops any footprint a
+node placed that lost a cell (`uncut`) before it settles spans: `settleSpans`
+alone would put the cut parts back on cells the mask took them off.
+
 **A component is a valibot schema and a plan.** `build(ctx, props)` returns a
 `GeneratedPlan`, the same `{ ok, edits } | { ok: false, reason }` the editor's
 procedural tools return. The schema validates the node's props, supplies their defaults and

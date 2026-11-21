@@ -1,6 +1,13 @@
 import * as v from "valibot";
 import { emptyMap, getStack, setStacks, type StackEdit } from "../../lib/mapData";
-import type { ChunkCells, MapFile, PlacedTile, TileDef } from "../../lib/types";
+import { settleSpans } from "../../lib/footprint";
+import {
+  footprintOf as tileFootprint,
+  type ChunkCells,
+  type MapFile,
+  type PlacedTile,
+  type TileDef,
+} from "../../lib/types";
 import type { Bounds, GeneratedPlan } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
 import {
@@ -252,6 +259,44 @@ function keepUnchanged(previous: MapFile, next: MapFile): MapFile {
   return levels ? { ...next, levels } : next;
 }
 
+/**
+ * Takes out every wide tile the node placed that its masks, its clip or an
+ * ancestor's bare ground left with fewer cells than it covers, so a footprint
+ * is in the map whole or not at all. `settleSpans` cannot do this: it would
+ * put the missing parts back on the cells the mask took them off.
+ */
+function uncut(
+  edits: readonly StackEdit[],
+  stackAt: (x: number, y: number, z: number) => readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): StackEdit[] {
+  const keyOf = (e: StackEdit, p: PlacedTile) =>
+    `${e.z}|${e.x + p.span!.dx},${e.y + p.span!.dy}|${p.span!.id}`;
+  const placedBy = (e: StackEdit) => {
+    const before = stackAt(e.x, e.y, e.z);
+    return e.stack.filter((p) => p.span && !before.some((q) => q.span?.id === p.span!.id));
+  };
+  const missing = new Map<string, number>();
+  for (const e of edits) {
+    for (const p of placedBy(e)) {
+      const key = keyOf(e, p);
+      const { w, d } = tileFootprint(tilesById[p.tileId], p.direction);
+      missing.set(key, (missing.get(key) ?? w * d) - 1);
+    }
+  }
+  if ([...missing.values()].every((n) => n === 0)) return [...edits];
+  const out: StackEdit[] = [];
+  for (const e of edits) {
+    const cut = new Set(placedBy(e).filter((p) => missing.get(keyOf(e, p)) !== 0));
+    if (cut.size === 0) out.push(e);
+    else {
+      const stack = e.stack.filter((p) => !cut.has(p));
+      if (!sameStack(stack, stackAt(e.x, e.y, e.z))) out.push({ ...e, stack });
+    }
+  }
+  return out;
+}
+
 function masksOf(node: MapNode): MapNode[] {
   return (node.children ?? []).filter((c) => c.type === MASK_TYPE && !c.hidden);
 }
@@ -472,10 +517,14 @@ export function buildMap(
             component.ownLevels || component.shapesItself
               ? []
               : ancestors.flatMap((key) => built.get(key)?.bare ?? []);
-          const kept = offBare(masked, reserved, stackAt, tilesById)
-            .filter((e) => inside(placement.clip, e.x, e.y))
-            .map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
-          map = setStacks(map, kept);
+          const kept = uncut(
+            offBare(masked, reserved, stackAt, tilesById).filter((e) =>
+              inside(placement.clip, e.x, e.y),
+            ),
+            stackAt,
+            tilesById,
+          ).map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
+          map = settleSpans(current, setStacks(map, kept), tilesById);
           const within = <T extends { x: number; y: number }>(cells: readonly T[]) =>
             cells.filter((c) => inside(placement.clip, c.x, c.y));
           if ("raised" in plan && plan.raised) {
