@@ -18,7 +18,8 @@ function floorCells(built: ReturnType<typeof buildTree>, z = 0) {
   const cells: Array<{ x: number; y: number }> = [];
   for (let y = 0; y < SIZE.h; y++) {
     for (let x = 0; x < SIZE.w; x++) {
-      if (getStack(built.map, x, y, z).at(-1)?.tileId === "dirt") cells.push({ x, y });
+      const top = getStack(built.map, x, y, z).at(-1)?.tileId;
+      if (top === "dirt" || top === "flagstone-floor") cells.push({ x, y });
     }
   }
   return cells;
@@ -120,6 +121,15 @@ describe("cave", () => {
     it.each([["stairs"], ["ladders"]])("is reached from the surface by its %s", (way) => {
       const built = buildTree(ground([below(-1, { [way]: [MIDDLE] })]));
       expect(unreached(built, [-1])).toEqual([]);
+    });
+
+    it("is dug as rooms and corridors with the crypt shape, every room reached", () => {
+      const built = buildTree(ground([below(-1, { shape: "crypt", stairs: [MIDDLE] })]));
+      expect(unreached(built, [-1])).toEqual([]);
+      const floors = floorCells(built, -1).map(
+        ({ x, y }) => getStack(built.map, x, y, -1).at(-1)!.tileId,
+      );
+      expect(new Set(floors)).toEqual(new Set(["flagstone-floor"]));
     });
 
     it("is walled with its own wall tile, rock to every side of the floor", () => {

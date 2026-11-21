@@ -3,26 +3,36 @@ import type { StackEdit } from "../../../lib/mapData";
 import type { Direction, PlacedTile } from "../../../lib/types";
 import { HEIGHT_PER_LEVEL } from "../../../lib/types";
 import { stackOcclusion } from "../../../lib/lighting";
-import { CAVE_SHAPES, carveCave, type CaveConfig, type CaveShape } from "../../cave";
+import { carveCave, type CaveConfig, type CaveShape } from "../../cave";
 import { hashCell, isOpen, placed, randomAt } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import { isWet } from "./line";
+import { carveCrypt } from "./crypt";
 import { STEP, type Cell } from "./ramp";
 
-const SHAPES = CAVE_SHAPES.map((s) => s.id) as [CaveShape, ...CaveShape[]];
+const CRYPT = "crypt";
+const SHAPES = ["caverns", "veins", "tunnels", CRYPT] as const satisfies ReadonlyArray<
+  CaveShape | typeof CRYPT
+>;
 
-const CaveSchema = v.object({
+/** What a cave is made of when its props leave a tile out, by whether it was dug by water or by hand. */
+const LOOK = {
+  natural: { floor: "dirt", wall: "cave-wall-sloped", prop: "stalagmite" },
+  crypt: { floor: "flagstone-floor", wall: "brick-wall", prop: null },
+} as const;
+
+export const CaveSchema = v.object({
   shape: v.optional(v.picklist(SHAPES), "caverns"),
   density: v.optional(field.percent(), 30),
-  floor: v.optional(field.tile(TILES.ground), "dirt"),
-  wall: v.optional(field.tile(TILES.any), "cave-wall-sloped"),
+  floor: v.optional(field.tile(TILES.ground)),
+  wall: v.optional(field.tile(TILES.any)),
   mouth: v.optional(field.tile(TILES.any), "hill-cave-mouth"),
   mouths: v.optional(field.points(), []),
   steps: v.optional(field.tile(TILES.stairs), "stone-stairs"),
   stairs: v.optional(field.points(), []),
   ladders: v.optional(field.points(), []),
-  prop: v.optional(v.nullable(field.tile(TILES.standing)), "stalagmite"),
+  prop: v.optional(v.nullable(field.tile(TILES.standing))),
   propEvery: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 22),
 });
 
@@ -45,6 +55,8 @@ const SIDEWAYS: Record<Direction, Cell> = {
 const FACE_COST = 6;
 /** Cells of rock kept between a cave and the outside of its hill. */
 const SHELL = 2;
+/** The fewest cells of floor cut off from the ways in that are joined back rather than filled in. */
+const MIN_PIECE = 12;
 /** How far behind its mouth a tunnel is cut before it has to meet the cave. */
 const TUNNEL = 4;
 
@@ -78,7 +90,9 @@ const SQUARE = [
  * it (`docs/notes.md`, "`carve:hill-caves` digs only where a hill is rock
  * above the cave as well"). Below level 0 it digs wherever the ground over
  * the cell keeps the sky out, and walls the cave with `wall`. Either way
- * every cave cell has two cells of rock to every side.
+ * every cave cell has two cells of rock to every side. The `crypt` shape is
+ * dug by hand: rooms and corridors, in flagstone and grey rock unless the
+ * props say otherwise, and walled with `wall` inside a hill as well.
  *
  * The ways in are points: each of `mouths` goes on the nearest straight
  * stretch of cliff with open ground in front of it, south and east faces
@@ -97,7 +111,14 @@ export const cave: Component<CaveProps> = {
   schema: CaveSchema,
   shapesItself: true,
   ownLevels: true,
-  build(ctx, props) {
+  build(ctx, given) {
+    const look = LOOK[given.shape === CRYPT ? "crypt" : "natural"];
+    const props = {
+      ...given,
+      floor: given.floor ?? look.floor,
+      wall: given.wall ?? look.wall,
+      prop: given.prop === undefined ? look.prop : given.prop,
+    };
     const z = ctx.z;
     const underground = z < 0;
     const { minX, maxX, minY, maxY } = ctx.bounds;
@@ -346,10 +367,17 @@ export const cave: Component<CaveProps> = {
 
     /**
      * Floor beyond the top step or beside the flight would be a lower floor
-     * to step onto in place of the level above, so it stays rock.
+     * to step onto in place of the level above, so it stays rock. The flight
+     * itself is kept out of the carving too, so a tunnel joining the cave to
+     * the foot of the stairs is not cut short by a passage through the steps;
+     * it is opened again as a pinned cell.
      */
     for (const s of stairs) {
       for (const [n, k] of [
+        [0, 0],
+        [0, 1],
+        [1, 0],
+        [1, 1],
         [2, 0],
         [2, 1],
         [3, 0],
@@ -362,8 +390,14 @@ export const cave: Component<CaveProps> = {
         kept.add(key(flight(s, n, k).x, flight(s, n, k).y));
       }
     }
-    const config = { seed: ctx.seed, shape: props.shape, density: props.density } as CaveConfig;
-    const carved = carveCave(ctx.bounds, config);
+    const carved =
+      props.shape === CRYPT
+        ? carveCrypt(ctx.bounds, ctx.seed, props.density)
+        : carveCave(ctx.bounds, {
+            seed: ctx.seed,
+            shape: props.shape,
+            density: props.density,
+          } as CaveConfig);
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         if (isOpen(carved, x, y) && diggable(x, y)) open.add(key(x, y));
@@ -435,15 +469,60 @@ export const cave: Component<CaveProps> = {
         changed = true;
       }
     }
-    const reached = new Set<string>(pinned);
-    const walk = [...pinned].map(cellOf);
-    for (let head = 0; head < walk.length; head++) {
-      for (const [dx, dy] of N4) {
-        const k = key(walk[head]!.x + dx, walk[head]!.y + dy);
-        if (!open.has(k) || reached.has(k)) continue;
-        reached.add(k);
-        walk.push(cellOf(k));
+    const spread = (from: Iterable<string>) => {
+      const seen = new Set<string>(from);
+      const walk = [...seen].map(cellOf);
+      for (let head = 0; head < walk.length; head++) {
+        for (const [dx, dy] of N4) {
+          const k = key(walk[head]!.x + dx, walk[head]!.y + dy);
+          if (!open.has(k) || seen.has(k)) continue;
+          seen.add(k);
+          walk.push(cellOf(k));
+        }
       }
+      return seen;
+    };
+    let reached = spread(pinned);
+    /**
+     * Rock a way in keeps standing can cut a passage the carving made, so
+     * each piece of floor the ways in do not reach is joined back to one
+     * that they do, biggest first, and a piece too small to be worth a
+     * tunnel is filled in.
+     */
+    const pieces = [...open]
+      .filter((k) => !reached.has(k))
+      .reduce<string[][]>((out, k) => {
+        if (out.some((piece) => piece.includes(k))) return out;
+        const piece = [...spread([k])].filter((c) => !reached.has(c));
+        return piece.length >= MIN_PIECE ? [...out, piece] : out;
+      }, [])
+      .sort((p, q) => q.length - p.length);
+    for (const piece of pieces) {
+      if (reached.has(piece[0]!)) continue;
+      const from = new Map<string, string | null>(piece.map((k) => [k, null]));
+      const queue = piece.map(cellOf);
+      let end: string | null = null;
+      for (let head = 0; head < queue.length && end === null; head++) {
+        const at = queue[head]!;
+        for (const [dx, dy] of N4) {
+          const k = key(at.x + dx, at.y + dy);
+          if (from.has(k)) continue;
+          if (reached.has(k)) {
+            end = key(at.x, at.y);
+            break;
+          }
+          if (!diggable(at.x + dx, at.y + dy)) continue;
+          from.set(k, key(at.x, at.y));
+          queue.push({ x: at.x + dx, y: at.y + dy });
+        }
+      }
+      for (let k = end; k !== null; k = from.get(k) ?? null) {
+        const at = cellOf(k);
+        for (const [dx, dy] of SQUARE) {
+          if (diggable(at.x + dx, at.y + dy)) open.add(key(at.x + dx, at.y + dy));
+        }
+      }
+      if (end !== null) reached = spread(pinned);
     }
 
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
@@ -501,7 +580,10 @@ export const cave: Component<CaveProps> = {
         const wk = key(x + dx, y + dy);
         if (reached.has(wk) || walls.has(wk) || !isRock(x + dx, y + dy)) continue;
         walls.add(wk);
-        const wall = underground ? tile(props.wall) : ctx.stackAt(x + dx, y + dy, z).at(-1)!;
+        const wall =
+          underground || props.shape === CRYPT
+            ? tile(props.wall)
+            : ctx.stackAt(x + dx, y + dy, z).at(-1)!;
         edits.push({ x: x + dx, y: y + dy, z, stack: [...floorAt(x + dx, y + dy), wall] });
       }
     }
