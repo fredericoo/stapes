@@ -11,6 +11,7 @@ import { mask } from "./mask";
 import { river } from "./river";
 import { road } from "./road";
 import { scatter } from "./scatter";
+import { shipwreck } from "./shipwreck";
 import { sea } from "./sea";
 import { tile } from "./tile";
 
@@ -30,6 +31,7 @@ const all: ReadonlyArray<Component<never>> = [
   tile,
   fill,
   scatter,
+  shipwreck,
   mask,
   clear,
 ] as never;
