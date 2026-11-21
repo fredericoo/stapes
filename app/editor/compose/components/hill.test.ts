@@ -24,50 +24,87 @@ describe("hill", () => {
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
   });
 
-  it("keeps its brinks uncovered when grass was laid on the ground it raised", () => {
-    const { map, elevation } = buildTree(
+  const onSand = (layers: ReturnType<typeof node>[], props: Record<string, unknown> = {}) =>
+    buildTree(
       land(
         SIZE,
         [
-          node("grass"),
-          node("hill", { roughness: 0, levels: 2, terrace: 2 }, { frame: frame(8, 4, 24, 20) }),
+          ...layers,
+          node(
+            "hill",
+            { roughness: 0, levels: 2, terrace: 2, ...props },
+            { frame: frame(8, 4, 24, 20) },
+          ),
         ],
         "sand",
       ),
     );
-    const levelAt = (x: number, y: number) => elevation.get(`${x},${y}`) ?? 0;
-    const brinks = [...elevation].flatMap(([key, level]) => {
+  type Built = ReturnType<typeof onSand>;
+  const levelOf = (built: Built, x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+  /** The stacks on the top of every raised cell beside a drop, and of every raised cell that is not. */
+  const tops = (built: Built) => {
+    const edges: string[][] = [];
+    const inner: string[][] = [];
+    for (const [key, level] of built.elevation) {
       const [x, y] = key.split(",").map(Number) as [number, number];
       const drop = [-1, 0, 1].some((dy) =>
-        [-1, 0, 1].some((dx) => levelAt(x + dx, y + dy) < level),
+        [-1, 0, 1].some((dx) => levelOf(built, x + dx, y + dy) < level),
       );
-      return drop ? [getStack(map, x, y, level).map((p) => p.tileId)] : [];
-    });
-    expect(brinks.length).toBeGreaterThan(20);
-    for (const stack of brinks) expect(stack).toEqual(["grass-brink"]);
+      (drop ? edges : inner).push(getStack(built.map, x, y, level).map((p) => p.tileId));
+    }
+    return { edges, inner };
+  };
+
+  it("keeps its brinks uncovered when grass was laid on the ground it raised", () => {
+    const { edges } = tops(onSand([node("grass")]));
+    expect(edges.length).toBeGreaterThan(20);
+    for (const stack of edges) expect(stack).toEqual(["grass-brink"]);
+  });
+
+  it.each([
+    ["sand", "sand-brink"],
+    ["snow", "snow-brink"],
+    ["basalt", "basalt-brink"],
+  ])("cuts a top of %s to that ground's own brink", (ground, brink) => {
+    const { edges, inner } = tops(onSand([], { ground }));
+    for (const stack of edges) expect(stack).toEqual([brink]);
+    for (const stack of inner) expect(stack).toEqual([ground]);
   });
 
   it("stands its walls on the grass round its foot", () => {
-    const built = buildTree(
-      land(
-        SIZE,
-        [
-          node("grass"),
-          node("hill", { roughness: 0, levels: 1, terrace: 2 }, { frame: frame(8, 4, 24, 20) }),
-        ],
-        "sand",
-      ),
-    );
-    const levelOf = (x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+    const built = onSand([node("grass")], { levels: 1 });
     const feet: string[][] = [];
     for (const [key] of built.elevation) {
       const [x, y] = key.split(",").map(Number) as [number, number];
       const beside = [-1, 0, 1].some((dy) =>
-        [-1, 0, 1].some((dx) => levelOf(x + dx, y + dy) === 0),
+        [-1, 0, 1].some((dx) => levelOf(built, x + dx, y + dy) === 0),
       );
       if (beside) feet.push(getStack(built.map, x, y, 0).map((p) => p.tileId));
     }
     expect(feet.length).toBeGreaterThan(20);
     for (const stack of feet) expect(stack).toEqual(["sand", "grass", "hill-wall"]);
+  });
+
+  it("takes the brink of grass laid on its top after it", () => {
+    const { edges, inner } = tops(onSand([], { ground: "sand" }));
+    expect(edges.length).toBeGreaterThan(20);
+    const grassed = tops(
+      buildTree(
+        land(
+          SIZE,
+          [
+            node(
+              "hill",
+              { roughness: 0, levels: 2, terrace: 2, ground: "sand" },
+              { frame: frame(8, 4, 24, 20) },
+            ),
+            node("grass"),
+          ],
+          "sand",
+        ),
+      ),
+    );
+    expect(grassed.edges).toEqual(edges.map(() => ["grass-brink"]));
+    expect(grassed.inner).toEqual(inner.map(() => ["sand", "grass"]));
   });
 });

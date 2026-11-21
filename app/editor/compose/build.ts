@@ -328,11 +328,13 @@ function offBare(
     ) {
       kept++;
     }
-    const stack = edit.stack.filter((p, i) => {
+    /** A cell's bottom tile is what everything stands on, so ground laid in place of it gives way to the tile it replaced rather than leaving a hole. */
+    const stack = edit.stack.flatMap((p, i) => {
       const def = tilesById[p.tileId];
-      return i < kept || !def || !TILES.ground.test(def);
+      if (i < kept || !def || !TILES.ground.test(def)) return [p];
+      return i === 0 && before[0] ? [before[0]] : [];
     });
-    if (stack.length === edit.stack.length) out.push(edit);
+    if (sameStack(stack, edit.stack)) out.push(edit);
     else if (!sameStack(stack, before)) out.push({ ...edit, stack });
   }
   return out;

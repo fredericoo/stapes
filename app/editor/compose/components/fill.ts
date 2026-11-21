@@ -4,6 +4,7 @@ import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { brinkOf, groundOf, isBrink, isFlat } from "../brinks";
 import { isWet } from "./line";
 
 const FillSchema = v.object({
@@ -32,7 +33,9 @@ const N4 = [
  * without a hole under each tree, and leaves water alone; `on top` adds to
  * bare ground and passes over anything standing; `whole stack` replaces
  * everything. `onlyOn` reads the top tile of a cell, or the bottom one for
- * `ground`, since that is the tile it replaces. Cells within
+ * `ground`, since that is the tile it replaces; a brink reads as the ground
+ * it is cut from, and in those two modes takes the brink of what is laid on
+ * it instead of being covered, where that ground has a brink. Cells within
  * `edgeWidth` steps of the area's edge get the `edge` stack instead, so a
  * lake can be shallow round a deep middle.
  */
@@ -55,7 +58,7 @@ export const fill: Component<FillProps> = {
         const ground = props.mode === "ground";
         if (ground && isWet(stack)) continue;
         const read = ground ? stack[0] : stack.at(-1);
-        if (onlyOn.size && !onlyOn.has(read?.tileId ?? "")) continue;
+        if (onlyOn.size && !onlyOn.has(groundOf(read?.tileId ?? ""))) continue;
         inArea[(y - minY) * width + (x - minX)] = 1;
       }
     }
@@ -90,6 +93,13 @@ export const fill: Component<FillProps> = {
       }
     }
     const stackOf = (ids: readonly string[]) => ids.map((id) => placed(id, ctx.tilesById));
+    /** Flat tiles laid whole on a brink would cover it, so they become the brink of the top one where that ground has one. */
+    const cutToBrink = (laid: PlacedTile[]): PlacedTile[] => {
+      const flat = laid.filter((p) => isFlat(p, ctx.tilesById));
+      const brink = flat.length ? brinkOf(flat.at(-1)!.tileId) : undefined;
+      if (!brink) return laid;
+      return [placed(brink, ctx.tilesById), ...laid.filter((p) => !isFlat(p, ctx.tilesById))];
+    };
     const inner = stackOf(props.tiles);
     const rim = props.edge.length ? stackOf(props.edge) : inner;
     const edits: StackEdit[] = [];
@@ -100,10 +110,12 @@ export const fill: Component<FillProps> = {
       const laid = depth[i]! <= props.edgeWidth ? rim : inner;
       const stack = ctx.stackAt(x, y);
       let next: PlacedTile[];
+      const cut = isBrink(stack[0]?.tileId) ? cutToBrink(laid) : laid;
       if (props.mode === "whole stack") next = laid;
       else if (props.mode === "replace") next = [...stack.slice(0, 1), ...laid];
-      else if (props.mode === "ground") next = [...laid, ...stack.slice(1)];
+      else if (props.mode === "ground") next = [...cut, ...stack.slice(1)];
       else if (stackHeight(stack, ctx.tilesById) > 0) continue;
+      else if (cut !== laid) next = [...cut, ...stack.slice(1)];
       else next = [...stack, ...laid];
       edits.push({ x, y, z: ctx.z, stack: next });
     }
