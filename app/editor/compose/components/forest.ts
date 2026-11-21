@@ -1,10 +1,10 @@
 import * as v from "valibot";
-import { stackHeight, type StackEdit } from "../../../lib/mapData";
-import { HEIGHT_PER_LEVEL, physicalHeight } from "../../../lib/types";
+import type { PlacedTile } from "../../../lib/types";
 import { PATH_COUNT_RANGE, PATH_WIDTH_RANGE, growForest } from "../../forest";
-import { gridIndex, hashCell, isOpen, placed, randomAt } from "../../generator";
+import { gridIndex, hashCell, isOpen, randomAt } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { anchorFrom, placer } from "../placing";
 
 const ForestSchema = v.object({
   onlyOn: v.optional(field.tiles(TILES.ground, 1), ["sand", "grass", "grass-2"]),
@@ -58,6 +58,8 @@ function pickWeighted(entries: ReadonlyArray<{ tile: string; weight: number }>, 
  * Grows the editor forest's shape over its frame and keeps only the cells
  * whose top tile is one it may grow on. It adds to a stack rather than
  * replacing it, so the ground under it is whatever the nodes before it laid.
+ * A tree or a plant wider than a cell grows south and east of the cell it
+ * starts in, and only where every cell it covers is its own kind of ground.
  */
 export const forest: Component<ForestProps> = {
   type: "forest",
@@ -84,36 +86,30 @@ export const forest: Component<ForestProps> = {
       scatter: [],
     });
     const onlyOn = new Set(props.onlyOn);
-    const treeHeight = physicalHeight(treeDef);
-    const edits: StackEdit[] = [];
+    const placing = placer(ctx);
+    const wooded = (stack: readonly PlacedTile[], x: number, y: number) =>
+      onlyOn.has(stack.at(-1)!.tileId) && !path.has(gridIndex(grid, x, y)) && !isOpen(grid, x, y);
+    const open = (stack: readonly PlacedTile[], x: number, y: number) =>
+      onlyOn.has(stack.at(-1)!.tileId) && !path.has(gridIndex(grid, x, y)) && isOpen(grid, x, y);
     for (let y = ctx.bounds.minY; y <= ctx.bounds.maxY; y++) {
       for (let x = ctx.bounds.minX; x <= ctx.bounds.maxX; x++) {
+        if (placing.taken(x, y)) continue;
         const stack = ctx.stackAt(x, y);
         const top = stack.at(-1);
         if (!top || !onlyOn.has(top.tileId)) continue;
         if (path.has(gridIndex(grid, x, y))) {
-          if (props.path)
-            edits.push({ x, y, z: ctx.z, stack: [...stack, placed(props.path, ctx.tilesById)] });
-        } else if (
-          !isOpen(grid, x, y) &&
-          stackHeight(stack, ctx.tilesById) + treeHeight <= HEIGHT_PER_LEVEL
-        ) {
-          edits.push({ x, y, z: ctx.z, stack: [...stack, placed(props.tree, ctx.tilesById)] });
-        } else if (
-          isOpen(grid, x, y) &&
-          randomAt(x, y, ctx.seed ^ UNDERGROWTH_SALT) * 100 < props.undergrowthDensity
-        ) {
+          if (props.path) placing.put(props.path, { x, y });
+        } else if (!isOpen(grid, x, y)) {
+          placing.put(props.tree, anchorFrom(treeDef, { x, y }), { on: wooded });
+        } else if (randomAt(x, y, ctx.seed ^ UNDERGROWTH_SALT) * 100 < props.undergrowthDensity) {
           const plant = pickWeighted(props.undergrowth, hashCell(x, y, ctx.seed ^ PICK_SALT));
-          const plantDef = plant && ctx.tilesById[plant];
-          if (
-            plantDef &&
-            stackHeight(stack, ctx.tilesById) + physicalHeight(plantDef) <= HEIGHT_PER_LEVEL
-          ) {
-            edits.push({ x, y, z: ctx.z, stack: [...stack, placed(plant, ctx.tilesById)] });
+          const plantDef = plant ? ctx.tilesById[plant] : undefined;
+          if (plant && plantDef) {
+            placing.put(plant, anchorFrom(plantDef, { x, y }), { on: open });
           }
         }
       }
     }
-    return { ok: true, edits };
+    return { ok: true, edits: placing.edits };
   },
 };
