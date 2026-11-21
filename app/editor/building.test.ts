@@ -105,44 +105,45 @@ describe("planBuilding", () => {
     expect([-1, 0, 1, 2].map((z) => ladders(z, "stone-stairs"))).toEqual([0, 0, 0, 0]);
   });
 
-  it("builds a flight as two stairs, the second on a block, under a railed two-cell hole", () => {
-    const spec: BuildingSpec = {
-      floors: [storey("ground", { use: "empty" }), storey("upper", { use: "empty" })],
-      cellars: [],
-      roof: null,
-    };
-    const map = built(spec);
-    const ids = (x: number, y: number, z: number) => getStack(map, x, y, z).map((p) => p.tileId);
-    const stairs: Array<{ x: number; y: number }> = [];
-    for (let y = 5; y <= 10; y++) {
-      for (let x = 5; x <= 11; x++)
-        if (ids(x, y, 0).at(-1) === "stone-stairs") stairs.push({ x, y });
-    }
-    expect(stairs.map((c) => ids(c.x, c.y, 0)).sort((a, b) => a.length - b.length)).toEqual([
-      ["grass", "wooden-floor", "stone-stairs"],
-      ["grass", "wooden-floor", "brick-slab", "stone-stairs"],
-    ]);
-    const hole = new Set(stairs.map((c) => `${c.x},${c.y}`));
-    const beside = new Map<string, string | undefined>();
-    for (const c of stairs) {
-      expect(ids(c.x, c.y, 1)).toEqual([]);
-      for (const [dx, dy] of [
-        [0, -1],
-        [1, 0],
-        [0, 1],
-        [-1, 0],
-      ] as const) {
-        const key = `${c.x + dx},${c.y + dy}`;
-        if (!hole.has(key)) beside.set(key, ids(c.x + dx, c.y + dy, 1).at(-1));
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])(
+    "builds a flight as two stairs, the second on a block, under a hole railed on three sides, seed %i",
+    (seed) => {
+      const spec: BuildingSpec = {
+        floors: [storey("ground", { use: "empty" }), storey("upper", { use: "empty", seed })],
+        cellars: [],
+        roof: null,
+      };
+      const map = built(spec);
+      const ids = (x: number, y: number, z: number) => getStack(map, x, y, z).map((p) => p.tileId);
+      const stairs: Array<{ x: number; y: number }> = [];
+      for (let y = 5; y <= 10; y++) {
+        for (let x = 5; x <= 11; x++)
+          if (ids(x, y, 0).at(-1) === "stone-stairs") stairs.push({ x, y });
       }
-    }
-    const tops = [...beside.values()];
-    expect(tops).toHaveLength(6);
-    expect(tops.filter((id) => id === "wooden-floor-inner")).toHaveLength(1);
-    expect(tops.filter((id) => id === "fence" || id === "sw2" || id === "window-1")).toHaveLength(
-      5,
-    );
-  });
+      expect(stairs.map((c) => ids(c.x, c.y, 0)).sort((a, b) => a.length - b.length)).toEqual([
+        ["grass", "wooden-floor", "stone-stairs"],
+        ["grass", "wooden-floor", "brick-slab", "stone-stairs"],
+      ]);
+      const hole = new Set(stairs.map((c) => `${c.x},${c.y}`));
+      const beside = new Map<string, string | undefined>();
+      for (const c of stairs) {
+        expect(ids(c.x, c.y, 1)).toEqual([]);
+        for (const [dx, dy] of [
+          [0, -1],
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+        ] as const) {
+          const key = `${c.x + dx},${c.y + dy}`;
+          if (!hole.has(key)) beside.set(key, ids(c.x + dx, c.y + dy, 1).at(-1));
+        }
+      }
+      const tops = [...beside.values()];
+      expect(tops).toHaveLength(6);
+      expect(tops.filter((id) => id === "wooden-floor-inner")).toHaveLength(1);
+      expect(tops.filter((id) => id === "fence")).toHaveLength(5);
+    },
+  );
 
   it.each([
     ["stone-stairs", "brick-slab"],

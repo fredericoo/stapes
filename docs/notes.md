@@ -16110,6 +16110,8 @@ A hidden child is left out, so hiding the roof builds the house without one.
   the `-inner` tile either. A house too small for that gets a ladder.
 - **The hole over a flight is railed on every side but its landing**
   (`railHole`), with `fence`, so the stairs are entered only from their head.
+  `fence` has no `connectsTo`, so a rail beside a wall ends there and does
+  not draw a join onto it.
   A floor autotile draws a cut edge towards a cell with no floor, so every
   cell round a hole also gets the floor's `-inner` tile over it, which is
   the part that edge cuts away; without it the rail stands on air and the

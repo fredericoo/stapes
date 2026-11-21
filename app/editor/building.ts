@@ -355,10 +355,17 @@ function railHole(grid: Grid, upper: Storey, hole: number, climb: Direction) {
   const cell = (along: number, across: number) =>
     (y + cy * along + cx * across) * grid.width + x + cx * along - cy * across;
   const beside = [cell(-1, 0), cell(0, 1), cell(0, -1), cell(1, 1), cell(1, -1)];
-  for (const at of [...beside, cell(-1, 1), cell(-1, -1)]) {
-    if (!bare(upper, at)) continue;
-    upper.kinds[at] = RAIL;
-    if (!connected(grid, upper)) upper.kinds[at] = FLOOR;
+  const ring = [...beside, cell(-1, 1), cell(-1, -1)];
+  /**
+   * Twice, because a rail beside the hole can be refused for shutting a
+   * corner cell in, and is allowed once that corner holds a rail itself.
+   */
+  for (let pass = 0; pass < 2; pass++) {
+    for (const at of ring) {
+      if (!bare(upper, at)) continue;
+      upper.kinds[at] = RAIL;
+      if (!connected(grid, upper)) upper.kinds[at] = FLOOR;
+    }
   }
 }
 
