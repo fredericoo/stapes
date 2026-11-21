@@ -1,9 +1,9 @@
 import * as v from "valibot";
-import { stackHeight, type StackEdit } from "../../../lib/mapData";
-import { HEIGHT_PER_LEVEL, physicalHeight } from "../../../lib/types";
-import { fbm, hashCell, placed, randomAt } from "../../generator";
+import { footprintOf } from "../../../lib/types";
+import { fbm, hashCell, randomAt } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { anchorFrom, placer } from "../placing";
 
 const ScatterSchema = v.object({
   tiles: v.optional(field.weighted(TILES.any), [
@@ -42,7 +42,8 @@ function pick(entries: ReadonlyArray<{ tile: string; weight: number }>, hash: nu
  * as far as `clumping` says, so plants gather in patches rather than salting
  * the ground evenly. Cells are visited in rows and a cell is skipped when an
  * earlier one within `spacing` steps was taken, which keeps the result the
- * same however it is masked.
+ * same however it is masked. A tile wider than a cell grows south and east
+ * of the cell that was taken, and only where every cell it covers is free.
  */
 export const scatter: Component<ScatterProps> = {
   type: "scatter",
@@ -65,24 +66,26 @@ export const scatter: Component<ScatterProps> = {
       }
       return false;
     };
-    const edits: StackEdit[] = [];
+    const placing = placer(ctx);
+    const grows = (stack: readonly { tileId: string }[]) =>
+      onlyOn.size === 0 || onlyOn.has(stack.at(-1)!.tileId);
     for (let y = ctx.bounds.minY; y <= ctx.bounds.maxY; y++) {
       for (let x = ctx.bounds.minX; x <= ctx.bounds.maxX; x++) {
         const swing = (fbm(x, y, ctx.seed, props.clumpSize, CLUMP_OCTAVES) - 0.5) * 2;
         const chance = (props.density / 100) * (1 + swing * (props.clumping / 100));
         if (randomAt(x, y, ctx.seed) >= chance) continue;
         if (props.spacing > 0 && near(x, y)) continue;
-        const stack = ctx.stackAt(x, y);
-        const top = stack.at(-1);
-        if (!top || (onlyOn.size && !onlyOn.has(top.tileId))) continue;
         const tile = pick(props.tiles, hashCell(x, y, ctx.seed ^ PICK_SALT));
         const def = tile ? ctx.tilesById[tile] : undefined;
         if (!tile || !def) continue;
-        if (stackHeight(stack, ctx.tilesById) + physicalHeight(def) > HEIGHT_PER_LEVEL) continue;
-        taken[(y - minY) * width + (x - minX)] = 1;
-        edits.push({ x, y, z: ctx.z, stack: [...stack, placed(tile, ctx.tilesById)] });
+        const { w, d } = footprintOf(def);
+        if (x + w - 1 > maxX || y + d - 1 > maxY) continue;
+        if (!placing.put(tile, anchorFrom(def, { x, y }), { on: grows }).ok) continue;
+        for (let dy = 0; dy < d; dy++) {
+          for (let dx = 0; dx < w; dx++) taken[(y + dy - minY) * width + (x + dx - minX)] = 1;
+        }
       }
     }
-    return { ok: true, edits };
+    return { ok: true, edits: placing.edits };
   },
 };
