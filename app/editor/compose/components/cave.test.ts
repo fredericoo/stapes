@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
+import type { MapNode } from "../doc";
 import { buildTree, frame, land, node, reach, sketch, tilesById, walks } from "../testTree";
 
 const SIZE = { w: 56, h: 44 };
@@ -13,11 +14,11 @@ function hillWith(cave: Record<string, unknown> | null, hill: Record<string, unk
   ]);
 }
 
-function floorCells(built: ReturnType<typeof buildTree>) {
+function floorCells(built: ReturnType<typeof buildTree>, z = 0) {
   const cells: Array<{ x: number; y: number }> = [];
   for (let y = 0; y < SIZE.h; y++) {
     for (let x = 0; x < SIZE.w; x++) {
-      if (getStack(built.map, x, y, 0).at(-1)?.tileId === "dirt") cells.push({ x, y });
+      if (getStack(built.map, x, y, z).at(-1)?.tileId === "dirt") cells.push({ x, y });
     }
   }
   return cells;
@@ -91,5 +92,60 @@ describe("cave", () => {
       { problems: "returned" },
     );
     expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
+  });
+
+  describe("underground", () => {
+    const MIDDLE = { x: 0, y: 0, pinX: "center", pinY: "center" };
+    /** `grass` lets light through and `grass-2` does not, and only ground that keeps the daylight out can roof a cave. */
+    const ground = (children: MapNode[]) => land(SIZE, children, "grass-2");
+    const below = (z: number, props: Record<string, unknown>) =>
+      node("cave", props, { frame: { ...frame(6, 4, 44, 32), z } });
+
+    /** Every floor cell of the levels given, walked to from the surface and walked back out of. */
+    const unreached = (built: ReturnType<typeof buildTree>, levels: number[]) => {
+      const walked = reach(built, OUTSIDE);
+      const floor = levels.flatMap((z) => floorCells(built, z).map((c) => ({ ...c, z })));
+      expect(floor.length, sketch(built)).toBeGreaterThan(40 * levels.length);
+      expect(walks(built, floor[0]!, OUTSIDE)).toBe(true);
+      return floor.filter((c) => !walked.has(`${c.z}:${c.x},${c.y}`));
+    };
+
+    it("is refused with no way down to it", () => {
+      const built = buildTree(ground([below(-1, { mouths: [MIDDLE] })]), {
+        problems: "returned",
+      });
+      expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
+    });
+
+    it.each([["stairs"], ["ladders"]])("is reached from the surface by its %s", (way) => {
+      const built = buildTree(ground([below(-1, { [way]: [MIDDLE] })]));
+      expect(unreached(built, [-1])).toEqual([]);
+    });
+
+    it("is walled with its own wall tile, rock to every side of the floor", () => {
+      const built = buildTree(ground([below(-1, { stairs: [MIDDLE] })]));
+      for (const { x, y } of floorCells(built, -1)) {
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const ids = getStack(built.map, x + dx, y + dy, -1).map((p) => p.tileId);
+          expect(ids.length, `${x + dx},${y + dy}`).toBeGreaterThan(0);
+        }
+      }
+      const walls = Object.values(built.map.levels["-1"] ?? {})
+        .flatMap((chunk) => Object.values(chunk))
+        .filter((stack) => stack.at(-1)?.tileId === "cave-wall-sloped");
+      expect(walls.length).toBeGreaterThan(0);
+    });
+
+    it("stacks under another cave, reached through the stairs of the one above", () => {
+      const built = buildTree(
+        ground([below(-1, { stairs: [MIDDLE] }), below(-2, { stairs: [MIDDLE] })]),
+      );
+      expect(unreached(built, [-1, -2])).toEqual([]);
+    });
   });
 });

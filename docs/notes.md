@@ -15808,7 +15808,7 @@ document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
 `sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
-and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+and `roof`, `cave`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -16187,6 +16187,31 @@ part is read on the part's level (`pressLevel`).
 kept `storeys`, `doorRow`, `doorColumn` and the roof in props; they become
 `floor` children with `use: "empty"`, a door point on the ground floor and a
 `roof` child, which build the house it built before.
+### A cave digs into rock that is already there
+
+`cave` (`components/cave.ts`) digs one level, the level of its frame, and
+digs only rock: on level 0 and up that is the fill of a hill with fill over
+it as well, and below 0 it is any empty cell whose column has a level that
+keeps the sky out, by `stackOcclusion`, up to the ground. Every cave cell
+then has two cells of such rock on every side. A cave with no way in is
+refused, so a tree never holds a cave nobody can walk into.
+
+- **`grass` lets light through and `grass-2` does not.** A cell of `grass`
+  alone roofs nothing, so a cave under it is refused. On an island the `grass`
+  layer lies on the island's `sand`, which does roof it, and a hill's ground
+  is `grass-2`. A test of an underground cave lays `land(..., "grass-2")`.
+- **The ways in are points, and each finds the nearest place it fits.**
+  `mouths` open a cliff on the cave's own level. `stairs` and `ladders`
+  climb to flat floor on the level above: the surface, or the floor of a cave
+  built earlier in the tree. So caves are stacked top down, each with a way
+  up to the one before it, and the build order is what makes that work.
+- **A flight keeps rock beyond its top step and beside it** on the cave's
+  level. Floor there is a lower floor to step onto from the top step, and
+  the walk took it instead of the level above, so stairs that looked right
+  could not be climbed out of. On the level above, floor beside the shaft has
+  to be floor anyway or rock: a flight already there leaves a cell between
+  the two that only the shaft reaches.
+
 ### A component's behaviour is tested by walking a small tree
 
 Each component has a `<name>.test.ts` beside it in
