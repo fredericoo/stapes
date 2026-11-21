@@ -220,6 +220,58 @@ const PILLARS: Pillar[] = [
   },
 ];
 
+/**
+ * A half block as wide as its cell, for a podium, a step or a roof slab. It has
+ * no outline: a row of them has to read as one slab, so each block is marked
+ * off only by a joint one step darker along the north and west of its top and
+ * the west of its south face, and by a shadow line along the foot of its sides.
+ * The pixels down the south-east corner are shared between the two faces, and
+ * take the east one's colour: lit, they draw a white diagonal at every block
+ * of a wall seen from the east.
+ */
+const BLOCK = {
+  tileId: "marble-block",
+  name: "Marble block",
+  layers: [{ from: 0, to: PILLAR_RISE_PX, shape: "square", radius: HALF }] satisfies Layer[],
+  at: { x: 3 * FLOOR_BLOCK_CELLS, y: FLOOR_ROW },
+};
+const JOINT_PX = 1;
+
+function shadeBlock({ normal, x, y, z }: Hit): number {
+  if (normal[2] > 0.5) return x < JOINT_PX || y < JOINT_PX ? GREY : PALE;
+  if (normal[1] > 0.5) {
+    if (x > CELL - JOINT_PX / 2) return DUSK;
+    if (z < JOINT_PX) return GREY;
+    return x < JOINT_PX ? PALE : WHITE;
+  }
+  return z < JOINT_PX ? PLUM : DUSK;
+}
+
+function renderBlock(): (number | null)[][] {
+  const span = { top: PILLAR_RISE_PX, bottom: 0 };
+  return Array.from({ length: SPRITE_PX }, (_, v) =>
+    Array.from({ length: SPRITE_PX }, (_, u) => {
+      const votes = new Map<number, number>();
+      let hits = 0;
+      for (let j = 0; j < SUPERSAMPLE; j++) {
+        for (let i = 0; i < SUPERSAMPLE; i++) {
+          const hit = castRay(
+            BLOCK.layers,
+            span,
+            u + (i + 0.5) / SUPERSAMPLE,
+            v + (j + 0.5) / SUPERSAMPLE,
+          );
+          if (!hit) continue;
+          hits++;
+          const index = shadeBlock(hit);
+          votes.set(index, (votes.get(index) ?? 0) + 1);
+        }
+      }
+      return hits * 2 < SUPERSAMPLE * SUPERSAMPLE ? null : mostVoted(votes);
+    }),
+  );
+}
+
 /** Room for the shaft of the segment below, which is drawn down and to the right of this one. */
 const CANVAS_PX = SPRITE_PX + PILLAR_RISE_PX;
 
@@ -556,6 +608,26 @@ function pillarTile(pillar: Pillar, column: number): TileDef {
   };
 }
 
+function blockTile(): TileDef {
+  return {
+    id: BLOCK.tileId,
+    name: BLOCK.name,
+    height: PILLAR_HEIGHT_UNITS,
+    type: "simple",
+    kind: "prop",
+    attributes: {},
+    anchor: { tilesetId: TILESET_ID, x: BLOCK.at.x, y: BLOCK.at.y },
+    sprite: {
+      frames: [
+        {
+          sprite: { rect: { x: 0, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS }, base: { x: 1, y: 1 } },
+          durationMs: FRAME_MS,
+        },
+      ],
+    },
+  };
+}
+
 function floorTiles(pattern: FloorPattern, wood: TileDef, column: number): TileDef[] {
   const outer: TileDef = {
     id: pattern.tileId,
@@ -605,6 +677,13 @@ async function main() {
     drawFloor(sheet, wood, pattern, { x: column, y: FLOOR_ROW + FLOOR_BLOCK_CELLS }, true);
     generated.push(...floorTiles(pattern, woodTile, column));
   });
+
+  renderBlock().forEach((row, v) =>
+    row.forEach((index, u) => {
+      if (index !== null) paint(sheet, BLOCK.at.x * CELL + u, BLOCK.at.y * CELL + v, index);
+    }),
+  );
+  generated.push(blockTile());
 
   await writeTileset(TILESET_ID, "Masonry", sheet, generated);
 }
