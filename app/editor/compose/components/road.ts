@@ -36,12 +36,29 @@ type Laid = RouteCell & { bridge: boolean };
 /** Longest bridge a road will build; past it the far bank is taken to be open sea, and the road stops. */
 const MAX_SPAN = 48;
 
+/** How far from a bridge's end the route is relaid to meet it squarely. */
+const SQUARE_UP_CELLS = 3;
+
+/**
+ * Whether a route cell is near the end of a bridge without being past it in
+ * the direction `onward`. A line from past the end to such a cell would
+ * double back through the cells beside the end, where the rails go.
+ */
+function beside(cell: RouteCell, end: { x: number; y: number }, onward: { x: number; y: number }) {
+  const dx = cell.x - end.x;
+  const dy = cell.y - end.y;
+  return (
+    dx * onward.x + dy * onward.y < 1 && Math.max(Math.abs(dx), Math.abs(dy)) <= SQUARE_UP_CELLS
+  );
+}
+
 /**
  * Replaces every stretch of the route that runs over water with one straight
  * bridge. It runs along the crossing's longer axis, or along the step the
  * route entered the water by when the longer axis starts on land, from the
  * last land cell before the water to the first one after it on that line, so
- * a bridge always spans the whole crossing and rests one cell on each bank.
+ * a bridge always spans the whole crossing and rests one cell on each bank,
+ * rails included, so its outline is a rectangle.
  * The road then rejoins its route across land. A route that ends in water,
  * or whose crossing never reaches land within `MAX_SPAN`, stops at the bank.
  */
@@ -68,6 +85,29 @@ function withBridges(cells: readonly RouteCell[], wet: (x: number, y: number) =>
         : { x: 0, y: Math.sign(exit.y - bank.y) };
     const step = wet(bank.x + longer.x, bank.y + longer.y) ? longer : entered;
     const side = step.x !== 0 ? { x: 0, y: 1 } : { x: 1, y: 0 };
+    /**
+     * The road comes onto the bridge from straight behind it. A route that
+     * steps sideways onto the bank cell would run through where a rail goes,
+     * so its last cells round the bank are relaid as a line to the cell
+     * behind the bridge, unless that line would itself touch water.
+     */
+    const behind = { x: bank.x - step.x, y: bank.y - step.y };
+    let kept = out.length - 1;
+    while (
+      kept > 0 &&
+      !out[kept - 1]!.bridge &&
+      beside(out[kept - 1]!, bank, { x: -step.x, y: -step.y })
+    ) {
+      kept--;
+    }
+    const joined = kept > 0 && !out[kept - 1]!.bridge ? out[kept - 1]! : null;
+    const approach = joined ? lineCells(joined, behind).slice(1) : [];
+    if (joined && !wet(behind.x, behind.y) && !approach.some((k) => wet(k.x, k.y))) {
+      const approachSide = across(joined, behind);
+      out.length = kept;
+      for (const k of approach) out.push({ ...k, side: approachSide, bridge: false });
+      out.push({ ...bank, bridge: false });
+    }
     const span: Laid[] = [{ x: bank.x, y: bank.y, side, bridge: true }];
     let x = bank.x + step.x;
     let y = bank.y + step.y;
@@ -80,10 +120,28 @@ function withBridges(cells: readonly RouteCell[], wet: (x: number, y: number) =>
     span.push({ x, y, side, bridge: true });
     out[out.length - 1] = span[0]!;
     out.push(...span.slice(1));
-    const joinSide = across({ x, y }, exit);
-    for (const k of lineCells({ x, y }, exit).slice(1))
+    /**
+     * It leaves the same way: one more cell straight on where there is ground
+     * for it, and from there to the first cell of the route that is past the
+     * end, so the road turns beyond the rails' ends rather than through one.
+     */
+    let rejoin = j;
+    while (
+      rejoin < cells.length - 1 &&
+      !wet(cells[rejoin + 1]!.x, cells[rejoin + 1]!.y) &&
+      beside(cells[rejoin]!, { x, y }, step)
+    ) {
+      rejoin++;
+    }
+    const target = cells[rejoin]!;
+    const ahead = { x: x + step.x, y: y + step.y };
+    const clear = !wet(ahead.x, ahead.y) && (x !== target.x || y !== target.y);
+    const from = clear ? ahead : { x, y };
+    if (clear) out.push({ ...ahead, side, bridge: false });
+    const joinSide = across(from, target);
+    for (const k of lineCells(from, target).slice(1))
       out.push({ ...k, side: joinSide, bridge: false });
-    i = j + 1;
+    i = rejoin + 1;
   }
   return out;
 }
@@ -114,7 +172,14 @@ export const road: Component<RoadProps> = {
     const at = (x: number, y: number) => `${x},${y}`;
     const wet = (x: number, y: number) => isWet(ctx.stackAt(x, y));
 
-    for (const c of withBridges(cells, wet)) {
+    const laid = withBridges(cells, wet);
+    /** Where the road itself runs beside its bridge, which only happens when it turns on the bank: a rail there would fence the road off from its own deck. */
+    const roadway = new Set(
+      laid
+        .filter((c) => !c.bridge)
+        .flatMap((c) => band.map((o) => at(c.x + c.side.x * o, c.y + c.side.y * o))),
+    );
+    for (const c of laid) {
       for (const o of band) {
         const x = c.x + c.side.x * o;
         const y = c.y + c.side.y * o;
@@ -135,8 +200,11 @@ export const road: Component<RoadProps> = {
         const x = c.x + c.side.x * o;
         const y = c.y + c.side.y * o;
         const stack = ctx.stackAt(x, y);
-        if (written.has(at(x, y)) || !isWet(stack)) continue;
-        written.set(at(x, y), [...stack, tile(props.deck), tile(props.rail)]);
+        if (stack.length === 0 || roadway.has(at(x, y))) continue;
+        const cleared = isWet(stack) ? stack : stack.filter((p) => !clears.has(p.tileId));
+        if (stackHeight(cleared, ctx.tilesById) > 0) continue;
+        const under = cleared.filter((p) => p.tileId !== props.tile && p.tileId !== props.deck);
+        written.set(at(x, y), [...under, tile(props.deck), tile(props.rail)]);
       }
     }
 

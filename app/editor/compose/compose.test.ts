@@ -689,3 +689,35 @@ describe("bridges", () => {
     expect(deck.map(([x]) => x).sort((a, b) => a - b)).toEqual([18, 19, 20, 21, 22]);
   });
 });
+
+describe("bridges with rails", () => {
+  it("lays deck and rail in one rectangle that covers the cell on each bank", () => {
+    const { map } = build(
+      doc(
+        field([
+          {
+            type: "river",
+            key: "brook",
+            props: { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 3 },
+          },
+          {
+            type: "road",
+            key: "lane",
+            props: { tile: "cobblestone", from: { x: 0, y: 5 }, to: { x: 39, y: 25 } },
+          },
+        ]),
+      ),
+    );
+    const cells = (tileId: string) =>
+      cellsWith(map, tileId, 40, 30).map((c) => c.split(",").map(Number) as [number, number]);
+    const deck = cells("wooden-floor");
+    const xs = [...new Set(deck.map(([x]) => x))].sort((a, b) => a - b);
+    const ys = [...new Set(deck.map(([, y]) => y))].sort((a, b) => a - b);
+    expect(xs).toEqual([18, 19, 20, 21, 22]);
+    expect(ys).toHaveLength(3);
+    expect(deck).toHaveLength(15);
+    expect(cells("fence").map(([x, y]) => `${x},${y}`)).toEqual(
+      [ys[0]!, ys[2]!].flatMap((y) => xs.map((x) => `${x},${y}`)),
+    );
+  });
+});
