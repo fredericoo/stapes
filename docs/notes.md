@@ -15975,15 +15975,27 @@ what is covered.
 terraces it lies from the nearest cell that is not raised, in eight-neighbour
 steps, capped at `levels`. That one rule gives everything the terrain rules
 ask for: each level is the one below drawn in on every side, corners included,
-so ground and brinks always sit over rock and no cliff is two levels high.
-Plants on a cell go to the top of its column.
+so ground and brinks always sit over rock and, with a terrace of at least
+one, no cliff is two levels high. Plants on a cell go to the top of its column.
+
+`terrace` is the width of each level's shelf, from 0 to 12. At 1 the hill
+climbs a level every cell. At 0 there is no shelf: every level ends at the
+foot and the hill is one cliff `levels` high. The column rule covers both. A
+wall has ground under it only on a level where a neighbour's ground lies, so
+in a cliff more than one level high only the lowest wall stands on ground.
 
 Hills stack. A hill builds on the level under the middle of its frame and
 raises only ground on that level, so one laid on another's top is a second
-tier in its own tiles. It never raises a cell beside ground on another level,
-which leaves the tier below a ledge a cell wide all round: without it the
-lower brink would lose the rock under it and the cliff would be two levels
-high.
+tier in its own tiles. It never raises a cell beside higher ground. With a
+terrace it never raises a cell beside lower ground either, which leaves the
+tier below a ledge a cell wide all round. With `terrace` 0 it is raised to
+the lower tier's edge, and the two cliffs are one: where no neighbour is left
+on the lower tier's level, the upper wall replaces the lower tier's brink.
+
+A ramp needs three clear cells on the lower level and two on the upper
+(`rampFits`), so a shelf narrower than three cells takes none, from the hill's
+own `ramps` or from a road. A road across such a cliff is laid on both levels
+unjoined.
 
 ### A hill and a river declare; a road builds
 
