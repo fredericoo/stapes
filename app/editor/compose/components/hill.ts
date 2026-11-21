@@ -18,7 +18,7 @@ import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } fro
 
 const HillSchema = v.object({
   levels: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
-  terrace: v.optional(v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(12)), 4),
+  terrace: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(12)), 4),
   roughness: v.optional(field.percent(), 40),
   ground: v.optional(field.tile(TILES.ground), "grass-2"),
   brink: v.optional(field.tile(TILES.ground), "grass-brink"),
@@ -54,7 +54,8 @@ const N8 = [
  * many terraces it is from the nearest cell outside that, counted in
  * eight-neighbour steps: every level is then the one below it drawn in by a
  * whole terrace on every side, corners included, so ground never overhangs
- * and no cliff is more than one level high.
+ * and no cliff is more than one level high. With no terrace every level ends
+ * at the foot, in one cliff `levels` high.
  */
 function levelsOf(
   g: CellGrid,
@@ -98,7 +99,13 @@ function levelsOf(
       queue.push(j);
     }
   }
-  return Uint8Array.from(distance, (d) => Math.min(props.levels, Math.ceil(d / props.terrace)));
+  return Uint8Array.from(distance, (d) =>
+    d === 0
+      ? 0
+      : props.terrace === 0
+        ? props.levels
+        : Math.min(props.levels, Math.ceil(d / props.terrace)),
+  );
 }
 
 /**
@@ -110,9 +117,10 @@ function levelsOf(
  *
  * It builds on whatever level the ground under the middle of its frame is
  * on, so a hill laid on a hill's top is a second tier, in its own tiles. Only
- * ground on that level is raised, and never a cell beside ground on another:
- * a brink has to keep rock under it and a cliff may be one level high, so the
- * tier below keeps a ledge a cell wide all round. Water, empty cells and
+ * ground on that level is raised, and never a cell beside higher ground. A
+ * hill with a terrace leaves the tier below a ledge a cell wide all round; one
+ * with none is raised to the tier's edge, and its wall there takes the place
+ * of the brink it stands on. Water, empty cells and
  * anything built stay as they are, with the cells round a building, and masks
  * cut the foot of the hill, not the finished one.
  *
@@ -148,9 +156,12 @@ export const hill: Component<HillProps> = {
       const stack = stackOn(x, y);
       if (stack.length === 0 || isWet(stack) || !ctx.covered(x, y)) return false;
       if (ctx.raisedAt(x, y) !== base) return false;
+      const ledge = props.terrace > 0;
       return (
-        !N8.some(([dx, dy]) => ctx.raisedAt(x + dx, y + dy) !== base || built(x + dx, y + dy)) &&
-        !built(x, y)
+        !N8.some(([dx, dy]) => {
+          const beside = ctx.raisedAt(x + dx, y + dy);
+          return beside > base || (ledge && beside < base) || built(x + dx, y + dy);
+        }) && !built(x, y)
       );
     });
     if (!level.some((l) => l > 0)) {

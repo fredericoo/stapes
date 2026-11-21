@@ -5,7 +5,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { PUSH_STEP_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { findLooseGravityCells, gravityPullOn, settleGravity } from "./gravity";
+import { findLooseGravityCells, gravityPullOn, looseGravityIndex, settleGravity } from "./gravity";
 import shippedTiles from "../../data/tiles.json";
 import { FRAME, tile } from "../lib/testTile";
 
@@ -163,6 +163,19 @@ describe("settling loose gravity", () => {
 
     expect(changed).toEqual([]);
     expect(ids(getStack(map, 0, 0, 1))).toEqual(["box"]);
+  });
+
+  it("drops a body over the void once ground appears levels below it", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 3, [{ tileId: "box" }]);
+    const loose = looseGravityIndex();
+    loose.add({ x: 0, y: 0, z: 3 });
+    const settle = (at: typeof map, cells: Iterable<Coord>) => settleGravity(at, cells, byId);
+    const hanging = loose.settle(map, settle);
+    expect(hanging.changed).toEqual([]);
+
+    const grounded = replaceStack(hanging.map, 0, 0, 0, [{ tileId: "grass" }]);
+    const landed = loose.settle(grounded, settle);
+    expect(ids(getStack(landed.map, 0, 0, 0))).toEqual(["grass", "box"]);
   });
 });
 

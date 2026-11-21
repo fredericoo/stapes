@@ -3003,10 +3003,35 @@ picture:
   a hash of the cell and its own id, so a twin with another id would pick
   another clump. Its `scatterSeed` is `scatterSeedMatching(twin, plant)`, which
   makes the two hashes equal; the generator writes it.
-- **Every plant on the map is a plate cell.** `settlePlates` walks all of them
-  each time the board settles, wherever the players are. With the 431 on the
-  map that walk is about 56µs; `bun scripts/bench-server.ts --scenario spread`
-  read 2.46ms at p50 before and 2.40ms after.
+- **Every plant on the map is a plate cell, so a settle skips the plates
+  nothing touched.** Rune Isle has 4,151 of them. `GameSession.plateCells` is a
+  `ChunkedCells` (`app/game/chunkedCells.ts`) that groups them by level and
+  chunk. Each group remembers the chunks on its own level and on the levels
+  above and below, as they were when it last settled to no change. A settle
+  walks only the groups where one of those chunks was replaced or written in
+  place since then. Inside a group, `settlePlates` skips a plate whose own
+  stack and the stacks directly above and below it are the same arrays as
+  last time. Those three stacks are all a swap reads: the load comes from its
+  own stack, and `canReplaceStack` reads the level below for overflow and the
+  level above when the swap would overflow into it. A plate that swapped is
+  read again on the next pass, so a self-triggering pair still flips once a
+  pass (`docs/terrain.md`).
+  - Skipping per cell alone saved little. The three `getStack` calls for each
+    of 4,151 plates cost about 0.27ms, about as much as settling them, so the
+    walk has to skip whole chunks.
+  - Over a 36,903-tick day with four players spread over the island (camp,
+    both towns, the inn), the board settled on 7,838 ticks. `settleBoardNow`
+    went from 471–515µs a tick (31% of tick time) to 156–161µs with the plate
+    groups. Grouping `looseGravityCells` the same way (below) brought it to
+    78–80µs (8%). Mean tick went from 1.52–1.62ms to 1.00–1.07ms, and p99
+    from 6.5–7.2ms to 3.6–3.8ms.
+- **Loose gravity cells are grouped the same way, reaching one level down.**
+  There are 65 on the map at load and about 830 after a day of shed fruit.
+  `isSupported` reads a body's own stack and the one below it, so a group
+  whose two chunks are unchanged stays where it is. A body that is
+  unsupported but has nowhere lower to land marks its group `restless`, and
+  that group is read on every pass, because a landing can appear anywhere
+  down the column.
 
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:
@@ -15949,15 +15974,27 @@ what is covered.
 terraces it lies from the nearest cell that is not raised, in eight-neighbour
 steps, capped at `levels`. That one rule gives everything the terrain rules
 ask for: each level is the one below drawn in on every side, corners included,
-so ground and brinks always sit over rock and no cliff is two levels high.
-Plants on a cell go to the top of its column.
+so ground and brinks always sit over rock and, with a terrace of at least
+one, no cliff is two levels high. Plants on a cell go to the top of its column.
+
+`terrace` is the width of each level's shelf, from 0 to 12. At 1 the hill
+climbs a level every cell. At 0 there is no shelf: every level ends at the
+foot and the hill is one cliff `levels` high. The column rule covers both. A
+wall has ground under it only on a level where a neighbour's ground lies, so
+in a cliff more than one level high only the lowest wall stands on ground.
 
 Hills stack. A hill builds on the level under the middle of its frame and
 raises only ground on that level, so one laid on another's top is a second
-tier in its own tiles. It never raises a cell beside ground on another level,
-which leaves the tier below a ledge a cell wide all round: without it the
-lower brink would lose the rock under it and the cliff would be two levels
-high.
+tier in its own tiles. It never raises a cell beside higher ground. With a
+terrace it never raises a cell beside lower ground either, which leaves the
+tier below a ledge a cell wide all round. With `terrace` 0 it is raised to
+the lower tier's edge, and the two cliffs are one: where no neighbour is left
+on the lower tier's level, the upper wall replaces the lower tier's brink.
+
+A ramp needs three clear cells on the lower level and two on the upper
+(`rampFits`), so a shelf narrower than three cells takes none, from the hill's
+own `ramps` or from a road. A road across such a cliff is laid on both levels
+unjoined.
 
 ### A hill and a river declare; a road builds
 
@@ -16111,6 +16148,35 @@ part is read on the part's level (`pressLevel`).
 kept `storeys`, `doorRow`, `doorColumn` and the roof in props; they become
 `floor` children with `use: "empty"`, a door point on the ground floor and a
 `roof` child, which build the house it built before.
+### A component's behaviour is tested by walking a small tree
+
+Each component has a `<name>.test.ts` beside it in
+`app/editor/compose/components/` that builds a tree of a few nodes and asks
+whether a player can walk it. `app/editor/compose/testTree.ts` is the helper:
+
+- `land(size, children)` is flat grass and `isle(size, children)` a sea with
+  one smooth island; `node(type, props, rest)` is any component, keyed by
+  `buildTree` from its type and its place in the tree, so adding a test does
+  not re-roll the seeds of the ones after it.
+- `buildTree(root)` builds with `COMPONENTS` and `data/tiles.json` and throws
+  when a node is refused, so a scenario that did not build cannot pass as
+  "cannot be walked".
+- `walks(built, from, to)` and `reach(built, from)` search with
+  `navigationLegs`, the legs the game plans a route from: steps, ramps, doors,
+  ladders and drops. A drop is why a hill is walked down and not up.
+- A walker keeps its feet dry unless `{ wading: true }`. A river is `water`,
+  which a body wades at half speed, so "a bridge makes the river crossable"
+  is only true of dry feet; the game's click to walk keeps dry the same way
+  (`avoidWade`). Deep water is crossed by nobody.
+- A spot is `x,y` on the ground as raised there (`elevation`), and a spot
+  with nothing to stand on throws.
+- `sketch(built)` draws the map as text. Pass it as the message of an
+  `expect`, and a failed walk prints the map it failed on.
+
+A test builds the obstacle first and shows it is not walked, then adds the
+component and shows it is. Without the first half a test of a road passes on
+flat ground. `house`, `scatter`, `tile`, `sea` and `group` have no such file
+yet.
 
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
