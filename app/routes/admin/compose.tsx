@@ -13,7 +13,7 @@ import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
-import { ROOF_TYPE, partLevels } from "../../editor/compose/components/house";
+import { ROOF_TYPE } from "../../editor/compose/components/house";
 import { cutAbove } from "../../editor/compose/cutaway";
 import {
   ComposeCanvas,
@@ -349,7 +349,7 @@ export default function ComposePage() {
     if (!selectedNode || !parent) return null;
     if (!COMPONENTS[selectedNode.type]?.within?.includes(parent.type)) return null;
     const home = built.layout.placements.get(parent.key);
-    const level = partLevels(parent).get(selectedNode.key);
+    const level = COMPONENTS[parent.type]?.partLevels?.(parent).get(selectedNode.key);
     if (!home || level === undefined) return null;
     return { home, level, cuts: selectedNode.type !== ROOF_TYPE };
   }, [doc, selectedNode, built]);
