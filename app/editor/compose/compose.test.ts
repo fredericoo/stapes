@@ -785,3 +785,124 @@ describe("fill in ground mode", () => {
     expect(cellsWith(map, "sand", 40, 30)).toEqual(cellsWith(map, "water", 40, 30));
   });
 });
+
+describe("hill", () => {
+  const raised = (props: Record<string, unknown> = {}, children: MapNode[] = []) =>
+    build(
+      doc(
+        field([
+          wood(),
+          {
+            type: "hill",
+            key: "knoll",
+            frame: { x: 2, y: 2, w: 34, h: 26 },
+            props: { levels: 3, terrace: 3, ...props },
+            children,
+          },
+        ]),
+      ),
+    );
+  const topLevel = (map: MapFile, x: number, y: number) => {
+    for (let z = 3; z > 0; z--) {
+      const stack = getStack(map, x, y, z);
+      if (stack.length && stack.at(-1)?.tileId !== "hill-wall") return z;
+    }
+    return 0;
+  };
+  const each = (visit: (x: number, y: number) => void) => {
+    for (let y = 0; y < 30; y++) for (let x = 0; x < 40; x++) visit(x, y);
+  };
+
+  it("fills every level under raised ground and never drops more than a level between neighbours", () => {
+    const { map, problems } = raised({ ramps: false });
+    expect(problems).toEqual([]);
+    let summit = 0;
+    each((x, y) => {
+      const L = topLevel(map, x, y);
+      summit = Math.max(summit, L);
+      for (let z = 0; z < L; z++) {
+        expect(getStack(map, x, y, z).at(-1)?.tileId, `${x},${y},${z}`).toBe("hill-wall");
+      }
+      for (const [dx, dy] of [
+        [1, 0],
+        [0, 1],
+        [1, 1],
+        [1, -1],
+      ]) {
+        const there = x + dx < 40 && y + dy >= 0 && y + dy < 30 ? topLevel(map, x + dx, y + dy) : L;
+        expect(Math.abs(there - L), `${x},${y}`).toBeLessThanOrEqual(1);
+      }
+    });
+    expect(summit).toBe(3);
+  });
+
+  it("puts a brink on every raised cell beside a drop and plain ground elsewhere", () => {
+    const { map } = raised({ ramps: false });
+    each((x, y) => {
+      const L = topLevel(map, x, y);
+      if (L === 0) return;
+      let drop = false;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) drop ||= topLevel(map, x + dx, y + dy) < L;
+      }
+      expect(getStack(map, x, y, L)[0]?.tileId, `${x},${y}`).toBe(drop ? "grass-brink" : "grass-2");
+    });
+  });
+
+  it("carries what stood on the ground up to the top of its cell", () => {
+    const flat = build(doc(field([wood()]))).map;
+    const { map } = raised({ ramps: false });
+    const trees = cellsWith(flat, "tree", 40, 30);
+    expect(
+      trees.some((c) => topLevel(map, ...(c.split(",").map(Number) as [number, number])) > 0),
+    ).toBe(true);
+    for (const cell of trees) {
+      const [x, y] = cell.split(",").map(Number) as [number, number];
+      const L = topLevel(map, x, y);
+      expect(
+        getStack(map, x, y, L).some((p) => p.tileId === "tree"),
+        cell,
+      ).toBe(true);
+    }
+  });
+
+  it("lays a ramp up each level: two cells on the lower level in a line from a head of half-stones", () => {
+    const { map } = raised({ rampSide: "s" });
+    for (let z = 0; z < 3; z++) {
+      const slopes: Array<[number, number]> = [];
+      each((x, y) => {
+        const stack = getStack(map, x, y, z);
+        if (stack.at(-1)?.tileId === "ramp" && stack.at(-2)?.tileId !== "half-stone")
+          slopes.push([x, y]);
+      });
+      expect(slopes, `level ${z}`).toHaveLength(1);
+      const [x, y] = slopes[0]!;
+      expect(
+        getStack(map, x, y - 1, z)
+          .slice(-2)
+          .map((p) => p.tileId),
+      ).toEqual(["half-stone", "ramp"]);
+      expect(
+        getStack(map, x, y - 2, z)
+          .slice(-2)
+          .map((p) => p.tileId),
+      ).toEqual(["half-stone", "half-stone"]);
+      expect(topLevel(map, x, y - 2)).toBe(z + 1);
+    }
+  });
+
+  it("cuts its foot by its masks, so a hole in it is ringed by its own cliffs", () => {
+    const { map } = raised({ ramps: false }, [
+      {
+        type: "mask",
+        key: "pit",
+        frame: { x: 14, y: 10, w: 6, h: 6 },
+        props: { shape: "rect", op: "subtract" },
+      },
+    ]);
+    expect(topLevel(map, 18, 14)).toBe(0);
+    expect(getStack(map, 18, 14, 0).some((p) => p.tileId === "hill-wall")).toBe(false);
+    expect(topLevel(map, 15, 14)).toBe(1);
+    expect(getStack(map, 15, 14, 1)[0]?.tileId).toBe("grass-brink");
+  });
+});

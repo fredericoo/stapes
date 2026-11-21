@@ -265,6 +265,20 @@
                 "pinY": "bottom"
               }
             }
+          },
+          {
+            "type": "hill",
+            "key": "knoll",
+            "frame": {
+              "x": 31,
+              "y": 47,
+              "w": 24,
+              "h": 16
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 3
+            }
           }
         ]
       },

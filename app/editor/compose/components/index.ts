@@ -3,6 +3,7 @@ import { clear } from "./clear";
 import { fill } from "./fill";
 import { forest } from "./forest";
 import { group } from "./group";
+import { hill } from "./hill";
 import { house } from "./house";
 import { island } from "./island";
 import { mask } from "./mask";
@@ -16,6 +17,7 @@ const all: ReadonlyArray<Component<never>> = [
   group,
   sea,
   island,
+  hill,
   forest,
   house,
   road,
