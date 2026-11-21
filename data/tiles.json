@@ -62615,10 +62615,6 @@
     },
     "lightPassing": true,
     "walkable": false,
-    "connectsTo": [
-      "sw2",
-      "half-wall"
-    ],
     "slices": {
       "0": {
         "frames": [
