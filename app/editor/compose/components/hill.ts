@@ -14,6 +14,7 @@ import {
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import { isWet } from "./line";
+import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } from "./ramp";
 
 const HillSchema = v.object({
   levels: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
@@ -22,14 +23,12 @@ const HillSchema = v.object({
   ground: v.optional(field.tile(TILES.ground), "grass-2"),
   brink: v.optional(field.tile(TILES.ground), "grass-brink"),
   wall: v.optional(field.tile(TILES.any), "hill-wall"),
-  ramps: v.optional(v.boolean(), true),
-  rampSide: v.optional(field.direction(), "s"),
+  ramp: v.optional(field.tile(TILES.any), "ramp"),
+  rampBlock: v.optional(field.tile(TILES.any), "half-stone"),
+  ramps: v.optional(field.points(), []),
 });
 
 export type HillProps = v.InferOutput<typeof HillSchema>;
-
-const RAMP = "ramp";
-const BLOCK = "half-stone";
 
 /** Cells kept clear inside the frame, so the two cells of a ramp down to the ground and the cell at its foot fit. */
 const MARGIN = 3;
@@ -48,14 +47,6 @@ const N8 = [
   [-1, 0],
   [-1, -1],
 ] as const;
-
-const STEP: Record<Direction, readonly [number, number]> = {
-  n: [0, -1],
-  e: [1, 0],
-  s: [0, 1],
-  w: [-1, 0],
-};
-const SIDES: readonly Direction[] = ["s", "e", "w", "n"];
 
 /**
  * How many levels each cell is raised. The foot of the hill is a noisy
@@ -110,63 +101,24 @@ function levelsOf(
   return Uint8Array.from(distance, (d) => Math.min(props.levels, Math.ceil(d / props.terrace)));
 }
 
-type Ramp = { low: number; high: number; head: number; side: Direction };
-
 /**
- * One ramp for each level, from the level below. A ramp is two cells in a
- * line on the lower level, running away from the cliff, and it needs a third
- * beyond them to step off onto. Each is the candidate nearest the head of the
- * ramp below it, so the way up is one path, and the first is the one nearest
- * the middle of the hill on the side asked for.
- */
-function rampsOf(g: CellGrid, level: Uint8Array, props: HillProps, flat: (i: number) => boolean) {
-  const ramps: Ramp[] = [];
-  const used = new Set<number>();
-  let near = {
-    x: g.minX + (g.width - 1) / 2 + (STEP[props.rampSide][0] * g.width) / 2,
-    y: g.minY + (g.height - 1) / 2 + (STEP[props.rampSide][1] * g.height) / 2,
-  };
-  const order = [props.rampSide, ...SIDES.filter((s) => s !== props.rampSide)];
-  for (let k = 0; k < props.levels; k++) {
-    let best: (Ramp & { cost: number }) | null = null;
-    for (let i = 0; i < level.length; i++) {
-      if (level[i] !== k + 1) continue;
-      for (const side of order) {
-        const [dx, dy] = STEP[side];
-        const cells = [1, 2, 3].map((steps) => {
-          const x = gridX(g, i) + dx * steps;
-          const y = gridY(g, i) + dy * steps;
-          return inGrid(g, x, y) ? gridIndex(g, x, y) : -1;
-        });
-        if (cells.some((j) => j < 0 || level[j] !== k || used.has(j) || !flat(j))) continue;
-        const cost =
-          Math.hypot(gridX(g, i) - near.x, gridY(g, i) - near.y) + order.indexOf(side) * g.width;
-        if (!best || cost < best.cost)
-          best = { high: cells[0]!, low: cells[1]!, head: i, side, cost };
-      }
-    }
-    if (!best) break;
-    ramps.push(best);
-    for (const j of [best.low, best.high, best.head]) used.add(j);
-    near = { x: gridX(g, best.head), y: gridY(g, best.head) };
-  }
-  return ramps;
-}
-
-/**
- * Raises the ground the nodes before it left, the way Rune Isle's hills are
- * built (`docs/terrain.md`): a raised cell is a column with one `wall` on
- * every level under its top, standing on ground wherever a neighbour's ground
- * lies on that level, and whatever stood on the cell moves to the top with
- * it, so a hill laid over a forest is a wooded hill. The top is `brink` on
- * every cell with a drop beside it and `ground` elsewhere. Water and empty
- * cells are not raised, and masks cut the foot of the hill, not the finished
- * one, so a hole a mask makes is ringed by its own cliffs.
- * Nothing built is raised either: a cell holding more than ground and
- * plants, or with something on the level above it, stays where it is along
- * with the cells round it, so a house laid before the hill keeps its floor,
- * its roof and the ground at its door, and the hill rises round it. Ground an
- * earlier hill raised is left to that hill.
+ * Raises ground the way Rune Isle's hills are built (`docs/terrain.md`): a
+ * raised cell is a column with one `wall` on every level under its top,
+ * standing on ground wherever a neighbour's ground lies on that level, with
+ * `brink` on top of every cell beside a drop and `ground` elsewhere. Plants
+ * on a cell go to the top with it.
+ *
+ * It builds on whatever level the ground under the middle of its frame is
+ * on, so a hill laid on a hill's top is a second tier, in its own tiles. Only
+ * ground on that level is raised, and never a cell beside ground on another:
+ * a brink has to keep rock under it and a cliff may be one level high, so the
+ * tier below keeps a ledge a cell wide all round. Water, empty cells and
+ * anything built stay as they are, with the cells round a building, and masks
+ * cut the foot of the hill, not the finished one.
+ *
+ * It lays no way up by itself. Each of `ramps` is a point, and the ramp goes
+ * on the nearest stretch of straight cliff to it; a road that crosses the
+ * cliff lays its own, in the tiles declared here.
  */
 export const hill: Component<HillProps> = {
   type: "hill",
@@ -177,40 +129,75 @@ export const hill: Component<HillProps> = {
   ownLevels: true,
   build(ctx, props) {
     const g = newGrid(ctx.bounds);
-    const before = (i: number) => ctx.stackAt(gridX(g, i), gridY(g, i));
+    const base = ctx.raisedAt(
+      Math.floor((ctx.bounds.minX + ctx.bounds.maxX) / 2),
+      Math.floor((ctx.bounds.minY + ctx.bounds.maxY) / 2),
+    );
+    const z0 = ctx.z + base;
+    const stackOn = (x: number, y: number) => ctx.stackAt(x, y, z0);
+    const before = (i: number) => stackOn(gridX(g, i), gridY(g, i));
     const built = (x: number, y: number) =>
-      ctx.stackAt(x, y, ctx.z + 1).length > 0 ||
-      ctx
-        .stackAt(x, y)
+      ctx.stackAt(x, y, z0 + 1).length > 0 ||
+      stackOn(x, y)
         .slice(1)
         .some((p) => {
           const def = ctx.tilesById[p.tileId];
           return !def || (def.height > 0 && !TILES.standing.test(def));
         });
     const level = levelsOf(g, props, ctx.seed, (x, y) => {
-      const stack = ctx.stackAt(x, y);
+      const stack = stackOn(x, y);
       if (stack.length === 0 || isWet(stack) || !ctx.covered(x, y)) return false;
-      if (ctx.raisedAt(x, y) > 0) return false;
-      return !built(x, y) && !N8.some(([dx, dy]) => built(x + dx, y + dy));
+      if (ctx.raisedAt(x, y) !== base) return false;
+      return (
+        !N8.some(([dx, dy]) => ctx.raisedAt(x + dx, y + dy) !== base || built(x + dx, y + dy)) &&
+        !built(x, y)
+      );
     });
     if (!level.some((l) => l > 0)) {
-      return { ok: false, reason: "There is no dry ground inside the frame to raise" };
+      return {
+        ok: false,
+        reason: "There is no dry, open ground on one level inside the frame to raise",
+      };
     }
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
-    const levelAt = (x: number, y: number) => (inGrid(g, x, y) ? level[gridIndex(g, x, y)]! : 0);
+    /** A cell's level above the hill's base: its own terraces inside the hill, and what earlier hills made of it outside. */
+    const levelAt = (x: number, y: number) => {
+      const own = inGrid(g, x, y) ? level[gridIndex(g, x, y)]! : 0;
+      return own || ctx.raisedAt(x, y) - base;
+    };
     const around = (i: number, test: (l: number) => boolean) =>
       N8.some(([dx, dy]) => test(levelAt(gridX(g, i) + dx, gridY(g, i) + dy)));
 
-    const canRamp = props.ramps && ctx.tilesById[RAMP] && ctx.tilesById[BLOCK];
-    const ramps = canRamp
-      ? rampsOf(g, level, props, (i) => {
-          const stack = before(i);
-          return stack.length > 0 && !isWet(stack);
-        })
-      : [];
-    const heads = new Set(ramps.map((r) => r.head));
+    const used = new Set<string>();
+    const key = (c: Cell) => `${c.x},${c.y}`;
+    const ground: RampGround = {
+      level: levelAt,
+      clear: (x, y) => {
+        if (!inGrid(g, x, y) || used.has(`${x},${y}`)) return false;
+        const stack = stackOn(x, y);
+        if (stack.length === 0 || isWet(stack)) return false;
+        return level[gridIndex(g, x, y)]! > 0 || !built(x, y);
+      },
+    };
+    const canRamp = ctx.tilesById[props.ramp] && ctx.tilesById[props.rampBlock];
+    const sites: RampSite[] = [];
+    for (const point of canRamp ? props.ramps : []) {
+      const near = ctx.point(point);
+      if (!near) continue;
+      const site = nearestRamp(
+        ground,
+        near,
+        Math.max(g.width, g.height),
+        (s) => inGrid(g, s.head.x, s.head.y) && level[gridIndex(g, s.head.x, s.head.y)]! > 0,
+      );
+      if (!site) continue;
+      sites.push(site);
+      const cells = rampCells(site);
+      for (const c of [cells.head, cells.high, cells.low]) used.add(key(c));
+    }
+    const heads = new Set(sites.map((s) => gridIndex(g, s.head.x, s.head.y)));
 
-    const tops = new Map<number, PlacedTile[]>();
+    const tops = new Map<string, StackEdit>();
     const edits: StackEdit[] = [];
     for (let i = 0; i < level.length; i++) {
       const L = level[i]!;
@@ -222,26 +209,44 @@ export const hill: Component<HillProps> = {
         const under = z === 0 ? stack.slice(0, 1) : [tile(props.ground)];
         const column =
           heads.has(i) && z === L - 1
-            ? [...under, tile(BLOCK), tile(BLOCK)]
+            ? [...under, tile(props.rampBlock), tile(props.rampBlock)]
             : around(i, (l) => l === z)
               ? [...under, tile(props.wall)]
               : [tile(props.wall)];
-        edits.push({ x, y, z: ctx.z + z, stack: column });
+        edits.push({ x, y, z: z0 + z, stack: column });
       }
       const edge = !heads.has(i) && around(i, (l) => l < L);
-      tops.set(i, [tile(edge ? props.brink : props.ground), ...stack.slice(1)]);
+      tops.set(`${x},${y}`, {
+        x,
+        y,
+        z: z0 + L,
+        stack: [tile(edge ? props.brink : props.ground), ...stack.slice(1)],
+      });
     }
-    for (const r of ramps) {
-      const base = (i: number) => (tops.get(i) ?? before(i)).slice(0, 1);
-      tops.set(r.low, [...base(r.low), tile(RAMP, r.side)]);
-      tops.set(r.high, [...base(r.high), tile(BLOCK), tile(RAMP, r.side)]);
+    for (const site of sites) {
+      const { high, low } = rampCells(site);
+      const slope = (cell: Cell, under: PlacedTile[]) => {
+        const top = tops.get(key(cell));
+        const bottom = (top?.stack ?? stackOn(cell.x, cell.y)).slice(0, 1);
+        tops.set(key(cell), {
+          x: cell.x,
+          y: cell.y,
+          z: top?.z ?? z0,
+          stack: [...bottom, ...under, tile(props.ramp, site.side)],
+        });
+      };
+      slope(low, []);
+      slope(high, [tile(props.rampBlock)]);
     }
-    for (const [i, stack] of tops) {
-      edits.push({ x: gridX(g, i), y: gridY(g, i), z: ctx.z + level[i]!, stack });
+    edits.push(...tops.values());
+    const cells = [];
+    for (let i = 0; i < level.length; i++) {
+      if (level[i]! > 0) cells.push({ x: gridX(g, i), y: gridY(g, i), levels: base + level[i]! });
     }
-    const raised = [...tops.keys()]
-      .filter((i) => level[i]! > 0)
-      .map((i) => ({ x: gridX(g, i), y: gridY(g, i), levels: level[i]! }));
-    return { ok: true, edits, raised };
+    return {
+      ok: true,
+      edits,
+      raised: { cells, ramp: { slope: props.ramp, block: props.rampBlock, ground: props.ground } },
+    };
   },
 };

@@ -815,7 +815,7 @@ describe("hill", () => {
   };
 
   it("fills every level under raised ground and never drops more than a level between neighbours", () => {
-    const { map, problems } = raised({ ramps: false });
+    const { map, problems } = raised();
     expect(problems).toEqual([]);
     let summit = 0;
     each((x, y) => {
@@ -838,7 +838,7 @@ describe("hill", () => {
   });
 
   it("puts a brink on every raised cell beside a drop and plain ground elsewhere", () => {
-    const { map } = raised({ ramps: false });
+    const { map } = raised();
     each((x, y) => {
       const L = topLevel(map, x, y);
       if (L === 0) return;
@@ -852,7 +852,7 @@ describe("hill", () => {
 
   it("carries what stood on the ground up to the top of its cell", () => {
     const flat = build(doc(field([wood()]))).map;
-    const { map } = raised({ ramps: false });
+    const { map } = raised();
     const trees = cellsWith(flat, "tree", 40, 30);
     expect(
       trees.some((c) => topLevel(map, ...(c.split(",").map(Number) as [number, number])) > 0),
@@ -867,33 +867,80 @@ describe("hill", () => {
     }
   });
 
-  it("lays a ramp up each level: two cells on the lower level in a line from a head of half-stones", () => {
-    const { map } = raised({ rampSide: "s" });
-    for (let z = 0; z < 3; z++) {
-      const slopes: Array<[number, number]> = [];
+  it("lays no ramp by itself, and one on the nearest straight cliff to each point it is given", () => {
+    const slopesOn = (map: MapFile) => {
+      const found: Array<[number, number]> = [];
       each((x, y) => {
-        const stack = getStack(map, x, y, z);
+        const stack = getStack(map, x, y, 0);
         if (stack.at(-1)?.tileId === "ramp" && stack.at(-2)?.tileId !== "half-stone")
-          slopes.push([x, y]);
+          found.push([x, y]);
       });
-      expect(slopes, `level ${z}`).toHaveLength(1);
-      const [x, y] = slopes[0]!;
-      expect(
-        getStack(map, x, y - 1, z)
-          .slice(-2)
-          .map((p) => p.tileId),
-      ).toEqual(["half-stone", "ramp"]);
-      expect(
-        getStack(map, x, y - 2, z)
-          .slice(-2)
-          .map((p) => p.tileId),
-      ).toEqual(["half-stone", "half-stone"]);
-      expect(topLevel(map, x, y - 2)).toBe(z + 1);
+      return found;
+    };
+    expect(slopesOn(raised().map)).toEqual([]);
+    const { map } = raised({ ramps: [{ x: 17, y: 25 }] });
+    const slopes = slopesOn(map);
+    expect(slopes).toHaveLength(1);
+    const [x, y] = slopes[0]!;
+    const facing = getStack(map, x, y, 0).at(-1)!.direction!;
+    const [dx, dy] = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] }[facing] as [number, number];
+    const ids = (n: number) =>
+      getStack(map, x - dx * n, y - dy * n, 0)
+        .slice(-2)
+        .map((p) => p.tileId);
+    expect(ids(1)).toEqual(["half-stone", "ramp"]);
+    expect(ids(2)).toEqual(["half-stone", "half-stone"]);
+    const head = [x - dx * 2, y - dy * 2] as const;
+    expect(topLevel(map, head[0] - dx, head[1] - dy)).toBe(1);
+    for (const sign of [-1, 1]) {
+      expect(topLevel(map, head[0] + dy * sign, head[1] + dx * sign)).toBe(1);
+      expect(topLevel(map, head[0] + dy * sign + dx, head[1] + dx * sign + dy)).toBe(0);
     }
   });
 
+  it("stands on a hill as a second tier in its own tiles, a ledge in from the first one's edge", () => {
+    const { map, problems, elevation } = build(
+      doc(
+        field([
+          {
+            type: "hill",
+            key: "knoll",
+            frame: { x: 2, y: 2, w: 36, h: 26 },
+            props: { levels: 1, roughness: 0 },
+          },
+          {
+            type: "hill",
+            key: "peak",
+            frame: { x: 2, y: 2, w: 36, h: 26 },
+            props: {
+              levels: 1,
+              roughness: 0,
+              ground: "snow",
+              brink: "snow-brink",
+              wall: "hill-wall-frost",
+            },
+          },
+        ]),
+      ),
+    );
+    expect(problems).toEqual([]);
+    expect(elevation.get("20,15")).toBe(2);
+    expect(getStack(map, 20, 15, 2)[0]?.tileId).toBe("snow");
+    expect(getStack(map, 20, 15, 1).at(-1)?.tileId).toBe("hill-wall-frost");
+    expect(getStack(map, 20, 15, 0).at(-1)?.tileId).toBe("hill-wall");
+    each((x, y) => {
+      const here = elevation.get(`${x},${y}`) ?? 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const there = elevation.get(`${x + dx},${y + dy}`) ?? 0;
+          expect(Math.abs(here - there), `${x},${y}`).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+
   it("cuts its foot by its masks, so a hole in it is ringed by its own cliffs", () => {
-    const { map } = raised({ ramps: false }, [
+    const { map } = raised({}, [
       {
         type: "mask",
         key: "pit",
@@ -913,7 +960,7 @@ describe("raised ground", () => {
     type: "hill",
     key: "knoll",
     frame: { x: 2, y: 2, w: 34, h: 26 },
-    props: { levels: 1, roughness: 0, ramps: false },
+    props: { levels: 1, roughness: 0 },
     ...extra,
   });
   const cottage = (x: number, y: number): MapNode => ({

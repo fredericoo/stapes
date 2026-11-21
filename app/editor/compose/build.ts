@@ -26,6 +26,14 @@ export type BuildContext = {
   stackAt(x: number, y: number, z?: number): PlacedTile[];
   /** How many levels the ground at x,y has been raised by the nodes built so far. */
   raisedAt(x: number, y: number): number;
+  /** What a ramp up to the raised ground at x,y is made of, as the hill that raised it declared. */
+  rampAt(x: number, y: number): RampStyle | undefined;
+  /**
+   * How the water at x,y is crossed, as the layer that put it there declared:
+   * a bridge's style, `null` for water that is not to be bridged, and
+   * `undefined` for water nothing declared, which gets the default bridge.
+   */
+  bridgeAt(x: number, y: number): BridgeStyle | null | undefined;
   point(point: Point): { x: number; y: number } | null;
   /** Whether the node's masks leave x,y in; true everywhere for a node with none. */
   covered(x: number, y: number): boolean;
@@ -59,18 +67,38 @@ export type Component<Props> = {
   build(ctx: BuildContext, props: Props): ComponentPlan;
 };
 
-/** A plan, and for a component that raises ground the cells it raised and by how many levels in all. */
+export type RampStyle = { slope: string; block: string; ground: string };
+
+/** `arc` is how far the middle of the deck is lifted, in height units, stepping up one a cell from each bank. */
+export type BridgeStyle = { deck: string; rail: string | null; arc: number };
+
+/**
+ * A plan, with what the component declares about the cells it built for the
+ * components after it: ground it raised, by how many levels in all and with
+ * which ramps, and water it laid and how that is to be crossed.
+ */
 export type ComponentPlan =
   | GeneratedPlan
   | {
       ok: true;
       edits: StackEdit[];
-      raised: ReadonlyArray<{ x: number; y: number; levels: number }>;
+      raised?: {
+        cells: ReadonlyArray<{ x: number; y: number; levels: number }>;
+        ramp: RampStyle;
+      };
+      crossing?: { cells: ReadonlyArray<{ x: number; y: number }>; bridge: BridgeStyle | null };
     };
 
 export type Elevation = ReadonlyMap<string, number>;
 
-const NO_ELEVATION: Elevation = new Map();
+/** What earlier nodes declared about cells, keyed `x,y`. Each map is replaced, never changed, so a step can keep the one it ended with. */
+type Terrain = {
+  elevation: Elevation;
+  ramps: ReadonlyMap<string, RampStyle>;
+  crossings: ReadonlyMap<string, BridgeStyle | null>;
+};
+
+const FLAT: Terrain = { elevation: new Map(), ramps: new Map(), crossings: new Map() };
 
 export type ComponentRegistry = Record<string, Component<never>>;
 
@@ -83,7 +111,7 @@ type Step = {
   problems: BuildProblem[];
   written: Bounds | null;
   footprint: Footprint | null;
-  elevation: Elevation;
+  terrain: Terrain;
 };
 
 export type BuildResult = {
@@ -256,7 +284,7 @@ export function buildMap(
   const steps: Step[] = [];
   const built = new Map<string, Step>();
   let map = base;
-  let elevation = NO_ELEVATION;
+  let terrain = FLAT;
   let resuming = true;
 
   for (const placement of visibleOrder(doc, layout)) {
@@ -266,7 +294,7 @@ export function buildMap(
       steps.push(prior);
       built.set(prior.key, prior);
       map = prior.map;
-      elevation = prior.elevation;
+      terrain = prior.terrain;
       continue;
     }
     resuming = false;
@@ -294,8 +322,8 @@ export function buildMap(
         });
       } else {
         const current = map;
-        const heights = elevation;
-        const raisedAt = (x: number, y: number) => heights.get(`${x},${y}`) ?? 0;
+        const known = terrain;
+        const raisedAt = (x: number, y: number) => known.elevation.get(`${x},${y}`) ?? 0;
         const lift = component.ownLevels ? () => 0 : raisedAt;
         const stackAt = (x: number, y: number, z: number) =>
           getStack(current, x, y, z + lift(x, y));
@@ -308,6 +336,8 @@ export function buildMap(
             seed: placement.seed,
             stackAt: (x, y, z = placement.z) => stackAt(x, y, z),
             raisedAt,
+            rampAt: (x, y) => known.ramps.get(`${x},${y}`),
+            bridgeAt: (x, y) => known.crossings.get(`${x},${y}`),
             point: (point) => {
               const frame = pointFrame(layout, placement, point);
               return frame ? pointIn(point, frame) : null;
@@ -324,19 +354,30 @@ export function buildMap(
             .filter((e) => inside(placement.clip, e.x, e.y))
             .map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
           map = setStacks(map, kept);
-          if ("raised" in plan && plan.raised.length) {
-            const next = new Map(elevation);
-            for (const r of plan.raised) {
-              if (inside(placement.clip, r.x, r.y)) next.set(`${r.x},${r.y}`, r.levels);
+          const within = <T extends { x: number; y: number }>(cells: readonly T[]) =>
+            cells.filter((c) => inside(placement.clip, c.x, c.y));
+          if ("raised" in plan && plan.raised) {
+            const elevation = new Map(terrain.elevation);
+            const ramps = new Map(terrain.ramps);
+            for (const c of within(plan.raised.cells)) {
+              elevation.set(`${c.x},${c.y}`, c.levels);
+              ramps.set(`${c.x},${c.y}`, plan.raised.ramp);
             }
-            elevation = next;
+            terrain = { ...terrain, elevation, ramps };
+          }
+          if ("crossing" in plan && plan.crossing) {
+            const crossings = new Map(terrain.crossings);
+            for (const c of within(plan.crossing.cells)) {
+              crossings.set(`${c.x},${c.y}`, plan.crossing.bridge);
+            }
+            terrain = { ...terrain, crossings };
           }
           written = boundsOf(kept);
           footprint = footprintOf(kept);
         }
       }
     }
-    const step = { key: node.key, inputs, map, problems, written, footprint, elevation };
+    const step = { key: node.key, inputs, map, problems, written, footprint, terrain };
     steps.push(step);
     built.set(step.key, step);
   }
@@ -350,7 +391,7 @@ export function buildMap(
     written: new Map(steps.flatMap((s) => (s.written ? [[s.key, s.written] as const] : []))),
     reused,
     steps,
-    elevation,
+    elevation: terrain.elevation,
     from: { base, tilesById, components },
   };
 }
