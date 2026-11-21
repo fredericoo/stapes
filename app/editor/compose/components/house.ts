@@ -15,6 +15,7 @@ import {
   type RoofColour,
   type RoofPitch,
 } from "../../house";
+import { PORCH_DEPTH_RANGE, PORCH_USES, type PorchSpec } from "../../porch";
 import { DEFAULT_HOUSE_CONFIG } from "../../proceduralSettings";
 import type { Component, Part } from "../build";
 import type { MapNode } from "../doc";
@@ -25,6 +26,7 @@ const d = DEFAULT_HOUSE_CONFIG;
 export const FLOOR_TYPE = "floor";
 export const CELLAR_TYPE = "cellar";
 export const ROOF_TYPE = "roof";
+export const PORCH_TYPE = "porch";
 const HOUSE_TYPE = "house";
 
 const HouseSchema = v.object({
@@ -88,10 +90,28 @@ const RoofSchema = v.object({
 
 type RoofProps = v.InferOutput<typeof RoofSchema>;
 
+const PorchSchema = v.object({
+  side: v.optional(field.direction(), "s"),
+  depth: v.optional(
+    v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(PORCH_DEPTH_RANGE.min),
+      v.maxValue(PORCH_DEPTH_RANGE.max),
+    ),
+    3,
+  ),
+  use: v.optional(v.picklist(PORCH_USES), "empty"),
+  floor: v.optional(v.nullable(field.tile(TILES.ground)), null),
+  rail: v.optional(v.nullable(field.tile(TILES.rail)), "fence"),
+});
+
+type PorchProps = v.InferOutput<typeof PorchSchema>;
+
 /**
  * How many levels above its house's ground each part is built: floors count
  * up from 0 in list order, cellars down from -1, and the roof sits on the
- * last floor. The house and the editor both read it, so the level a floor is
+ * last floor. A porch is on the ground. The house and the editor both read it, so the level a floor is
  * built on and the level the editor cuts the view to cannot differ.
  */
 export function partLevels(house: MapNode): Map<string, number> {
@@ -100,7 +120,10 @@ export function partLevels(house: MapNode): Map<string, number> {
   const floors = visible.filter((c) => c.type === FLOOR_TYPE);
   floors.forEach((c, i) => levels.set(c.key, i));
   visible.filter((c) => c.type === CELLAR_TYPE).forEach((c, i) => levels.set(c.key, -1 - i));
-  for (const c of visible) if (c.type === ROOF_TYPE) levels.set(c.key, floors.length);
+  for (const c of visible) {
+    if (c.type === ROOF_TYPE) levels.set(c.key, floors.length);
+    if (c.type === PORCH_TYPE) levels.set(c.key, 0);
+  }
   return levels;
 }
 
@@ -108,8 +131,9 @@ export function partLevels(house: MapNode): Map<string, number> {
  * Stands on whatever level the ground under it is on, and only on one: a
  * house whose walls started on two levels would have half its roof inside
  * the hill, so on uneven ground it is refused rather than built broken. It
- * builds its Floor, Cellar and Roof children itself, as one plan, because a
- * stair on one floor is a hole in the next.
+ * builds its Floor, Cellar, Roof and Porch children itself, as one plan,
+ * because a stair on one floor is a hole in the next and a porch moves the
+ * wall its door is in.
  */
 export const house: Component<HouseProps> = {
   type: HOUSE_TYPE,
@@ -126,7 +150,7 @@ export const house: Component<HouseProps> = {
   },
   schema: HouseSchema,
   ownLevels: true,
-  parts: [FLOOR_TYPE, CELLAR_TYPE, ROOF_TYPE],
+  parts: [FLOOR_TYPE, CELLAR_TYPE, ROOF_TYPE, PORCH_TYPE],
   build(ctx, props) {
     const { minX, minY, maxX, maxY } = ctx.bounds;
     const raised = ctx.raisedAt(minX, minY);
@@ -187,6 +211,18 @@ export const house: Component<HouseProps> = {
         floors: floors.map((part) => storey(part, part.props as FloorProps)),
         cellars: of(CELLAR_TYPE).map((part) => storey(part, part.props as CellarProps)),
         roof,
+        porches: of(PORCH_TYPE).map((part): PorchSpec => {
+          const own = part.props as PorchProps;
+          return {
+            name: part.key,
+            side: own.side,
+            depth: own.depth,
+            use: own.use,
+            seed: part.seed,
+            floorTileId: own.floor ?? props.floor,
+            railTileId: own.rail,
+          };
+        }),
       },
     );
   },
@@ -217,6 +253,15 @@ export const roof: Component<RoofProps> = {
   label: "Roof",
   starter: {},
   schema: RoofSchema,
+  within: [HOUSE_TYPE],
+  build: nothing,
+};
+
+export const porch: Component<PorchProps> = {
+  type: PORCH_TYPE,
+  label: "Porch",
+  starter: {},
+  schema: PorchSchema,
   within: [HOUSE_TYPE],
   build: nothing,
 };

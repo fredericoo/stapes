@@ -49,6 +49,16 @@ export const TILES = {
       t.height > 0 &&
       (hasInteraction(t, "switch") || hasInteraction(t, "receive")),
   },
+  rail: {
+    label: "a fence or rail",
+    test: (t) =>
+      t.kind === "prop" &&
+      t.type === "autotile" &&
+      t.height > 0 &&
+      t.height < HEIGHT_PER_LEVEL &&
+      t.walkable === false &&
+      t.lightPassing === true,
+  },
   stairs: {
     label: "stairs or a ramp",
     test: (t) => t.kind === "prop" && t.type === "directional" && t.climbFrom !== undefined,

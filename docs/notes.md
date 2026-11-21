@@ -15807,8 +15807,8 @@ arming the tool with an id nothing can draw.
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
-`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
-and `roof`, `cave`, `dungeon` with its `level`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`,
+`roof` and `porch`, `cave`, `dungeon` with its `level`, `road`, `river`, `tile`, `fill`, `scatter`, `shipwreck`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -16180,13 +16180,36 @@ A hidden child is left out, so hiding the roof builds the house without one.
   the map; an id made at build time would be shared by every world built
   from the tree.
 - **`use` picks the furniture**: `house`, `inn`, `pub`, `shop`, `library`,
-  `storage` or `empty`. The node's seed moves the stairs, the walls and the
+  `storage`, `smithy`, `barracks` or `empty`. The node's seed moves the stairs, the walls and the
   furniture together; re-rolling one floor leaves the others, except that the
   floor above has its hole where this one's stair now is.
 - **A bed is two cells with one `span` id**, made from its cell and level so
   two beds never share one.
 - **Every part fills the house's frame.** A frame on a part is not read, and
   the form does not offer one.
+- **A porch takes its depth off its side of the house's frame**
+  (`walledBounds` in `app/editor/porch.ts`), so the walls stand on what is
+  left and the whole plot stays the frame the editor drags. It is a deck of
+  the house's floor tile, or its own, as long as the wall it is against, at
+  most one a side. The ground under it has to stand as high as under the
+  house. A ground floor with no door on that side gets one in the middle of
+  it; one that has a door there keeps it.
+- **A porch of two or more rows is railed along its open edges**, across
+  both ends too once the wall is `RAILED_ENDS_FROM` cells long, with one gap
+  straight out from the first door. The cells straight out from every door
+  stay bare, so the way from the street to that door is a line.
+- **Porch furniture stands off the wall's shadow.** A wall is drawn over
+  the cell north and west of it, so on a north or west porch furniture goes
+  in the second row out; on the south and east it goes against the wall.
+  `use` picks it: `seating` (a table between two stools), `smithy` (the
+  `SMITHY_STATIONS` in order, then barrels and boxes) or `drill` (training
+  dummies along the front row).
+- **`SMITHY_STATIONS` lists `kiln` before it has a tile.** Both the smithy
+  floor and the smithy porch skip a station the catalogue does not hold, so
+  drawing a `kiln` tile puts one in every smithy without touching the code.
+- **A `smithy` floor** has the stations in its largest room and a bed in
+  the next; a **`barracks` floor** fills every room with as many beds as fit
+  and a lit table with stools in the largest.
 
 **Selecting a part cuts the view to it.** The page draws `cutAbove(map, the
 house's bounds, the part's level)`, so a floor shows with the storeys and
@@ -16707,6 +16730,43 @@ where the wood's is cut, and their `-inner` tiles are the complement, as
 `wooden-floor-inner` is. A change to the wood's sheet reaches them the next time
 the script runs. The joints are broken and one palette step from the stone:
 a floor with more contrast than that competes with whatever is standing on it.
+
+## A temple is a colonnade under a slab, not a house
+
+The `temple` component (`app/editor/compose/components/temple.ts`) replaces the
+rune temple's idea of a temple, a one-storey house with pillars indoors, with
+the Greek one: a stone floor ringed by marble pillars on every corner and every
+`gap` (1 or 2) cells between, `height` levels tall, carrying a roof of
+`marble-block` half blocks. Nothing stands between the pillars, so it is walked
+into from any side.
+
+- **A side is shortened to a whole number of bays.** A pillar stands on every
+  corner, so a frame whose side is not a multiple of `gap + 1` would leave one
+  bay wider than the rest. The spare cells come off both ends, and the temple
+  sits centred in its frame.
+- **The roof is on its own level.** A pillar fills each level it passes
+  through, and the slab sits on the level above the last one, so every cell
+  under the roof is a free storey. `gabled` rises one half block for every two
+  cells in from the eaves along the long side, which keeps it as shallow as a
+  pediment; a steeper one reads as a pyramid.
+- **A podium is raised ground.** With `base: "podium"` the floor is one level
+  up and a ring of `marble-block` round it is the step, half a level, that a
+  body climbs. The podium cells are declared in `raised`, so a `tile` child
+  stands on the temple floor without knowing it is there.
+- **`marble-block` has no outline.** A roof is dozens of them side by side and
+  must read as one slab. Each block is marked off by a joint one step darker
+  along the north and west of its top and the west of its south face, and its
+  south-east corner takes the east face's colour; lit, that column drew a white
+  diagonal at every block of a wall seen from the east.
+- **`ruin` (0–100) turns one temple into many ruins.** Each pillar rolls once
+  against `ruin^1.5`, so a light ruin cracks segments before anything falls; a
+  pillar that fails keeps a stump under `marble-pillar-broken`, or falls to
+  rubble. A roof cell stays only while a whole pillar is near enough, a reach
+  that shrinks with `ruin`, and only if it joins through the roof to a cell
+  over a whole pillar, so no slab floats. Moss, vines, ivy at pillar feet,
+  ferns and flowers grow with `ruin`. Every roll is per cell against the
+  node's seed, so raising `ruin` only ever takes more away, and two ruins with
+  different keys fall differently.
 
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 
