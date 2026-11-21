@@ -500,13 +500,6 @@ export function Inspector({
             </Button>
           ) : null}
         </Row>
-        <Row label="hidden">
-          <Switch
-            ariaLabel="hidden"
-            checked={node.hidden === true}
-            onCheckedChange={(hidden) => update((n) => ({ ...n, hidden }))}
-          />
-        </Row>
       </Section>
       <Section title="Frame">
         {node.frame ? (

@@ -11,10 +11,17 @@ export type Projection = {
   clientToCell(clientX: number, clientY: number, z: number): { x: number; y: number };
 };
 
+export type CanvasTool = "select" | "pan";
+
+export type PressKeys = { shift: boolean; alt: boolean };
+
+/** What a drag that started on the map does: `move` gets the whole cells since the press, at most once a frame. */
+export type CanvasDrag = { move(dx: number, dy: number): void; end(): void };
+
 const NOON = 12 * 60;
 const ZOOMS = [0.5, 1, 2, 3, 4, 6, 8];
 
-/** A press that moves less than this many pixels is a click, which picks, rather than a pan. */
+/** A press that moves less than this many pixels is a click, which picks, rather than a drag. */
 const CLICK_SLOP = 4;
 
 /** How far a pinch has to go before it steps to the next zoom: wheel units for a trackpad, a ratio for fingers. */
@@ -80,9 +87,11 @@ function zoomedBy(view: ComposeView, steps: number, at: { x: number; y: number }
 
 /**
  * The play renderer drawing a built map, with no game behind it, and a layer
- * of DOM above it for whatever the page draws in cells. Dragging or
- * scrolling pans, and a pinch steps through `ZOOMS`; the overlay gets every
- * pointer event first, so a handle in it stops a pan by stopping propagation.
+ * of DOM above it for whatever the page draws in cells. Scrolling pans and
+ * a pinch steps through `ZOOMS` with either tool. A press belongs to the
+ * tool: with "pan" a drag moves the view, and with "select" a click picks
+ * and a drag is handed to the page. The middle button always pans. The overlay gets every
+ * pointer event first, so a handle in it keeps a press by stopping propagation.
  */
 export function ComposeCanvas({
   map,
@@ -91,8 +100,10 @@ export function ComposeCanvas({
   view,
   onViewChange,
   lighting,
+  tool,
   overlay,
   onPick,
+  onDrag,
 }: {
   map: MapFile;
   tilesById: Record<string, TileDef>;
@@ -100,8 +111,10 @@ export function ComposeCanvas({
   view: ComposeView;
   onViewChange: (view: ComposeView) => void;
   lighting: boolean;
+  tool: CanvasTool;
   overlay?: (projection: Projection) => ReactNode;
-  onPick?: (cell: { x: number; y: number }) => void;
+  onPick?: (cell: { x: number; y: number }, keys: PressKeys) => void;
+  onDrag?: (cell: { x: number; y: number }, keys: PressKeys) => CanvasDrag | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -218,17 +231,39 @@ export function ComposeCanvas({
   );
 
   /**
-   * One finger or the mouse drags the map, and a press that does not move
-   * picks. Two fingers pinch: each time the distance between them changes by
-   * `PINCH_RATIO_STEP` the view steps a zoom about their midpoint, and moving
-   * both pans.
+   * One finger or the mouse presses, which the tool turns into a pan or into
+   * a pick or a drag. Two fingers pinch: each time the distance between them
+   * changes by `PINCH_RATIO_STEP` the view steps a zoom about their midpoint,
+   * and moving both pans.
    */
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<
-    | { kind: "pan"; x: number; y: number; view: ComposeView; moved: boolean }
+    | { kind: "pan"; x: number; y: number; view: ComposeView }
+    | {
+        kind: "press";
+        x: number;
+        y: number;
+        cell: { x: number; y: number };
+        keys: PressKeys;
+        moved: boolean;
+        drag: CanvasDrag | null;
+        last: { dx: number; dy: number };
+        frame: number;
+      }
     | { kind: "pinch"; distance: number; mid: { x: number; y: number } }
     | null
   >(null);
+
+  const endDrag = () => {
+    const g = gesture.current;
+    if (g?.kind !== "press" || !g.drag) return;
+    if (g.frame) {
+      cancelAnimationFrame(g.frame);
+      g.drag.move(g.last.dx, g.last.dy);
+    }
+    g.drag.end();
+    g.drag = null;
+  };
 
   const pinchOf = () => {
     const [a, b] = [...pointers.current.values()];
@@ -242,15 +277,24 @@ export function ComposeCanvas({
     if (e.button !== 0 && e.button !== 1) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 2) gesture.current = { kind: "pinch", ...pinchOf() };
-    else if (pointers.current.size === 1) {
-      gesture.current = {
-        kind: "pan",
-        x: e.clientX,
-        y: e.clientY,
-        view: viewRef.current,
-        moved: false,
-      };
+    if (pointers.current.size === 2) {
+      endDrag();
+      gesture.current = { kind: "pinch", ...pinchOf() };
+    } else if (pointers.current.size === 1) {
+      gesture.current =
+        tool === "pan" || e.button === 1
+          ? { kind: "pan", x: e.clientX, y: e.clientY, view: viewRef.current }
+          : {
+              kind: "press",
+              x: e.clientX,
+              y: e.clientY,
+              cell: proj.clientToCell(e.clientX, e.clientY, 0),
+              keys: { shift: e.shiftKey, alt: e.altKey },
+              moved: false,
+              drag: null,
+              last: { dx: 0, dy: 0 },
+              frame: 0,
+            };
     }
   };
 
@@ -258,9 +302,22 @@ export function ComposeCanvas({
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const g = gesture.current;
-    if (g?.kind === "pan") {
-      if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > CLICK_SLOP) g.moved = true;
-      if (!g.moved) return;
+    if (g?.kind === "press") {
+      if (!g.moved) {
+        if (Math.hypot(e.clientX - g.x, e.clientY - g.y) <= CLICK_SLOP) return;
+        g.moved = true;
+        g.drag = onDrag?.(g.cell, g.keys) ?? null;
+      }
+      if (!g.drag) return;
+      const at = proj.clientToCell(e.clientX, e.clientY, 0);
+      const next = { dx: at.x - g.cell.x, dy: at.y - g.cell.y };
+      if (next.dx === g.last.dx && next.dy === g.last.dy) return;
+      g.last = next;
+      g.frame ||= requestAnimationFrame(() => {
+        g.frame = 0;
+        g.drag?.move(g.last.dx, g.last.dy);
+      });
+    } else if (g?.kind === "pan") {
       onViewChange({
         ...g.view,
         cx: g.view.cx - (e.clientX - g.x) / g.view.zoom,
@@ -287,8 +344,9 @@ export function ComposeCanvas({
   const onPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!pointers.current.delete(e.pointerId)) return;
     const g = gesture.current;
-    if (g?.kind === "pan" && !g.moved && e.type === "pointerup") {
-      onPick?.(proj.clientToCell(e.clientX, e.clientY, 0));
+    if (g?.kind === "press") {
+      if (!g.moved && e.type === "pointerup") onPick?.(g.cell, g.keys);
+      endDrag();
     }
     gesture.current = null;
   };
@@ -296,7 +354,10 @@ export function ComposeCanvas({
   return (
     <div
       ref={hostRef}
-      className="relative h-full w-full cursor-grab touch-none overflow-hidden bg-ink active:cursor-grabbing"
+      className={[
+        "relative h-full w-full touch-none overflow-hidden bg-ink",
+        tool === "pan" ? "cursor-grab active:cursor-grabbing" : "cursor-default",
+      ].join(" ")}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}

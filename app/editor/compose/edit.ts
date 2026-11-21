@@ -1,6 +1,15 @@
 import type { Bounds } from "../generator";
 import type { Frame, MapDoc, MapNode, Point } from "./doc";
-import { frameBounds, frameFor, pointFor, pointIn, type Layout } from "./layout";
+import type { Footprint } from "./components/mask";
+import {
+  frameBounds,
+  frameFor,
+  pointFor,
+  pointFrame,
+  pointIn,
+  type Layout,
+  type Placement,
+} from "./layout";
 
 function mapNodes(node: MapNode, fn: (node: MapNode) => MapNode): MapNode {
   const next = fn(node);
@@ -103,15 +112,12 @@ export function freeKey(root: MapNode, base: string): string {
 }
 
 /**
- * Copies a node and everything under it with fresh keys, beside the original.
- * A point inside the copy that named a node inside the original names that
- * node's copy, so a copied town keeps its own roads; one that named a node
- * outside it keeps naming that node.
+ * A node and everything under it with fresh keys. A point inside the copy
+ * that named a node inside the original names that node's copy, so a copied
+ * town keeps its own roads; one that named a node outside it keeps naming
+ * that node.
  */
-export function duplicateNode(doc: MapDoc, key: string): { doc: MapDoc; key: string } {
-  const node = findNode(doc.root, key);
-  const parent = findParent(doc.root, key);
-  if (!node || !parent) return { doc, key };
+function copyOf(doc: MapDoc, node: MapNode): MapNode {
   const renames = new Map<string, string>();
   const taken = new Set(allKeys(doc.root));
   for (const old of allKeys(node)) {
@@ -121,33 +127,193 @@ export function duplicateNode(doc: MapDoc, key: string): { doc: MapDoc; key: str
     renames.set(old, next);
   }
   const retarget = (value: unknown): unknown =>
-    isPoint(value) && value.in && renames.has(value.in)
-      ? { ...value, in: renames.get(value.in) }
-      : value;
-  const copy = mapNodes(node, (n) => ({
+    Array.isArray(value)
+      ? value.map(retarget)
+      : isPoint(value) && value.in && renames.has(value.in)
+        ? { ...value, in: renames.get(value.in) }
+        : value;
+  return mapNodes(node, (n) => ({
     ...n,
     key: renames.get(n.key)!,
     ...(n.props
       ? { props: Object.fromEntries(Object.entries(n.props).map(([k, v]) => [k, retarget(v)])) }
       : {}),
   }));
-  const index = parent.children!.findIndex((c) => c.key === key);
-  return { doc: insertNode(doc, parent.key, index + 1, copy), key: copy.key };
 }
 
-/** Puts a node inside a new group without a frame where it stood, which changes nothing it builds. */
-export function wrapInGroup(doc: MapDoc, key: string): { doc: MapDoc; key: string } {
+/** Puts a copy of a node at `index` among `parentKey`'s children, leaving the original where it is. */
+export function duplicateTo(
+  doc: MapDoc,
+  key: string,
+  parentKey: string,
+  index: number,
+): { doc: MapDoc; key: string } {
   const node = findNode(doc.root, key);
+  if (!node || node === doc.root || !findNode(doc.root, parentKey)) return { doc, key };
+  const copy = copyOf(doc, node);
+  return { doc: insertNode(doc, parentKey, index, copy), key: copy.key };
+}
+
+export function duplicateNode(doc: MapDoc, key: string): { doc: MapDoc; key: string } {
   const parent = findParent(doc.root, key);
-  if (!node || !parent) return { doc, key };
+  if (!parent) return { doc, key };
+  return duplicateTo(doc, key, parent.key, parent.children!.findIndex((c) => c.key === key) + 1);
+}
+
+/** The keys that have no ancestor among `keys`, in tree order: moving or deleting these covers the rest. */
+export function topmost(root: MapNode, keys: readonly string[]): string[] {
+  const wanted = new Set(keys);
+  const out: string[] = [];
+  const walk = (node: MapNode) => {
+    if (wanted.has(node.key)) out.push(node.key);
+    else node.children?.forEach(walk);
+  };
+  walk(root);
+  return out;
+}
+
+/**
+ * Puts nodes inside a new group without a frame where the first of them
+ * stood. For one node, or several under one parent, that changes nothing
+ * they build; a node brought in from another parent is measured in the
+ * group's parent from then on.
+ */
+export function wrapInGroup(doc: MapDoc, keys: readonly string[]): { doc: MapDoc; key: string } {
+  const members = topmost(doc.root, keys).filter((key) => key !== doc.root.key);
+  const first = members[0];
+  const parent = first ? findParent(doc.root, first) : null;
+  if (!first || !parent) return { doc, key: keys[0] ?? doc.root.key };
   const groupKey = freeKey(doc.root, "group");
-  const index = parent.children!.findIndex((c) => c.key === key);
-  const wrapped = insertNode(removeNode(doc, key), parent.key, index, {
-    type: "group",
-    key: groupKey,
-    children: [node],
-  });
+  const children = members.map((key) => findNode(doc.root, key)!);
+  const without = members.slice(1).reduce(removeNode, doc);
+  const wrapped = updateNode(without, parent.key, (p) => ({
+    ...p,
+    children: p.children!.map((c) =>
+      c.key === first ? { type: "group", key: groupKey, children } : c,
+    ),
+  }));
   return { doc: wrapped, key: groupKey };
+}
+
+/**
+ * Whether a press on `cell` is on a layer: inside its frame when it has one,
+ * and otherwise on a cell it wrote, since a layer without a frame fills its
+ * parent and its frame says nothing about where it is.
+ */
+export function hitsLayer(
+  placement: Placement,
+  footprint: Footprint | null,
+  cell: { x: number; y: number },
+): boolean {
+  if (placement.node.frame) {
+    const { bounds } = placement;
+    return (
+      cell.x >= bounds.minX &&
+      cell.x <= bounds.maxX &&
+      cell.y >= bounds.minY &&
+      cell.y <= bounds.maxY
+    );
+  }
+  if (!footprint) return false;
+  const x = cell.x - footprint.minX;
+  const y = cell.y - footprint.minY;
+  if (x < 0 || y < 0 || x >= footprint.width || y >= footprint.height) return false;
+  return footprint.cells[y * footprint.width + x] === 1;
+}
+
+/**
+ * The layer drawn on top at a cell: the last built whose frame or written
+ * cells hold it. A mask is only found while it, its layer or another of that
+ * layer's masks is selected, so a press on a lake finds the lake rather than
+ * the oval that shapes it.
+ */
+export function pickLayer(
+  root: MapNode,
+  built: {
+    layout: Layout;
+    steps: ReadonlyArray<{ key: string; footprint: Footprint | null }>;
+  },
+  cell: { x: number; y: number },
+  selection: readonly string[],
+): string | null {
+  for (let i = built.steps.length - 1; i >= 0; i--) {
+    const { key, footprint } = built.steps[i]!;
+    const placement = built.layout.placements.get(key);
+    if (!placement || !hitsLayer(placement, footprint, cell)) continue;
+    if (placement.node.type === "mask") {
+      const layer = findParent(root, key);
+      const open =
+        layer &&
+        (selection.includes(layer.key) || layer.children?.some((c) => selection.includes(c.key)));
+      if (!open) continue;
+    }
+    return key;
+  }
+  return null;
+}
+
+/**
+ * Moves nodes by whole cells from where `layout` has them. Each move reads
+ * its geometry from the node `from` in that layout and writes to the node
+ * `to`, which is the same node for a move and its copy for a duplicate, so
+ * calling it again with another distance replaces the last move rather than
+ * adding to it. A framed node gets a new frame and takes its subtree along;
+ * one without a frame has its points and its children moved instead. A point
+ * measured in a node that is itself moving is left alone, as it follows that
+ * node already.
+ */
+export function translateNodes(
+  doc: MapDoc,
+  layout: Layout,
+  moves: ReadonlyArray<{ from: string; to: string }>,
+  dx: number,
+  dy: number,
+): MapDoc {
+  const moving = new Set(
+    moves.flatMap(({ from }) => {
+      const node = layout.placements.get(from)?.node;
+      return node ? allKeys(node) : [];
+    }),
+  );
+  const translated = (node: MapNode, from: MapNode): MapNode => {
+    const placement = layout.placements.get(from.key);
+    if (!placement) return node;
+    if (node.frame && from.frame) {
+      const { bounds } = placement;
+      const to = {
+        minX: bounds.minX + dx,
+        maxX: bounds.maxX + dx,
+        minY: bounds.minY + dy,
+        maxY: bounds.maxY + dy,
+      };
+      return { ...node, frame: frameFor(node.frame, to, placement.parent) };
+    }
+    const moved = (now: unknown, was: unknown): unknown => {
+      if (Array.isArray(now) && Array.isArray(was)) return now.map((v, i) => moved(v, was[i]));
+      if (!isPoint(now) || !isPoint(was) || (was.in && moving.has(was.in))) return now;
+      const frame = pointFrame(layout, placement, was);
+      if (!frame) return now;
+      const at = pointIn(was, frame);
+      return pointFor(now, { x: at.x + dx, y: at.y + dy }, frame);
+    };
+    const props = node.props
+      ? Object.fromEntries(
+          Object.entries(node.props).map(([k, v]) => [k, moved(v, from.props?.[k])]),
+        )
+      : undefined;
+    const children = node.children?.map((child, i) =>
+      from.children?.[i] ? translated(child, from.children[i]) : child,
+    );
+    return { ...node, ...(props ? { props } : {}), ...(children ? { children } : {}) };
+  };
+  const targets = new Map(moves.map(({ from, to }) => [to, layout.placements.get(from)?.node]));
+  const walk = (node: MapNode): MapNode => {
+    const from = targets.get(node.key);
+    if (from) return translated(node, from);
+    if (!node.children) return node;
+    return { ...node, children: node.children.map(walk) };
+  };
+  return { ...doc, root: walk(doc.root) };
 }
 
 function union(boxes: Bounds[]): Bounds | null {

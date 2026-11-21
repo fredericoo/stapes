@@ -2,9 +2,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Bounds } from "../generator";
 import type { Projection } from "./ComposeCanvas";
 
-type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw" | "move";
+type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
-const EDGES: Exclude<Edge, "move">[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const EDGES: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
 const HANDLE_PX = 10;
 
@@ -56,14 +56,6 @@ function dragCells(
 }
 
 function dragged(from: Bounds, edge: Edge, dx: number, dy: number): Bounds {
-  if (edge === "move") {
-    return {
-      minX: from.minX + dx,
-      maxX: from.maxX + dx,
-      minY: from.minY + dy,
-      maxY: from.maxY + dy,
-    };
-  }
   const next = { ...from };
   if (edge.includes("w")) next.minX = Math.min(from.minX + dx, from.maxX);
   if (edge.includes("e")) next.maxX = Math.max(from.maxX + dx, from.minX);
@@ -81,9 +73,13 @@ const CURSOR: Record<Edge, string> = {
   sw: "nesw-resize",
   nw: "nwse-resize",
   se: "nwse-resize",
-  move: "move",
 };
 
+/**
+ * A frame's outline with a handle on each edge and corner to resize it. The
+ * box itself takes no pointer events, so a press inside it reaches the canvas,
+ * which can then pick a layer drawn over this one or drag the selection.
+ */
 export function FrameHandles({
   bounds,
   z,
@@ -101,15 +97,14 @@ export function FrameHandles({
   const b = projection.cellToScreen(bounds.maxX + 1, bounds.maxY + 1, z);
   const press = (edge: Edge) => (e: ReactPointerEvent<HTMLElement>) =>
     dragCells(e, projection, z, (dx, dy) => onBounds(dragged(bounds, edge, dx, dy)), onEnd);
-  const at = (edge: Exclude<Edge, "move">) => ({
+  const at = (edge: Edge) => ({
     left: edge.includes("w") ? 0 : edge.includes("e") ? "100%" : "50%",
     top: edge.includes("n") ? 0 : edge.includes("s") ? "100%" : "50%",
   });
   return (
     <div
-      className="absolute border-2 border-look shadow-[0_0_0_1px_var(--color-ink)]"
-      style={{ left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y, cursor: CURSOR.move }}
-      onPointerDown={press("move")}
+      className="pointer-events-none absolute border-2 border-look shadow-[0_0_0_1px_var(--color-ink)]"
+      style={{ left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y }}
     >
       <span className="pointer-events-none absolute -top-6 left-0 bg-ink px-1 text-xs text-paper tabular-nums">
         {bounds.maxX - bounds.minX + 1}×{bounds.maxY - bounds.minY + 1}
@@ -118,7 +113,7 @@ export function FrameHandles({
         <span
           key={edge}
           aria-hidden="true"
-          className="absolute border-2 border-ink bg-look"
+          className="pointer-events-auto absolute border-2 border-ink bg-look"
           style={{
             ...at(edge),
             width: HANDLE_PX,

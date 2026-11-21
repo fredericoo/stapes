@@ -407,7 +407,7 @@ describe("grouping", () => {
       ]),
     );
     const expected = serializeMap(build(original).map);
-    let tree = wrapInGroup(original, "yard").doc;
+    let tree = wrapInGroup(original, ["yard"]).doc;
     tree = moveNode(tree, "lane", "group", 1);
     expect(serializeMap(build(tree).map)).toBe(expected);
     tree = reframeNode(tree, build(tree), "group", "fit");

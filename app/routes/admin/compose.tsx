@@ -4,6 +4,8 @@ import {
   IconBraces,
   IconCopy,
   IconFolder,
+  IconHandStop,
+  IconPointer,
   IconTrash,
 } from "@tabler/icons-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -13,19 +15,26 @@ import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
 import {
   ComposeCanvas,
+  type CanvasDrag,
+  type CanvasTool,
   type ComposeView,
+  type PressKeys,
   type Projection,
 } from "../../editor/compose/ComposeCanvas";
 import demo from "../../editor/compose/demo.json";
 import { parseMapDoc, type MapDoc, type Point } from "../../editor/compose/doc";
 import {
   duplicateNode,
+  duplicateTo,
   findNode,
-  findParent,
   freeKey,
+  hitsLayer,
   insertNode,
   moveNode,
+  pickLayer,
   removeNode,
+  topmost,
+  translateNodes,
   updateNode,
   wrapInGroup,
 } from "../../editor/compose/edit";
@@ -70,8 +79,7 @@ function viewOf(doc: MapDoc): ComposeView {
   return { cx: centre.x, cy: centre.y, zoom: 1 };
 }
 
-function Outline({ placement, projection }: { placement: Placement; projection: Projection }) {
-  const { bounds, z } = placement;
+function Outline({ bounds, z, projection }: { bounds: Bounds; z: number; projection: Projection }) {
   const a = projection.cellToScreen(bounds.minX, bounds.minY, z);
   const b = projection.cellToScreen(bounds.maxX + 1, bounds.maxY + 1, z);
   return (
@@ -102,18 +110,15 @@ function MaskOutline({ placement, projection }: { placement: Placement; projecti
   );
 }
 
-/** The node drawn on top at a cell: the last in build order whose own frame holds it. */
-function pick(layout: Layout, cell: { x: number; y: number }): string | null {
-  for (let i = layout.order.length - 1; i >= 0; i--) {
-    const placement = layout.placements.get(layout.order[i]!)!;
-    const { bounds } = placement;
-    if (!placement.node.frame || placement.node.hidden) continue;
-    if (cell.x < bounds.minX || cell.x > bounds.maxX) continue;
-    if (cell.y < bounds.minY || cell.y > bounds.maxY) continue;
-    return placement.node.key;
-  }
-  return null;
-}
+const TOOLS: ReadonlyArray<{
+  tool: CanvasTool;
+  label: string;
+  hint: string;
+  Icon: typeof IconPointer;
+}> = [
+  { tool: "select", label: "Select", hint: "Select and move layers (V)", Icon: IconPointer },
+  { tool: "pan", label: "Pan", hint: "Drag the map (H, or hold Space)", Icon: IconHandStop },
+];
 
 type Props = Record<string, unknown>;
 
@@ -197,7 +202,10 @@ export default function ComposePage() {
   const [playOpen, setPlayOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const { show: showToast } = useToast();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [picked, setSelection] = useState<string[]>([]);
+  const [tool, setTool] = useState<CanvasTool>("select");
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const activeTool = spaceHeld ? "pan" : tool;
   const [expanded, setExpanded] = useState(() => branchKeys(doc.root));
   const lastBuild = useRef<BuildResult | null>(null);
   const { built, stats } = useMemo(() => {
@@ -217,8 +225,15 @@ export default function ComposePage() {
     };
   }, [doc, tilesById]);
   const problemKeys = useMemo(() => new Set(built.problems.map((p) => p.key)), [built]);
+  const selection = useMemo(
+    () => picked.filter((key) => built.layout.placements.has(key)),
+    [picked, built],
+  );
+  const selected = selection.length === 1 ? selection[0]! : null;
   const placement = selected ? built.layout.placements.get(selected) : undefined;
   const selectedNode = selected ? findNode(doc.root, selected) : null;
+  const movable = topmost(doc.root, selection).filter((key) => key !== doc.root.key);
+  const footprints = useMemo(() => new Map(built.steps.map((s) => [s.key, s.footprint])), [built]);
 
   const spawns = useMemo(() => findPlayers(built.map).length, [built]);
 
@@ -252,30 +267,88 @@ export default function ComposePage() {
       insertNode(d, parent.key, parent.children?.length ?? 0, { type, key, ...component.starter }),
     );
     setExpanded((keys) => (keys.includes(parent.key) ? keys : [...keys, parent.key]));
-    setSelected(key);
+    setSelection([key]);
   };
 
   const deleteSelected = () => {
-    if (!selected || selected === doc.root.key) return;
-    const parent = findParent(doc.root, selected);
-    commit((d) => removeNode(d, selected));
-    setSelected(parent?.key ?? null);
+    if (!movable.length) return;
+    commit((d) => movable.reduce(removeNode, d));
+    setSelection([]);
   };
 
   const groupSelected = () => {
-    if (!selected || selected === doc.root.key) return;
-    const parent = findParent(doc.root, selected);
-    const grouped = wrapInGroup(doc, selected);
+    if (!movable.length) return;
+    const grouped = wrapInGroup(doc, movable);
     commit(grouped.doc);
-    setExpanded((keys) => [...keys, grouped.key, ...(parent ? [parent.key] : [])]);
-    setSelected(grouped.key);
+    setExpanded((keys) => [...keys, grouped.key]);
+    setSelection([grouped.key]);
+  };
+
+  /** Copies each node beside itself and returns the tree with which copy stands for which original. */
+  const copiesOf = (keys: readonly string[]) => {
+    let next = doc;
+    const moves = keys.map((from) => {
+      const copied = duplicateNode(next, from);
+      next = copied.doc;
+      return { from, to: copied.key };
+    });
+    return { doc: next, moves };
   };
 
   const duplicateSelected = () => {
-    if (!selected || selected === doc.root.key) return;
-    const copied = duplicateNode(doc, selected);
+    if (!movable.length) return;
+    const copied = copiesOf(movable);
     commit(copied.doc);
-    setSelected(copied.key);
+    setSelection(copied.moves.map((m) => m.to));
+  };
+
+  const hits = (key: string, cell: { x: number; y: number }) => {
+    const p = built.layout.placements.get(key);
+    return p ? hitsLayer(p, footprints.get(key) ?? null, cell) : false;
+  };
+
+  const pickOnMap = (cell: { x: number; y: number }, keys: PressKeys) => {
+    if (picking) {
+      picking(cell);
+      setPicking(null);
+      return;
+    }
+    const key = pickLayer(doc.root, built, cell, selection);
+    if (!keys.shift) setSelection(key ? [key] : []);
+    else if (key) {
+      setSelection(
+        selection.includes(key) ? selection.filter((k) => k !== key) : [...selection, key],
+      );
+    }
+  };
+
+  /**
+   * A drag that starts on a selected layer moves the selection, whatever is
+   * drawn over it there; one that starts anywhere else selects the layer under
+   * the pointer and moves that. The root is never moved this way: every drag
+   * starts inside it, so it would take every drag. With Alt the originals
+   * stay and their copies are what moves.
+   */
+  const dragOnMap = (cell: { x: number; y: number }, keys: PressKeys): CanvasDrag | null => {
+    if (picking) return null;
+    let moving = movable;
+    if (!moving.some((key) => hits(key, cell))) {
+      const under = pickLayer(doc.root, built, cell, selection);
+      if (!under || under === doc.root.key) return null;
+      moving = keys.shift ? topmost(doc.root, [...movable, under]) : [under];
+    }
+    const { layout } = built;
+    let moves = moving.map((key) => ({ from: key, to: key }));
+    if (keys.alt) {
+      const copied = copiesOf(moving);
+      moves = copied.moves;
+      preview(() => copied.doc);
+    }
+    setSelection(moves.map((m) => m.to));
+    return {
+      move: (dx, dy) => preview((d) => translateNodes(d, layout, moves, dx, dy)),
+      end: settle,
+    };
   };
 
   useEffect(() => {
@@ -286,6 +359,19 @@ export default function ComposePage() {
       }
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable], [role=dialog]")) return;
+      if (e.key === "Escape") {
+        setSelection([]);
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        setSpaceHeld(true);
+        return;
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "v" || e.key === "h")) {
+        setTool(e.key === "v" ? "select" : "pan");
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         deleteSelected();
@@ -301,8 +387,21 @@ export default function ComposePage() {
       if (e.shiftKey) redo();
       else undo();
     };
+    /** Releasing Space on a focused button would press it, so the release is swallowed while Space pans. */
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !spaceHeld) return;
+      e.preventDefault();
+      setSpaceHeld(false);
+    };
+    const onBlur = () => setSpaceHeld(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
   });
 
   return (
@@ -355,34 +454,34 @@ export default function ComposePage() {
           <aside className="flex min-h-0 flex-col border-r-2 border-border bg-paper">
             <div className="flex items-center gap-1 border-b-2 border-border px-3 py-1.5">
               <h2 className="mr-auto text-xs font-bold uppercase tracking-wide">Layers</h2>
-              <Tooltip content="Put the selected layer in a group (⌘G)">
+              <Tooltip content="Put the selected layers in a group (⌘G)">
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Group layer"
-                  disabled={!selected || selected === doc.root.key}
+                  aria-label="Group layers"
+                  disabled={!movable.length}
                   onClick={groupSelected}
                 >
                   <IconFolder size={16} aria-hidden="true" />
                 </Button>
               </Tooltip>
-              <Tooltip content="Duplicate the selected layer">
+              <Tooltip content="Duplicate the selected layers">
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Duplicate layer"
-                  disabled={!selected || selected === doc.root.key}
+                  aria-label="Duplicate layers"
+                  disabled={!movable.length}
                   onClick={duplicateSelected}
                 >
                   <IconCopy size={16} aria-hidden="true" />
                 </Button>
               </Tooltip>
-              <Tooltip content="Delete the selected layer (Delete)">
+              <Tooltip content="Delete the selected layers (Delete)">
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Delete layer"
-                  disabled={!selected || selected === doc.root.key}
+                  aria-label="Delete layers"
+                  disabled={!movable.length}
                   onClick={deleteSelected}
                 >
                   <IconTrash size={16} aria-hidden="true" />
@@ -403,12 +502,23 @@ export default function ComposePage() {
               <LayersPanel
                 root={doc.root}
                 components={COMPONENTS}
-                selected={selected}
-                onSelect={setSelected}
+                selection={selection}
+                onSelect={setSelection}
                 expanded={expanded}
                 onExpandedChange={setExpanded}
                 problems={problemKeys}
-                onMove={(key, parent, index) => commit((d) => moveNode(d, key, parent, index))}
+                onMove={(key, parent, index, copy) => {
+                  if (!copy) {
+                    commit((d) => moveNode(d, key, parent, index));
+                    return;
+                  }
+                  const copied = duplicateTo(doc, key, parent, index);
+                  commit(copied.doc);
+                  setSelection([copied.key]);
+                }}
+                onHidden={(key, hidden) =>
+                  commit((d) => updateNode(d, key, (n) => ({ ...n, hidden })))
+                }
               />
             </ScrollArea>
           </aside>
@@ -420,14 +530,43 @@ export default function ComposePage() {
               view={view}
               onViewChange={setView}
               lighting={false}
-              onPick={(cell) => {
-                if (picking) {
-                  picking(cell);
-                  setPicking(null);
-                } else setSelected(pick(built.layout, cell));
-              }}
+              tool={picking ? "select" : activeTool}
+              onPick={pickOnMap}
+              onDrag={dragOnMap}
               overlay={(projection) => (
                 <>
+                  <div
+                    role="toolbar"
+                    aria-label="Tools"
+                    className="absolute top-2 left-2 flex border-2 border-ink bg-paper shadow-hard"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {TOOLS.map(({ tool: t, label, hint, Icon }) => (
+                      <Tooltip key={t} content={hint}>
+                        <button
+                          type="button"
+                          aria-label={label}
+                          aria-pressed={activeTool === t}
+                          className={[
+                            "p-1.5",
+                            activeTool === t ? "bg-ink text-paper" : "hover:bg-panel",
+                          ].join(" ")}
+                          onClick={() => setTool(t)}
+                        >
+                          <Icon size={16} aria-hidden="true" />
+                        </button>
+                      </Tooltip>
+                    ))}
+                  </div>
+                  {selection.length > 1
+                    ? selection.map((key) => {
+                        const p = built.layout.placements.get(key)!;
+                        const bounds = p.node.frame ? p.bounds : built.written.get(key);
+                        return bounds ? (
+                          <Outline key={key} bounds={bounds} z={p.z} projection={projection} />
+                        ) : null;
+                      })
+                    : null}
                   <p className="pointer-events-none absolute bottom-2 left-2 bg-ink/80 px-2 py-1 text-xs tabular-nums text-paper">
                     Built in {stats.ms.toFixed(1)} ms · {stats.rebuilt} of {stats.nodes} layers
                     {stats.chunks === null
@@ -453,7 +592,7 @@ export default function ComposePage() {
                             />
                           ) : null;
                         })}
-                      {selectedNode.frame ? (
+                      {selectedNode.frame && activeTool === "select" ? (
                         <FrameHandles
                           bounds={placement.bounds}
                           z={placement.z}
@@ -469,72 +608,81 @@ export default function ComposePage() {
                           onEnd={settle}
                         />
                       ) : (
-                        <Outline placement={placement} projection={projection} />
+                        <Outline
+                          bounds={placement.bounds}
+                          z={placement.z}
+                          projection={projection}
+                        />
                       )}
-                      {pointsOf(built.layout, placement).map((spec, i, all) => {
-                        const before = all[i - 1];
-                        const insertAt = spec.insertAt;
-                        return (
-                          <Fragment key={spec.key}>
-                            {before && insertAt ? (
-                              <InsertHandle
-                                cell={{
-                                  x: Math.round((before.cell.x + spec.cell.x) / 2),
-                                  y: Math.round((before.cell.y + spec.cell.y) / 2),
-                                }}
+                      {(activeTool === "select" ? pointsOf(built.layout, placement) : []).map(
+                        (spec, i, all) => {
+                          const before = all[i - 1];
+                          const insertAt = spec.insertAt;
+                          return (
+                            <Fragment key={spec.key}>
+                              {before && insertAt ? (
+                                <InsertHandle
+                                  cell={{
+                                    x: Math.round((before.cell.x + spec.cell.x) / 2),
+                                    y: Math.round((before.cell.y + spec.cell.y) / 2),
+                                  }}
+                                  z={placement.z}
+                                  projection={projection}
+                                  onInsert={(cell) =>
+                                    commit((d) =>
+                                      updateNode(d, placement.node.key, (n) => {
+                                        const list = [
+                                          ...((n.props?.[insertAt.name] as Point[] | undefined) ??
+                                            []),
+                                        ];
+                                        list.splice(
+                                          insertAt.index,
+                                          0,
+                                          pointFor({ x: 0, y: 0 }, cell, placement.bounds),
+                                        );
+                                        return {
+                                          ...n,
+                                          props: { ...n.props, [insertAt.name]: list },
+                                        };
+                                      }),
+                                    )
+                                  }
+                                />
+                              ) : null}
+                              <PointHandle
+                                label={spec.glyph}
+                                title={spec.title}
+                                cell={spec.cell}
                                 z={placement.z}
                                 projection={projection}
-                                onInsert={(cell) =>
-                                  commit((d) =>
-                                    updateNode(d, placement.node.key, (n) => {
-                                      const list = [
-                                        ...((n.props?.[insertAt.name] as Point[] | undefined) ??
-                                          []),
-                                      ];
-                                      list.splice(
-                                        insertAt.index,
-                                        0,
-                                        pointFor({ x: 0, y: 0 }, cell, placement.bounds),
-                                      );
-                                      return { ...n, props: { ...n.props, [insertAt.name]: list } };
-                                    }),
+                                onCell={(next) =>
+                                  preview((d) =>
+                                    updateNode(d, placement.node.key, (n) => ({
+                                      ...n,
+                                      props: spec.write(
+                                        n.props ?? {},
+                                        pointFor(spec.point, next, spec.frame),
+                                      ),
+                                    })),
                                   )
                                 }
+                                onEnd={settle}
+                                onRemove={
+                                  spec.remove
+                                    ? () =>
+                                        commit((d) =>
+                                          updateNode(d, placement.node.key, (n) => ({
+                                            ...n,
+                                            props: spec.remove!(n.props ?? {}),
+                                          })),
+                                        )
+                                    : undefined
+                                }
                               />
-                            ) : null}
-                            <PointHandle
-                              label={spec.glyph}
-                              title={spec.title}
-                              cell={spec.cell}
-                              z={placement.z}
-                              projection={projection}
-                              onCell={(next) =>
-                                preview((d) =>
-                                  updateNode(d, placement.node.key, (n) => ({
-                                    ...n,
-                                    props: spec.write(
-                                      n.props ?? {},
-                                      pointFor(spec.point, next, spec.frame),
-                                    ),
-                                  })),
-                                )
-                              }
-                              onEnd={settle}
-                              onRemove={
-                                spec.remove
-                                  ? () =>
-                                      commit((d) =>
-                                        updateNode(d, placement.node.key, (n) => ({
-                                          ...n,
-                                          props: spec.remove!(n.props ?? {}),
-                                        })),
-                                      )
-                                  : undefined
-                              }
-                            />
-                          </Fragment>
-                        );
-                      })}
+                            </Fragment>
+                          );
+                        },
+                      )}
                     </>
                   ) : null}
                 </>
@@ -553,11 +701,15 @@ export default function ComposePage() {
                   components={COMPONENTS}
                   problems={built.problems.filter((p) => p.key === selected).map((p) => p.reason)}
                   onChange={commit}
-                  onRenamed={setSelected}
+                  onRenamed={(key) => setSelection([key])}
                   pickCell={pickCell}
                 />
               ) : (
-                <p className="p-3 text-sm text-muted">Select a layer to edit it.</p>
+                <p className="p-3 text-sm text-muted">
+                  {selection.length > 1
+                    ? `${selection.length} layers selected. Drag one on the map to move them all, or select a single layer to edit it.`
+                    : "Select a layer to edit it."}
+                </p>
               )}
             </ScrollArea>
           </aside>
