@@ -27,6 +27,10 @@
         },
         "children": [
           {
+            "type": "grass",
+            "key": "grass"
+          },
+          {
             "type": "forest",
             "key": "north-wood",
             "frame": {
@@ -36,7 +40,7 @@
               "h": 22
             },
             "props": {
-              "onlyOn": ["sand"],
+              "onlyOn": ["grass"],
               "density": 50,
               "path": null
             },
@@ -215,7 +219,7 @@
               "density": 4,
               "clumping": 70,
               "clumpSize": 8,
-              "onlyOn": ["sand"]
+              "onlyOn": ["grass"]
             }
           },
           {
@@ -280,7 +284,8 @@
                 "pinX": "right",
                 "pinY": "center"
               },
-              "tile": "cobblestone"
+              "tile": "cobblestone",
+              "verge": 1
             }
           },
           {

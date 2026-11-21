@@ -27,6 +27,8 @@ const RoadSchema = v.object({
     "dead-tree",
     "small-bush",
   ]),
+  cuts: v.optional(field.tiles(TILES.ground), ["grass"]),
+  verge: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(2)), 0),
 });
 
 export type RoadProps = v.InferOutput<typeof RoadSchema>;
@@ -325,7 +327,8 @@ export const road: Component<RoadProps> = {
     const band = bandOffsets(props.width);
     const edges = [band[0]! - 1, band.at(-1)! + 1];
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
-    const clears = new Set(props.clears);
+    const clears = new Set([...props.clears, ...props.cuts]);
+    const cuts = new Set(props.cuts);
     const written = new Map<string, PlacedTile[]>();
     const below: StackEdit[] = [];
     const at = (x: number, y: number) => `${x},${y}`;
@@ -422,7 +425,10 @@ export const road: Component<RoadProps> = {
         const cleared = isWet(stack) ? stack : stack.filter((p) => !clears.has(p.tileId));
         if (stackHeight(cleared, ctx.tilesById) > 0) continue;
         const surface = c.bridge ? deckOf(c).deck : props.tile ? tile(props.tile) : null;
-        if (!surface) continue;
+        if (!surface) {
+          if (cleared.length !== stack.length) written.set(at(x, y), cleared);
+          continue;
+        }
         if (cleared.at(-1)?.tileId === surface.tileId && cleared.length === stack.length) continue;
         written.set(
           at(x, y),
@@ -441,6 +447,20 @@ export const road: Component<RoadProps> = {
         if (stackHeight(cleared, ctx.tilesById) > 0) continue;
         const under = cleared.filter((p) => p.tileId !== props.tile && p.tileId !== style.deck);
         written.set(at(x, y), [...under, deck, tile(style.rail)]);
+      }
+    }
+    for (const c of laid) {
+      if (c.bridge || c.slope) continue;
+      for (let n = 1; n <= props.verge; n++) {
+        for (const o of [band[0]! - n, band.at(-1)! + n]) {
+          const x = c.x + c.side.x * o;
+          const y = c.y + c.side.y * o;
+          if (written.has(at(x, y)) || slopes.has(at(x, y))) continue;
+          const stack = stackOn(x, y);
+          if (isWet(stack)) continue;
+          const cut = stack.filter((p) => !cuts.has(p.tileId));
+          if (cut.length !== stack.length) written.set(at(x, y), cut);
+        }
       }
     }
     for (const [key, stack] of reshaped) if (!written.has(key)) written.set(key, stack);

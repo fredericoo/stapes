@@ -15807,8 +15807,8 @@ arming the tool with an id nothing can draw.
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
-`sea`, `island`, `hill`, `forest`, `house` with its `floor`, `cellar` and
-`roof`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
+and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -15967,6 +15967,43 @@ or foam. Such a component sets `shapesItself`, cuts its shape with
 name tiles (`only`). `island` and `hill` do this; `fill` reads `ctx.covered`
 for its edge band too, and needs no flag because it writes nothing outside
 what is covered.
+
+### Grass is a cover laid early, and the layers after it take it out
+
+`grass` is drawn over the ground with a ragged edge that shows the ground
+under it, so a path is a cell without it rather than a tile on it. The `grass`
+component lays it on every open cell whose top tile is in `onlyOn`; it is a
+`fill` in `on top` mode with no edge. It goes first among an island's
+children, and what follows reads `grass` as the top tile: a forest or a
+scatter meant for the lawn lists `grass` in its `onlyOn`, not `sand`.
+
+- **A road removes the tiles in `cuts` (default `grass`) from its cells** and
+  lays its tile on what is left, so dirt lies on the sand and not on the
+  grass. A road with no tile writes the cut stack and nothing else, which is a
+  bare path; with `cuts` empty it writes nothing on flat land, as before.
+- **`verge` cuts that many more cells each side and paves none of them.** The
+  verge is cut after the whole surface is laid. Cut cell by cell with the
+  surface, a cell's verge covered the next cell of a diagonal route, which was
+  then skipped as already written and left the surface in disconnected cells.
+
+### A plan can keep its descendants' ground off some of its cells
+
+An island returns `bare`: its land within `beach` cells of the coast (four
+neighbour steps from water, not counting land an earlier island left). For
+every node under it the build drops the flat ground tiles (`TILES.ground`)
+that node adds on those cells (`offBare`), so grass, a road's surface and a
+ground fill all stop short of the shore without any of them knowing where it
+is. Removing still works there: a road cuts across the beach.
+
+- An edit that leaves the cell wet is passed whole. A river or a lake has to
+  reach the sea, and its bed is flat ground.
+- Components that set `ownLevels` or `shapesItself` are passed whole too. A
+  hill with some of its ground tiles dropped is a cliff with no top, and a
+  house without part of its floor is not a house.
+- It reaches descendants only. A layer beside the island, after it, is not
+  kept off, which is the way to put ground on a beach on purpose.
+- `bare` is kept on the step, like `footprint`, so a resumed build has it for
+  the nodes it reuses.
 
 ### A hill is the columns `docs/terrain.md` describes, counted in from its foot
 
