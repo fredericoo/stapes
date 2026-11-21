@@ -16043,9 +16043,14 @@ A hidden child is left out, so hiding the roof builds the house without one.
   not a corner, facing out of that wall. A floor takes any number, and so
   does an upper floor, where a door opens onto a drop.
 - **Every storey is joined to the one nearer the ground**, by what its
-  `reachedBy` asks for. A flight is two `stone-stairs` in a row, the second
-  on a `half-stone`, as a hill's ramp is, so the pair rises a whole level
-  and the stairs fill the height they climb. Both cells over them are a hole
+  `reachedBy` asks for. A flight is two stair tiles in a row, the second on
+  a half block, as a hill's ramp is, so the pair rises a whole level and the
+  stairs fill the height they climb. The storey's `stairs` picks the tile,
+  from any directional tile with `climbFrom`, and `STAIR_BLOCK` in
+  `building.ts` names the half block drawn in the same material
+  (`stone-stairs` on `brick-slab`, `ramp` on `half-stone`, `snowy-ramp` on
+  `frosted-half-stone`); a stair tile it does not list gets `half-stone`.
+  Both cells over them are a hole
   on the storey above, because a body on either stair stands partly in that
   level (*A ramp between two levels needs a hole above it*). Where no flight
   fits, a ladder (`ladder-up` under `ladder-top` on a floor tile) takes one
@@ -16062,6 +16067,10 @@ A hidden child is left out, so hiding the roof builds the house without one.
   the cell is kept so no wall between rooms or furniture lands there later.
   Only a house one cell deep inside, which has no other cell, gets a ladder
   against its south wall.
+- **A flight keeps a cell of floor between it and every outer wall**
+  (`STAIR_MARGIN`). The padding round the hole above would otherwise land
+  on a wall cell and be drawn outside the house, so a wall cell never takes
+  the `-inner` tile either. A house too small for that gets a ladder.
 - **The hole over a flight is railed on every side but its landing**
   (`railHole`), with `fence`, so the stairs are entered only from their head.
   A floor autotile draws a cut edge towards a cell with no floor, so every

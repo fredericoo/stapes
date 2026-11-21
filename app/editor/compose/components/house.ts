@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import {
   ACCESS,
+  DEFAULT_STAIRS_TILE_ID,
   FLOOR_USES,
   ROOM_RANGE,
   planBuilding,
@@ -55,6 +56,7 @@ const FloorSchema = v.object({
   use: v.optional(v.picklist(FLOOR_USES), "house"),
   rooms: v.optional(rooms, 1),
   reachedBy: v.optional(v.picklist(ACCESS), "stairs"),
+  stairs: v.optional(field.tile(TILES.stairs), DEFAULT_STAIRS_TILE_ID),
   roomDoors: v.optional(v.boolean(), true),
   stocked: v.optional(v.boolean(), true),
   doors: v.optional(field.points(), []),
@@ -69,6 +71,7 @@ const CellarSchema = v.object({
   use: v.optional(v.picklist(FLOOR_USES), "storage"),
   rooms: v.optional(rooms, 1),
   reachedBy: v.optional(v.picklist(ACCESS), "stairs"),
+  stairs: v.optional(field.tile(TILES.stairs), DEFAULT_STAIRS_TILE_ID),
   roomDoors: v.optional(v.boolean(), true),
   stocked: v.optional(v.boolean(), true),
   wall: v.optional(v.nullable(field.tile(TILES.wall)), "brick-wall"),
@@ -145,6 +148,7 @@ export const house: Component<HouseProps> = {
       roomDoors: own.roomDoors,
       stocked: own.stocked,
       access: own.reachedBy,
+      stairsTileId: own.stairs,
       doors:
         "doors" in own
           ? own.doors.flatMap((point) => {

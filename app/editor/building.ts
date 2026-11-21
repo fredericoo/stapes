@@ -52,6 +52,8 @@ export type FloorSpec = {
   /** Whether the containers among the furniture are stocked with items. */
   stocked: boolean;
   access: Access;
+  /** The stair tile of the flight this storey is reached by, when `access` is stairs. */
+  stairsTileId: string;
   doors: ReadonlyArray<{ x: number; y: number }>;
   wallTileId: string;
   floorTileId: string;
@@ -73,8 +75,17 @@ export type BuildingSpec = {
   roof: RoofSpec | null;
 };
 
-const STAIRS_TILE_ID = "stone-stairs";
-const STAIR_BLOCK_TILE_ID = "half-stone";
+export const DEFAULT_STAIRS_TILE_ID = "stone-stairs";
+const DEFAULT_STAIR_BLOCK_TILE_ID = "half-stone";
+/**
+ * The half block the second stair of a flight stands on, by stair tile: the
+ * one drawn in the same material. A stair tile not listed gets the default.
+ */
+const STAIR_BLOCK: Record<string, string> = {
+  "stone-stairs": "brick-slab",
+  ramp: "half-stone",
+  "snowy-ramp": "frosted-half-stone",
+};
 const LADDER_UP_TILE_ID = "ladder-up";
 const LADDER_TOP_TILE_ID = "ladder-top";
 
@@ -92,6 +103,8 @@ const ROOM_DOOR = 10;
 const STAIR_HIGH = 11;
 
 const RAIL_TILE_ID = "fence";
+/** The first grid column and row a stair can stand in: 0 is the outer wall and 1 is the cell kept between. */
+const STAIR_MARGIN = 2;
 
 const DELTA: Record<Direction, readonly [number, number]> = {
   n: [0, -1],
@@ -114,6 +127,8 @@ type Storey = {
   facing: Map<number, Direction>;
   furniture: Map<number, PlacedTile[]>;
   rooms: Room[];
+  /** The stair tile of the flight that climbs from this storey. */
+  stairsUp: string;
 };
 
 type Grid = { bounds: Bounds; width: number; depth: number };
@@ -181,6 +196,7 @@ function newStorey(grid: Grid, spec: FloorSpec, level: number, underground: bool
     keep: new Uint8Array(kinds.length),
     facing: new Map(),
     furniture: new Map(),
+    stairsUp: DEFAULT_STAIRS_TILE_ID,
     rooms: [{ minX: 1, maxX: grid.width - 2, minY: 1, maxY: grid.depth - 2 }],
   };
 }
@@ -241,9 +257,25 @@ function keepSouthClear(grid: Grid, storey: Storey, at: number) {
  * the pair rises a whole level, with the step before them (`foot`). On the
  * upper storey both cells over the stairs are a hole, since a body on either
  * stair stands partly in that level, and the landing (`head`) is beyond it.
- * Flights against a wall are tried first.
+ * Both stairs keep a cell of floor between them and every outer wall: the
+ * floor round the hole above is padded with a tile that would otherwise be
+ * drawn on the wall and show outside the house. Flights one cell from a wall
+ * are tried first.
  */
-function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => number): boolean {
+function placeStairs(
+  grid: Grid,
+  lower: Storey,
+  upper: Storey,
+  random: () => number,
+  stairsTileId: string,
+): boolean {
+  const nearWall = (x: number, y: number) =>
+    x === STAIR_MARGIN ||
+    y === STAIR_MARGIN ||
+    x === grid.width - STAIR_MARGIN - 1 ||
+    y === grid.depth - STAIR_MARGIN - 1
+      ? 1
+      : 0;
   const options: Array<{
     low: number;
     high: number;
@@ -252,8 +284,13 @@ function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => num
     climb: Direction;
     walls: number;
   }> = [];
-  for (let y = 1; y < grid.depth - 1; y++) {
-    for (let x = 1; x < grid.width - 1; x++) {
+  const clear = (x: number, y: number) =>
+    x >= STAIR_MARGIN &&
+    y >= STAIR_MARGIN &&
+    x < grid.width - STAIR_MARGIN &&
+    y < grid.depth - STAIR_MARGIN;
+  for (let y = STAIR_MARGIN; y < grid.depth - STAIR_MARGIN; y++) {
+    for (let x = STAIR_MARGIN; x < grid.width - STAIR_MARGIN; x++) {
       const low = y * grid.width + x;
       if (!bare(lower, low) || !bare(upper, low) || !seenFromSouth(grid, lower, low)) continue;
       for (const climb of SIDES) {
@@ -262,8 +299,7 @@ function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => num
         const high = low + step;
         const foot = low - step;
         const head = high + step;
-        if (x + 2 * dx < 1 || x + 2 * dx > grid.width - 2) continue;
-        if (y + 2 * dy < 1 || y + 2 * dy > grid.depth - 2) continue;
+        if (!clear(x + dx, y + dy)) continue;
         if (!bare(lower, high) || !bare(upper, high)) continue;
         if (climb !== "n" && !seenFromSouth(grid, lower, high)) continue;
         if (lower.kinds[foot] !== FLOOR || upper.kinds[head] !== FLOOR) continue;
@@ -273,15 +309,12 @@ function placeStairs(grid: Grid, lower: Storey, upper: Storey, random: () => num
           foot,
           head,
           climb,
-          walls:
-            wallNeighbours(grid, lower, low) +
-            wallNeighbours(grid, lower, high) +
-            wallNeighbours(grid, upper, low) +
-            wallNeighbours(grid, upper, high),
+          walls: nearWall(x, y) + nearWall(x + dx, y + dy),
         });
       }
     }
   }
+  lower.stairsUp = stairsTileId;
   const ordered = shuffled(options, random).sort((a, b) => b.walls - a.walls);
   for (const option of ordered) {
     lower.kinds[option.low] = STAIR;
@@ -819,6 +852,11 @@ function furnish(
   stock(storey, tilesById, random);
 }
 
+function stairBlock(stairsTileId: string, tilesById: Record<string, TileDef>): string {
+  const block = STAIR_BLOCK[stairsTileId];
+  return block && tilesById[block] ? block : DEFAULT_STAIR_BLOCK_TILE_ID;
+}
+
 function storeyEdits(
   grid: Grid,
   storey: Storey,
@@ -866,9 +904,12 @@ function storeyEdits(
             : kind === WINDOW
               ? [placed(spec.windowTileId!, tilesById, facing)]
               : kind === STAIR
-                ? [placed(STAIRS_TILE_ID, tilesById, facing)]
+                ? [placed(storey.stairsUp, tilesById, facing)]
                 : kind === STAIR_HIGH
-                  ? [{ tileId: STAIR_BLOCK_TILE_ID }, placed(STAIRS_TILE_ID, tilesById, facing)]
+                  ? [
+                      { tileId: stairBlock(storey.stairsUp, tilesById) },
+                      placed(storey.stairsUp, tilesById, facing),
+                    ]
                   : kind === LADDER_UP
                     ? [placed(LADDER_UP_TILE_ID, tilesById)]
                     : kind === LADDER_TOP
@@ -876,7 +917,8 @@ function storeyEdits(
                       : kind === RAIL
                         ? [{ tileId: RAIL_TILE_ID }]
                         : (storey.furniture.get(at) ?? []);
-      const boards = besideHole(gx, gy) ? [{ ...floor }, { tileId: innerId }] : [{ ...floor }];
+      const boards =
+        kind !== WALL && besideHole(gx, gy) ? [{ ...floor }, { tileId: innerId }] : [{ ...floor }];
       edits.push({ x, y, z, stack: [...under(x, y).map((p) => ({ ...p })), ...boards, ...on] });
     }
   }
@@ -949,7 +991,8 @@ export function planBuilding(
     const owner = lower.underground ? lower : upper;
     const random = mulberry32(owner.spec.seed);
     const joined =
-      (owner.spec.access === "stairs" && placeStairs(grid, lower, upper, random)) ||
+      (owner.spec.access === "stairs" &&
+        placeStairs(grid, lower, upper, random, owner.spec.stairsTileId)) ||
       placeLadder(grid, lower, upper, random);
     if (!joined) {
       return {

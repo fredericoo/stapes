@@ -34,6 +34,7 @@ function storey(name: string, over: Partial<FloorSpec> = {}): FloorSpec {
     roomDoors: true,
     stocked: true,
     access: "stairs",
+    stairsTileId: "stone-stairs",
     doors: [],
     wallTileId: "sw2",
     floorTileId: "wooden-floor",
@@ -119,7 +120,7 @@ describe("planBuilding", () => {
     }
     expect(stairs.map((c) => ids(c.x, c.y, 0)).sort((a, b) => a.length - b.length)).toEqual([
       ["grass", "wooden-floor", "stone-stairs"],
-      ["grass", "wooden-floor", "half-stone", "stone-stairs"],
+      ["grass", "wooden-floor", "brick-slab", "stone-stairs"],
     ]);
     const hole = new Set(stairs.map((c) => `${c.x},${c.y}`));
     const beside = new Map<string, string | undefined>();
@@ -142,6 +143,57 @@ describe("planBuilding", () => {
       5,
     );
   });
+
+  it.each([
+    ["stone-stairs", "brick-slab"],
+    ["ramp", "half-stone"],
+    ["snowy-ramp", "frosted-half-stone"],
+  ])("builds a flight of %s on a %s and keeps it walkable", (stairsTileId, block) => {
+    const map = built({
+      floors: [
+        storey("ground", { use: "empty", doors: [FRONT_DOOR] }),
+        storey("upper", { use: "empty", stairsTileId }),
+      ],
+      cellars: [],
+      roof: null,
+    });
+    const flights: string[][] = [];
+    for (let y = 5; y <= 10; y++) {
+      for (let x = 5; x <= 11; x++) {
+        const stack = getStack(map, x, y, 0).map((p) => p.tileId);
+        if (stack.at(-1) === stairsTileId) flights.push(stack.slice(2));
+      }
+    }
+    expect(flights.sort((a, b) => a.length - b.length)).toEqual([
+      [stairsTileId],
+      [block, stairsTileId],
+    ]);
+    expect(levelsWalked(map)).toEqual([0, 1]);
+  });
+
+  it.each([1, 2, 3, 4, 5, 6])(
+    "keeps a cell of floor between a flight and every outer wall, so no floor padding shows outside, seed %i",
+    (seed) => {
+      const map = built(tower("stairs", "house", seed, 2));
+      let stairs = 0;
+      for (const z of [-2, -1, 0, 1, 2]) {
+        for (let y = 4; y <= 11; y++) {
+          for (let x = 4; x <= 12; x++) {
+            const stack = getStack(map, x, y, z).map((p) => p.tileId);
+            const outerWall = x === 4 || x === 12 || y === 4 || y === 11;
+            if (outerWall) expect(stack, `${x},${y},${z}`).not.toContain("wooden-floor-inner");
+            if (stack.at(-1) !== "stone-stairs") continue;
+            stairs++;
+            expect(x, `stair at ${x},${y},${z}`).toBeGreaterThanOrEqual(6);
+            expect(x, `stair at ${x},${y},${z}`).toBeLessThanOrEqual(10);
+            expect(y, `stair at ${x},${y},${z}`).toBeGreaterThanOrEqual(6);
+            expect(y, `stair at ${x},${y},${z}`).toBeLessThanOrEqual(9);
+          }
+        }
+      }
+      expect(stairs).toBe(8);
+    },
+  );
 
   it.each([1, 2, 3, 4, 5, 6])(
     "leaves the cell south of every stair and ladder bare so no wall hides it, seed %i",
