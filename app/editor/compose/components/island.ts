@@ -14,6 +14,7 @@ import {
 } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { isWet } from "./line";
 
 export const SHORE_RANGE = { min: 1, max: 3 } as const;
 
@@ -41,9 +42,7 @@ const N4 = [
   [-1, 0],
 ] as const;
 
-const N8 = [...N4, [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
-
-function touches(g: CellGrid, i: number, mask: Uint8Array, around: typeof N4 | typeof N8) {
+function touches(g: CellGrid, i: number, mask: Uint8Array, around: typeof N4) {
   const x = gridX(g, i);
   const y = gridY(g, i);
   return around.some(
@@ -134,10 +133,12 @@ function distanceFrom(g: CellGrid, land: Uint8Array, limit: number): Int32Array 
 }
 
 /**
- * Writes every cell of its frame, land and sea, over whatever was there.
- * The sea's stacks are the ones Rune Isle's sea is built from: shallows are
- * `water` on a bed of the fill, foamed where they meet land, and deep water is
- * `deep-water` with `water` under it where it borders the shallows.
+ * Writes its land and the shallows round it, and nothing further out, so the
+ * sea it stands in shows past them. Islands merge: shallows are never laid
+ * over land that is already there, and where its land meets an earlier
+ * island's shallows those are foamed as its own are, so two islands whose
+ * land touches are one coast rather than two separated by a channel.
+ * Shallows are `water` on a bed of the fill, as Rune Isle's are.
  */
 export const island: Component<IslandProps> = {
   type: "island",
@@ -145,31 +146,31 @@ export const island: Component<IslandProps> = {
   starter: { frame: { x: 0, y: 0, w: 48, h: 36 } },
   schema: IslandSchema,
   build(ctx, props) {
-    if (!ctx.tilesById[props.fill])
-      return { ok: false, reason: `There is no tile called ${props.fill}` };
     const g = newGrid(ctx.bounds);
     const land = landOf(g, ctx.seed, props);
     if (!land.includes(1)) {
       return { ok: false, reason: "The frame is too small for any land inside its shore" };
     }
     const distance = distanceFrom(g, land, props.shore + 1);
-    const shallows = Uint8Array.from(distance, (d) => (d >= 1 && d <= props.shore ? 1 : 0));
     const tile = (id: string) => placed(id, ctx.tilesById);
+    const before = (i: number) => ctx.stackAt(gridX(g, i), gridY(g, i));
+    const dry = (stack: readonly PlacedTile[]) => stack.length > 0 && !isWet(stack);
+    const landNow = Uint8Array.from(land, (l, i) => (l || dry(before(i)) ? 1 : 0));
 
     const edits: StackEdit[] = [];
     for (let i = 0; i < land.length; i++) {
-      let stack: PlacedTile[];
-      if (land[i]) stack = [tile(props.fill)];
-      else if (shallows[i]) {
-        stack = touches(g, i, land, N4)
-          ? [tile(props.fill), tile("water"), tile("shore-foam")]
-          : [tile(props.fill), tile("water")];
-      } else {
-        stack = touches(g, i, shallows, N8)
-          ? [tile("water"), tile("deep-water")]
-          : [tile("deep-water")];
+      const x = gridX(g, i);
+      const y = gridY(g, i);
+      const stack = before(i);
+      if (land[i]) {
+        edits.push({ x, y, z: ctx.z, stack: [tile(props.fill)] });
+      } else if (distance[i]! >= 1 && distance[i]! <= props.shore && !dry(stack)) {
+        const shallows = [tile(props.fill), tile("water")];
+        if (touches(g, i, landNow, N4)) shallows.push(tile("shore-foam"));
+        edits.push({ x, y, z: ctx.z, stack: shallows });
+      } else if (isWet(stack) && stack.at(-1)?.tileId === "water" && touches(g, i, land, N4)) {
+        edits.push({ x, y, z: ctx.z, stack: [...stack, tile("shore-foam")] });
       }
-      edits.push({ x: gridX(g, i), y: gridY(g, i), z: ctx.z, stack });
     }
     return { ok: true, edits };
   },

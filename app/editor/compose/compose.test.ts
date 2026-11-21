@@ -257,10 +257,71 @@ describe("buildMap", () => {
   });
 });
 
+const sea = (children: MapNode[]): MapNode => ({
+  type: "sea",
+  key: "sea",
+  frame: { x: 0, y: 0, w: 40, h: 30 },
+  children,
+});
+
+const landOf = (map: MapFile) => {
+  const cells: string[] = [];
+  for (let y = 0; y < 30; y++) {
+    for (let x = 0; x < 40; x++) {
+      const stack = getStack(map, x, y, 0);
+      if (
+        stack.length > 0 &&
+        !stack.some((p) => p.tileId === "water" || p.tileId === "deep-water")
+      ) {
+        cells.push(`${x},${y}`);
+      }
+    }
+  }
+  return cells;
+};
+
 describe("island", () => {
+  it("writes its land and shallows and nothing further out", () => {
+    const { map } = build(
+      doc({
+        type: "group",
+        key: "nothing",
+        frame: { x: 0, y: 0, w: 40, h: 30 },
+        children: [{ type: "island", key: "isle", props: { shore: 1 } }],
+      }),
+    );
+    expect(cellsWith(map, "deep-water", 40, 30)).toEqual([]);
+    expect(getStack(map, 0, 0, 0)).toEqual([]);
+  });
+
+  it("merges with an island it overlaps instead of cutting water through its land", () => {
+    const west: MapNode = {
+      type: "island",
+      key: "west",
+      frame: { x: 0, y: 0, w: 26, h: 30 },
+      props: { roughness: 0 },
+    };
+    const east: MapNode = {
+      type: "island",
+      key: "east",
+      frame: { x: 14, y: 0, w: 26, h: 30 },
+      props: { roughness: 0 },
+    };
+    const alone = new Set([
+      ...landOf(build(doc(sea([west]))).map),
+      ...landOf(build(doc(sea([east]))).map),
+    ]);
+    const together = new Set(landOf(build(doc(sea([west, east]))).map));
+    expect([...alone].filter((cell) => !together.has(cell))).toEqual([]);
+  });
+
   it.each([1, 2, 3])("keeps open sea at least %i cells of shallows away from land", (shore) => {
     const { map, problems } = build(
-      doc({ type: "island", key: "isle", frame: { x: 0, y: 0, w: 40, h: 30 }, props: { shore } }),
+      doc(
+        sea([
+          { type: "island", key: "isle", frame: { x: 0, y: 0, w: 40, h: 30 }, props: { shore } },
+        ]),
+      ),
     );
     expect(problems).toEqual([]);
     const land: Array<[number, number]> = [];

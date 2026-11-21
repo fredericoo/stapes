@@ -9,10 +9,12 @@ import { mask } from "./mask";
 import { river } from "./river";
 import { road } from "./road";
 import { scatter } from "./scatter";
+import { sea } from "./sea";
 import { tile } from "./tile";
 
 const all: ReadonlyArray<Component<never>> = [
   group,
+  sea,
   island,
   forest,
   house,
