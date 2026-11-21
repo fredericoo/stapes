@@ -102,6 +102,34 @@ describe("an island's beach", () => {
     for (const { x, y } of paved) expect(stepsToWater(sea, x, y, 2), `${x},${y}`).toBe(Infinity);
   });
 
+  it("keeps grass off the brinks of a hill on the beach, leaving them the hill's own", () => {
+    const { map, elevation } = buildTree(
+      isle(SIZE, [], 0, {
+        under: [
+          {
+            type: "hill",
+            key: "dune",
+            frame: { x: 26, y: 6, w: 14, h: 18 },
+            props: { levels: 1, terrace: 2, roughness: 0, ground: "sand" },
+          },
+          grass,
+        ],
+        props: { beach: 2 },
+      }),
+    );
+    const sea = build([], { beach: 2 });
+    const near = [...elevation.keys()].filter((key) => {
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      return stepsToWater(sea, x, y, 2) <= 2;
+    });
+    expect(near.length).toBeGreaterThan(0);
+    for (const key of near) {
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      const top = getStack(map, x, y, 1).map((p) => p.tileId);
+      expect(top, key).toEqual([expect.stringMatching(/^sand(-brink)?$/)]);
+    }
+  });
+
   it("leaves a layer that is not its child alone", () => {
     const map = buildTree(isle(SIZE, [grass], 0, { props: { beach: 2 } })).map;
     expect(cells(map, (t) => t.length === 1 && t[0] === "sand")).toEqual([]);

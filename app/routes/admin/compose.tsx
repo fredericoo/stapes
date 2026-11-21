@@ -13,6 +13,7 @@ import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
+import { DUNGEON_TYPE } from "../../editor/compose/components/dungeon";
 import { ROOF_TYPE } from "../../editor/compose/components/house";
 import { cutAbove } from "../../editor/compose/cutaway";
 import {
@@ -32,7 +33,7 @@ import {
   duplicateTo,
   findNode,
   findParent,
-  freeKey,
+  starterNode,
   hitsLayer,
   insertNode,
   moveNode,
@@ -280,22 +281,10 @@ export default function ComposePage() {
     const component = COMPONENTS[type];
     if (!component) return;
     const parent = selectedNode ?? doc.root;
-    const key = freeKey(doc.root, type);
-    const { children: parts, ...starter } = component.starter;
-    const children = parts?.map((part) => ({
-      ...part,
-      key: freeKey(doc.root, `${key}-${part.type}`),
-    }));
-    commit((d) =>
-      insertNode(d, parent.key, parent.children?.length ?? 0, {
-        type,
-        key,
-        ...starter,
-        ...(children ? { children } : {}),
-      }),
-    );
+    const node = starterNode(doc.root, type, component.starter);
+    commit((d) => insertNode(d, parent.key, parent.children?.length ?? 0, node));
     setExpanded((keys) => (keys.includes(parent.key) ? keys : [...keys, parent.key]));
-    setSelection([key]);
+    setSelection([node.key]);
   };
 
   const deleteSelected = () => {
@@ -342,18 +331,21 @@ export default function ComposePage() {
   /**
    * The selected layer when its parent builds it, as a house builds its
    * floors: the parent's placement and how many levels above the parent's
-   * ground the part is. A floor or cellar cuts the view down to its level.
+   * ground the part is. A floor, cellar or dungeon level cuts the view down
+   * to its level.
    */
   const part = useMemo(() => {
     const parent = selectedNode ? findParent(doc.root, selectedNode.key) : null;
     if (!selectedNode || !parent) return null;
     if (!COMPONENTS[selectedNode.type]?.within?.includes(parent.type)) return null;
     const home = built.layout.placements.get(parent.key);
+    const dug = parent.type === DUNGEON_TYPE;
     const level = COMPONENTS[parent.type]?.partLevels?.(parent).get(selectedNode.key);
     if (!home || level === undefined) return null;
-    return { home, level, cuts: selectedNode.type !== ROOF_TYPE };
+    return { home, level, dug, cuts: selectedNode.type !== ROOF_TYPE };
   }, [doc, selectedNode, built]);
-  const partLevel = part ? levelOf(part.home) + part.level : null;
+  /** A dungeon's levels count from its frame's level, not from the ground under it, which a hill may have raised. */
+  const partLevel = part ? (part.dug ? part.home.z : levelOf(part.home)) + part.level : null;
   const shown = useMemo(
     () =>
       part?.cuts && partLevel !== null

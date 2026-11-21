@@ -13,6 +13,7 @@ import {
 } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
+import { brinkOf, isFlat } from "../brinks";
 import { isWet } from "./line";
 import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } from "./ramp";
 
@@ -112,8 +113,10 @@ function levelsOf(
  * Raises ground the way Rune Isle's hills are built (`docs/terrain.md`): a
  * raised cell is a column with one `wall` on every level under its top,
  * standing on ground wherever a neighbour's ground lies on that level, with
- * `brink` on top of every cell beside a drop and `ground` elsewhere. Plants
- * on a cell go to the top with it.
+ * `ground` on top, cut to its brink on every cell beside a drop; `brink` is
+ * for a ground with no brink of its own. Plants on a cell go to the top with
+ * it, and a cover such as grass stays at the foot of the wall: the top is the
+ * hill's own ground until a cover is laid on it.
  *
  * It builds on whatever level the ground under the middle of its frame is
  * on, so a hill laid on a hill's top is a second tier, in its own tiles. Only
@@ -171,6 +174,7 @@ export const hill: Component<HillProps> = {
       };
     }
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
+    const flat = (p: PlacedTile) => isFlat(p, ctx.tilesById);
     /** A cell's level above the hill's base: its own terraces inside the hill, and what earlier hills made of it outside. */
     const levelAt = (x: number, y: number) => {
       const own = inGrid(g, x, y) ? level[gridIndex(g, x, y)]! : 0;
@@ -217,7 +221,8 @@ export const hill: Component<HillProps> = {
       const y = gridY(g, i);
       const stack = before(i);
       for (let z = 0; z < L; z++) {
-        const under = z === 0 ? stack.slice(0, 1) : [tile(props.ground)];
+        const under =
+          z === 0 ? [...stack.slice(0, 1), ...stack.slice(1).filter(flat)] : [tile(props.ground)];
         const column =
           heads.has(i) && z === L - 1
             ? [...under, tile(props.rampBlock), tile(props.rampBlock)]
@@ -227,11 +232,12 @@ export const hill: Component<HillProps> = {
         edits.push({ x, y, z: z0 + z, stack: column });
       }
       const edge = !heads.has(i) && around(i, (l) => l < L);
+      const carried = stack.slice(1).filter((p) => !flat(p));
       tops.set(`${x},${y}`, {
         x,
         y,
         z: z0 + L,
-        stack: [tile(edge ? props.brink : props.ground), ...stack.slice(1)],
+        stack: [tile(edge ? (brinkOf(props.ground) ?? props.brink) : props.ground), ...carried],
       });
     }
     for (const site of sites) {
