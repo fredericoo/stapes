@@ -939,6 +939,158 @@ describe("hill", () => {
     });
   });
 
+  const steep = (props: Record<string, unknown>, children: MapNode[] = []) =>
+    build(
+      doc(
+        field([
+          {
+            type: "hill",
+            key: "mountain",
+            frame: { x: 2, y: 2, w: 34, h: 26 },
+            props: { levels: 4, ...props },
+          },
+          ...children,
+        ]),
+      ),
+    );
+  const ids = (map: MapFile, x: number, y: number, z: number) =>
+    getStack(map, x, y, z).map((p) => p.tileId);
+  const levelOf = (elevation: ReadonlyMap<string, number>, x: number, y: number) =>
+    elevation.get(`${x},${y}`) ?? 0;
+  const beside = (
+    elevation: ReadonlyMap<string, number>,
+    x: number,
+    y: number,
+    test: (level: number) => boolean,
+  ) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dy) && test(levelOf(elevation, x + dx, y + dy))) return true;
+      }
+    }
+    return false;
+  };
+
+  it("climbs a level every cell in from its foot when its terrace is one", () => {
+    const { map, problems, elevation } = steep({ terrace: 1 });
+    expect(problems).toEqual([]);
+    let summit = 0;
+    each((x, y) => {
+      const L = levelOf(elevation, x, y);
+      summit = Math.max(summit, L);
+      if (L === 0) return;
+      expect(
+        beside(elevation, x, y, (l) => l < L - 1),
+        `${x},${y}`,
+      ).toBe(false);
+      if (L < 4) {
+        expect(
+          beside(elevation, x, y, (l) => l === L - 1),
+          `${x},${y}`,
+        ).toBe(true);
+      }
+      for (let z = 0; z < L; z++) {
+        expect(ids(map, x, y, z), `${x},${y},${z}`).toEqual(
+          beside(elevation, x, y, (l) => l === z)
+            ? [z === 0 ? "sand" : "grass-2", "hill-wall"]
+            : ["hill-wall"],
+        );
+      }
+    });
+    expect(summit).toBe(4);
+  });
+
+  it("rises in one cliff with ground under its lowest wall only when it has no terrace", () => {
+    const { map, problems, elevation } = steep({ terrace: 0 });
+    expect(problems).toEqual([]);
+    let rim = 0;
+    each((x, y) => {
+      const L = levelOf(elevation, x, y);
+      if (L === 0) return;
+      expect(L, `${x},${y}`).toBe(4);
+      const edge = beside(elevation, x, y, (l) => l === 0);
+      if (edge) rim++;
+      expect(ids(map, x, y, 0), `${x},${y}`).toEqual(edge ? ["sand", "hill-wall"] : ["hill-wall"]);
+      for (let z = 1; z < 4; z++)
+        expect(ids(map, x, y, z), `${x},${y},${z}`).toEqual(["hill-wall"]);
+      expect(ids(map, x, y, 4), `${x},${y}`).toEqual([edge ? "grass-brink" : "grass-2"]);
+    });
+    expect(rim).toBeGreaterThan(0);
+  });
+
+  it("stands flush on the edge of the hill under it when it has no terrace, in place of the brink there", () => {
+    const tiers = (terrace: number) =>
+      build(
+        doc(
+          field([
+            {
+              type: "hill",
+              key: "knoll",
+              frame: { x: 2, y: 2, w: 36, h: 26 },
+              props: { levels: 1, roughness: 0 },
+            },
+            {
+              type: "hill",
+              key: "peak",
+              frame: { x: 2, y: 2, w: 36, h: 26 },
+              props: {
+                levels: 1,
+                terrace,
+                roughness: 0,
+                ground: "snow",
+                brink: "snow-brink",
+                wall: "hill-wall-frost",
+              },
+            },
+          ]),
+        ),
+      );
+    const { map, problems, elevation } = tiers(0);
+    expect(problems).toEqual([]);
+    let sheer = 0;
+    each((x, y) => {
+      if (levelOf(elevation, x, y) !== 2) return;
+      expect(ids(map, x, y, 2), `${x},${y}`).toEqual([
+        beside(elevation, x, y, (l) => l < 2) ? "snow-brink" : "snow",
+      ]);
+      if (!beside(elevation, x, y, (l) => l === 0)) return;
+      sheer++;
+      expect(ids(map, x, y, 0), `${x},${y}`).toEqual(["sand", "hill-wall"]);
+      expect(ids(map, x, y, 1), `${x},${y}`).toEqual(
+        beside(elevation, x, y, (l) => l === 1)
+          ? ["grass-brink", "hill-wall-frost"]
+          : ["hill-wall-frost"],
+      );
+    });
+    expect(sheer).toBeGreaterThan(0);
+    const ledged = tiers(1).elevation;
+    each((x, y) => {
+      if (levelOf(ledged, x, y) !== 2) return;
+      expect(
+        beside(ledged, x, y, (l) => l === 0),
+        `${x},${y}`,
+      ).toBe(false);
+    });
+  });
+
+  it("takes no ramp on a shelf too narrow to hold one, from a point of its own or a road", () => {
+    const road: MapNode = {
+      type: "road",
+      key: "lane",
+      props: { tile: "cobblestone", from: { x: 0, y: 14 }, to: { x: 19, y: 14 } },
+    };
+    for (const terrace of [0, 1]) {
+      const { map, problems } = steep({ terrace, ramps: [{ x: 17, y: 25 }] }, [road]);
+      expect(problems).toEqual([]);
+      each((x, y) => {
+        for (let z = 0; z <= 4; z++) {
+          expect(ids(map, x, y, z), `${x},${y},${z}`).not.toContain("ramp");
+          expect(ids(map, x, y, z), `${x},${y},${z}`).not.toContain("half-stone");
+        }
+      });
+    }
+  });
+
   it("cuts its foot by its masks, so a hole in it is ringed by its own cliffs", () => {
     const { map } = raised({}, [
       {
