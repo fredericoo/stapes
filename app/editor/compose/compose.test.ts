@@ -1,6 +1,8 @@
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 import tilesRaw from "../../../data/tiles.json";
+import { PLAYER_TILE_ID } from "../../game/constants";
+import { reachableCells } from "../../game/navigation";
 import { chunkKeyFor, getStack, serializeMap } from "../../lib/mapData";
 import type { MapFile } from "../../lib/types";
 import { normalizeTiles } from "../../lib/types";
@@ -1238,6 +1240,58 @@ describe("a house and its parts", () => {
     expect(same.reused).toBe(same.steps.length);
     expect(changed.reused).toBe(1);
     expect(tilesOn(changed.map, 1, "bookshelf").length).toBeGreaterThan(0);
+  });
+
+  /** The levels a player starting at `from` can walk to and walk back from. */
+  const levelsWalked = (map: MapFile, from: { x: number; y: number; z: number }) => {
+    const world = { board: map, traveller: tilesById[PLAYER_TILE_ID]!, tilesById, statusDefs: {} };
+    const home = `${from.x},${from.y},${from.z}`;
+    const levels = new Set<number>();
+    for (const cell of reachableCells(world, [from]).values()) {
+      if (levels.has(cell.z)) continue;
+      const back = [...reachableCells(world, [cell]).values()];
+      if (back.some((c) => `${c.x},${c.y},${c.z}` === home)) levels.add(cell.z);
+    }
+    return [...levels].sort((a, b) => a - b);
+  };
+  const frontDoor = { x: 0, y: 0, pinX: "center", pinY: "bottom" } as const;
+  const inn = (): MapNode =>
+    home([
+      { type: "floor", key: "taproom", props: { use: "pub", rooms: 2, doors: [frontDoor] } },
+      { type: "floor", key: "rooms", props: { use: "inn", rooms: 3 } },
+      { type: "floor", key: "attic", props: { use: "storage", reachedBy: "ladder" } },
+      { type: "cellar", key: "vault", props: { rooms: 2 } },
+      top,
+    ]);
+
+  it("lets a player outside the door walk to every floor and the cellar and back out", () => {
+    const { map, problems } = build(doc(field([inn()])));
+    expect(problems).toEqual([]);
+    expect(levelsWalked(map, { x: 14, y: 17, z: 0 })).toEqual([-1, 0, 1, 2]);
+  });
+
+  it("keeps every floor walkable when the house stands on a hill", () => {
+    const { map, problems } = build(
+      doc(
+        field([
+          {
+            type: "hill",
+            key: "knoll",
+            frame: { x: 2, y: 2, w: 34, h: 26 },
+            props: { levels: 1, roughness: 0 },
+          },
+          inn(),
+        ]),
+      ),
+    );
+    expect(problems).toEqual([]);
+    expect(levelsWalked(map, { x: 14, y: 17, z: 1 })).toEqual([0, 1, 2, 3]);
+  });
+
+  it("shuts a floor off from the street when it has no door, which is what the walk is checking", () => {
+    const shut = home([ground(), upper]);
+    const { map } = build(doc(field([shut])));
+    expect(levelsWalked(map, { x: 14, y: 17, z: 0 })).toEqual([0]);
   });
 
   it("refuses a house with no floor, and a floor that is not inside a house", () => {
