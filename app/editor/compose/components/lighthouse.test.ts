@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { MapNode } from "../doc";
-import { buildTree, frame, isle, land, levelsWalked, node, sketch, walks } from "../testTree";
+import {
+  buildTree,
+  cutFootprints,
+  frame,
+  isle,
+  land,
+  levelsWalked,
+  node,
+  sketch,
+  stands,
+  walks,
+} from "../testTree";
 
 const SIZE = { w: 40, h: 40 };
 const SITE = frame(10, 10, 17, 17);
@@ -21,6 +32,14 @@ describe("a lighthouse of tiers", () => {
   it("lets a player outside walk up every storey to the platform and back out", () => {
     const built = buildTree(land(SIZE, [tower(THREE_TIERS)]));
     expect(levelsWalked(built, OUTSIDE), sketch(built)).toEqual(upTo(14));
+  });
+
+  it("crowns the platform with one whole roof over the arcade", () => {
+    const built = buildTree(land(SIZE, [tower(THREE_TIERS)]));
+    expect(stands(built, "lighthouse-roof")).toEqual([
+      { x: 19, y: 19, z: 15, tileId: "lighthouse-roof" },
+    ]);
+    expect(cutFootprints(built)).toEqual([]);
   });
 
   it("keeps a player on its ground storey once its first flight is taken out, which is what the walk is checking", () => {
