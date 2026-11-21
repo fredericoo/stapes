@@ -547,6 +547,33 @@ export const cave: Component<CaveProps> = {
       }
       if (end !== null) reached = spread(pinned);
     }
+    /**
+     * Two cells of rock between two floors in a crypt are two walls side by
+     * side, which draws as a grid of brick. The one that can be dug is opened,
+     * so the floors share one wall; opening it can leave another such pair, so
+     * this runs until none is left.
+     */
+    for (let changed = Boolean(crypt); changed;) {
+      changed = false;
+      for (const k of [...reached]) {
+        const { x, y } = cellOf(k);
+        for (const [dx, dy] of N4) {
+          const near = key(x + dx, y + dy);
+          const far = key(x + 2 * dx, y + 2 * dy);
+          if (open.has(near) || open.has(far) || !reached.has(key(x + 3 * dx, y + 3 * dy)))
+            continue;
+          const dig = diggable(x + dx, y + dy)
+            ? near
+            : diggable(x + 2 * dx, y + 2 * dy)
+              ? far
+              : null;
+          if (dig === null) continue;
+          open.add(dig);
+          changed = true;
+        }
+      }
+      if (changed) reached = spread(pinned);
+    }
 
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
     /** In a hill the floor lies on the hill's ground, which its edges show; underground there is nothing under it. */

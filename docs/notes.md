@@ -16251,6 +16251,10 @@ refused, so a tree never holds a cave nobody can walk into.
   it are wall.** The crypt marks each doorway; the cave places the door only
   where the walk reached it and the two cells beside it are wall or another
   doorway, so a door never stands in open floor a body walks round.
+- **Two floors of a crypt never have exactly two cells of rock between
+  them.** That is two walls side by side, which draws as a grid of brick
+  (beside a flight's kept rock most of all), so the cell that can be dug is
+  opened and the floors share one wall.
 - **Rock the cave encloses is filled.** Below 0, a cell inside the frame
   that is neither floor nor wall and that no path of such cells joins to the
   frame's border is filled with `rock` (the crypt's default is grey cave
