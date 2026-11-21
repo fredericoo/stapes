@@ -1,5 +1,12 @@
 import * as v from "valibot";
-import { DIRECTIONS, HEIGHT_PER_LEVEL, type Direction, type TileDef } from "../../lib/types";
+import {
+  DIRECTIONS,
+  HEIGHT_PER_LEVEL,
+  coversCells,
+  footprintOf,
+  type Direction,
+  type TileDef,
+} from "../../lib/types";
 import { PointObject } from "./doc";
 
 /** Which tiles a tile field offers, and the words the form and a refusal use for them. */
@@ -17,7 +24,8 @@ export const TILES = {
   any: { label: "any tile", test: () => true },
   ground: {
     label: "flat ground",
-    test: (t) => t.kind === "prop" && t.height === 0 && t.walkable !== false,
+    test: (t) =>
+      t.kind === "prop" && t.height === 0 && t.walkable !== false && !coversCells(footprintOf(t)),
   },
   wall: {
     label: "a wall",

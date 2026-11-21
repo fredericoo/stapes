@@ -4,8 +4,15 @@ import { navigationLegs, settleAt, type NavWorld } from "../../game/navigation";
 import { wadesIn } from "../../game/pathfinding";
 import { cellKey } from "../../game/pressurePlates";
 import { getStack } from "../../lib/mapData";
-import type { Coord } from "../../lib/types";
-import { normalizeTiles } from "../../lib/types";
+import { isSpanPart } from "../../lib/footprint";
+import type { Coord, PlacedTile } from "../../lib/types";
+import {
+  coversCells,
+  footprintCells,
+  footprintOf,
+  normalizeTiles,
+  parseCoordKey,
+} from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
 import { buildMap, type BuildResult, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
@@ -161,6 +168,53 @@ export function reach(built: BuildResult, from: Spot, opts: WalkOptions = {}): M
 
 export function walks(built: BuildResult, from: Spot, to: Spot, opts: WalkOptions = {}): boolean {
   return reach(built, from, opts).has(cellKey(standingAt(built, to)));
+}
+
+export type Stood = { x: number; y: number; z: number; tileId: string };
+
+function eachPlaced(built: BuildResult, visit: (at: Stood, placed: PlacedTile) => void) {
+  for (const [zk, level] of Object.entries(built.map.levels)) {
+    for (const chunk of Object.values(level)) {
+      for (const [ck, stack] of Object.entries(chunk)) {
+        const { x, y } = parseCoordKey(ck);
+        for (const p of stack) visit({ x, y, z: Number(zk), tileId: p.tileId }, p);
+      }
+    }
+  }
+}
+
+/** Where each `tileId` stands, one entry a tile: a tile wider than a cell is listed at its anchor, the south-east cell. */
+export function stands(built: BuildResult, tileId: string): Stood[] {
+  const out: Stood[] = [];
+  eachPlaced(built, (at, p) => {
+    if (p.tileId === tileId && !isSpanPart(p)) out.push(at);
+  });
+  return out;
+}
+
+/**
+ * Every cell holding a piece of a wide tile that is not all there: an anchor
+ * with no `span` or with a cell of its footprint missing, or a part whose
+ * anchor is gone. Empty for a map whose footprints are whole.
+ */
+export function cutFootprints(built: BuildResult): Stood[] {
+  const out: Stood[] = [];
+  const member = (x: number, y: number, z: number, id: string) =>
+    getStack(built.map, x, y, z).find((p) => p.span?.id === id);
+  eachPlaced(built, (at, p) => {
+    const footprint = footprintOf(tilesById[p.tileId], p.direction);
+    if (!coversCells(footprint)) return;
+    if (!p.span) out.push(at);
+    else if (isSpanPart(p)) {
+      const anchor = member(at.x + p.span.dx, at.y + p.span.dy, at.z, p.span.id);
+      if (!anchor || isSpanPart(anchor)) out.push(at);
+    } else if (
+      !footprintCells(at.x, at.y, footprint).every((c) => member(c.x, c.y, at.z, p.span!.id))
+    ) {
+      out.push(at);
+    }
+  });
+  return out;
 }
 
 /**
