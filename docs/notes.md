@@ -15956,8 +15956,36 @@ kind (`ramp`, then `half-stone` under a `ramp`, with two `half-stone` in the
 head's column), one per level, each the candidate nearest the head of the one
 below.
 
-Layers after a hill still build on their own frame's level. To put a forest
-on a hill's top, give its frame that level; nothing follows the ground up yet.
+### The build keeps how high the ground is, and hides it from most components
+
+A component used to build on its frame's level whatever a hill had done
+underneath, so a forest laid after a hill grew inside the rock. The build now
+carries an `elevation` from step to step: the cells a hill raised and by how
+many levels (the hill returns them as `raised`). For every component that does
+not set `ownLevels`, `ctx.stackAt` reads each cell that many levels up and
+each edit is written that many levels up. A forest, a scatter, a fill, a road
+or a tile laid after a hill therefore lies on it, with no change to the
+component.
+
+That only suits a layer whose cells are independent. `hill` and `house` set
+`ownLevels` and read `ctx.raisedAt` themselves:
+
+- A house stands on the level of the ground under it and is refused, with a
+  problem, when that ground is on more than one level. Lifted cell by cell it
+  would have part of its roof inside the hill.
+- A hill raises ground and plants only. A cell holding anything else with
+  height, or with something on the level above it, is left flat together with
+  the eight cells round it, so a house laid before a hill keeps its roof and
+  the ground at its door, and the hill rises round it. Ground an earlier hill
+  raised is left alone too, so hills do not stack.
+
+`elevation` is recorded on every step, because a resumed build has to start
+from the elevation the reused steps left as well as their map. The editor
+reads it to draw a frame's box on the level its ground is on, and to find
+which cell a click on raised ground lands on (`pressedCell`).
+
+A road across a cliff is laid on both levels with nothing joining them, and a
+river does the same; neither knows about ramps.
 
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
