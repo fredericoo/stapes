@@ -15951,10 +15951,45 @@ terraces it lies from the nearest cell that is not raised, in eight-neighbour
 steps, capped at `levels`. That one rule gives everything the terrain rules
 ask for: each level is the one below drawn in on every side, corners included,
 so ground and brinks always sit over rock and no cliff is two levels high.
-Whatever stood on a cell goes to the top of its column. Ramps are the two-cell
-kind (`ramp`, then `half-stone` under a `ramp`, with two `half-stone` in the
-head's column), one per level, each the candidate nearest the head of the one
-below.
+Plants on a cell go to the top of its column.
+
+Hills stack. A hill builds on the level under the middle of its frame and
+raises only ground on that level, so one laid on another's top is a second
+tier in its own tiles. It never raises a cell beside ground on another level,
+which leaves the tier below a ledge a cell wide all round: without it the
+lower brink would lose the rock under it and the cliff would be two levels
+high.
+
+### A hill and a river declare; a road builds
+
+A hill lays no ramp and a river no bridge. Each declares, on the cells it
+built, what a crossing there is made of (`raised.ramp`, `crossing.bridge` in
+its plan), the build keeps that beside the elevation, and the road that later
+crosses reads it (`ctx.rampAt`, `ctx.bridgeAt`). The style then belongs to the
+thing crossed: every bridge over one river matches, and a snowy tier gets
+snowy ramps whichever road climbs it. Water nothing declared (the sea's
+shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
+`bridged` off gets none, and the road carries on from the far bank.
+
+- **A bridge's arc is `foot` on its deck tiles**, the lift a placement already
+  has. It steps up one height unit a cell from each bank to the river's `arc`,
+  which a body walks without a ramp (`MAX_CLIMB_HEIGHT` is two), so the deck
+  needs nothing under it.
+- **A ramp goes only where `rampFits`**: the cliff straight for a cell either
+  side of its head, ground behind the head to arrive on, and three clear cells
+  below. On a corner the slope meets the brink's curve and leaves a wedge of
+  wall beside it.
+- **A road is relaid to reach its ramp** (`withRamps`): from each end of the
+  ramp it takes the shortest way over clear ground on that level back to its
+  own route (`pathTo`). A straight line to the ramp's foot cuts the corner of
+  the cliff it is climbing as often as not. Where no ramp fits within
+  `RAMP_REACH` the road is laid on both levels unjoined.
+- **A road with no `tile` lays only ramps and bridges**, so it can serve as a
+  way up a hill that shows no path. A hill's own `ramps` are points; each puts
+  a ramp on the nearest stretch of cliff that fits.
+- **The head of a ramp is the one place a road writes below its own level**:
+  the wall under it becomes two `half-stone`. Its edit is at `ctx.z - 1`, which
+  the build lifts with the cell like any other.
 
 ### The build keeps how high the ground is, and hides it from most components
 
@@ -15977,15 +16012,14 @@ That only suits a layer whose cells are independent. `hill` and `house` set
   height, or with something on the level above it, is left flat together with
   the eight cells round it, so a house laid before a hill keeps its roof and
   the ground at its door, and the hill rises round it. Ground an earlier hill
-  raised is left alone too, so hills do not stack.
+  on another level is left alone too; see how hills stack, above.
 
 `elevation` is recorded on every step, because a resumed build has to start
 from the elevation the reused steps left as well as their map. The editor
 reads it to draw a frame's box on the level its ground is on, and to find
 which cell a click on raised ground lands on (`pressedCell`).
 
-A road across a cliff is laid on both levels with nothing joining them, and a
-river does the same; neither knows about ramps.
+A river across a cliff is laid on both levels with nothing joining them.
 
 ### `/admin/compose` edits a tree and rebuilds it in the tab
 
