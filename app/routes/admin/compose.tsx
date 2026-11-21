@@ -13,6 +13,7 @@ import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
+import { DUNGEON_TYPE, dungeonLevels } from "../../editor/compose/components/dungeon";
 import { ROOF_TYPE, partLevels } from "../../editor/compose/components/house";
 import { cutAbove } from "../../editor/compose/cutaway";
 import {
@@ -342,18 +343,21 @@ export default function ComposePage() {
   /**
    * The selected layer when its parent builds it, as a house builds its
    * floors: the parent's placement and how many levels above the parent's
-   * ground the part is. A floor or cellar cuts the view down to its level.
+   * ground the part is. A floor, cellar or dungeon level cuts the view down
+   * to its level.
    */
   const part = useMemo(() => {
     const parent = selectedNode ? findParent(doc.root, selectedNode.key) : null;
     if (!selectedNode || !parent) return null;
     if (!COMPONENTS[selectedNode.type]?.within?.includes(parent.type)) return null;
     const home = built.layout.placements.get(parent.key);
-    const level = partLevels(parent).get(selectedNode.key);
+    const dug = parent.type === DUNGEON_TYPE;
+    const level = (dug ? dungeonLevels(parent) : partLevels(parent)).get(selectedNode.key);
     if (!home || level === undefined) return null;
-    return { home, level, cuts: selectedNode.type !== ROOF_TYPE };
+    return { home, level, dug, cuts: selectedNode.type !== ROOF_TYPE };
   }, [doc, selectedNode, built]);
-  const partLevel = part ? levelOf(part.home) + part.level : null;
+  /** A dungeon's levels count from its frame's level, not from the ground under it, which a hill may have raised. */
+  const partLevel = part ? (part.dug ? part.home.z : levelOf(part.home)) + part.level : null;
   const shown = useMemo(
     () =>
       part?.cuts && partLevel !== null

@@ -158,4 +158,61 @@ describe("cave", () => {
       expect(unreached(built, [-1, -2])).toEqual([]);
     });
   });
+
+  describe("in a dungeon", () => {
+    const dungeon = (z: number, levels: Array<Record<string, unknown>>) =>
+      node(
+        "dungeon",
+        {},
+        {
+          frame: { ...frame(6, 4, 44, 32), z },
+          children: levels.map((props) => node("level", props)),
+        },
+      );
+
+    it("digs each level one below the last, every one reached from the surface and left again", () => {
+      const built = buildTree(
+        land(
+          SIZE,
+          [
+            dungeon(-1, [
+              { shape: "crypt" },
+              { shape: "caverns" },
+              { shape: "tunnels", upBy: "ladder" },
+            ]),
+          ],
+          "grass-2",
+        ),
+      );
+      const walked = reach(built, OUTSIDE);
+      for (const z of [-1, -2, -3]) {
+        const floor = floorCells(built, z);
+        expect(floor.length, `level ${z}`).toBeGreaterThan(40);
+        expect(floor.filter((c) => !walked.has(`${z}:${c.x},${c.y}`))).toEqual([]);
+      }
+      expect(walks(built, { ...floorCells(built, -3)[0]!, z: -3 }, OUTSIDE)).toBe(true);
+    });
+
+    it("opens its first level from a hill's cliff and goes on down under the hill", () => {
+      const built = buildTree(
+        land(SIZE, [
+          node("hill", { levels: 3, terrace: 2, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+          node(
+            "dungeon",
+            {},
+            {
+              frame: { ...frame(6, 4, 44, 32), z: 0 },
+              children: [node("level", { up: MOUTH }), node("level", { shape: "crypt" })],
+            },
+          ),
+        ]),
+      );
+      const walked = reach(built, OUTSIDE);
+      for (const z of [0, -1]) {
+        const floor = floorCells(built, z);
+        expect(floor.length, `level ${z}`).toBeGreaterThan(40);
+        expect(floor.filter((c) => !walked.has(`${z}:${c.x},${c.y}`))).toEqual([]);
+      }
+    });
+  });
 });
