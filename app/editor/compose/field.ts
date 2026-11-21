@@ -41,6 +41,10 @@ export const TILES = {
       t.height > 0 &&
       (hasInteraction(t, "switch") || hasInteraction(t, "receive")),
   },
+  stairs: {
+    label: "stairs or a ramp",
+    test: (t) => t.kind === "prop" && t.type === "directional" && t.climbFrom !== undefined,
+  },
   standing: {
     label: "a plant or prop that stands",
     test: (t) =>

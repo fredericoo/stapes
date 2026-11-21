@@ -9,7 +9,7 @@ import { normalizeTiles } from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
 import { buildMap, type BuildResult, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
-import type { Frame, MapNode } from "./doc";
+import { MAP_DOC_VERSION, type Frame, type MapNode } from "./doc";
 
 export const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
 
@@ -99,7 +99,7 @@ export function buildTree(
   opts: { seed?: number; components?: ComponentRegistry; problems?: "returned" } = {},
 ): BuildResult {
   const built = buildMap(
-    { version: 1, seed: opts.seed ?? DEFAULT_SEED, root: keyed(root) },
+    { version: MAP_DOC_VERSION, seed: opts.seed ?? DEFAULT_SEED, root: keyed(root) },
     tilesById,
     opts.components ?? COMPONENTS,
   );

@@ -8,7 +8,7 @@ import { tilesByIdFromList } from "../../lib/validation";
 import { DEFAULT_HOUSE_CONFIG } from "../proceduralSettings";
 import { buildMap, type Component, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
-import type { Frame, MapDoc, MapNode } from "./doc";
+import { parseMapDoc, type Frame, type MapDoc, type MapNode } from "./doc";
 import { moveNode, reframeNode, wrapInGroup } from "./edit";
 
 const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
@@ -32,7 +32,7 @@ const ground: Component<{ tile: string }> = {
 const registry: ComponentRegistry = { ...COMPONENTS, ground: ground as Component<never> };
 
 function doc(root: MapNode, seed = 7): MapDoc {
-  return { version: 1, seed, root };
+  return { version: 2, seed, root };
 }
 
 function field(children: MapNode[], frame: Frame = { x: 0, y: 0, w: 40, h: 30 }): MapNode {
@@ -1119,6 +1119,10 @@ describe("raised ground", () => {
     type: "house",
     key: "cottage",
     frame: { x, y, w: 7, h: 6 },
+    children: [
+      { type: "floor", key: "cottage-ground" },
+      { type: "roof", key: "cottage-roof" },
+    ],
   });
   const wallsOn = (map: MapFile, z: number) => {
     const cells: string[] = [];
@@ -1298,5 +1302,139 @@ describe("a bridge takes its style from the water under it", () => {
     }
     expect(topAt(map, 17, 14)).toBe("cobblestone");
     expect(topAt(map, 23, 14)).toBe("cobblestone");
+  });
+});
+
+describe("a house and its parts", () => {
+  const SITE = { x: 10, y: 8, w: 9, h: 8 };
+  const home = (children: MapNode[], extra: Partial<MapNode> = {}): MapNode => ({
+    type: "house",
+    key: "home",
+    frame: SITE,
+    children,
+    ...extra,
+  });
+  const ground = (props: Record<string, unknown> = {}): MapNode => ({
+    type: "floor",
+    key: "ground",
+    props: { use: "empty", ...props },
+  });
+  const upper: MapNode = { type: "floor", key: "upper", props: { use: "empty" } };
+  const top: MapNode = { type: "roof", key: "top" };
+  const levelsBuilt = (map: MapFile) =>
+    [-2, -1, 0, 1, 2, 3, 4, 5].filter((z) => getStack(map, 10, 8, z).length > 0);
+  const tilesOn = (map: MapFile, z: number, tileId: string) => {
+    const cells: string[] = [];
+    for (let y = 8; y <= 15; y++) {
+      for (let x = 10; x <= 18; x++) {
+        if (getStack(map, x, y, z).some((p) => p.tileId === tileId)) cells.push(`${x},${y}`);
+      }
+    }
+    return cells;
+  };
+
+  it("builds a storey for each Floor and Cellar child, floors up from the ground and cellars down", () => {
+    const { map, problems } = build(
+      doc(
+        field([
+          home([
+            ground(),
+            upper,
+            { type: "cellar", key: "vault" },
+            { type: "cellar", key: "crypt" },
+          ]),
+        ]),
+      ),
+    );
+    expect(problems).toEqual([]);
+    expect(levelsBuilt(map)).toEqual([-2, -1, 0, 1]);
+    expect(tilesOn(map, -1, "brick-wall").length).toBeGreaterThan(0);
+    expect(tilesOn(map, 1, "brick-wall")).toEqual([]);
+  });
+
+  it("puts a door at each of a floor's points, measured in the house's frame", () => {
+    const doors = [
+      { x: 0, y: 0, pinX: "center", pinY: "bottom" },
+      { x: 0, y: 3 },
+    ];
+    const { map, problems } = build(doc(field([home([ground({ doors }), upper])])));
+    expect(problems).toEqual([]);
+    expect(tilesOn(map, 0, "door-closed")).toEqual(["10,11", "14,15"]);
+    expect(tilesOn(map, 1, "door-closed")).toEqual([]);
+  });
+
+  it("builds without the roof while the roof is hidden and leaves the floors where they were", () => {
+    const roofed = build(doc(field([home([ground(), top])])));
+    const open = build(doc(field([home([ground(), { ...top, hidden: true }])])));
+    expect(levelsBuilt(roofed.map)).toEqual([0, 1]);
+    expect(levelsBuilt(open.map)).toEqual([0]);
+    expect(getStack(open.map, 12, 10, 0)).toEqual(getStack(roofed.map, 12, 10, 0));
+  });
+
+  it("rebuilds the house when one of its floors changes, and nothing when none does", () => {
+    const first = build(doc(field([home([ground(), upper])])));
+    const same = buildMap(
+      doc(field([home([ground(), upper])])),
+      tilesById,
+      registry,
+      undefined,
+      first,
+    );
+    const changed = buildMap(
+      doc(field([home([ground(), { ...upper, props: { use: "library" } }])])),
+      tilesById,
+      registry,
+      undefined,
+      first,
+    );
+    expect(same.reused).toBe(same.steps.length);
+    expect(changed.reused).toBe(1);
+    expect(tilesOn(changed.map, 1, "bookshelf").length).toBeGreaterThan(0);
+  });
+
+  it("refuses a house with no floor, and a floor that is not inside a house", () => {
+    const { problems } = build(doc(field([home([top]), { type: "floor", key: "stray" }])));
+    expect(problems).toEqual([
+      { key: "home", reason: "This house has no floor to build. Add a Floor layer inside it." },
+      {
+        key: "stray",
+        reason: "A floor is part of a house and builds nothing anywhere else. Drag it into one.",
+      },
+    ]);
+  });
+
+  it("reads a version 1 house as floors, a door point and a roof that build the same house", () => {
+    const old = parseMapDoc({
+      version: 1,
+      seed: 7,
+      root: field([
+        {
+          type: "house",
+          key: "home",
+          frame: SITE,
+          props: { storeys: 2, doorRow: "north", doorColumn: "east", roofColour: "blue" },
+        },
+      ]),
+    });
+    if (!old.ok) throw new Error(old.reason);
+    const house = old.doc.root.children![0]!;
+    expect(house.props).toEqual({});
+    expect(house.children).toEqual([
+      {
+        type: "floor",
+        key: "home-ground",
+        props: { use: "empty", doors: [{ x: 2, y: 0, pinX: "right", pinY: "top" }] },
+      },
+      { type: "floor", key: "home-floor-2", props: { use: "empty" } },
+      {
+        type: "roof",
+        key: "home-roof",
+        props: { colour: "blue", pitch: "steep", orientation: "auto" },
+      },
+    ]);
+    const { map, problems } = build(old.doc);
+    expect(problems).toEqual([]);
+    expect(tilesOn(map, 0, "door-closed")).toEqual(["16,8"]);
+    expect(tilesOn(map, 2, "roof-4").length).toBeGreaterThan(0);
   });
 });

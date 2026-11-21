@@ -1,6 +1,7 @@
 import * as v from "valibot";
+import { migrateDoc } from "./migrate";
 
-export const MAP_DOC_VERSION = 1;
+export const MAP_DOC_VERSION = 2;
 
 export const PIN_X = ["left", "right", "center", "scale"] as const;
 export const PIN_Y = ["top", "bottom", "center", "scale"] as const;
@@ -74,7 +75,7 @@ export type MapDoc = v.InferOutput<typeof MapDocSchema>;
 export function parseMapDoc(
   raw: unknown,
 ): { ok: true; doc: MapDoc } | { ok: false; reason: string } {
-  const parsed = v.safeParse(MapDocSchema, raw);
+  const parsed = v.safeParse(MapDocSchema, migrateDoc(raw));
   if (parsed.success) return { ok: true, doc: parsed.output };
   const issue = parsed.issues[0];
   const path = issue.path?.map((item) => String(item.key)).join(".") ?? "";

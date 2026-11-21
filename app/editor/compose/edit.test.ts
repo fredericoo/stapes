@@ -18,7 +18,7 @@ const leaf = (key: string, props?: Record<string, unknown>): MapNode => ({
 });
 
 function tree(children: MapNode[]): MapDoc {
-  return { version: 1, seed: 1, root: { type: "ground", key: "root", children } };
+  return { version: 2, seed: 1, root: { type: "ground", key: "root", children } };
 }
 
 const order = (doc: MapDoc, key = "root"): string[] => {
@@ -72,7 +72,7 @@ const framed = (key: string, x: number, y: number, extra: Partial<MapNode> = {})
 
 function world(children: MapNode[]): MapDoc {
   return {
-    version: 1,
+    version: 2,
     seed: 1,
     root: { type: "ground", key: "root", frame: { x: 0, y: 0, w: 40, h: 40 }, children },
   };

@@ -15807,8 +15807,8 @@ arming the tool with an id nothing can draw.
 document is `{ version, seed, root }`, and every node is
 `{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
 component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
-`sea`, `island`, `hill`, `grass`, `forest`, `house`, `road`, `river`, `tile`,
-`fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`sea`, `island`, `hill`, `grass`, `forest`, `house` with its `floor`, `cellar`
+and `roof`, `road`, `river`, `tile`, `fill`, `scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
 `water` on every cell so deep water's faded edge shows shallows where it
 meets them, and an island writes only its land and shallows into it. Islands
 merge: shallows are never laid over land already there, so two islands
@@ -15818,8 +15818,7 @@ builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is stil
 
 **A component is a valibot schema and a plan.** `build(ctx, props)` returns a
 `GeneratedPlan`, the same `{ ok, edits } | { ok: false, reason }` the editor's
-procedural tools return, and the house component is `planHouse` with its config
-renamed. The schema validates the node's props, supplies their defaults and
+procedural tools return. The schema validates the node's props, supplies their defaults and
 gives the props their type.
 
 **A prop is asked for through `field.*` (`field.ts`).** `field.tile`,
@@ -16095,6 +16094,99 @@ which cell a click on raised ground lands on (`pressedCell`).
 
 A river across a cliff is laid on both levels with nothing joining them.
 
+### A house is built from its Floor, Cellar and Roof children
+
+A `house` node holds the tiles the whole building shares (wall, floor,
+window, door) and builds nothing without children: each `floor` child is a
+storey, counted up from the ground in list order, each `cellar` child a
+storey counted down from it, and a `roof` child the roof on the last floor.
+A hidden child is left out, so hiding the roof builds the house without one.
+
+- **The house builds its parts; they build nothing themselves.** A component
+  lists the child types it reads in `parts` and gets them as `ctx.parts`, the
+  way a layer reads its masks, and a part names its parents in `within`.
+  Floors cannot build one at a time, because a stair on one storey is a hole
+  in the next. The parts are in the house's inputs, so changing a floor
+  rebuilds the house. A part outside a parent in `within` is a problem.
+- **The plan is `planBuilding` (`app/editor/building.ts`)**, which takes
+  cells and tile ids and knows nothing of the tree. The map editor's house
+  tool still uses `planHouse`; the two share the roof, the site check and the
+  window spacing in `house.ts`.
+- **A door is a point on a floor**, in `doors`, measured in the house's frame
+  like any point. It becomes a door in the nearest cell of outer wall that is
+  not a corner, facing out of that wall. A floor takes any number, and so
+  does an upper floor, where a door opens onto a drop.
+- **Every storey is joined to the one nearer the ground**, by what its
+  `reachedBy` asks for. A flight is two stair tiles in a row, the second on
+  a half block, as a hill's ramp is, so the pair rises a whole level and the
+  stairs fill the height they climb. The storey's `stairs` picks the tile,
+  from any directional tile with `climbFrom`, and `STAIR_BLOCK` in
+  `building.ts` names the half block drawn in the same material
+  (`stone-stairs` on `brick-slab`, `ramp` on `half-stone`, `snowy-ramp` on
+  `frosted-half-stone`); a stair tile it does not list gets `half-stone`.
+  Both cells over them are a hole
+  on the storey above, because a body on either stair stands partly in that
+  level (*A ramp between two levels needs a hole above it*). Where no flight
+  fits, a ladder (`ladder-up` under `ladder-top` on a floor tile) takes one
+  cell, and
+  a house where not even a ladder fits is refused. `building.test.ts` walks
+  every storey with `reachableCells`, out and back.
+- **Ways up go in first, then rooms, then furniture**, and each later step
+  keeps off the cells the earlier ones need (`keep`: inside a door, either
+  side of a doorway, the foot and head of a stair). A wall or a piece of
+  furniture that would cut any floor off from the rest is not placed
+  (`connected`), so `rooms` is the most rooms a storey gets, not a promise.
+- **The cell south of a stair or ladder stays bare floor.** A wall there is
+  drawn over it and hides it, so none is placed against the south wall, and
+  the cell is kept so no wall between rooms or furniture lands there later.
+  Only a house one cell deep inside, which has no other cell, gets a ladder
+  against its south wall.
+- **A flight keeps a cell of floor between it and every outer wall**
+  (`STAIR_MARGIN`). The padding round the hole above would otherwise land
+  on a wall cell and be drawn outside the house, so a wall cell never takes
+  the `-inner` tile either. A house too small for that gets a ladder.
+- **The hole over a flight is railed on every side but its landing**
+  (`railHole`), with `fence`, so the stairs are entered only from their head.
+  `fence` has no `connectsTo`, so a rail beside a wall ends there and does
+  not draw a join onto it.
+  A floor autotile draws a cut edge towards a cell with no floor, so every
+  cell round a hole also gets the floor's `-inner` tile over it, which is
+  the part that edge cuts away; without it the rail stands on air and the
+  ground shows under the boards.
+- **Stores are heaps, not rows** (`heaps`): each starts in a corner and
+  spreads to cells beside it, and a cell holds a barrel, a sack, a
+  `crate-chest`, or a `wooden-box` with a second box or a sack on it.
+  Tables keep `TABLE_GAP` between them.
+- **A wall between rooms has one doorway, with a door in it unless
+  `roomDoors` is off.** The door is the house's door tile, closed, facing
+  along the way through.
+- **Containers are stocked from the storey's `use` (`STOCK`)** unless
+  `stocked` is off: a share of all their slots is filled, each item going to
+  a container picked from those with a slot free, a pile never past the
+  item's `pile`. Nothing nests, so the lists hold no containers. An item is
+  written with an empty `id`, which `mintItemIds` fills when a world loads
+  the map; an id made at build time would be shared by every world built
+  from the tree.
+- **`use` picks the furniture**: `house`, `inn`, `pub`, `shop`, `library`,
+  `storage` or `empty`. The node's seed moves the stairs, the walls and the
+  furniture together; re-rolling one floor leaves the others, except that the
+  floor above has its hole where this one's stair now is.
+- **A bed is two cells with one `span` id**, made from its cell and level so
+  two beds never share one.
+- **Every part fills the house's frame.** A frame on a part is not read, and
+  the form does not offer one.
+
+**Selecting a part cuts the view to it.** The page draws `cutAbove(map, the
+house's bounds, the part's level)`, so a floor shows with the storeys and
+roof over it gone and a cellar with the house and the ground gone, and draws
+the part's outline and door handles on that level (`partLevels`, which the
+house reads too). Only the picture is cut. A point picked on the map for a
+part is read on the part's level (`pressLevel`).
+
+**A version 1 tree is migrated when it is read (`migrate.ts`).** Its house
+kept `storeys`, `doorRow`, `doorColumn` and the roof in props; they become
+`floor` children with `use: "empty"`, a door point on the ground floor and a
+`roof` child, which build the house it built before.
 ### A component's behaviour is tested by walking a small tree
 
 Each component has a `<name>.test.ts` beside it in

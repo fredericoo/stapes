@@ -5,7 +5,7 @@ import { forest } from "./forest";
 import { grass } from "./grass";
 import { group } from "./group";
 import { hill } from "./hill";
-import { house } from "./house";
+import { cellar, floor, house, roof } from "./house";
 import { island } from "./island";
 import { mask } from "./mask";
 import { river } from "./river";
@@ -22,6 +22,9 @@ const all: ReadonlyArray<Component<never>> = [
   grass,
   forest,
   house,
+  floor,
+  cellar,
+  roof,
   road,
   river,
   tile,
