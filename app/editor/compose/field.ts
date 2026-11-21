@@ -63,6 +63,15 @@ export const TILES = {
     label: "stairs or a ramp",
     test: (t) => t.kind === "prop" && t.type === "directional" && t.climbFrom !== undefined,
   },
+  halfBlock: {
+    label: "a half block",
+    test: (t) =>
+      t.kind === "prop" &&
+      t.type === "simple" &&
+      t.height === HEIGHT_PER_LEVEL / 2 &&
+      !t.intangible &&
+      !(t as { interactions?: object }).interactions,
+  },
   standing: {
     label: "a plant or prop that stands",
     test: (t) =>

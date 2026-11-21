@@ -174,7 +174,7 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
         return [
           {
             key: `${name}.${i}`,
-            glyph: String(i + 1),
+            glyph: !routed || name === via ? String(i + 1) : `${name.slice(0, 1)}${i + 1}`,
             title: `${name} ${i + 1} (double-click to remove)`,
             point,
             frame,
@@ -184,7 +184,7 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
               [name]: (p[name] as Point[]).map((q, j) => (j === i ? next : q)),
             }),
             remove: (p) => ({ ...p, [name]: (p[name] as Point[]).filter((_, j) => j !== i) }),
-            ...(routed ? { insertAt: { name, index: i } } : {}),
+            ...(name === via ? { insertAt: { name, index: i } } : {}),
           },
         ];
       });

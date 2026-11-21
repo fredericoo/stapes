@@ -17,6 +17,7 @@ import { shipwreck } from "./shipwreck";
 import { sea } from "./sea";
 import { temple } from "./temple";
 import { tile } from "./tile";
+import { wall } from "./wall";
 
 const all: ReadonlyArray<Component<never>> = [
   group,
@@ -35,6 +36,7 @@ const all: ReadonlyArray<Component<never>> = [
   porch,
   temple,
   road,
+  wall,
   river,
   tile,
   fill,

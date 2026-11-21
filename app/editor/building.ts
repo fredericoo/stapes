@@ -939,7 +939,7 @@ function furnish(
   stock(storey, tilesById, random);
 }
 
-function stairBlock(stairsTileId: string, tilesById: Record<string, TileDef>): string {
+export function stairBlock(stairsTileId: string, tilesById: Record<string, TileDef>): string {
   const block = STAIR_BLOCK[stairsTileId];
   return block && tilesById[block] ? block : DEFAULT_STAIR_BLOCK_TILE_ID;
 }
