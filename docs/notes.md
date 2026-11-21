@@ -15776,6 +15776,339 @@ in (`app/editor/proceduralSettings.ts`) and checked against the tile catalogue:
 a saved wall tile that no longer exists reads as "no saved settings" instead of
 arming the tool with an id nothing can draw.
 
+## A map tree is a JSON document of components, built in order
+
+`app/editor/compose/` builds a map from a tree instead of from a script. A
+document is `{ version, seed, root }`, and every node is
+`{ type, key, seed?, frame?, hidden?, props?, children? }`. `type` names a
+component in `COMPONENTS` (`app/editor/compose/components/`): `group`,
+`sea`, `island`, `forest`, `house`, `road`, `river`, `tile`, `fill`,
+`scatter`, `mask` and `clear`. A tree starts from a `sea`, deep water over
+`water` on every cell so deep water's faded edge shows shallows where it
+meets them, and an island writes only its land and shallows into it. Islands
+merge: shallows are never laid over land already there, so two islands
+whose land overlaps are one coast. `bun run build:map <tree.json>`
+builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is still
+`generate:island`; nothing ships from a tree yet.
+
+**A component is a valibot schema and a plan.** `build(ctx, props)` returns a
+`GeneratedPlan`, the same `{ ok, edits } | { ok: false, reason }` the editor's
+procedural tools return, and the house component is `planHouse` with its config
+renamed. The schema validates the node's props, supplies their defaults and
+gives the props their type.
+
+**A prop is asked for through `field.*` (`field.ts`).** `field.tile`,
+`field.tiles`, `field.weighted`, `field.point`, `field.direction` and
+`field.percent` are ordinary valibot schemas with a `v.metadata` naming the
+widget, so the form needs nothing per component. Write the metadata inside
+the pipe: `v.metadata` called on its own cannot infer the pipe's input type,
+and every prop then types as `unknown`.
+
+- **A tile field names a kind from `TILES`, and a kind is a test on what the
+  catalogue already says**, not a list of ids: a wall is a tall autotile you
+  cannot walk through, a door is directional with a `switch` or `receive`
+  interaction, a window is wall-height, directional, lets light through and
+  has no interactions, ground is flat and walkable. A tile added to
+  `data/tiles.json` appears in every field it fits. A window was first "lets
+  light through", which offered torches, chairs and cave mouths; height and
+  "no interactions" are what narrow it to `window-1`, `window-2` and `grate`.
+- **`buildMap` checks the kinds (`wrongTile`)**, because a schema never sees
+  the catalogue: a house given a tree for a wall is refused with "wall: Tree
+  is not a wall" rather than built.
+
+**A group builds nothing.** Without a frame it is a folder and its children
+build exactly as they would without it. With a frame its children are placed
+in it, so moving the group moves them. `reframeNode` gives a node a frame or
+takes it away without moving anything inside: child frames keep their pins
+and get new offsets, and a child without a frame has its own points rewritten
+and its children rebased in turn. "Frame round its children" fits the frame
+round the child frames and every cell the subtree wrote in the last build
+(`BuildResult.written`); fitting to frames alone clipped a road whose ends lay
+outside the house it was grouped with.
+
+**The tree is built depth first, and each node reads the map every node before
+it left.** That is the whole of the layering: a forest grows only on the tiles
+in its `onlyOn`, so on an island it grows on the island's sand, and a later
+sibling draws over an earlier one. Order is behaviour, not presentation. A
+road drawn after a river finds water and lays `wooden-floor` with a `fence` on
+each side; a river drawn after a road keeps each cell's bottom tile, replaces
+the rest with a bed and `water`, and so cuts the road. A node that cannot be
+built writes nothing, is listed with its key in `problems`, and its children
+and siblings are still built.
+
+**A node's seed comes from the document's seed and its own key, never from its
+parent's seed or its position.** Re-rolling the island (giving it a `seed`)
+then does not re-roll the forest on it, and moving a node to another parent or
+another place among its siblings keeps its randomness. The trees can still move
+when the island is re-rolled, because the sand they grow on did; a tree that
+stays on sand stays where it was, since `growForest` picks per cell from
+`randomAt`. This is why every key in a tree must be unique, not only among
+siblings: points name other nodes by key, so a duplicate is refused.
+
+**Every frame is resolved before anything is built**, so a road can name a node
+that comes after it. A frame is `{ x, y, w, h, z?, pinX?, pinY?, absolute? }`,
+measured in its parent's frame; the root's is in world cells. `pinX` is
+`left`, `right`, `center` or `scale` and `pinY` is `top`, `bottom`, `center`
+or `scale`, the way Figma's constraints are: `right` counts cells in from the
+right edge, `center` cells off the middle, and `scale` is a fraction where 0 is
+flush left or top and 1 flush right or bottom. A node with no frame fills its
+parent, which is what a road or a river usually wants. `z` is levels above the
+parent's.
+
+**A point can be measured in another node's frame**, by naming it in `in`:
+`{ in: "harbour", x: 0, y: -1, pinX: "center", pinY: "top" }` is the cell just
+north of the middle of the harbour's north edge, wherever the harbour is and
+however tall. That is what lets a road keep to a town's north gate while the
+town grows north. A point knows only the other node's rectangle, not its
+doors.
+
+**A node writes only inside its parent's frame**, and that frame is itself
+clipped to its own parent's, so a child dragged half off its parent loses the
+half that is off. The root writes inside its own frame.
+
+**A build resumes from the first node whose inputs changed.** `buildMap`
+takes the previous `BuildResult`. Every visible node keeps a step: its inputs
+(component, props, seed, frame, clip, level, and the frame of every node a
+point in its props names) and the map after it. A new build reuses steps
+until the first node whose inputs differ and builds on from that step's map;
+every node before it would build the same thing on the same map. That is why
+nothing writes a map in place any more (no `MapDraft`): a step's map has to
+stay as it was for the next build to start from it. A component is handed the
+map and must not keep it.
+
+**Then every chunk whose cells came out the same gets the previous object
+back (`keepUnchanged`).** The renderer re-meshes a chunk when its object
+changes, and a node rebuilt over unchanged ground makes new objects for every
+chunk it covers. Measured on a 400×300 island: a full build is about 178 ms,
+and dragging a house rebuilds 3 of 6 layers in 6–13 ms and changes 21–30 of
+about 500 chunks, most of them the long road whose start follows the house.
+The canvas prints those three numbers for every build.
+
+**A mask is a child layer that shapes its parent.** It writes nothing; the
+build passes the parent's edits through the parent's masks (`applyMasks`)
+before writing them, and a mask is the only component whose effect is on
+another node.
+
+- A mask is an oval or a rectangle in its own frame, or `from` another layer,
+  when it covers the cells that layer wrote (`Step.footprint`). `grow` widens
+  or narrows it by whole cells and `ragged` moves the edge with noise.
+- Masks combine in order: add puts back what one covers, subtract takes it
+  away, intersect keeps only what it covers, and a chain that starts with add
+  starts from nothing.
+- Only the tiles a layer itself added to a cell are tested, and a cell where
+  none survive keeps the stack it had. A mask with `only` tests only those
+  tiles, so it takes the roofs off a house and leaves the walls.
+- A mask stops its own layer placing tiles. Removing tiles an earlier layer
+  already placed is a `clear` layer, which gets `covered(x, y)` from its masks
+  because it adds nothing for the filtering to remove.
+- A layer's masks are part of its inputs, because a mask comes after its
+  parent in build order and would otherwise be rebuilt without it. A mask
+  `from` a layer needs nothing more: the layer has to come earlier, which the
+  build enforces, and any change to it already stops the reuse of what follows.
+- A mask's grid spans only as far as it can reach, so a small ragged clearing
+  evaluates noise over a small grid rather than over the island.
+
+**A road and a river share their route (`ROUTE_PROPS`) and stay separate
+components,** because a road lays a deck over water and a river does not.
+A road's crossing is always one straight bridge (`withBridges`): from the last
+land cell before the water, along the crossing's longer axis (or the step it
+entered the water by, when that axis starts on land), to the first land cell
+after it, then back to the route. Laying deck on whichever band cells were
+wet left bridges in pieces wherever a road met water at an angle. A
+route runs from `from` through each `via` point to `to`, and `wander` pushes
+each stretch sideways by noise multiplied by a sine that is zero at both ends
+of the stretch, so the route still meets every point exactly.
+
+**A tile node is one tile on one cell with its placement settings,** edited in
+the map editor's own `PlacementSettingsDialog` through `placementWriter`,
+which applies the map editor's `updatePlaced*` functions to a one-cell map so
+both editors drop an empty reward the same way. The spawn is the `player`
+tile, and a creature is its battler tile; the world respawns it where it was
+placed.
+
+What a tree does not do yet: a road stays on its own level and does not climb
+(Rune Isle's ramps are `planIsland`'s), a road goes round nothing and leaves a
+cell where anything but the plants in `clears` stands, and a mask on a group
+does not shape the group's children. The demo builds 96×72 cells in about
+50ms, which is fast enough to rebuild on every drag step.
+
+### A component that builds round its own shape applies its masks itself
+
+The build passes a layer's edits through its masks (`applyMasks`), which is
+right for a layer whose cells are independent, like a forest. It is wrong for
+one that builds something round its outline: an island masked that way loses
+land and gets nothing in its place, so the sea meets the sand with no shallows
+or foam. Such a component sets `shapesItself`, cuts its shape with
+`ctx.covered` before it builds, and the build then applies only the masks that
+name tiles (`only`). `island` and `hill` do this; `fill` reads `ctx.covered`
+for its edge band too, and needs no flag because it writes nothing outside
+what is covered.
+
+### A hill is the columns `docs/terrain.md` describes, counted in from its foot
+
+`hill` raises ground the nodes before it left. A cell's level is how many
+terraces it lies from the nearest cell that is not raised, in eight-neighbour
+steps, capped at `levels`. That one rule gives everything the terrain rules
+ask for: each level is the one below drawn in on every side, corners included,
+so ground and brinks always sit over rock and no cliff is two levels high.
+Plants on a cell go to the top of its column.
+
+Hills stack. A hill builds on the level under the middle of its frame and
+raises only ground on that level, so one laid on another's top is a second
+tier in its own tiles. It never raises a cell beside ground on another level,
+which leaves the tier below a ledge a cell wide all round: without it the
+lower brink would lose the rock under it and the cliff would be two levels
+high.
+
+### A hill and a river declare; a road builds
+
+A hill lays no ramp and a river no bridge. Each declares, on the cells it
+built, what a crossing there is made of (`raised.ramp`, `crossing.bridge` in
+its plan), the build keeps that beside the elevation, and the road that later
+crosses reads it (`ctx.rampAt`, `ctx.bridgeAt`). The style then belongs to the
+thing crossed: every bridge over one river matches, and a snowy tier gets
+snowy ramps whichever road climbs it. Water nothing declared (the sea's
+shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
+`bridged` off gets none, and the road carries on from the far bank.
+
+- **A bridge's arc is `foot` on its deck tiles**, the lift a placement already
+  has. It steps up one height unit a cell from each bank to the river's `arc`,
+  which a body walks without a ramp (`MAX_CLIMB_HEIGHT` is two), so the deck
+  needs nothing under it.
+- **A ramp goes only where `rampFits`**: the cliff straight for a cell either
+  side of its head, ground behind the head to arrive on, and three clear cells
+  below. On a corner the slope meets the brink's curve and leaves a wedge of
+  wall beside it.
+- **A road is relaid to reach its ramp** (`withRamps`): from each end of the
+  ramp it takes the shortest way over clear ground on that level back to its
+  own route (`pathTo`). A straight line to the ramp's foot cuts the corner of
+  the cliff it is climbing as often as not. Where no ramp fits within
+  `RAMP_REACH` the road is laid on both levels unjoined.
+- **A road with no `tile` lays only ramps and bridges**, so it can serve as a
+  way up a hill that shows no path. A hill's own `ramps` are points; each puts
+  a ramp on the nearest stretch of cliff that fits.
+- **The head of a ramp is the one place a road writes below its own level**:
+  the wall under it becomes two `half-stone`. Its edit is at `ctx.z - 1`, which
+  the build lifts with the cell like any other.
+
+### The build keeps how high the ground is, and hides it from most components
+
+A component used to build on its frame's level whatever a hill had done
+underneath, so a forest laid after a hill grew inside the rock. The build now
+carries an `elevation` from step to step: the cells a hill raised and by how
+many levels (the hill returns them as `raised`). For every component that does
+not set `ownLevels`, `ctx.stackAt` reads each cell that many levels up and
+each edit is written that many levels up. A forest, a scatter, a fill, a road
+or a tile laid after a hill therefore lies on it, with no change to the
+component.
+
+That only suits a layer whose cells are independent. `hill` and `house` set
+`ownLevels` and read `ctx.raisedAt` themselves:
+
+- A house stands on the level of the ground under it and is refused, with a
+  problem, when that ground is on more than one level. Lifted cell by cell it
+  would have part of its roof inside the hill.
+- A hill raises ground and plants only. A cell holding anything else with
+  height, or with something on the level above it, is left flat together with
+  the eight cells round it, so a house laid before a hill keeps its roof and
+  the ground at its door, and the hill rises round it. Ground an earlier hill
+  on another level is left alone too; see how hills stack, above.
+
+`elevation` is recorded on every step, because a resumed build has to start
+from the elevation the reused steps left as well as their map. The editor
+reads it to draw a frame's box on the level its ground is on, and to find
+which cell a click on raised ground lands on (`pressedCell`).
+
+A river across a cliff is laid on both levels with nothing joining them.
+
+### `/admin/compose` edits a tree and rebuilds it in the tab
+
+Three panes: the layers on the left, the built map in the middle, and the
+selected node's form on the right. The tree lives in the browser
+(`localStorage`, under `stapes:compose:v1`) and nowhere else; the JSON button
+copies it out or pastes one in.
+
+- **The map is drawn by `WorldRenderer`, not the map editor's
+  `EditorRenderer`.** `EditorRenderer` reads the tile editor's zustand store
+  directly, and this page has its own state. `ComposeCanvas` keeps a DOM layer
+  over the canvas for outlines and handles, and converts between cells and
+  screen pixels through `baseCellWorldOrigin`, so a box on level 1 is drawn
+  with that level's oblique shift.
+- **The form is the component's schema.** `fieldsOf` reads a valibot schema at
+  runtime — its `type`, the `min_value`/`max_value`/`integer` actions in its
+  pipe, and the `field` its `v.metadata` names — and picks a widget for each
+  prop: a tile is a searchable grid of the tiles its kind allows, a set of
+  tiles is chips, a weighted list shows each tile's share, and a point has a
+  crosshair that takes the next click on the map. A component with a prop the
+  reader does not know gets "Edit this in the JSON" for it rather than a
+  broken form.
+- **The camera is snapped to a whole art pixel, two at half zoom
+  (`cameraOf`).** Between pixels every tile edge lands on a fraction of a
+  screen pixel and the renderer leaves hairline slits between tiles. Scrolling
+  pans; a pinch arrives as a wheel event with `ctrlKey` (or as Safari's
+  gesture events, or as two pointers) and steps through `ZOOMS`, which stay
+  fixed steps for the same reason.
+- **A dragged box is written back through `frameFor`**, the inverse of the pin
+  arithmetic, so it keeps its pins and only its offsets change; `pointFor` does
+  the same for a point. `layout.test.ts` round-trips every pair of pins,
+  because an off-by-one there nudges a frame on every drag.
+- **A drag is one undo step.** Every cell it crosses is a `preview` and its
+  release a `settle`; `useDocHistory` files the tree from before the first
+  preview as the step.
+- **The layers are the UI SDK's `Tree` (`@ui-sdk/react`, pinned at a beta)
+  with `@dnd-kit/react` for dragging, because the Tree has no drag and drop.**
+  The drop row is found with `elementsFromPoint` at dnd-kit's
+  `operation.position`, not from dnd-kit's collision, which measures the
+  dragged row's whole shape and named a neighbour of the row under the
+  pointer. The window does not see `pointermove` during a dnd-kit drag, so the
+  position has to come from the operation. The drag shows a `DragOverlay`:
+  without one dnd-kit lifts the row itself out of the list, and React's
+  re-render after the drop left a copy of it behind.
+- **Picking a layer in the list fits the view to it**: `fitted` centres its
+  frame, or the cells it wrote when it has none, at the closest step of
+  `ZOOMS` that shows all of it. A click on the map does not, since the layer
+  is already under the pointer and the view would jump away from it.
+- **Arrow keys nudge the selection** a cell, or five with Shift. The listener
+  is in the capture phase and stops the event, because the Tree moves its
+  highlight on the same keys; with nothing selected they are the Tree's again.
+- **A press on the map belongs to the tool, not to what is under it.** With
+  the select tool (V) `ComposeCanvas` reports a click and a drag to the page;
+  with the pan tool (H, or Space held) a drag moves the view. A selected
+  frame's box takes no pointer events, only its eight resize handles do, so a
+  click inside a selected island still reaches the layer drawn over it there.
+  A drag that starts on a selected layer moves the selection whatever is drawn
+  over it; one that starts anywhere else selects the layer under the pointer
+  and moves that. The root is left out of both, because every press is inside
+  it.
+- **A layer without a frame is found by the cells it wrote** (`hitsLayer`
+  reads the build step's `footprint`), since its frame is its parent's and says
+  nothing about where it is. A mask is found only while its layer or another of
+  that layer's masks is selected, so a click on a lake selects the lake.
+- **Several layers move together and are never resized together**, since a
+  resize needs one box to measure against. `translateNodes` takes the layout
+  from when the drag began and the whole distance since, so each call replaces
+  the last instead of adding to it. A framed node gets a new frame; one
+  without has its points moved, except a point measured in a node that is also
+  moving. With Alt the drag first copies each layer and then moves the copies,
+  reading each copy's geometry from its original, which is still in that
+  layout.
+- **The Tree toggles the pressed row in `mode="multiple"` whatever keys are
+  held**, so `LayersPanel` works out the selection itself from the one row the
+  old and new lists differ by: alone it is the selection, ⌘ or Ctrl keeps the
+  toggle, and Shift takes every row shown between it and the last row pressed.
+- **A row is dragged from anywhere on it, by the pointer only.** dnd-kit's
+  keyboard sensor and its `Accessibility` plugin are left out, which is why
+  `@dnd-kit/dom` is a dependency of its own: with them every row becomes a
+  focusable `role="button"`, which takes the Tree's single tab stop and its
+  Enter and Space. dnd-kit's drag events carry no modifier keys, so Alt for
+  "drop a copy" is followed from the window's key events.
+- **"Play this map" is `POST /api/map`**, the map editor's Save, so it
+  replaces the running world's map for everyone on it and, under `bun dev`,
+  writes `data/map.json` on disk. It refuses a map without exactly one `player`
+  tile, because `requireSinglePlayer` would refuse to load it.
+- **An inspector row is a `role="group"`, not a `<label>`.** A label names and
+  clicks the first control inside it, and a row can hold several.
+
 ## A cave is rock you take away from
 
 The cave generator (`app/editor/cave.ts`) blocks the dragged rectangle out as

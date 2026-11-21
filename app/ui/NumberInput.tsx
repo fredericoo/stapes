@@ -34,8 +34,8 @@ function useDraft({
     setError(null);
   }, [value, focused]);
 
-  const commit = () => {
-    const parsed = parseNumberInput(text, rule);
+  const commit = (next = text) => {
+    const parsed = parseNumberInput(next, rule);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -53,6 +53,11 @@ function useDraft({
   return { text, setText, error, focused, setFocused, commit, revert };
 }
 
+/**
+ * Typing changes the draft, which is committed on Enter or blur; a step from
+ * the spinner buttons or the arrow keys is committed at once. A step fires an
+ * input event with no `inputType`, where typing always has one.
+ */
 function DraftInput({
   draft,
   rule,
@@ -85,7 +90,10 @@ function DraftInput({
         value={draft.text}
         aria-invalid={draft.error ? true : undefined}
         className={[className, draft.error ? "border-danger" : ""].filter(Boolean).join(" ")}
-        onChange={(e) => draft.setText(e.target.value)}
+        onChange={(e) => {
+          draft.setText(e.target.value);
+          if (!(e.nativeEvent as InputEvent).inputType) draft.commit(e.target.value);
+        }}
         onFocus={(e) => {
           draft.setFocused(true);
           props.onFocus?.(e);
