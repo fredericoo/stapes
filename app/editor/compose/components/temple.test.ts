@@ -133,4 +133,94 @@ describe("temple", () => {
     );
     expect(built.problems.map((p) => p.key)).toEqual(["temple-1"]);
   });
+
+  describe("in ruins", () => {
+    const RUINS = [0, 20, 40, 60, 80, 100];
+    const SEEDS = [1, 2, 3, 4, 5];
+    const ROOF_LEVEL = 4;
+    const atRuin = (ruin: number, seed: number) =>
+      buildTree(land(SIZE, [temple({ ruin }, { seed })]));
+
+    /** The cells whose pillar stands whole, to the level the roof sits on. */
+    const whole = (built: BuildResult) =>
+      new Set(
+        pillars(built)
+          .filter(({ x, y }) =>
+            getStack(built.map, x, y, ROOF_LEVEL - 1).some(
+              (p) => p.tileId === "marble-pillar-top" || p.tileId === "marble-pillar-top-cracked",
+            ),
+          )
+          .map(({ x, y }) => `${x},${y}`),
+      );
+
+    const roof = (built: BuildResult) => {
+      const cells = new Set<string>();
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = 0; x < SIZE.w; x++) {
+          if (getStack(built.map, x, y, ROOF_LEVEL).some((p) => p.tileId === "marble-block")) {
+            cells.add(`${x},${y}`);
+          }
+        }
+      }
+      return cells;
+    };
+
+    it.each(RUINS)("is still walked into and out of at %i% ruin", (ruin) => {
+      for (const seed of SEEDS) {
+        const built = atRuin(ruin, seed);
+        expect(walks(built, STREET, MIDDLE), `seed ${seed}\n${sketch(built)}`).toBe(true);
+        expect(walks(built, MIDDLE, STREET), `seed ${seed}\n${sketch(built)}`).toBe(true);
+      }
+    });
+
+    it.each(RUINS)("keeps no slab of roof that no whole pillar holds up at %i% ruin", (ruin) => {
+      for (const seed of SEEDS) {
+        const built = atRuin(ruin, seed);
+        const kept = roof(built);
+        const held = [...whole(built)].filter((key) => kept.has(key));
+        const joined = new Set(held);
+        for (const key of held) {
+          const [x, y] = key.split(",").map(Number) as [number, number];
+          for (const next of [`${x + 1},${y}`, `${x - 1},${y}`, `${x},${y + 1}`, `${x},${y - 1}`]) {
+            if (kept.has(next) && !joined.has(next)) {
+              joined.add(next);
+              held.push(next);
+            }
+          }
+        }
+        expect(
+          [...kept].filter((key) => !joined.has(key)),
+          `seed ${seed}`,
+        ).toEqual([]);
+      }
+    });
+
+    it("loses pillars and roof only as it is ruined further", () => {
+      for (const seed of SEEDS) {
+        const builds = RUINS.map((ruin) => atRuin(ruin, seed));
+        for (let i = 1; i < builds.length; i++) {
+          const before = builds[i - 1]!;
+          const after = builds[i]!;
+          expect(
+            [...whole(after)].filter((key) => !whole(before).has(key)),
+            `seed ${seed}`,
+          ).toEqual([]);
+          expect(
+            [...roof(after)].filter((key) => !roof(before).has(key)),
+            `seed ${seed}`,
+          ).toEqual([]);
+        }
+      }
+    });
+
+    it("stands whole with its full roof at no ruin and keeps less than half of either when fully ruined", () => {
+      for (const seed of SEEDS) {
+        const intact = atRuin(0, seed);
+        const ruined = atRuin(100, seed);
+        expect(whole(intact).size).toBe(pillars(intact).length);
+        expect(whole(ruined).size).toBeLessThan(pillars(intact).length / 2);
+        expect(roof(ruined).size).toBeLessThan(roof(intact).size / 2);
+      }
+    });
+  });
 });

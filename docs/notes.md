@@ -16664,6 +16664,15 @@ into from any side.
   along the north and west of its top and the west of its south face, and its
   south-east corner takes the east face's colour; lit, that column drew a white
   diagonal at every block of a wall seen from the east.
+- **`ruin` (0–100) turns one temple into many ruins.** Each pillar rolls once
+  against `ruin^1.5`, so a light ruin cracks segments before anything falls; a
+  pillar that fails keeps a stump under `marble-pillar-broken`, or falls to
+  rubble. A roof cell stays only while a whole pillar is near enough, a reach
+  that shrinks with `ruin`, and only if it joins through the roof to a cell
+  over a whole pillar, so no slab floats. Moss, vines, ivy at pillar feet,
+  ferns and flowers grow with `ruin`. Every roll is per cell against the
+  node's seed, so raising `ruin` only ever takes more away, and two ruins with
+  different keys fall differently.
 
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 
