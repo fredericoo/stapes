@@ -113,7 +113,8 @@ function levelsOf(
  * raised cell is a column with one `wall` on every level under its top,
  * standing on ground wherever a neighbour's ground lies on that level, with
  * `brink` on top of every cell beside a drop and `ground` elsewhere. Plants
- * on a cell go to the top with it; a flat cover such as grass does not.
+ * on a cell go to the top with it; a flat cover such as grass stays at the
+ * foot of the wall.
  *
  * It builds on whatever level the ground under the middle of its frame is
  * on, so a hill laid on a hill's top is a second tier, in its own tiles. Only
@@ -222,7 +223,10 @@ export const hill: Component<HillProps> = {
       const y = gridY(g, i);
       const stack = before(i);
       for (let z = 0; z < L; z++) {
-        const under = z === 0 ? stack.slice(0, 1) : [tile(props.ground)];
+        const under =
+          z === 0
+            ? [stack[0]!, ...stack.slice(1).filter((p) => !standsUp(p))]
+            : [tile(props.ground)];
         const column =
           heads.has(i) && z === L - 1
             ? [...under, tile(props.rampBlock), tile(props.rampBlock)]

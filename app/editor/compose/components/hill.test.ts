@@ -46,4 +46,28 @@ describe("hill", () => {
     expect(brinks.length).toBeGreaterThan(20);
     for (const stack of brinks) expect(stack).toEqual(["grass-brink"]);
   });
+
+  it("stands its walls on the grass round its foot", () => {
+    const built = buildTree(
+      land(
+        SIZE,
+        [
+          node("grass"),
+          node("hill", { roughness: 0, levels: 1, terrace: 2 }, { frame: frame(8, 4, 24, 20) }),
+        ],
+        "sand",
+      ),
+    );
+    const levelOf = (x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+    const feet: string[][] = [];
+    for (const [key] of built.elevation) {
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      const beside = [-1, 0, 1].some((dy) =>
+        [-1, 0, 1].some((dx) => levelOf(x + dx, y + dy) === 0),
+      );
+      if (beside) feet.push(getStack(built.map, x, y, 0).map((p) => p.tileId));
+    }
+    expect(feet.length).toBeGreaterThan(20);
+    for (const stack of feet) expect(stack).toEqual(["sand", "grass", "hill-wall"]);
+  });
 });
