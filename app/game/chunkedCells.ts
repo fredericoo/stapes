@@ -67,6 +67,14 @@ export class ChunkedCells<T> {
     if (group.entries.size === 0) this.groups.delete(groupKey);
   }
 
+  forgetChunks(chunkKeys: ReadonlySet<string>) {
+    for (const [groupKey, group] of this.groups) {
+      if (!chunkKeys.has(group.chunkKey)) continue;
+      this.count -= group.entries.size;
+      this.groups.delete(groupKey);
+    }
+  }
+
   settle(
     map: MapFile,
     settleGroup: (map: MapFile, entries: Iterable<T>) => ChunkSettle,

@@ -1,5 +1,5 @@
 import { resolveShed, type ShedInteraction } from "../lib/interactions";
-import { getStack, listCoords, presentLevels } from "../lib/mapData";
+import { chunkKeyFor, getStack, listCoords, presentLevels } from "../lib/mapData";
 import { countOf } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { landingFor } from "./affordances";
@@ -90,6 +90,12 @@ export class Shedding {
   private sinceStepMs = 0;
 
   constructor(private readonly rng: Rng) {}
+
+  forgetChunks(chunkKeys: ReadonlySet<string>) {
+    for (const [key, cell] of this.cells) {
+      if (chunkKeys.has(chunkKeyFor(cell.x, cell.y))) this.cells.delete(key);
+    }
+  }
 
   index(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>) {
     const key = cellKey(cell);

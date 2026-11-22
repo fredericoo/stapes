@@ -22,6 +22,8 @@ import {
   elevationAt,
   getStack,
   isPlayerBody,
+  isUnloadedAt,
+  loadChunks,
   MapDraft,
   removeTileAt,
   replaceStack,
@@ -29,7 +31,18 @@ import {
   setStacks,
   shareMap,
   type StackEdit,
+  unloadChunks,
 } from "../lib/mapData";
+import {
+  cellsOf,
+  chunkOfCell,
+  chunkRecords,
+  chunksAround,
+  dialogTeleportTargets,
+  itemIdsIn,
+  teleportTargetsIn,
+  UNLOADED_TILE,
+} from "./residency";
 import {
   resolveRespawn,
   type EndureInteraction,
@@ -500,7 +513,7 @@ import {
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
-import type { ItemDecay, LootDecay, PlacementDecay } from "./decay";
+import type { DecayEntry, ItemDecay, LootDecay, PlacementDecay } from "./decay";
 import {
   DecayIndex,
   applyDecay,
@@ -1052,6 +1065,9 @@ export class GameSession implements PlaySession {
   private readonly walkingInto = new Map<string, ActorRuntime[]>();
   private tileIndex: Map<string, string[]> | null = null;
   private unclaimedOwners: Set<string> | null = null;
+  /** Residents whose bodies are in a chunk that is out of memory, by chunk key. */
+  private readonly frozenResidents = new Map<string, string>();
+  private readonly parkedDecay = new Map<string, DecayEntry[]>();
   private columns: {
     index: Map<string, string[]>;
     byTile: Map<string, TileColumns>;
@@ -1158,7 +1174,7 @@ export class GameSession implements PlaySession {
   ) {
     this.clock = clock;
     this.depots = depots;
-    this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
+    this.tilesById = tilesByIdFromList([...withTraits(tiles, traits), UNLOADED_TILE]);
     this.board = settleAllSpans(shareMap(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
@@ -1456,6 +1472,168 @@ export class GameSession implements PlaySession {
       : despawnActor(this.map, id);
   }
 
+  isUnloaded(cell: Coord): boolean {
+    return isUnloadedAt(this.map, cell.x, cell.y, cell.z);
+  }
+
+  /**
+   * Chunks that stay in memory with nobody near: the spawn, anything wired to
+   * a channel, anything burning or otherwise afflicted, and wherever a
+   * teleport or a dialog can send somebody, so a body is never moved into a
+   * chunk that is not there. Each is kept with its neighbours, because the
+   * cell it names can be at a chunk's edge.
+   */
+  chunksToKeep(): Set<string> {
+    const cells: Coord[] = [this.spawnAt, ...this.wiredCells.values()];
+    for (const placed of this.endure.afflictedPlacements()) cells.push(placed);
+    cells.push(...dialogTeleportTargets(this.tilesById));
+    const teleports = this.teleportTileIds();
+    if (teleports.length > 0) {
+      for (const zk in this.map.levels) {
+        const level = this.map.levels[zk]!;
+        for (const chk in level) {
+          const ids = tileIdsInChunk(level[chk]!);
+          if (!teleports.some((id) => ids.has(id))) continue;
+          teleportTargetsIn(new Map([[zk, level[chk]!]]), this.tilesById, cells);
+        }
+      }
+    }
+    return chunksAround(cells, 1);
+  }
+
+  private teleportTileIds(): string[] {
+    return Object.keys(this.tilesById).filter(
+      (id) => this.tilesById[id]!.interactions?.teleport != null,
+    );
+  }
+
+  /** Where every actor that is not a resident stands: players, and whatever they conjured. */
+  wakefulPositions(): Coord[] {
+    const out: Coord[] = [];
+    for (const actor of this.actors.values()) {
+      if (actor.resident) continue;
+      const loc = this.tryLocate(actor);
+      if (loc) out.push(loc);
+    }
+    return out;
+  }
+
+  /**
+   * Takes these chunks out of memory, leaving `UNLOADED_CHUNK` in their place.
+   * The caller has the store hold each one as it is now. Residents standing in
+   * them stop being actors until their chunk is back, the decay clocks of
+   * what lies there are put aside still running, and the other indexes forget
+   * the cells. A chunk holding any other actor is left loaded.
+   */
+  unloadChunks(chunkKeys: Iterable<string>): string[] {
+    const keys = new Set(chunkKeys);
+    const leaving: ActorRuntime[] = [];
+    for (const actor of this.actors.values()) {
+      const loc = this.tryLocate(actor);
+      if (!loc || !keys.has(chunkOfCell(loc))) continue;
+      if (actor.resident) leaving.push(actor);
+      else keys.delete(chunkOfCell(loc));
+    }
+    if (keys.size === 0) return [];
+
+    const itemChunks = new Map<string, string>();
+    const items = new Set<string>();
+    for (const chk of keys) {
+      for (const cells of chunkRecords(this.map, chk).values()) {
+        for (const key in cells) {
+          items.clear();
+          itemIdsIn(cells[key]!, items);
+          for (const id of items) itemChunks.set(id, chk);
+        }
+      }
+    }
+    for (const entry of this.decay.park((entry) =>
+      entry.kind === "item" ? itemChunks.has(entry.itemId) : keys.has(chunkOfCell(entry.cell)),
+    )) {
+      const chk = entry.kind === "item" ? itemChunks.get(entry.itemId)! : chunkOfCell(entry.cell);
+      let parked = this.parkedDecay.get(chk);
+      if (!parked) this.parkedDecay.set(chk, (parked = []));
+      parked.push(entry);
+    }
+    for (const actor of leaving) {
+      this.frozenResidents.set(actor.id, chunkOfCell(this.locate(actor)));
+      this.freeze(actor);
+    }
+    for (const walkers of this.walkingInto.values()) {
+      for (const walker of [...walkers]) {
+        const to = walker.walk?.to;
+        if (!to || !keys.has(chunkOfCell(to))) continue;
+        this.forgetWalk(walker);
+        walker.walk = null;
+        walker.walkOrder = null;
+      }
+    }
+
+    this.draft.seal();
+    this.map = unloadChunks(this.map, keys);
+    this.forgetIndexedChunks(keys);
+    this.forgetTileIndex();
+    this.unclaimedOwners = null;
+    return [...keys];
+  }
+
+  /**
+   * Puts chunks back from the store's records, each by level key. Decay
+   * clocks that ran out while a chunk was away are due on the next tick; the
+   * residents in it are actors again, standing where they were left.
+   */
+  loadChunks(stored: ReadonlyMap<string, ReadonlyMap<string, ChunkCells>>) {
+    if (stored.size === 0) return;
+    this.draft.seal();
+    this.map = loadChunks(this.map, stored);
+    const levels: MapFile["levels"] = {};
+    const cells: Coord[] = [];
+    for (const chk of stored.keys()) {
+      this.decay.restore(this.parkedDecay.get(chk) ?? []);
+      this.parkedDecay.delete(chk);
+      const records = chunkRecords(this.map, chk);
+      for (const { cell } of cellsOf(records)) cells.push(cell);
+      for (const [zk, chunk] of records) (levels[zk] ??= {})[chk] = chunk;
+    }
+    this.reindexCells(cells);
+    const back: MapFile = { version: this.map.version, levels };
+    for (const body of listResidentBodies(back, this.tilesById)) {
+      const owner = body.placed.owner;
+      if (!owner || this.actors.has(owner)) continue;
+      this.frozenResidents.delete(owner);
+      this.addResident(owner, body.placed.tileId, body);
+    }
+    this.forgetTileIndex();
+    this.unclaimedOwners = null;
+  }
+
+  /** What `reindexCells` would find in cells that now read as a wall, without visiting each one. */
+  private forgetIndexedChunks(keys: ReadonlySet<string>) {
+    this.plateCells.forgetChunks(keys);
+    this.looseGravityCells.forgetChunks(keys);
+    this.weathering.forgetChunks(keys);
+    this.shedding.forgetChunks(keys);
+    for (const index of [this.wiredCells, this.afflictCells]) {
+      for (const [key, entry] of index) {
+        const cell = "cell" in entry ? entry.cell : entry;
+        if (keys.has(chunkOfCell(cell))) index.delete(key);
+      }
+    }
+  }
+
+  /** `despawn` without taking the body off the board, which is going out of memory with it. */
+  private freeze(actor: ActorRuntime) {
+    this.cancelExtraction(actor);
+    this.cancelCasting(actor);
+    this.forgetWalk(actor);
+    this.planSearches.delete(actor.id);
+    this.actors.delete(actor.id);
+    this.pendingHurt.delete(actor.id);
+    this.pendingAlerts.delete(actor.id);
+    this.statusReadings.delete(actor.id);
+    this.statusesChanged.delete(actor.id);
+  }
+
   /**
    * A creature on the board always has an actor, apart from the bodies the
    * starting board held for nobody, so its point is answered without sweeping
@@ -1463,6 +1641,7 @@ export class GameSession implements PlaySession {
    */
   isSpawnFilled(point: SpawnPoint): boolean {
     if (!point.ownerId) return isSpawnFilled(this.map, point);
+    if (this.frozenResidents.has(point.ownerId)) return true;
     const actor = this.actors.get(point.ownerId);
     if (actor) return this.tryLocate(actor) !== null;
     return this.ownersWithoutActor().has(point.ownerId);

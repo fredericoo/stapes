@@ -32,9 +32,97 @@ export function emptyMap(): MapFile {
   return { version: MAP_FILE_VERSION, levels: {} };
 }
 
+/** The tile every cell of an unloaded chunk reads as; `GameSession` adds its definition. */
+export const UNLOADED_TILE_ID = "~unloaded";
+
+/**
+ * The record that stands in a level for a chunk whose cells are in the store
+ * and not in memory. It has no keys, so a sweep of the board skips it, and
+ * `getStack` answers every cell in it with a wall, so nothing walks, lands,
+ * spreads or looks into it.
+ */
+export const UNLOADED_CHUNK: ChunkCells = Object.freeze({}) as ChunkCells;
+
+const UNLOADED_STACK: PlacedTile[] = Object.freeze([
+  Object.freeze({ tileId: UNLOADED_TILE_ID }),
+]) as PlacedTile[];
+
+export function isUnloadedAt(map: MapFile, x: number, y: number, z: number): boolean {
+  return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)] === UNLOADED_CHUNK;
+}
+
+/** Every chunk key that some level holds as `UNLOADED_CHUNK`. */
+export function unloadedChunkKeys(map: MapFile): Set<string> {
+  const out = new Set<string>();
+  for (const zk in map.levels) {
+    const level = map.levels[zk]!;
+    for (const chk in level) if (level[chk] === UNLOADED_CHUNK) out.add(chk);
+  }
+  return out;
+}
+
+/**
+ * Puts `UNLOADED_CHUNK` in every present level for each key, including levels
+ * where the chunk held nothing, so a creature that flies cannot rise over the
+ * wall into air the chunk does not hold.
+ */
+export function unloadChunks(map: MapFile, chunkKeys: Iterable<string>): MapFile {
+  const keys = [...chunkKeys];
+  if (keys.length === 0) return map;
+  const levels = { ...map.levels };
+  for (const zk in levels) {
+    const source = levels[zk]!;
+    const level = { ...source };
+    for (const chk of keys) level[chk] = UNLOADED_CHUNK;
+    lineage.set(level, { parent: new WeakRef(source), keys: [...keys] });
+    levels[zk] = level;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
+/**
+ * Replaces `UNLOADED_CHUNK` with the stored records, each chunk's by level
+ * key. A level with no stored record for a chunk drops the key. A level that
+ * holds a real record for it already keeps that one. Each level is copied
+ * once however many chunks come back, which is most of what this costs.
+ */
+export function loadChunks(
+  map: MapFile,
+  stored: ReadonlyMap<string, ReadonlyMap<string, ChunkCells>>,
+): MapFile {
+  const levels = { ...map.levels };
+  const levelKeys = new Set(Object.keys(levels));
+  for (const records of stored.values()) for (const zk of records.keys()) levelKeys.add(zk);
+  for (const zk of levelKeys) {
+    const source = levels[zk];
+    let level: LevelChunks | null = null;
+    let deleted = false;
+    const written: string[] = [];
+    for (const [chk, records] of stored) {
+      const cells = records.get(zk);
+      const unloaded = source?.[chk] === UNLOADED_CHUNK;
+      if (!unloaded && (!cells || source?.[chk])) continue;
+      level ??= { ...source };
+      if (cells && !isEmptyRecord(cells)) {
+        level[chk] = cells;
+      } else {
+        delete level[chk];
+        deleted = true;
+      }
+      written.push(chk);
+    }
+    if (!level) continue;
+    if (source) lineage.set(level, { parent: new WeakRef(source), keys: written });
+    if (deleted && isEmptyRecord(level)) delete levels[zk];
+    else levels[zk] = level;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
 export function getStack(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
   const chunk = map.levels[levelKey(z)]?.[chunkKeyFor(x, y)];
   if (!chunk) return [];
+  if (chunk === UNLOADED_CHUNK) return UNLOADED_STACK;
   if (!isWholeCell(x, y)) return chunk[coordKey(x, y)] ?? [];
   return cellIndexOf(chunk)[cellSlot(x, y)] ?? [];
 }
@@ -83,7 +171,8 @@ export function stackOnLevel(
   chunkKey: string,
   cellKey: string,
 ): PlacedTile[] | undefined {
-  return map.levels[levelKey(z)]?.[chunkKey]?.[cellKey];
+  const chunk = map.levels[levelKey(z)]?.[chunkKey];
+  return chunk === UNLOADED_CHUNK ? UNLOADED_STACK : chunk?.[cellKey];
 }
 
 const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
@@ -205,8 +294,12 @@ export function chunkCopiedFrom(
   return from === undefined ? null : { from, keys: link.keys };
 }
 
+/**
+ * A chunk going out of memory or coming back is not a change to what it
+ * holds: the store has the same cells either way.
+ */
 function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCells | undefined) {
-  if (a === b) return;
+  if (a === b || a === UNLOADED_CHUNK || b === UNLOADED_CHUNK) return;
   const written = a && b ? keysWrittenBetween(a, b) : null;
   if (written) {
     for (const key of written) if (a![key] !== b![key]) out.add(key);
@@ -254,7 +347,11 @@ export function changedChunkKeysOnLevel(prev: MapFile, next: MapFile, z: number)
   const written = before && after ? keysWrittenBetween(before, after) : null;
   const keys = written ?? [...Object.keys(before ?? {}), ...Object.keys(after ?? {})];
   const out: string[] = [];
-  for (const chk of new Set(keys)) if (before?.[chk] !== after?.[chk]) out.push(chk);
+  for (const chk of new Set(keys)) {
+    const a = before?.[chk];
+    const b = after?.[chk];
+    if (a !== b && a !== UNLOADED_CHUNK && b !== UNLOADED_CHUNK) out.push(chk);
+  }
   return out;
 }
 
@@ -291,7 +388,12 @@ export function changedChunks(prev: MapFile | null, next: MapFile): ChangedChunk
     for (const chk of chunkKeys) {
       const a = before?.[chk];
       const b = after?.[chk];
-      if (a === b) continue;
+      /**
+       * A chunk only goes out of memory once the store holds it, so it is not
+       * written as empty. One coming back is written again, because it may
+       * have been changed since and this cannot tell.
+       */
+      if (a === b || b === UNLOADED_CHUNK) continue;
       out.push({ levelKey: zk, chunkKey: chk, cells: b ?? {} });
     }
   }
@@ -738,6 +840,7 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[], draft?: Map
   for (const edit of edits) {
     const zk = levelKey(edit.z);
     const chk = chunkKeyFor(edit.x, edit.y);
+    if (map.levels[zk]?.[chk] === UNLOADED_CHUNK) continue;
     const path = `${zk}/${chk}`;
 
     let chunk = copied.get(path);
