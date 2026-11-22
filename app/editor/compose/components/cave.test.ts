@@ -272,3 +272,35 @@ describe("cave", () => {
     });
   });
 });
+
+describe("a cave under a hill of another ground on top", () => {
+  it("lays one ground under its whole floor, not the snow of the hill on top", () => {
+    const built = buildTree(
+      land(SIZE, [
+        node("hill", { levels: 3, terrace: 0, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+        node(
+          "hill",
+          {
+            levels: 1,
+            terrace: 0,
+            roughness: 0,
+            ground: "snow",
+            brink: "snow-brink",
+            wall: "hill-wall-frost",
+          },
+          { frame: frame(14, 8, 28, 24) },
+        ),
+        node("cave", { mouths: [MOUTH], floor: "ice" }, { frame: frame(6, 4, 44, 32) }),
+      ]),
+    );
+    const grounds = new Set<string>();
+    for (let y = 0; y < SIZE.h; y++) {
+      for (let x = 0; x < SIZE.w; x++) {
+        const stack = getStack(built.map, x, y, 0);
+        if (stack.at(-1)?.tileId === "ice") grounds.add(stack[0]!.tileId);
+      }
+    }
+    expect([...grounds], sketch(built)).toHaveLength(1);
+    expect(grounds.has("snow")).toBe(false);
+  });
+});

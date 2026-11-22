@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { isFlat } from "../brinks";
 import type { StackEdit } from "../../../lib/mapData";
 import type { Direction, PlacedTile } from "../../../lib/types";
 import { HEIGHT_PER_LEVEL } from "../../../lib/types";
@@ -576,11 +577,27 @@ export const cave: Component<CaveProps> = {
     }
 
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
-    /** In a hill the floor lies on the hill's ground, which its edges show; underground there is nothing under it. */
+    /**
+     * In a hill the floor lies on the hill's ground, which its edges show;
+     * underground there is nothing under it. It is one ground for the whole
+     * cave, the one most of the hill's walls on the cave's level stand on, since
+     * a cave under a hill of snow on a hill of grass is dug from the grass
+     * hill's rock and two grounds under one floor show a seam where they meet.
+     */
+    const counts = new Map<string, number>();
+    for (let y = ctx.bounds.minY; y <= ctx.bounds.maxY && !underground; y++) {
+      for (let x = ctx.bounds.minX; x <= ctx.bounds.maxX; x++) {
+        const here = ctx.stackAt(x, y, z)[0];
+        if (here && isFlat(here, ctx.tilesById)) {
+          counts.set(here.tileId, (counts.get(here.tileId) ?? 0) + 1);
+        }
+      }
+    }
+    const commonest = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
     const floorAt = (x: number, y: number): PlacedTile[] =>
       underground
         ? [tile(props.floor)]
-        : [tile(ctx.rampAt(x, y)?.ground ?? "grass-2"), tile(props.floor)];
+        : [tile(commonest ?? ctx.rampAt(x, y)?.ground ?? "grass-2"), tile(props.floor)];
     const edits: StackEdit[] = [];
     const walls = new Set<string>();
     /** The eight cells round a cell in order round it, so open cells that touch are neighbours in the list. */
