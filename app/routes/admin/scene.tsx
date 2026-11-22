@@ -42,7 +42,7 @@ export default function ScenePage() {
         const spanX = canvas.clientWidth / built.zoom;
         const spanY = canvas.clientHeight / built.zoom;
         world.setLightingEnabled(built.lighting);
-        world.setView({
+        const view = {
           map: built.map,
           tilesById,
           camera: {
@@ -54,7 +54,8 @@ export default function ScenePage() {
           weather: built.weather,
           weatherAreas: built.weatherAreas,
           viewerCell: built.look,
-        });
+        };
+        world.setView(view);
         world.snapWeather();
 
         const startedAt = performance.now();
@@ -63,6 +64,12 @@ export default function ScenePage() {
             throw new Error(`the scene's light had not baked after ${timeoutMs} ms`);
           }
           await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+          /**
+           * `setView` builds queued chunks only within a time budget, and the game
+           * calls it every frame; a scene calls it once, so a large scene has to
+           * call it again until the queue is empty.
+           */
+          world.setView(view);
         }
         world.renderOnce();
       },
