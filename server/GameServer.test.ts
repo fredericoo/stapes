@@ -221,8 +221,12 @@ const NAMES = { alice: "Alice", bob: "Bob" } as const;
 
 const ALICE_LOOK = { skin: "pale", hair: "blue", head: "long-hair" } as const;
 
+/**
+ * Pinned clear: left to `weatherAt`, the weather follows the wall clock, and a
+ * spell ending mid-test sends a `weather` message no test expects.
+ */
 beforeEach(async () => {
-  harness = await Harness.create(NAMES, { appearances: { alice: ALICE_LOOK } });
+  harness = await Harness.create(NAMES, { appearances: { alice: ALICE_LOOK }, weather: "clear" });
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
   await harness.blobs.put("traits.json", JSON.stringify(traitsJson), JSON_TYPE);
