@@ -108,6 +108,17 @@ describe("saving the tree", () => {
     expect(JSON.parse((await world.blobs.readTreeText())!)).toEqual(JSON.parse(rowTree(4, 3)));
   });
 
+  it("refuses every save on a deployed world, whose tree comes from its image", async () => {
+    const config = readConfig({ DATA_DIR: join(directory, "data") } as never);
+    api = createApi(world, new ClientBundle(config), { ...config, deployed: true });
+    const before = await storedMap();
+
+    const response = await saveTree(rowTree(4, 3));
+
+    expect(response.status).toBe(403);
+    expect(await storedMap()).toBe(before);
+  });
+
   it("keeps the board when the saved tree builds the map the world already plays", async () => {
     await saveTree(rowTree(4, 3));
 

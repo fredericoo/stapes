@@ -79,8 +79,9 @@ export async function saveTraits(traits: unknown[]): Promise<void> {
   unwrap(await client.api.traits.post({ traits }));
 }
 
-export async function fetchTree(): Promise<string | null> {
-  return unwrap(await client.api.tree.get()).tree;
+/** `editable` is false on a deployed world, whose tree comes only from its image. */
+export async function fetchTree(): Promise<{ tree: string | null; editable: boolean }> {
+  return unwrap(await client.api.tree.get());
 }
 
 /** Resolves once the world plays the map the tree builds, which on a whole island takes a while. */

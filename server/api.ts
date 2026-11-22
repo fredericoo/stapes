@@ -223,7 +223,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
     .get("/weather-areas", async () => ({ areas: await store.readWeatherAreas() }))
     .get("/tree", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
-      return { tree: await store.readTreeText() };
+      return { tree: await store.readTreeText(), editable: !config.deployed };
     })
     .get("/map", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
@@ -310,6 +310,12 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       "/tree",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
+        if (config.deployed) {
+          return status(
+            403,
+            "A deployed world plays the tree its image was built with. Edit data/world.json in a checkout and deploy it.",
+          );
+        }
         let raw: unknown;
         try {
           raw = JSON.parse(body.tree);

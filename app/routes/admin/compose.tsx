@@ -70,8 +70,8 @@ import { Button, Dialog, ScrollArea, Select, Tooltip, useToast } from "../../ui"
 
 export async function clientLoader() {
   await requireAdmin();
-  const [bootstrap, tree] = await Promise.all([fetchBootstrap(), fetchTree()]);
-  return { ...bootstrap, tree };
+  const [bootstrap, { tree, editable }] = await Promise.all([fetchBootstrap(), fetchTree()]);
+  return { ...bootstrap, tree, editable };
 }
 
 function demoDoc(): MapDoc {
@@ -218,7 +218,7 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
 }
 
 export default function ComposePage() {
-  const { tiles, tilesets, tree } = useLoaderData<typeof clientLoader>();
+  const { tiles, tilesets, tree, editable } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const [savedTree, setSavedTree] = useState(tree);
   const worldDoc = useMemo(() => worldDocOf(savedTree), [savedTree]);
@@ -565,14 +565,20 @@ export default function ComposePage() {
             >
               Discard changes
             </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={!unsaved}
-              onClick={() => setPlayOpen(true)}
-            >
-              Save to the world
-            </Button>
+            {editable ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={!unsaved}
+                onClick={() => setPlayOpen(true)}
+              >
+                Save to the world
+              </Button>
+            ) : (
+              <Tooltip content="This world plays the tree it was deployed with. To change its map, edit data/world.json in a checkout and deploy it.">
+                <span className="text-xs text-paper/70">View only</span>
+              </Tooltip>
+            )}
           </div>
         }
       >
@@ -877,8 +883,8 @@ export default function ComposePage() {
               new map has sea is in the sea. A whole island takes about half a minute to build.
             </p>
             <p className="text-muted">
-              On a dev server the tree is written to the file the server was started with, so the
-              change is a diff to commit. A deploy puts the repository's tree back.
+              The tree is written to the file the server was started with, so the change is a diff
+              to commit. Deployed worlds take no saves: they play the tree in their image.
             </p>
             {spawns !== 1 ? (
               <p className="text-danger">

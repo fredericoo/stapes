@@ -87,7 +87,7 @@ players.
 Nobody edits `map.json` any more. The world's content holds `world.json`, a
 compose tree (`app/editor/compose/`, edited at `/admin/compose`), and
 `World.buildAuthoredMap` builds the map from it when the server starts and when
-the editor saves. The decisions:
+the editor saves on a dev server. The decisions:
 
 - **Two hashes, stored under `authoredMap` in `kv`.** The inputs hash covers the
   tree, `tiles.json` and every non-test file under `app/editor`, `app/game` and
@@ -106,6 +106,18 @@ the editor saves. The decisions:
   dungeons). Forcing a collection after every node still peaked at 1.5 GB, so
   the peak is inside single nodes. A pooled build (`buildMap`'s `pool`) cut
   the peak from 2.2 to 1.8 GB and builds the same bytes.
+- **The Docker image builds the map, so a deployed start only reads it.** The
+  Dockerfile runs `server/worldMap.ts --prebuild` for `world.json` and
+  `world-staging.json`, writing each map and its inputs hash under
+  `data/built/`. At start, `buildMap` plays that file when its inputs hash is
+  the one the world computed, and builds in the child otherwise (a tile edited
+  in the admin since, say). This keeps the 1.8 GB peak out of the container,
+  whose limit is 1536 MB, and puts it on the machine building the image.
+- **A deployed world takes no tree saves.** `POST /api/tree` answers 403 when
+  `NODE_ENV=production` and `/admin/compose` opens view only. A tree saved into
+  a deployed store would exist nowhere in version control and be replaced by
+  the image's on the next deploy that changes content, so the tree is edited in
+  a checkout and reaches a world only by deploying it.
 - **A tree that cannot start a world is never stored.** `POST /api/tree` hands
   the tree to `buildAuthoredMap`, which writes it only after `replaceWorld` has
   built a session from its map, so a spawnless save is refused and the next
