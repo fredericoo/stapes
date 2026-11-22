@@ -396,11 +396,18 @@
               "h": 72
             },
             "props": {
-              "tiles": ["lava", "lava-crust"],
-              "edge": ["lava-crust"],
+              "tiles": [
+                "lava",
+                "lava-crust"
+              ],
+              "edge": [
+                "lava-crust"
+              ],
               "edgeWidth": 1,
               "mode": "replace",
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             },
             "children": [
               {
@@ -430,11 +437,18 @@
               "h": 72
             },
             "props": {
-              "tiles": ["lava", "lava-crust"],
-              "edge": ["lava-crust"],
+              "tiles": [
+                "lava",
+                "lava-crust"
+              ],
+              "edge": [
+                "lava-crust"
+              ],
               "edgeWidth": 1,
               "mode": "replace",
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             },
             "children": [
               {
@@ -475,7 +489,9 @@
                 }
               ],
               "density": 4,
-              "onlyOn": ["sand"],
+              "onlyOn": [
+                "sand"
+              ],
               "clumping": 95,
               "clumpSize": 16,
               "spacing": 2
@@ -530,7 +546,9 @@
                 }
               ],
               "density": 4,
-              "onlyOn": ["sand"],
+              "onlyOn": [
+                "sand"
+              ],
               "clumping": 30,
               "spacing": 1
             },
@@ -568,7 +586,9 @@
                 }
               ],
               "density": 3,
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             }
           },
           {
@@ -811,8 +831,13 @@
               "h": 104
             },
             "props": {
-              "tiles": ["water", "deep-water"],
-              "edge": ["water"],
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
               "edgeWidth": 2,
               "mode": "replace"
             },
@@ -859,11 +884,19 @@
               "h": 144
             },
             "props": {
-              "tiles": ["mud", "water", "swamp"],
-              "edge": ["mud"],
+              "tiles": [
+                "mud",
+                "water",
+                "swamp"
+              ],
+              "edge": [
+                "mud"
+              ],
               "edgeWidth": 2,
               "mode": "replace",
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             },
             "children": [
               {
@@ -927,7 +960,11 @@
                 }
               ],
               "density": 18,
-              "onlyOn": ["mud", "swamp", "water"],
+              "onlyOn": [
+                "mud",
+                "swamp",
+                "water"
+              ],
               "clumping": 50
             }
           },
@@ -956,7 +993,9 @@
                 }
               ],
               "density": 3,
-              "onlyOn": ["mud"]
+              "onlyOn": [
+                "mud"
+              ]
             }
           },
           {
@@ -969,10 +1008,16 @@
               "h": 7
             },
             "props": {
-              "tiles": ["mud"],
+              "tiles": [
+                "mud"
+              ],
               "edge": [],
               "mode": "replace",
-              "onlyOn": ["water", "swamp", "mud"]
+              "onlyOn": [
+                "water",
+                "swamp",
+                "mud"
+              ]
             }
           },
           {
@@ -1060,7 +1105,10 @@
               "h": 464
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 60,
               "path": null,
               "paths": 1,
@@ -1224,7 +1272,9 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             }
           },
           {
@@ -1305,7 +1355,10 @@
               "h": 80
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 45,
               "path": null,
               "paths": 1,
@@ -1339,7 +1392,10 @@
               "h": 100
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 40,
               "path": null,
               "paths": 1,
@@ -1387,7 +1443,9 @@
               "h": 44
             },
             "props": {
-              "onlyOn": ["grass"],
+              "onlyOn": [
+                "grass"
+              ],
               "density": 35,
               "path": null,
               "paths": 1
@@ -1479,7 +1537,13 @@
               "h": 96
             },
             "props": {
-              "remove": ["tree", "old-tree", "dead-tree", "fallen-log", "tree-stump"]
+              "remove": [
+                "tree",
+                "old-tree",
+                "dead-tree",
+                "fallen-log",
+                "tree-stump"
+              ]
             },
             "children": [
               {
@@ -1516,7 +1580,9 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["snow"],
+              "onlyOn": [
+                "snow"
+              ],
               "clumping": 40
             }
           },
@@ -1575,10 +1641,16 @@
                   "h": 22
                 },
                 "props": {
-                  "tiles": ["moss-flagstone"],
+                  "tiles": [
+                    "moss-flagstone"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand", "grass-2"]
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
                 }
               },
               {
@@ -2130,7 +2202,9 @@
                     }
                   ],
                   "density": 10,
-                  "onlyOn": ["grass"],
+                  "onlyOn": [
+                    "grass"
+                  ],
                   "clumping": 70
                 }
               }
@@ -2178,10 +2252,15 @@
                   "h": 14
                 },
                 "props": {
-                  "tiles": ["flagstone-floor"],
+                  "tiles": [
+                    "flagstone-floor"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 }
               },
               {
@@ -2975,10 +3054,15 @@
                   "h": 10
                 },
                 "props": {
-                  "tiles": ["dirt"],
+                  "tiles": [
+                    "dirt"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 },
                 "children": [
                   {
@@ -3306,10 +3390,15 @@
                   "h": 3
                 },
                 "props": {
-                  "tiles": ["moss-flagstone"],
+                  "tiles": [
+                    "moss-flagstone"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 },
                 "children": [
                   {
@@ -3395,7 +3484,10 @@
                       "shape": "oval",
                       "op": "subtract",
                       "ragged": 60,
-                      "only": ["sw2", "door-closed"]
+                      "only": [
+                        "sw2",
+                        "door-closed"
+                      ]
                     }
                   }
                 ]
@@ -3441,7 +3533,11 @@
                       "shape": "oval",
                       "op": "subtract",
                       "ragged": 60,
-                      "only": ["sw2", "brick-wall", "door-closed"]
+                      "only": [
+                        "sw2",
+                        "brick-wall",
+                        "door-closed"
+                      ]
                     }
                   }
                 ]
@@ -3479,7 +3575,11 @@
                     }
                   ],
                   "density": 8,
-                  "onlyOn": ["sand", "grass", "flagstone-floor"],
+                  "onlyOn": [
+                    "sand",
+                    "grass",
+                    "flagstone-floor"
+                  ],
                   "clumping": 40
                 }
               }
@@ -3716,10 +3816,14 @@
                   "h": 12
                 },
                 "props": {
-                  "tiles": ["grass-2"],
+                  "tiles": [
+                    "grass-2"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass"]
+                  "onlyOn": [
+                    "grass"
+                  ]
                 },
                 "children": [
                   {
@@ -4093,11 +4197,17 @@
               "h": 40
             },
             "props": {
-              "tiles": ["water"],
-              "edge": ["mud"],
+              "tiles": [
+                "water"
+              ],
+              "edge": [
+                "mud"
+              ],
               "edgeWidth": 1,
               "mode": "replace",
-              "onlyOn": ["sand"]
+              "onlyOn": [
+                "sand"
+              ]
             },
             "children": [
               {
@@ -4146,7 +4256,10 @@
                 }
               ],
               "density": 30,
-              "onlyOn": ["mud", "sand"]
+              "onlyOn": [
+                "mud",
+                "sand"
+              ]
             },
             "children": [
               {
@@ -4176,7 +4289,10 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 55,
               "path": null,
               "paths": 1,
@@ -4210,7 +4326,9 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass"],
+              "onlyOn": [
+                "grass"
+              ],
               "density": 45,
               "path": null,
               "paths": 1,
@@ -4244,7 +4362,10 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 50,
               "path": null,
               "paths": 1
@@ -5342,7 +5463,10 @@
                 }
               ],
               "density": 10,
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "clumping": 60
             }
           },
@@ -5356,12 +5480,19 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass"],
-              "tree": "apple-tree",
+              "onlyOn": [
+                "grass"
+              ],
               "density": 35,
               "path": null,
               "paths": 1,
-              "undergrowthDensity": 3
+              "undergrowthDensity": 3,
+              "trees": [
+                {
+                  "tile": "apple-tree",
+                  "weight": 1
+                }
+              ]
             },
             "children": [
               {
@@ -5391,7 +5522,10 @@
               "h": 120
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 40,
               "path": null,
               "paths": 1
@@ -5424,8 +5558,9 @@
               "h": 176
             },
             "props": {
-              "onlyOn": ["snow"],
-              "tree": "snowy-pine",
+              "onlyOn": [
+                "snow"
+              ],
               "density": 22,
               "path": null,
               "paths": 1,
@@ -5435,7 +5570,13 @@
                   "weight": 1
                 }
               ],
-              "undergrowthDensity": 4
+              "undergrowthDensity": 4,
+              "trees": [
+                {
+                  "tile": "snowy-pine",
+                  "weight": 1
+                }
+              ]
             },
             "children": [
               {
@@ -5497,7 +5638,10 @@
                 }
               ],
               "density": 6,
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "clumping": 55
             },
             "children": [
@@ -5548,7 +5692,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             }
           },
           {
@@ -5572,7 +5718,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             },
             "children": [
               {
@@ -5622,7 +5770,10 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass", "grass-2"]
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
             },
             "children": [
               {
@@ -5662,7 +5813,10 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["mud", "swamp"]
+              "onlyOn": [
+                "mud",
+                "swamp"
+              ]
             }
           },
           {
@@ -5690,7 +5844,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["sand"]
+              "onlyOn": [
+                "sand"
+              ]
             },
             "children": [
               {
@@ -5726,7 +5882,9 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["snow"]
+              "onlyOn": [
+                "snow"
+              ]
             }
           },
           {
@@ -5750,7 +5908,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["sand"]
+              "onlyOn": [
+                "sand"
+              ]
             }
           },
           {
@@ -5798,7 +5958,12 @@
               "h": 46
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5811,7 +5976,12 @@
               "h": 44
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5824,7 +5994,12 @@
               "h": 18
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5837,7 +6012,12 @@
               "h": 20
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5850,7 +6030,12 @@
               "h": 24
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5863,7 +6048,12 @@
               "h": 18
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -6280,7 +6470,9 @@
             "type": "fill",
             "key": "pier-deck",
             "props": {
-              "tiles": ["wooden-floor"],
+              "tiles": [
+                "wooden-floor"
+              ],
               "edge": [],
               "mode": "whole stack"
             }

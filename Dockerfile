@@ -24,7 +24,7 @@ VOLUME ["/data"]
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=180s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/api/health" | grep -q '"status":"ok"' 
 
 CMD ["bun", "run", "server/index.ts"]

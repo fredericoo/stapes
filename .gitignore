@@ -16,3 +16,6 @@
 
 /.worktrees/
 /.claude/worktrees/
+
+# Built from data/world.json (or SEED_TREE) by the server at start.
+/data/map.json

@@ -2510,7 +2510,7 @@ export class GameServer {
   }
 
   async replaceWorld(
-    flat: FlatMapFile,
+    authored: MapFile,
     options: { keepPositions?: boolean } = {},
   ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
@@ -2524,7 +2524,7 @@ export class GameServer {
      */
     this.weatherAreas = await store.readWeatherAreas();
 
-    const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
+    const { map, removed } = removeUnfitPlacements(authored, tilesById);
     /**
      * The check `GameSession` would fail on, run while the running world is
      * still standing, so refusing a map without its `player` marker costs nothing.

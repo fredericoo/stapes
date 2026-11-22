@@ -41,11 +41,15 @@ export class SqliteBlobs implements Blobs {
   }
 }
 
+/** `files` names the file a key is kept in where that is not the key itself. */
 export class DiskBlobs implements Blobs {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly files: Readonly<Record<string, string>> = {},
+  ) {}
 
   private resolve(key: string): string {
-    const path = normalize(join(this.root, key));
+    const path = normalize(join(this.root, this.files[key] ?? key));
     const root = normalize(this.root);
     if (!path.startsWith(root)) throw new Error(`Refusing to escape ${root}`);
     return path;

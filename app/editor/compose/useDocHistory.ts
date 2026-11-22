@@ -1,45 +1,56 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseMapDoc, type MapDoc } from "./doc";
 
-const STORAGE_KEY = "stapes:compose:v1";
+const STORAGE_KEY = "stapes:compose:v2";
 const MAX_UNDO = 200;
 
 type History = { past: MapDoc[]; present: MapDoc; future: MapDoc[] };
 
-export function readSavedDoc(): MapDoc | null {
+/** An unsaved tree, with the world's tree it was edited from. */
+type Draft = { base: string; doc: unknown };
+
+/**
+ * The tree this browser was editing, if it was edited from `base`. A draft of
+ * an older tree is dropped: somebody saved since, and opening it would offer
+ * to put their save back.
+ */
+function readDraft(base: string): MapDoc | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = parseMapDoc(JSON.parse(raw));
+    const draft = JSON.parse(raw) as Draft;
+    if (draft.base !== base) return null;
+    const parsed = parseMapDoc(draft.doc);
     return parsed.ok ? parsed.doc : null;
   } catch {
     return null;
   }
 }
 
-function writeSavedDoc(doc: MapDoc) {
+function writeDraft(base: string, doc: MapDoc) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ base, doc } satisfies Draft));
   } catch {
     /** A private window or a full quota keeps the tree for this visit only. */
   }
 }
 
 /**
- * The tree with undo and redo, kept in this browser between visits. A drag
+ * The tree with undo and redo, kept in this browser between visits until it
+ * is saved. `base` is the world's tree as the server sent it. A drag
  * sends many `preview`s and one `settle`, so it is one step of undo however
  * far it went: the first preview remembers where the drag started, and the
  * settle files that as the step.
  */
-export function useDocHistory(initial: () => MapDoc) {
+export function useDocHistory(base: string, initial: () => MapDoc) {
   const [history, setHistory] = useState<History>(() => ({
     past: [],
-    present: readSavedDoc() ?? initial(),
+    present: readDraft(base) ?? initial(),
     future: [],
   }));
   const dragStart = useRef<MapDoc | null>(null);
 
-  useEffect(() => writeSavedDoc(history.present), [history.present]);
+  useEffect(() => writeDraft(base, history.present), [base, history.present]);
 
   const commit = useCallback((next: MapDoc | ((doc: MapDoc) => MapDoc)) => {
     setHistory((h) => {

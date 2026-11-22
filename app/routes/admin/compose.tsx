@@ -60,8 +60,8 @@ import { JsonDialog } from "../../editor/compose/JsonDialog";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { useDocHistory } from "../../editor/compose/useDocHistory";
 import { findPlayers } from "../../game/player";
-import { fetchBootstrap, saveMapText } from "../../lib/api";
-import { changedChunks, serializeMap } from "../../lib/mapData";
+import { fetchBootstrap, fetchTree, saveTree } from "../../lib/api";
+import { changedChunks } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import type { Bounds } from "../../editor/generator";
 import { baseCellWorldOrigin } from "../../lib/geometry";
@@ -70,12 +70,21 @@ import { Button, Dialog, ScrollArea, Select, Tooltip, useToast } from "../../ui"
 
 export async function clientLoader() {
   await requireAdmin();
-  return await fetchBootstrap();
+  const [bootstrap, tree] = await Promise.all([fetchBootstrap(), fetchTree()]);
+  return { ...bootstrap, tree };
 }
 
 function demoDoc(): MapDoc {
   const parsed = parseMapDoc(demo);
   if (!parsed.ok) throw new Error(`The demo map tree is not valid: ${parsed.reason}`);
+  return parsed.doc;
+}
+
+/** The world's tree as the server holds it, or the demo for a world that has none yet. */
+function worldDocOf(tree: string | null): MapDoc {
+  if (tree === null) return demoDoc();
+  const parsed = parseMapDoc(JSON.parse(tree) as unknown);
+  if (!parsed.ok) throw new Error(`The world's map tree is not valid: ${parsed.reason}`);
   return parsed.doc;
 }
 
@@ -209,9 +218,15 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
 }
 
 export default function ComposePage() {
-  const { tiles, tilesets } = useLoaderData<typeof clientLoader>();
+  const { tiles, tilesets, tree } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
-  const { doc, commit, preview, settle, undo, redo, canUndo, canRedo } = useDocHistory(demoDoc);
+  const [savedTree, setSavedTree] = useState(tree);
+  const worldDoc = useMemo(() => worldDocOf(savedTree), [savedTree]);
+  const { doc, commit, preview, settle, undo, redo, canUndo, canRedo } = useDocHistory(
+    savedTree ?? "",
+    () => worldDoc,
+  );
+  const unsaved = useMemo(() => JSON.stringify(doc) !== JSON.stringify(worldDoc), [doc, worldDoc]);
   const [view, setView] = useState(() => viewOf(doc));
   const [jsonOpen, setJsonOpen] = useState(false);
   const [picking, setPicking] = useState<((cell: { x: number; y: number }) => void) | null>(null);
@@ -256,16 +271,15 @@ export default function ComposePage() {
 
   const spawns = useMemo(() => findPlayers(built.map).length, [built]);
 
-  const play = async () => {
+  const save = async () => {
     setPlaying(true);
     try {
-      const removed = await saveMapText(serializeMap(built.map));
+      const { replaced, tree: stored } = await saveTree(JSON.stringify(doc));
+      setSavedTree(stored);
       setPlayOpen(false);
       showToast(
-        "The world now plays this map",
-        removed.length
-          ? `${removed.length} tiles did not fit and were left out. Open Play or Game to walk it.`
-          : "Open Play or Game to walk it.",
+        replaced ? "The world now plays this map" : "Saved. The map came out the same",
+        replaced ? "Open Play or Game to walk it." : "The world kept its board as it was.",
         { untilDismissed: true },
       );
     } catch (err) {
@@ -543,11 +557,21 @@ export default function ComposePage() {
                 <IconBraces size={18} aria-hidden="true" />
               </Button>
             </Tooltip>
-            <Button size="sm" variant="ghost-inverse" onClick={() => commit(demoDoc())}>
-              Start from the demo
+            <Button
+              size="sm"
+              variant="ghost-inverse"
+              disabled={!unsaved}
+              onClick={() => commit(worldDoc)}
+            >
+              Discard changes
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setPlayOpen(true)}>
-              Play this map
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!unsaved}
+              onClick={() => setPlayOpen(true)}
+            >
+              Save to the world
             </Button>
           </div>
         }
@@ -832,25 +856,29 @@ export default function ComposePage() {
         <Dialog
           open={playOpen}
           onOpenChange={setPlayOpen}
-          title="Play this map"
+          title="Save to the world"
           footer={
             <div className="flex w-full justify-end gap-2">
-              <Button onClick={() => setPlayOpen(false)}>Keep the world's map</Button>
+              <Button onClick={() => setPlayOpen(false)}>Keep editing</Button>
               <Button
                 variant="danger"
                 disabled={spawns !== 1 || playing}
-                onClick={() => void play()}
+                onClick={() => void save()}
               >
-                Replace the world's map
+                {playing ? "Building the map…" : "Save and rebuild the map"}
               </Button>
             </div>
           }
         >
           <div className="flex flex-col gap-2 p-4 text-sm">
             <p>
-              This replaces the map of the world this server runs with the one built here, for
-              everybody on it. Players keep their positions, so anybody standing where the new map
-              has sea is in the sea. The tree itself is not saved on the server.
+              This saves the tree as the world's, and the server builds its map from it for
+              everybody on it. Players keep their kit and positions, so anybody standing where the
+              new map has sea is in the sea. A whole island takes about half a minute to build.
+            </p>
+            <p className="text-muted">
+              On a dev server the tree is written to the file the server was started with, so the
+              change is a diff to commit. A deploy puts the repository's tree back.
             </p>
             {spawns !== 1 ? (
               <p className="text-danger">

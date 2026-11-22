@@ -54,7 +54,10 @@ so accounts need no configuration. See [SETUP.md](SETUP.md).
 - `/online` — the shared world, reached through `/sign-in` or `/sign-up`, then
   `/characters` or `/characters/new`. `/account/password` is reached from the
   character chooser
-- `/admin/map` — the map editor, which `/admin` opens on
+- `/admin/compose` — the map editor, which `/admin` opens on: a tree of
+  components (island, hill, forest, house, road and so on) that the server
+  builds the map from. Its Save writes the world's tree, `data/world.json`
+  under `bun dev`
 - `/admin/tiles` and `/admin/statuses` — the tile and status catalogues
 - `/admin/voxel` — builds a sprite out of voxels and exports it as a tileset
 - `/admin/npcs` — composes a walking character sheet from the `human_*.png`
@@ -96,11 +99,12 @@ an agent drives", lists every call.
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world and its accounts, on Bun, against a real
   database file
-- `bun run test:perf` — the app in a real browser, in Playwright: renderer
-  budgets, the landing page, the way in, the world in a tab, the phone controls
-  and `window.__stapes`. It starts its own `bun dev` on ports 5174 and 5175 against
-  the same `.dev/stapes.db` as yours, so stop your `bun dev` in that worktree
-  first: only one process can hold the database. `CHROMIUM_PATH` overrides the
+- `bun run test:perf` — the app in a real browser, in Playwright: the landing
+  page, the way in, the world in a tab, the phone controls and
+  `window.__stapes`. It starts its own `bun dev` on ports 5174 and 5175 against
+  the same `.dev/stapes.db` as yours, playing `data/world-staging.json`, so stop
+  your `bun dev` in that worktree first: only one process can hold the
+  database, and your next `bun dev` builds the whole island back. `CHROMIUM_PATH` overrides the
   browser it launches, for a machine whose installed Chromium is not the build
   this version of Playwright downloads
 - `bun run typecheck` — route typegen, then all three tsconfigs
@@ -110,8 +114,9 @@ an agent drives", lists every call.
   their reason in `docs/tooling.md`
 - `bun run format` — oxfmt, configured in `.oxfmtrc.json`.
   `bun run format:check` is the same question without writing, which is what
-  CI asks. Markdown is not formatted, and neither are `data/map.json` or
-  `data/tiles.json`, whose writers own their shape — `docs/tooling.md` has a
+  CI asks. Markdown is not formatted, and neither are `data/world.json`,
+  `data/world-staging.json`, `data/map.json` or `data/tiles.json`, whose writers
+  own their shape — `docs/tooling.md` has a
   paragraph on each
 - `bunx changeset add` — write the line this pull request adds to the
   changelog, for players; `--empty` for one they cannot notice. CI fails a pull
@@ -292,7 +297,10 @@ an agent drives", lists every call.
   to its parent. `--scene` writes the same cells for `bun run scene` to draw.
   Exits 1 after listing every node that could not be built.
   `app/editor/compose/demo.json` is a small example, and `/admin/compose` edits one.
-  `app/editor/compose/showcase.json` is a whole island built from every component.
+  `data/world.json` is the world's tree, a whole island built from every
+  component, and `data/world-staging.json` the small one staging and the
+  previews play (`SEED_TREE`). The server builds the same map at start, in
+  `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`.
 - `bun run generate:island` — write Rune Isle to `data/map.json` from
   `scripts/island/`: the reference generator's height, lakes and rivers inside
   the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,
@@ -638,8 +646,12 @@ board with the authored map:
   standing. The map, tiles, statuses and tilesets saved in a deployed editor
   since the last deploy are overwritten by `data/`, so an edit made there lasts
   until the next deploy unless it is committed too.
-- **Save in `/admin/map`.** Players in the world go back to the spawn; a
-  character that was away comes back near where it left.
+- **Save in `/admin/compose`.** The server builds the map from the saved tree
+  and replaces the world's board with it, unless it came out the same. Players
+  keep their kit and stay where they are standing.
+- **A start whose tree, tile catalogue or map builder changed**, which is any
+  deploy that touches them. The same as a save; a restart with nothing changed
+  keeps the board.
 - **`POST /api/reset`**, with the `ADMIN_SECRET` bearer token, which also
   destroys every position, kit, reward and mastery.
 

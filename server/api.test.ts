@@ -18,6 +18,7 @@ import { ClientBundle } from "./clientBundle";
 import { GameSocket } from "./sockets";
 import { readConfig } from "./config";
 import { World, type PlayerEntry } from "./world";
+import { rowTree } from "./testHarness";
 import type { CharacterSheet } from "./GameServer";
 
 const SEEDED_ADMIN_PASSWORD = "salem123";
@@ -59,12 +60,12 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-function saveMap(map: MapFile): Promise<Response> {
+function saveTree(tree: string): Promise<Response> {
   return api.handle(
-    new Request("http://localhost/api/map", {
+    new Request("http://localhost/api/tree", {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({ map: serializeMap(map) }),
+      body: JSON.stringify({ tree }),
     }),
   );
 }
@@ -73,35 +74,46 @@ async function storedMap(): Promise<string> {
   return serializeMap(await world.blobs.readMap());
 }
 
-describe("saving the map", () => {
-  it("refuses a map that cannot start a world, and leaves the stored map as it was", async () => {
+describe("saving the tree", () => {
+  it("refuses something that is not a map tree, and leaves the world's map as it was", async () => {
     const before = await storedMap();
-    const markerless = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
 
-    const response = await saveMap(markerless);
+    const response = await saveTree(JSON.stringify({ version: 2, root: { type: "group" } }));
 
-    expect(response.ok).toBe(false);
+    expect(response.status).toBe(400);
+    expect(await world.blobs.readTreeText()).toBeNull();
     expect(await storedMap()).toBe(before);
   });
 
-  it("removes a placement that does not fit before writing, and names it in the response", async () => {
-    let map = replaceStack(startableMap(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "barrel" },
-      { tileId: "barrel" },
-    ]);
-    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }]);
+  it("builds the tree's map and moves the world onto it", async () => {
+    const response = await saveTree(rowTree(4, 3));
 
-    const response = await saveMap(map);
-
-    expect(await response.json()).toMatchObject({
-      ok: true,
-      removed: [{ x: 1, y: 0, z: 0, tileId: "barrel" }],
-    });
-    expect(getStack(await world.blobs.readMap(), 1, 0, 0)).toEqual([
-      { tileId: "grass" },
-      { tileId: "barrel" },
+    expect(await response.json()).toMatchObject({ ok: true, replaced: true });
+    expect(getStack(await world.blobs.readMap(), 3, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      PLAYER_TILE_ID,
     ]);
+  });
+
+  it("refuses a tree whose map has no spawn, and keeps the tree and map it had", async () => {
+    await saveTree(rowTree(4, 3));
+    const before = await storedMap();
+    const spawnless = JSON.parse(rowTree(4, 3)) as { root: { children: unknown[] } };
+    spawnless.root.children.pop();
+
+    const response = await saveTree(JSON.stringify(spawnless));
+
+    expect(response.status).toBe(400);
+    expect(await storedMap()).toBe(before);
+    expect(JSON.parse((await world.blobs.readTreeText())!)).toEqual(JSON.parse(rowTree(4, 3)));
+  });
+
+  it("keeps the board when the saved tree builds the map the world already plays", async () => {
+    await saveTree(rowTree(4, 3));
+
+    const again = await saveTree(rowTree(4, 3));
+
+    expect(await again.json()).toMatchObject({ ok: true, replaced: false });
   });
 });
 
