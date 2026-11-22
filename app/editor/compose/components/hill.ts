@@ -14,6 +14,7 @@ import {
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import { brinkOf, isFlat } from "../brinks";
+import { distanceTo } from "../distance";
 import { isWet } from "./line";
 import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } from "./ramp";
 
@@ -38,6 +39,11 @@ const MIN_EDGE_SCALE = 5;
 const EDGE_SCALE_SHARE = 0.25;
 const MAX_WOBBLE = 0.6;
 
+const ROOM_EPSILON = 1e-9;
+
+/** The share of the wobble the ellipse is drawn in by, so the noise seldom needs squeezing at all. */
+const HEADROOM = 0.6;
+
 const N8 = [
   [0, -1],
   [1, -1],
@@ -50,13 +56,44 @@ const N8 = [
 ] as const;
 
 /**
+ * How far each terrace's edge is pushed in or out, in terraces at full
+ * roughness, and how many terraces across a bend in it is, so the terraces are
+ * not all one width the whole way round.
+ */
+const TERRACE_SWAY = 0.45;
+const TERRACE_SWAY_SCALE = 3;
+
+/** Lowers every cell to at most one level above its lowest eight-neighbour, which the sway alone does not promise. */
+function capSteps(g: CellGrid, level: Uint8Array): Uint8Array {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < level.length; i++) {
+      let lowest = level[i]!;
+      for (const [dx, dy] of N8) {
+        const x = gridX(g, i) + dx;
+        const y = gridY(g, i) + dy;
+        if (inGrid(g, x, y)) lowest = Math.min(lowest, level[gridIndex(g, x, y)]!);
+      }
+      if (level[i]! > lowest + 1) {
+        level[i] = lowest + 1;
+        changed = true;
+      }
+    }
+  }
+  return level;
+}
+
+/**
  * How many levels each cell is raised. The foot of the hill is a noisy
  * ellipse cut down to dry ground its masks leave in, and a cell's level is how
- * many terraces it is from the nearest cell outside that, counted in
- * eight-neighbour steps: every level is then the one below it drawn in by a
- * whole terrace on every side, corners included, so ground never overhangs
- * and no cliff is more than one level high. With no terrace every level ends
- * at the foot, in one cliff `levels` high.
+ * many terraces it is from the nearest cell outside that, in a straight
+ * line, so each level is the one below drawn in by a terrace and its corners
+ * are round. Neighbours are at most √2 apart, under two terraces, so no cliff
+ * is more than one level high. A terrace of one would let diagonal
+ * neighbours differ by two levels, so it counts eight-neighbour steps
+ * instead. With no terrace every level ends at the foot, in one cliff
+ * `levels` high.
  */
 function levelsOf(
   g: CellGrid,
@@ -64,12 +101,12 @@ function levelsOf(
   seed: number,
   raisable: (x: number, y: number) => boolean,
 ): Uint8Array {
-  const rx = g.width / 2 - MARGIN;
-  const ry = g.height / 2 - MARGIN;
+  const wobble = (props.roughness / 100) * MAX_WOBBLE;
+  const rx = (g.width / 2 - MARGIN) / (1 + wobble * HEADROOM);
+  const ry = (g.height / 2 - MARGIN) / (1 + wobble * HEADROOM);
   const cx = g.minX + (g.width - 1) / 2;
   const cy = g.minY + (g.height - 1) / 2;
   const scale = Math.max(MIN_EDGE_SCALE, Math.min(g.width, g.height) * EDGE_SCALE_SHARE);
-  const wobble = (props.roughness / 100) * MAX_WOBBLE;
   const n = g.width * g.height;
   const distance = new Int32Array(n).fill(-1);
   const queue: number[] = [];
@@ -84,9 +121,31 @@ function levelsOf(
     );
     const d = rx < 1 || ry < 1 ? Infinity : Math.hypot((x - cx) / rx, (y - cy) / ry);
     const noise = (fbm(x, y, seed, scale, EDGE_OCTAVES) - 0.5) * 2 * wobble;
-    if (fromEdge >= MARGIN && d - noise <= 1 && raisable(x, y)) continue;
+    /**
+     * The noise pushes the foot out only as far as the frame's margin leaves
+     * room for, squeezed smoothly towards that limit. Cut off by the frame
+     * instead, a side would be a straight line, and so would every terrace.
+     */
+    const toFrame = Math.min(
+      ((g.width - 1) / 2 - MARGIN) / Math.max(Math.abs(x - cx), ROOM_EPSILON),
+      ((g.height - 1) / 2 - MARGIN) / Math.max(Math.abs(y - cy), ROOM_EPSILON),
+    );
+    const room = Math.max(0, d * toFrame - 1);
+    const bulge = noise <= 0 ? noise : room * Math.tanh(noise / Math.max(room, ROOM_EPSILON));
+    if (fromEdge >= MARGIN && d - bulge <= 1 && raisable(x, y)) continue;
     distance[i] = 0;
     queue.push(i);
+  }
+  if (props.terrace >= 2) {
+    const round = distanceTo(g.width, g.height, (i) => distance[i] === 0);
+    const sway = (props.roughness / 100) * props.terrace * TERRACE_SWAY;
+    const swayScale = Math.max(MIN_EDGE_SCALE, props.terrace * TERRACE_SWAY_SCALE);
+    const level = Uint8Array.from(round, (d, i) => {
+      if (d === 0) return 0;
+      const push = (fbm(gridX(g, i), gridY(g, i), seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway;
+      return Math.max(1, Math.min(props.levels, Math.ceil((d + push) / props.terrace)));
+    });
+    return capSteps(g, level);
   }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head]!;
@@ -101,11 +160,7 @@ function levelsOf(
     }
   }
   return Uint8Array.from(distance, (d) =>
-    d === 0
-      ? 0
-      : props.terrace === 0
-        ? props.levels
-        : Math.min(props.levels, Math.ceil(d / props.terrace)),
+    d === 0 ? 0 : props.terrace === 0 ? props.levels : Math.min(props.levels, d),
   );
 }
 

@@ -16020,11 +16020,29 @@ is. Removing still works there: a road cuts across the beach.
 ### A hill is the columns `docs/terrain.md` describes, counted in from its foot
 
 `hill` raises ground the nodes before it left. A cell's level is how many
-terraces it lies from the nearest cell that is not raised, in eight-neighbour
-steps, capped at `levels`. That one rule gives everything the terrain rules
-ask for: each level is the one below drawn in on every side, corners included,
-so ground and brinks always sit over rock and, with a terrace of at least
-one, no cliff is two levels high. Plants on a cell go to the top of its column.
+terraces it lies from the nearest cell that is not raised, capped at `levels`.
+That one rule gives everything the terrain rules ask for: each level is the
+one below drawn in on every side, so ground and brinks always sit over rock
+and no cliff is two levels high. Plants on a cell go to the top of its column.
+
+**The distance is a straight line for a terrace of two or more**
+(`distanceTo` in `app/editor/compose/distance.ts`, an exact Euclidean
+transform). Counted in eight-neighbour steps, each level is the one below
+eroded by a square, so every bend in the foot turns into a run along one axis
+and the upper terraces come out as stacked rectangles; on the 4× showcase
+island that was the first thing anyone saw. Two neighbours are at most √2
+apart, under two terraces, so the straight line keeps every cliff one level
+high. A terrace of one would let diagonal neighbours differ by two, so it
+still counts steps. Each terrace's edge is then pushed in or out by noise, up
+to 0.45 of a terrace at full roughness, and `capSteps` lowers any cell left
+more than a level above a neighbour.
+
+**The foot does not touch its frame.** The noisy ellipse is drawn in by 0.6 of
+its wobble, and the noise may push it out only as far as the frame's margin
+leaves room for, squeezed with a `tanh` towards that limit. Cut off by the
+frame instead, a side of the hill was a straight line, and every terrace
+inside it inherited the line. This makes a hill of a given frame about a
+tenth smaller across than before at the default roughness.
 
 `terrace` is the width of each level's shelf, from 0 to 12. At 1 the hill
 climbs a level every cell. At 0 there is no shelf: every level ends at the
