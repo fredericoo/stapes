@@ -128,7 +128,11 @@ export class DataStore {
   }
 
   async writeMap(map: MapFile) {
-    await this.blobs.put(MAP_KEY, serializeMap(map), JSON_TYPE);
+    await this.writeMapText(serializeMap(map));
+  }
+
+  async writeMapText(text: string) {
+    await this.blobs.put(MAP_KEY, text, JSON_TYPE);
   }
 
   async readTilesetPng(fileName: string): Promise<Uint8Array<ArrayBuffer> | null> {

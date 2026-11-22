@@ -15,7 +15,6 @@ import {
 } from "./worldMap";
 import { StackPool } from "../app/lib/stackPool";
 import { parseSharedMap } from "../app/lib/mapData";
-import type { MapFile } from "../app/lib/types";
 import { createAuth, seedAdmin, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
 import { Characters, type RosterEntry } from "./characters";
@@ -319,7 +318,10 @@ export class World {
     if (recorded?.inputs !== inputs) {
       const built = await this.buildMap(tree, tiles, inputs);
       if (recorded?.map !== built.hash) {
-        await this.server.replaceWorld(built.read(), { keepPositions: true });
+        await this.server.replaceWorld(parseSharedMap(built.text, new StackPool()), {
+          keepPositions: true,
+          text: built.text,
+        });
         replaced = true;
       }
       await this.store.put(AUTHORED_MAP_KEY, { inputs, map: built.hash } satisfies AuthoredMap);
@@ -329,16 +331,12 @@ export class World {
     return replaced;
   }
 
-  /**
-   * `read` parses the built map for play, once, so its text is not kept beside
-   * the board. A map the image built from the same inputs is used instead of
-   * building it here.
-   */
+  /** A map the image built from the same inputs is used instead of building it here. */
   private async buildMap(
     tree: string,
     tiles: string,
     inputs: string,
-  ): Promise<{ hash: string; read: () => MapFile }> {
+  ): Promise<{ hash: string; text: string }> {
     const started = performance.now();
     const prebuilt = await readPrebuiltMap(this.config.SEED_DIR, this.config.SEED_TREE, inputs);
     let text: string;
@@ -354,14 +352,7 @@ export class World {
     console.log(
       `[world] ${prebuilt === null ? "built the map from its tree" : "read the map the image built"} in ${Math.round(performance.now() - started)} ms`,
     );
-    return {
-      hash: hashOf(text),
-      read: () => {
-        const map = parseSharedMap(text, new StackPool());
-        text = "";
-        return map;
-      },
-    };
+    return { hash: hashOf(text), text };
   }
 
   get accepting(): boolean {

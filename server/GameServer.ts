@@ -2511,7 +2511,7 @@ export class GameServer {
 
   async replaceWorld(
     authored: MapFile,
-    options: { keepPositions?: boolean } = {},
+    options: { keepPositions?: boolean; text?: string } = {},
   ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
     const tiles = await store.readTiles();
@@ -2592,7 +2592,12 @@ export class GameServer {
     this.session = session;
     this.broadcastMap = this.session.getMap();
 
-    await store.writeMap(map);
+    /**
+     * `text` is what `authored` was parsed from. Storing it as it is skips
+     * serializing a whole island again, which costs several times the map.
+     */
+    if (options.text !== undefined && removed.length === 0) await store.writeMapText(options.text);
+    else await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
     await this.deleteCheckpointedBoard();
     if (forgetPositions) {
