@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
-import { PERF_BUDGETS } from "../editor/perf";
+import { LIGHTING_BUDGETS } from "./lightingBudgets";
 import { AMBIENT_PRESETS, computeLighting, overlayEmitterOverrides } from "./lighting";
 import type { TileDef } from "./types";
 import { PLAYER_TILE_ID } from "../game/constants";
@@ -13,10 +13,8 @@ const CI_BUDGETS =
   process.env.CLAUDE_CODE_REMOTE === "true" ||
   process.env.PERF_SKIP_TIMING === "1";
 
-const BAKE_MS = CI_BUDGETS ? PERF_BUDGETS.lightingBakeMsP50Ci : PERF_BUDGETS.lightingBakeMsP50;
-const OVERLAY_MS = CI_BUDGETS
-  ? PERF_BUDGETS.lightingOverlayMsP95Ci
-  : PERF_BUDGETS.lightingOverlayMsP95;
+const BAKE_MS = CI_BUDGETS ? LIGHTING_BUDGETS.bakeMsP50Ci : LIGHTING_BUDGETS.bakeMsP50;
+const OVERLAY_MS = CI_BUDGETS ? LIGHTING_BUDGETS.overlayMsP95Ci : LIGHTING_BUDGETS.overlayMsP95;
 
 const WARMUP_RUNS = 3;
 

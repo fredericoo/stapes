@@ -43,7 +43,7 @@ export default defineConfig({
       STAPES_SERVER_PORT: SERVER_PORT,
       WEATHER: "clear",
     },
-    url: `${BASE}/admin/map`,
+    url: `${BASE}/admin/compose`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

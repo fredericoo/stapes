@@ -10,7 +10,7 @@ import {
 } from "../lib/engraving";
 import { MAX_REWARD_ITEMS, MIN_REWARD_COUNT } from "../lib/interactions";
 import { MIN_RATING } from "../lib/mastery";
-import { useEditorStore } from "../editor/store";
+import type { RewardDraft } from "../lib/mapData";
 import {
   Button,
   Dialog,
@@ -54,17 +54,16 @@ function axisValue(raw: string): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
-export type PlacementWriter = Pick<
-  ReturnType<typeof useEditorStore.getState>,
-  | "setStackChannel"
-  | "setStackReward"
-  | "setStackDepotTag"
-  | "setStackTeleport"
-  | "setStackContents"
-  | "setStackInscription"
-  | "setStackDescription"
-  | "setStackEngraving"
->;
+export type PlacementWriter = {
+  setStackChannel: (stackIndex: number, channel: string) => void;
+  setStackInscription: (stackIndex: number, inscription: string) => void;
+  setStackDescription: (stackIndex: number, description: string) => void;
+  setStackEngraving: (stackIndex: number, engraved: string) => void;
+  setStackReward: (stackIndex: number, draft: RewardDraft) => void;
+  setStackDepotTag: (stackIndex: number, tag: string) => void;
+  setStackTeleport: (stackIndex: number, to: Coord | null) => void;
+  setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
+};
 
 export function PlacementSettingsDialog({
   placed,
@@ -97,11 +96,8 @@ export function PlacementSettingsDialog({
   tilesets: TilesetDef[];
   channelListId: string;
   onClose: () => void;
-  /**
-   * Where the edits go. The map editor's store when absent; the map tree
-   * editor passes one that edits a placement held in a tree instead.
-   */
-  writer?: PlacementWriter;
+  /** Where the edits go: a placement held in a map tree. */
+  writer: PlacementWriter;
 }) {
   const [channel, setChannel] = useState(placed.channel ?? "");
   const [inscription, setInscription] = useState(placed.inscription ?? "");
@@ -124,24 +120,23 @@ export function PlacementSettingsDialog({
   const engravable = isEngravable(def.name);
 
   const commitAndClose = () => {
-    const store = writer ?? useEditorStore.getState();
-    if (wired) store.setStackChannel(stackIndex, channel);
+    if (wired) writer.setStackChannel(stackIndex, channel);
     if (gives) {
-      store.setStackReward(stackIndex, {
+      writer.setStackReward(stackIndex, {
         tag: rewardTag,
         tileIds: rewardTileIds,
         counts: rewardCounts,
         minRating: rewardMinRating ?? null,
       });
     }
-    if (stashes) store.setStackDepotTag(stackIndex, depotTag);
+    if (stashes) writer.setStackDepotTag(stackIndex, depotTag);
     if (teleports) {
-      store.setStackTeleport(stackIndex, readDestination(teleportTo));
+      writer.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
-    if (holds !== null) store.setStackContents(stackIndex, contents);
-    store.setStackInscription(stackIndex, inscription);
-    store.setStackDescription(stackIndex, description);
-    if (engravable) store.setStackEngraving(stackIndex, engraved);
+    if (holds !== null) writer.setStackContents(stackIndex, contents);
+    writer.setStackInscription(stackIndex, inscription);
+    writer.setStackDescription(stackIndex, description);
+    if (engravable) writer.setStackEngraving(stackIndex, engraved);
     onClose();
   };
 
