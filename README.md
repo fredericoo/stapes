@@ -301,6 +301,9 @@ an agent drives", lists every call.
   component, and `data/world-staging.json` the small one staging and the
   previews play (`SEED_TREE`). The server builds the same map at start, in
   `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`.
+- `bun run build:world` — build `data/map.json` from `data/world.json` the way
+  the server does at start, for the `verify` checks and benches that read
+  `data/map.json` without a server running. CI runs it before them
 - `bun run generate:island` — write Rune Isle to `data/map.json` from
   `scripts/island/`: the reference generator's height, lakes and rivers inside
   the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,
