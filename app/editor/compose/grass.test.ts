@@ -41,7 +41,7 @@ const ROW = 15;
 const road = (props: Record<string, unknown>): MapNode => ({
   type: "road",
   key: "path",
-  props: { from: { x: 10, y: ROW }, to: { x: 30, y: ROW }, ...props },
+  props: { from: { x: 10, y: ROW }, to: { x: 30, y: ROW }, wander: 0, ...props },
 });
 
 describe("grass", () => {

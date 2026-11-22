@@ -15956,6 +15956,17 @@ route runs from `from` through each `via` point to `to`, and `wander` pushes
 each stretch sideways by noise multiplied by a sine that is zero at both ends
 of the stretch, so the route still meets every point exactly.
 
+**A long stretch sweeps as well as wobbles.** The noise bends are
+`bendLength` cells long and at most `wander × bendLength` out, which on a
+stretch of two hundred cells is a straight line with a tremor. On top of them
+each stretch swings from side to side about one and a half times, at most
+`wander × 0.3` of its length out. That sweep is a sine with its phase and
+strength from noise rather than noise alone, because one-octave noise at that
+size has three samples per stretch and can lie flat for the whole of it. Its
+envelope is squared so the route still leaves an anchor nearly head on. A
+road wanders 30 by default and a river 0: the tests that check exact bridge
+and verge cells set `wander: 0`.
+
 **A tile node is one tile on one cell with its placement settings,** edited in
 the map editor's own `PlacementSettingsDialog` through `placementWriter`,
 which applies the map editor's `updatePlaced*` functions to a one-cell map so
