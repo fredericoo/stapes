@@ -294,7 +294,7 @@ async function run(options: Options) {
 
   const surface = options.clustered
     ? []
-    : listCoords(parseMap(await Bun.file(join(directory, "map.json")).text()), 0);
+    : [...listCoords(parseMap(await Bun.file(join(directory, "map.json")).text()), 0)];
 
   const counters: Counters = {
     frames: 0,

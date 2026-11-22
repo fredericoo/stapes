@@ -365,7 +365,7 @@ describe("chunked lighting", () => {
 
     function cellNearChunkEdge(z: number): { x: number; y: number } {
       const offset = (x: number) => ((x % LIGHT_CHUNK_SIZE) + LIGHT_CHUNK_SIZE) % LIGHT_CHUNK_SIZE;
-      const found = listCoords(mapFile, z).find(
+      const found = [...listCoords(mapFile, z)].find(
         ({ x }) => offset(x) >= EDGE_OFFSET_LO && offset(x) <= EDGE_OFFSET_HI,
       );
       if (!found) throw new Error(`fixture has no near-edge cell on level ${z}`);

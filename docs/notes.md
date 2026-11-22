@@ -19962,3 +19962,29 @@ to 22 MB, and the server's heap objects after load from 2.1 million to
   placement found at index 2 of a pooled stack is at index 2 in every cell
   sharing it, which is what `applyPlacementTurns` assumes when it keys its
   indexes by placement.
+- **Bulk edits at load go in one `setStacks`.** `setStacks` links each copied
+  level and chunk to its source through a `WeakRef`, and a `WeakRef` made in
+  a job keeps its target alive until the job ends. `GameSession`'s
+  constructor is one job, so one `replaceStack` per adopted creature or
+  minted item kept a copy of the level's record for each, about 1.2 GB on a
+  2-million-cell board. `adoptResidents`, `mintItemIds` and
+  `clearExtractReservations` collect their edits and write once, and
+  `listCoords` yields its cells instead of listing them.
+
+Measured on 2026-11-22: a local server with one bot, RSS in MB, "peak" being
+`VmHWM` and "steady" the RSS after 90 seconds. "First start" seeds from the
+map file; "restart" resumes from the checkpoint the first run wrote, which is
+how a deployed world normally starts. The showcase map is PR 736's island
+(500,883 cells); the larger ones repeat it 1.5 and 2 times in each direction.
+Production's container is capped at 1536 MB.
+
+| Map | Cells | First start, before | First start, after | Restart, before | Restart, after |
+|---|---|---|---|---|---|
+| `data/map.json` | 482k | 724 / 449 | 419 / 381 | 696 / 472 | 371 / 316 |
+| Showcase | 501k | 878 / 494 | 476 / 396 | 876 / 562 | 396 / 352 |
+| Showcase ×2.25 area | 1.18M | 1995 / 898 | 888 / 699 | 1714 / 1025 | 703 / 545 |
+| Showcase ×4 area | 2.00M | 3754 / 1603 | 1277 / 905 | 2608 / 1640 | 1042 / 883 |
+
+Each cell is peak / steady. What is left of a first start's peak on the
+largest map is mostly the first checkpoint, which encodes every chunk at
+once.

@@ -1186,20 +1186,24 @@ export function chunkKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
-export function listCoords(
+/**
+ * Yields rather than returning a list: a sweep of a level of two million cells
+ * would otherwise hold an entry for every one of them at once, and the
+ * startup sweeps in `GameSession` each did.
+ */
+export function* listCoords(
   map: MapFile,
   z: number,
-): Array<{ x: number; y: number; stack: PlacedTile[] }> {
+): Generator<{ x: number; y: number; stack: PlacedTile[] }> {
   const level = map.levels[levelKey(z)];
-  if (!level) return [];
-  const out: Array<{ x: number; y: number; stack: PlacedTile[] }> = [];
-  for (const chunk of Object.values(level)) {
-    for (const [key, stack] of Object.entries(chunk)) {
+  if (!level) return;
+  for (const chk in level) {
+    const chunk = level[chk]!;
+    for (const key in chunk) {
       const { x, y } = parseCoordKey(key);
-      out.push({ x, y, stack });
+      yield { x, y, stack: chunk[key]! };
     }
   }
-  return out;
 }
 
 export function chunkifyMap(flat: FlatMapFile): MapFile {
