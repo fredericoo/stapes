@@ -163,6 +163,12 @@ const MIGRATIONS: readonly string[] = [
   renameTileIdsSql(TILE_ID_RENAMES[2]!, "kv", "value"),
   renameTileIdsSql(TILE_ID_RENAMES[3]!, "kv", "value"),
   FORGET_POSITIONS_SQL,
+  `CREATE TABLE IF NOT EXISTS blob_part (
+     key   TEXT NOT NULL,
+     n     INTEGER NOT NULL,
+     bytes BLOB NOT NULL,
+     PRIMARY KEY (key, n)
+   )`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {
