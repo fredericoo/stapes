@@ -904,10 +904,10 @@
                 "type": "mask",
                 "key": "bog-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 184,
-                  "h": 144
+                  "x": 8,
+                  "y": 8,
+                  "w": 168,
+                  "h": 128
                 },
                 "props": {
                   "shape": "oval",
@@ -996,6 +996,21 @@
               "density": 3,
               "onlyOn": [
                 "mud"
+              ]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "bog-grass-specks",
+            "frame": {
+              "x": 151,
+              "y": 677,
+              "w": 10,
+              "h": 10
+            },
+            "props": {
+              "remove": [
+                "grass"
               ]
             }
           },
@@ -1311,6 +1326,21 @@
                 }
               }
             ]
+          },
+          {
+            "type": "clear",
+            "key": "south-mesa-grass-specks",
+            "frame": {
+              "x": 898,
+              "y": 642,
+              "w": 8,
+              "h": 8
+            },
+            "props": {
+              "remove": [
+                "grass"
+              ]
+            }
           },
           {
             "type": "hill",
@@ -6113,6 +6143,9 @@
                 "x": 553,
                 "y": 646,
                 "z": -3
+              },
+              "placement": {
+                "depotTag": "bat-cave"
               }
             }
           },
@@ -6137,6 +6170,9 @@
                 "x": 231,
                 "y": 441,
                 "z": 0
+              },
+              "placement": {
+                "depotTag": "bear-den"
               }
             }
           },
@@ -6305,6 +6341,9 @@
                 "x": 560,
                 "y": 123,
                 "z": -4
+              },
+              "placement": {
+                "depotTag": "ice-caves"
               }
             }
           },
