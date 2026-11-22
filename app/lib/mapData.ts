@@ -1255,18 +1255,56 @@ function authoredPlacement(placed: PlacedTile): PlacedTile {
   };
 }
 
+/**
+ * Writes the same text as stringifying `flattenMap(map)` row by row, without
+ * building the flat copy or a string per cell at once: a whole island is
+ * millions of cells, and those copies cost several times the map itself.
+ * Pooled stacks are one array per distinct stack, so each is stringified once.
+ */
 export function serializeMap(map: MapFile): string {
-  const flat = flattenMap(map);
-  const levels = Object.entries(flat.levels).map(([zk, cells]) => {
-    const rows = Object.entries(cells).map(
-      ([ck, stack]) =>
-        `      ${JSON.stringify(ck)}: ${JSON.stringify(stack.map(authoredPlacement))}`,
+  const stackText = new Map<readonly PlacedTile[], string>();
+  const textOf = (stack: readonly PlacedTile[]) => {
+    let text = stackText.get(stack);
+    if (text === undefined) {
+      text = JSON.stringify(stack.map(authoredPlacement));
+      stackText.set(stack, text);
+    }
+    return text;
+  };
+  const levels: string[] = [];
+  for (const [zk, level] of Object.entries(map.levels)) {
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const stacks: PlacedTile[][] = [];
+    for (const chunk of Object.values(level)) {
+      for (const [ck, stack] of Object.entries(chunk)) {
+        const { x, y } = parseCoordKey(ck);
+        xs.push(x);
+        ys.push(y);
+        stacks.push(stack);
+      }
+    }
+    if (!stacks.length) continue;
+    const order = Uint32Array.from(stacks.keys()).sort(
+      (a, b) => xs[a]! - xs[b]! || ys[a]! - ys[b]!,
     );
-    return `    ${JSON.stringify(zk)}: {\n${rows.join(",\n")}\n    }`;
-  });
+    const parts: string[] = [];
+    let rows: string[] = [];
+    for (const i of order) {
+      rows.push(`      "${xs[i]},${ys[i]}": ${textOf(stacks[i]!)}`);
+      if (rows.length === SERIALIZED_ROWS_PER_PART) {
+        parts.push(rows.join(",\n"));
+        rows = [];
+      }
+    }
+    if (rows.length) parts.push(rows.join(",\n"));
+    levels.push(`    ${JSON.stringify(zk)}: {\n${parts.join(",\n")}\n    }`);
+  }
   const body = levels.length ? `{\n${levels.join(",\n")}\n  }` : "{}";
-  return `{\n  "version": ${flat.version},\n  "levels": ${body}\n}\n`;
+  return `{\n  "version": ${MAP_FILE_VERSION},\n  "levels": ${body}\n}\n`;
 }
+
+const SERIALIZED_ROWS_PER_PART = 4096;
 
 const INSCRIPTIONS_WERE_DESCRIPTIONS = 1;
 
