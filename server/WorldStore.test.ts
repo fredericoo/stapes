@@ -83,6 +83,20 @@ describe("listing", () => {
     const listed = await store.list({ prefix: "chunk:" });
     expect([...listed.keys()]).toEqual(["chunk:1"]);
   });
+
+  it("hands back what revive made of each committed value", async () => {
+    await store.put({ "chunk:1": [1, 2], "chunk:2": [3] });
+    await store.flush();
+
+    const listed = await store.list({
+      prefix: "chunk:",
+      revive: (value) => (value as number[]).length,
+    });
+    expect([...listed]).toEqual([
+      ["chunk:1", 2],
+      ["chunk:2", 1],
+    ]);
+  });
 });
 
 describe("atomicity", () => {

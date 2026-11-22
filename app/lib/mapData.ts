@@ -1,6 +1,7 @@
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { ItemInstance } from "./itemInstance";
 import { sameInstance } from "./itemInstance";
+import { StackPool, isPooledStack } from "./stackPool";
 import type {
   ChunkCells,
   Coord,
@@ -1185,20 +1186,24 @@ export function chunkKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
-export function listCoords(
+/**
+ * Yields rather than returning a list: a sweep of a level of two million cells
+ * would otherwise hold an entry for every one of them at once, and the
+ * startup sweeps in `GameSession` each did.
+ */
+export function* listCoords(
   map: MapFile,
   z: number,
-): Array<{ x: number; y: number; stack: PlacedTile[] }> {
+): Generator<{ x: number; y: number; stack: PlacedTile[] }> {
   const level = map.levels[levelKey(z)];
-  if (!level) return [];
-  const out: Array<{ x: number; y: number; stack: PlacedTile[] }> = [];
-  for (const chunk of Object.values(level)) {
-    for (const [key, stack] of Object.entries(chunk)) {
+  if (!level) return;
+  for (const chk in level) {
+    const chunk = level[chk]!;
+    for (const key in chunk) {
       const { x, y } = parseCoordKey(key);
-      out.push({ x, y, stack });
+      yield { x, y, stack: chunk[key]! };
     }
   }
-  return out;
 }
 
 export function chunkifyMap(flat: FlatMapFile): MapFile {
@@ -1289,6 +1294,90 @@ function lifted<T extends { description?: string; inscription?: string }>(thing:
 
 export function parseMap(json: string): MapFile {
   return chunkifyMap(parseFlatMap(json));
+}
+
+/**
+ * A copy of `map` that its caller cannot reach into: every chunk is a new
+ * record, a stack holding nested data is deep-copied, and every other stack is
+ * the pool's shared frozen copy.
+ */
+export function shareMap(map: MapFile, pool = new StackPool()): MapFile {
+  const levels: Record<string, LevelChunks> = {};
+  for (const zk in map.levels) {
+    const level: LevelChunks = {};
+    const from = map.levels[zk]!;
+    for (const chk in from) level[chk] = shareCells(from[chk]!, pool, true);
+    levels[zk] = level;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
+/** `copy` is for cells the caller does not own; parsed cells are pooled in place. */
+export function shareCells(cells: ChunkCells, pool: StackPool, copy = false): ChunkCells {
+  const out: ChunkCells = copy ? {} : cells;
+  for (const ck in cells) {
+    const stack = cells[ck]!;
+    const shared = pool.share(stack);
+    out[ck] = copy && shared === stack && !isPooledStack(stack) ? structuredClone(stack) : shared;
+  }
+  return out;
+}
+
+const SERIALIZED_HEAD = `{\n  "version": ${MAP_FILE_VERSION},\n  "levels": {\n`;
+const SERIALIZED_LEVEL = /^ {4}"(-?\d+)": \{$/;
+const SERIALIZED_LEVEL_END = /^ {4}\},?$/;
+const SERIALIZED_CELL = /^ {6}"(-?\d+,-?\d+)": (\[.*\]),?$/;
+
+/**
+ * `parseMap` for a world about to be played, which never needs the whole
+ * file's object tree at once. A file laid out the way `serializeMap` writes
+ * it, one cell to a line, is read a line at a time and only the first copy of
+ * each distinct stack is parsed. Any other layout is parsed whole.
+ */
+export function parseSharedMap(json: string, pool = new StackPool()): MapFile {
+  return parseByLine(json, pool) ?? shareMap(parseMap(json), pool);
+}
+
+function parseByLine(json: string, pool: StackPool): MapFile | null {
+  if (!json.startsWith(SERIALIZED_HEAD)) return null;
+  const levels: Record<string, LevelChunks> = {};
+  let level: LevelChunks | null = null;
+  let at = SERIALIZED_HEAD.length;
+  let closed = false;
+  while (at < json.length) {
+    let end = json.indexOf("\n", at);
+    if (end < 0) end = json.length;
+    const line = json.slice(at, end);
+    at = end + 1;
+    if (closed) {
+      if (line === "" || line === "}") continue;
+      return null;
+    }
+    if (level) {
+      const cell = SERIALIZED_CELL.exec(line);
+      if (cell) {
+        const ck = cell[1]!;
+        const { x, y } = parseCoordKey(ck);
+        const stack = pool.shareText(cell[2]!);
+        if (stack.length) (level[chunkKeyFor(x, y)] ??= {})[ck] = stack;
+        continue;
+      }
+      if (!SERIALIZED_LEVEL_END.test(line)) return null;
+      level = null;
+      continue;
+    }
+    const opened = SERIALIZED_LEVEL.exec(line);
+    if (opened) {
+      level = {};
+      levels[opened[1]!] = level;
+      continue;
+    }
+    if (line !== "  }") return null;
+    closed = true;
+  }
+  if (!closed || level) return null;
+  for (const zk in levels) if (isEmptyRecord(levels[zk]!)) delete levels[zk];
+  return { version: MAP_FILE_VERSION, levels };
 }
 
 export function parseFlatMap(json: string): FlatMapFile {
