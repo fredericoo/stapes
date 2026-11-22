@@ -186,6 +186,23 @@ function swing(
   return 1 + (fbm(x, y, seed, scale, octaves) - 0.5) * 2 * amount;
 }
 
+/** The cells of `count` paths walked edge to edge across `bounds`, indexed in `grid`. */
+export function forestPaths(
+  grid: CellGrid,
+  bounds: Bounds,
+  seed: number,
+  count: number,
+  width: number,
+): Set<number> {
+  const path = new Set<number>();
+  const paths = clamp(Math.round(count), PATH_COUNT_RANGE.min, PATH_COUNT_RANGE.max);
+  const across = clamp(Math.round(width), PATH_WIDTH_RANGE.min, PATH_WIDTH_RANGE.max);
+  for (let index = 0; index < paths; index++) {
+    for (const i of carvePath(grid, bounds, seed, index, across)) path.add(i);
+  }
+  return path;
+}
+
 export type ForestShape = {
   grid: CellGrid;
   path: Set<number>;
@@ -199,14 +216,7 @@ export function growForest(
   const grid = newGrid(bounds);
   grid.cells.fill(1);
 
-  const path = new Set<number>();
-  const paths = clamp(Math.round(config.paths), PATH_COUNT_RANGE.min, PATH_COUNT_RANGE.max);
-  const width = clamp(Math.round(config.pathWidth), PATH_WIDTH_RANGE.min, PATH_WIDTH_RANGE.max);
-  for (let index = 0; index < paths; index++) {
-    for (const i of carvePath(grid, bounds, config.seed, index, width)) {
-      path.add(i);
-    }
-  }
+  const path = forestPaths(grid, bounds, config.seed, config.paths, config.pathWidth);
 
   const distance = distanceFromPath(grid, path);
   const density = clamp01(config.density / 100);

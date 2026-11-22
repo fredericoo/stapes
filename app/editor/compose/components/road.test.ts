@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTree, frame, isle, land, node, sketch, walks } from "../testTree";
+import { buildTree, frame, isle, land, node, sketch, stands, walks } from "../testTree";
 
 const SIZE = { w: 48, h: 28 };
 const WEST = { x: 11, y: 14 };
@@ -83,4 +83,23 @@ describe("a road up stacked hills", () => {
     const built = stacked(true);
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
   });
+});
+
+describe("a long road", () => {
+  const LONG = { w: 220, h: 80 };
+  const ROW = 40;
+
+  it.each([1, 2, 3, 4, 5])(
+    "sweeps well off the straight line between its ends by default, seed %i",
+    (seed) => {
+      const built = buildTree(
+        land(LONG, [
+          node("road", { from: { x: 5, y: ROW }, to: { x: 214, y: ROW }, tile: "dirt" }),
+        ]),
+        { seed },
+      );
+      const off = stands(built, "dirt").map((c) => Math.abs(c.y - ROW));
+      expect(Math.max(...off)).toBeGreaterThanOrEqual(10);
+    },
+  );
 });

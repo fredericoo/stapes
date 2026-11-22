@@ -18,6 +18,7 @@ import { STEP, nearestRamp, rampCells, type RampGround, type RampSite } from "./
 
 const RoadSchema = v.object({
   ...ROUTE_PROPS,
+  wander: v.optional(field.percent(), 30),
   tile: v.optional(v.nullable(field.tile(TILES.ground)), "dirt"),
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(3)), 1),
   clears: v.optional(field.tiles(TILES.standing), [

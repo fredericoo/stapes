@@ -1,6 +1,6 @@
 import type { PlacedTile } from "../../../lib/types";
 import * as v from "valibot";
-import { fbm } from "../../generator";
+import { fbm, randomAt } from "../../generator";
 import type { BridgeStyle, BuildContext } from "../build";
 import type { Point } from "../doc";
 import { field } from "../field";
@@ -59,10 +59,24 @@ const WANDER_STEP = 3;
 const WANDER_OCTAVES = 2;
 
 /**
+ * A stretch also sweeps from side to side in bends a third of its length
+ * long, at most `wander × SWEEP_REACH` of its length out, on top of the
+ * `scale`-cell ones: bends of a fixed size are lost on a long stretch, which
+ * then reads as a straight line from any distance. The sweep is a sine with a
+ * phase and a strength taken from noise rather than noise alone, which can lie
+ * flat for a whole stretch. Its envelope is squared so a route still leaves
+ * each anchor almost head on.
+ */
+const SWEEPS_PER_STRETCH = 3;
+const SWEEP_REACH = 0.3;
+const SWEEP_FLOOR = 0.5;
+const SWEEP_SALT = 0x5ee9;
+
+/**
  * The cells of a route through `anchors` in order, each with the direction its
  * band widens in. With `wander` above zero each stretch is pushed sideways by
- * noise along the distance travelled, `scale` cells per bend and at most
- * `wander × scale` cells out. The push is multiplied by a sine that is zero
+ * noise along the distance travelled: bends `scale` cells long and at most
+ * `wander × scale` cells out, and the sweeps above on top of them. The push is multiplied by a sine that is zero
  * at both ends of the stretch, so the route still passes through every
  * anchor exactly.
  */
@@ -94,12 +108,20 @@ export function route(
     }
     const nx = -(b.y - a.y) / length;
     const ny = (b.x - a.x) / length;
+    const sweepScale = Math.max(scale, length / SWEEPS_PER_STRETCH);
+    const phase = randomAt(i, 0, seed ^ SWEEP_SALT) * 2 * Math.PI;
     const samples = wander > 0 ? Math.max(1, Math.ceil(length / WANDER_STEP)) : 1;
     let previous = a;
     for (let k = 1; k <= samples; k++) {
       const t = k / samples;
-      const swing = (fbm(travelled + t * length, 0, seed, scale, WANDER_OCTAVES) - 0.5) * 2;
-      const push = swing * wander * scale * Math.sin(Math.PI * t);
+      const along = travelled + t * length;
+      const swing = (fbm(along, 0, seed, scale, WANDER_OCTAVES) - 0.5) * 2;
+      const strength =
+        SWEEP_FLOOR + (1 - SWEEP_FLOOR) * fbm(along, 0, seed ^ SWEEP_SALT, sweepScale, 1);
+      const sweep = strength * Math.sin((Math.PI * along) / sweepScale + phase);
+      const envelope = Math.sin(Math.PI * t);
+      const push =
+        wander * (swing * scale * envelope + sweep * length * SWEEP_REACH * envelope ** 2);
       const next =
         k === samples
           ? b

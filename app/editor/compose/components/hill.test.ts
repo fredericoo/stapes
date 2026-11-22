@@ -135,3 +135,43 @@ describe("hill", () => {
     expect(grassed.inner).toEqual(inner.map(() => ["sand", "grass"]));
   });
 });
+
+describe("the foot of a rough hill", () => {
+  const F = { x: 6, y: 4, w: 30, h: 22 };
+  const MARGIN = 3;
+
+  it.each([1, 2, 3, 4, 5])(
+    "keeps off the frame's margin instead of running straight along it, seed %i",
+    (seed) => {
+      const built = buildTree(
+        land({ w: 42, h: 30 }, [
+          node(
+            "hill",
+            { levels: 1, terrace: 0, roughness: 100 },
+            { frame: frame(F.x, F.y, F.w, F.h) },
+          ),
+        ]),
+        { seed },
+      );
+      const raisedAt = (x: number, y: number) => (built.elevation.get(`${x},${y}`) ?? 0) > 0;
+      const sides = [
+        Array.from({ length: F.w }, (_, i) => raisedAt(F.x + i, F.y + MARGIN)),
+        Array.from({ length: F.w }, (_, i) => raisedAt(F.x + i, F.y + F.h - 1 - MARGIN)),
+        Array.from({ length: F.h }, (_, i) => raisedAt(F.x + MARGIN, F.y + i)),
+        Array.from({ length: F.h }, (_, i) => raisedAt(F.x + F.w - 1 - MARGIN, F.y + i)),
+      ];
+      const longest = Math.max(
+        ...sides.map((cells) => {
+          let best = 0;
+          let run = 0;
+          for (const c of cells) {
+            run = c ? run + 1 : 0;
+            best = Math.max(best, run);
+          }
+          return best;
+        }),
+      );
+      expect(longest, sketch(built)).toBeLessThanOrEqual(4);
+    },
+  );
+});
