@@ -19,6 +19,26 @@ describe("hill", () => {
     expect(walks(built, TOP, FOOT), sketch(built)).toBe(true);
   });
 
+  it.each([0, 2])(
+    "raises a small hole its mask cuts inside it, with a terrace of %i, so the hole is no pit",
+    (terrace) => {
+      const built = buildTree(
+        land(SIZE, [
+          node(
+            "hill",
+            { roughness: 0, levels: 2, terrace },
+            {
+              frame: frame(8, 4, 24, 20),
+              children: [node("mask", { op: "subtract" }, { frame: frame(11, 9, 2, 2) })],
+            },
+          ),
+        ]),
+      );
+      expect(built.elevation.get(`${TOP.x - 1},${TOP.y - 1}`), sketch(built)).toBe(2);
+      expect(walks(built, { x: TOP.x - 1, y: TOP.y - 1 }, FOOT), sketch(built)).toBe(true);
+    },
+  );
+
   it("is climbed by the ramp a point of its own puts on the nearest cliff", () => {
     const built = raised({ levels: 1, ramps: [{ x: 0, y: 10 }] });
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
