@@ -854,7 +854,8 @@
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 30
+                  "ragged": 30,
+                  "raggedScale": 12
                 }
               },
               {
@@ -4201,7 +4202,7 @@
                 "water"
               ],
               "edge": [
-                "mud"
+                "dirt"
               ],
               "edgeWidth": 1,
               "mode": "replace",
