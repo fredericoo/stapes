@@ -291,7 +291,8 @@ an agent drives", lists every call.
   as an island, a forest, a house, a road and a river, each in a frame relative
   to its parent. `--scene` writes the same cells for `bun run scene` to draw.
   Exits 1 after listing every node that could not be built.
-  `app/editor/compose/demo.json` is a small example, and `/admin/compose` edits one
+  `app/editor/compose/demo.json` is a small example, and `/admin/compose` edits one.
+  `app/editor/compose/showcase.json` is a whole island built from every component.
 - `bun run generate:island` — write Rune Isle to `data/map.json` from
   `scripts/island/`: the reference generator's height, lakes and rivers inside
   the coastline of `docs/lore-map.webp`, terraces and ramps, roads and bridges,

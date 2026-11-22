@@ -1,6 +1,7 @@
 import { stackHeight, type StackEdit } from "../../lib/mapData";
 import {
   HEIGHT_PER_LEVEL,
+  MAX_STACK_HEIGHT,
   coversCells,
   footprintCells,
   footprintOf,
@@ -59,8 +60,9 @@ export function cellsCovered(
  * A tile wider than a cell is placed whole or not at all: the anchor in its
  * south-east cell and a part carrying `span` in each other cell
  * (`docs/terrain.md`). It is refused where any cell has no ground, where the
- * cells are on different levels or of different heights, where there is no
- * room under the next level, and where this node already put something.
+ * cells are on different levels or of different heights, where it would rise
+ * into a next level that holds anything (the rule `fitsInColumn` applies in
+ * the game), and where this node already put something.
  */
 export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raisedAt" | "z">) {
   const edits: StackEdit[] = [];
@@ -86,7 +88,12 @@ export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raised
       const h = stackHeight(stack, ctx.tilesById);
       if (height !== null && h !== height) return { ok: false, why: "level", at };
       height = h;
-      if (h + (def ? physicalHeight(def) : 0) > HEIGHT_PER_LEVEL) {
+      const top = h + (def ? physicalHeight(def) : 0);
+      if (top > MAX_STACK_HEIGHT) return { ok: false, why: "room", at };
+      if (
+        top > HEIGHT_PER_LEVEL &&
+        (h >= HEIGHT_PER_LEVEL || ctx.stackAt(at.x, at.y, z + 1).length > 0)
+      ) {
         return { ok: false, why: "room", at };
       }
       if (wide && stack.some((p) => p.span?.id === id)) return { ok: false, why: "taken", at };
