@@ -1,0 +1,4241 @@
+{
+  "version": 2,
+  "seed": 1301,
+  "root": {
+    "type": "sea",
+    "key": "sea",
+    "frame": {
+      "x": 0,
+      "y": 0,
+      "w": 340,
+      "h": 272
+    },
+    "children": [
+      {
+        "type": "island",
+        "key": "rune-isle",
+        "frame": {
+          "x": 20,
+          "y": 20,
+          "w": 300,
+          "h": 230
+        },
+        "props": {
+          "fill": "sand",
+          "shore": 3,
+          "roughness": 30,
+          "beach": 3
+        },
+        "children": [
+          {
+            "type": "mask",
+            "key": "wreckers-bay",
+            "frame": {
+              "x": 120,
+              "y": 172,
+              "w": 60,
+              "h": 64
+            },
+            "props": {
+              "shape": "oval",
+              "op": "subtract",
+              "ragged": 30
+            }
+          },
+          {
+            "type": "grass",
+            "key": "grass",
+            "children": [
+              {
+                "type": "mask",
+                "key": "desert-sand",
+                "frame": {
+                  "x": 206,
+                  "y": 46,
+                  "w": 110,
+                  "h": 140
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 45
+                }
+              }
+            ]
+          },
+          {
+            "type": "temple",
+            "key": "woodland-shrine",
+            "frame": {
+              "x": 52,
+              "y": 72,
+              "w": 10,
+              "h": 10
+            },
+            "props": {
+              "height": 2,
+              "gap": 2,
+              "base": "step",
+              "roof": "open",
+              "ruin": 55
+            }
+          },
+          {
+            "type": "temple",
+            "key": "shoulder-ruin",
+            "frame": {
+              "x": 184,
+              "y": 64,
+              "w": 9,
+              "h": 9
+            },
+            "props": {
+              "height": 2,
+              "gap": 1,
+              "base": "none",
+              "roof": "gabled",
+              "ruin": 40
+            }
+          },
+          {
+            "type": "hill",
+            "key": "peak-foot",
+            "frame": {
+              "x": 92,
+              "y": 10,
+              "w": 116,
+              "h": 80
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 4,
+              "roughness": 45
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "peak-foot-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 116,
+                  "h": 80
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "peak-shoulder",
+            "frame": {
+              "x": 112,
+              "y": 14,
+              "w": 76,
+              "h": 54
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 3,
+              "roughness": 40,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "peak-shoulder-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 76,
+                  "h": 54
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "peak-snow",
+            "frame": {
+              "x": 124,
+              "y": 18,
+              "w": 50,
+              "h": 36
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 3,
+              "roughness": 35,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "peak-snow-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 50,
+                  "h": 36
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "peak-crown",
+            "frame": {
+              "x": 136,
+              "y": 22,
+              "w": 22,
+              "h": 18
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 1,
+              "roughness": 30,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "peak-crown-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 22,
+                  "h": 18
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "red-mesa",
+            "frame": {
+              "x": 238,
+              "y": 56,
+              "w": 28,
+              "h": 20
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 0,
+              "roughness": 40,
+              "ground": "sand",
+              "wall": "hill-wall-sandstone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "red-mesa-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 28,
+                  "h": 20
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "low-mesa",
+            "frame": {
+              "x": 238,
+              "y": 168,
+              "w": 16,
+              "h": 10
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 0,
+              "roughness": 40,
+              "ground": "sand",
+              "wall": "hill-wall-sandstone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "low-mesa-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 10
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "gorge-rim",
+            "frame": {
+              "x": 234,
+              "y": 78,
+              "w": 36,
+              "h": 42
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 0,
+              "roughness": 30,
+              "ground": "basalt",
+              "wall": "hill-wall-basalt"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "gorge-rim-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 36,
+                  "h": 42
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "lava-gorge",
+            "frame": {
+              "x": 249,
+              "y": 82,
+              "w": 7,
+              "h": 30
+            },
+            "props": {
+              "tiles": ["lava", "lava-crust"],
+              "edge": ["lava-crust"],
+              "edgeWidth": 1,
+              "mode": "replace",
+              "onlyOn": ["basalt"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "lava-gorge-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 7,
+                  "h": 30
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "dunes",
+            "frame": {
+              "x": 206,
+              "y": 46,
+              "w": 94,
+              "h": 140
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "sand-dune",
+                  "weight": 2
+                },
+                {
+                  "tile": "sand-dune-crescent",
+                  "weight": 1
+                }
+              ],
+              "density": 5,
+              "onlyOn": ["sand"],
+              "clumping": 60,
+              "spacing": 2
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "dunes-off-town",
+                "frame": {
+                  "x": -16,
+                  "y": 72,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "cacti",
+            "frame": {
+              "x": 210,
+              "y": 50,
+              "w": 90,
+              "h": 130
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "saguaro",
+                  "weight": 3
+                },
+                {
+                  "tile": "barrel-cactus",
+                  "weight": 2
+                },
+                {
+                  "tile": "prickly-pear",
+                  "weight": 2
+                },
+                {
+                  "tile": "bleached-bones",
+                  "weight": 1
+                },
+                {
+                  "tile": "dead-tree",
+                  "weight": 1
+                }
+              ],
+              "density": 4,
+              "onlyOn": ["sand"],
+              "clumping": 30,
+              "spacing": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "cacti-off-town",
+                "frame": {
+                  "x": -20,
+                  "y": 68,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "gorge-glass",
+            "frame": {
+              "x": 234,
+              "y": 78,
+              "w": 36,
+              "h": 42
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "obsidian",
+                  "weight": 1
+                }
+              ],
+              "density": 3,
+              "onlyOn": ["basalt"]
+            }
+          },
+          {
+            "type": "hill",
+            "key": "tower-hill",
+            "frame": {
+              "x": 66,
+              "y": 42,
+              "w": 30,
+              "h": 28
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 3,
+              "roughness": 35,
+              "ramps": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "center",
+                  "pinY": "bottom"
+                }
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "tower-hill-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 30,
+                  "h": 28
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "bat-hill",
+            "frame": {
+              "x": 112,
+              "y": 147,
+              "w": 36,
+              "h": 26
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 4,
+              "roughness": 35,
+              "ramps": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "center",
+                  "pinY": "bottom"
+                }
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "bat-hill-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 36,
+                  "h": 26
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "bat-crag",
+            "frame": {
+              "x": 117,
+              "y": 150,
+              "w": 26,
+              "h": 19
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 0,
+              "roughness": 30
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "bat-crag-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 26,
+                  "h": 19
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "bear-hill",
+            "frame": {
+              "x": 34,
+              "y": 106,
+              "w": 36,
+              "h": 30
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 4,
+              "roughness": 40
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "bear-hill-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 36,
+                  "h": 30
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "bear-crag",
+            "frame": {
+              "x": 37,
+              "y": 108,
+              "w": 30,
+              "h": 25
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 0,
+              "roughness": 35
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "bear-crag-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 30,
+                  "h": 25
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "east-downs",
+            "frame": {
+              "x": 176,
+              "y": 80,
+              "w": 36,
+              "h": 28
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 4,
+              "roughness": 40,
+              "ramps": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "center",
+                  "pinY": "bottom"
+                },
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "left",
+                  "pinY": "center"
+                }
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "east-downs-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 36,
+                  "h": 28
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "mirror-lake",
+            "frame": {
+              "x": 134,
+              "y": 94,
+              "w": 38,
+              "h": 26
+            },
+            "props": {
+              "tiles": ["water", "deep-water"],
+              "edge": ["water"],
+              "edgeWidth": 2,
+              "mode": "replace"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mirror-lake-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 38,
+                  "h": 26
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              },
+              {
+                "type": "mask",
+                "key": "lake-isle",
+                "frame": {
+                  "x": 22,
+                  "y": 7,
+                  "w": 9,
+                  "h": 7
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "bog",
+            "frame": {
+              "x": 16,
+              "y": 138,
+              "w": 46,
+              "h": 36
+            },
+            "props": {
+              "tiles": ["mud", "water", "swamp"],
+              "edge": ["mud"],
+              "edgeWidth": 2,
+              "mode": "replace",
+              "onlyOn": ["grass"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "bog-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 46,
+                  "h": 36
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 55
+                }
+              },
+              {
+                "type": "mask",
+                "key": "witch-hummock",
+                "frame": {
+                  "x": 11,
+                  "y": 9,
+                  "w": 14,
+                  "h": 13
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 25
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "bog-plants",
+            "frame": {
+              "x": 16,
+              "y": 138,
+              "w": 46,
+              "h": 36
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "reeds",
+                  "weight": 3
+                },
+                {
+                  "tile": "cattails",
+                  "weight": 3
+                },
+                {
+                  "tile": "swamp-lily",
+                  "weight": 1
+                },
+                {
+                  "tile": "duckweed",
+                  "weight": 2
+                }
+              ],
+              "density": 18,
+              "onlyOn": ["mud", "swamp", "water"],
+              "clumping": 50
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "bog-snags",
+            "frame": {
+              "x": 16,
+              "y": 138,
+              "w": 46,
+              "h": 36
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "dead-tree",
+                  "weight": 3
+                },
+                {
+                  "tile": "tree-stump",
+                  "weight": 1
+                },
+                {
+                  "tile": "fallen-log",
+                  "weight": 1
+                }
+              ],
+              "density": 3,
+              "onlyOn": ["mud"]
+            }
+          },
+          {
+            "type": "river",
+            "key": "snowmelt",
+            "props": {
+              "from": {
+                "x": 150,
+                "y": 38
+              },
+              "via": [
+                {
+                  "x": 144,
+                  "y": 74
+                }
+              ],
+              "to": {
+                "in": "mirror-lake",
+                "x": 0.45,
+                "y": 0.3,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "width": 2,
+              "wander": 30,
+              "bendLength": 10
+            }
+          },
+          {
+            "type": "river",
+            "key": "bay-run",
+            "props": {
+              "from": {
+                "in": "mirror-lake",
+                "x": 0.6,
+                "y": 0.8,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "via": [
+                {
+                  "x": 156,
+                  "y": 160
+                }
+              ],
+              "to": {
+                "x": 150,
+                "y": 206
+              },
+              "width": 2,
+              "wander": 35,
+              "bendLength": 12
+            }
+          },
+          {
+            "type": "river",
+            "key": "westwater",
+            "props": {
+              "from": {
+                "x": 104,
+                "y": 58
+              },
+              "via": [
+                {
+                  "x": 72,
+                  "y": 88
+                }
+              ],
+              "to": {
+                "x": 30,
+                "y": 102
+              },
+              "width": 2,
+              "wander": 35,
+              "bendLength": 12
+            }
+          },
+          {
+            "type": "forest",
+            "key": "deep-woods",
+            "frame": {
+              "x": 30,
+              "y": 36,
+              "w": 100,
+              "h": 116
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 60,
+              "path": null,
+              "paths": 1,
+              "undergrowth": [
+                {
+                  "tile": "old-tree",
+                  "weight": 4
+                },
+                {
+                  "tile": "fallen-log",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-bush",
+                  "weight": 3
+                },
+                {
+                  "tile": "tree-stump",
+                  "weight": 1
+                },
+                {
+                  "tile": "dead-tree",
+                  "weight": 1
+                }
+              ],
+              "undergrowthDensity": 12
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "deep-woods-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 100,
+                  "h": 116
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 45
+                }
+              },
+              {
+                "type": "mask",
+                "key": "druid-clearing",
+                "frame": {
+                  "x": 38,
+                  "y": 60,
+                  "w": 66,
+                  "h": 54
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "shipwreck",
+            "key": "shipwreck",
+            "frame": {
+              "x": 82,
+              "y": 184,
+              "w": 34,
+              "h": 22
+            },
+            "props": {
+              "pieces": 10
+            }
+          },
+          {
+            "type": "group",
+            "key": "druid-town",
+            "frame": {
+              "x": 72,
+              "y": 100,
+              "w": 58,
+              "h": 46
+            },
+            "children": [
+              {
+                "type": "fill",
+                "key": "druid-plaza",
+                "frame": {
+                  "x": 16,
+                  "y": 10,
+                  "w": 26,
+                  "h": 22
+                },
+                "props": {
+                  "tiles": ["cobblestone"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["grass", "sand", "grass-2"]
+                }
+              },
+              {
+                "type": "wall",
+                "key": "druid-wall",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 58,
+                  "h": 46
+                },
+                "props": {
+                  "from": {
+                    "x": 1,
+                    "y": 1
+                  },
+                  "via": [
+                    {
+                      "x": 1,
+                      "y": 1,
+                      "pinX": "right"
+                    },
+                    {
+                      "x": 1,
+                      "y": 1,
+                      "pinX": "right",
+                      "pinY": "bottom"
+                    }
+                  ],
+                  "to": {
+                    "x": 1,
+                    "y": 1,
+                    "pinY": "bottom"
+                  },
+                  "closed": true,
+                  "height": 2,
+                  "thickness": 2,
+                  "gates": [
+                    {
+                      "x": 0,
+                      "y": 1,
+                      "pinX": "center",
+                      "pinY": "bottom"
+                    },
+                    {
+                      "x": 1,
+                      "y": 0,
+                      "pinX": "right",
+                      "pinY": "center"
+                    },
+                    {
+                      "x": 0,
+                      "y": 1,
+                      "pinX": "center"
+                    }
+                  ],
+                  "stairs": [
+                    {
+                      "x": 20,
+                      "y": 4
+                    },
+                    {
+                      "x": 20,
+                      "y": 4,
+                      "pinX": "right",
+                      "pinY": "bottom"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "temple",
+                "key": "rune-temple",
+                "frame": {
+                  "x": 19,
+                  "y": 12,
+                  "w": 20,
+                  "h": 15
+                },
+                "props": {
+                  "height": 3,
+                  "gap": 1,
+                  "base": "podium",
+                  "roof": "gabled"
+                }
+              },
+              {
+                "type": "tile",
+                "key": "bone-forge",
+                "props": {
+                  "tile": "bone-forge",
+                  "at": {
+                    "x": 25,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "crystal-forge",
+                "props": {
+                  "tile": "crystal-forge",
+                  "at": {
+                    "x": 29,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "obsidian-forge",
+                "props": {
+                  "tile": "obsidian-forge",
+                  "at": {
+                    "x": 33,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-waking",
+                "props": {
+                  "tile": "respawn-point",
+                  "at": {
+                    "x": 29,
+                    "y": 30
+                  }
+                }
+              },
+              {
+                "type": "house",
+                "key": "druid-library",
+                "frame": {
+                  "x": 5,
+                  "y": 5,
+                  "w": 11,
+                  "h": 9
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-library-f0",
+                    "props": {
+                      "use": "library",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-library-f1",
+                    "props": {
+                      "use": "library"
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-library-roof",
+                    "props": {
+                      "colour": "blue"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-1",
+                "frame": {
+                  "x": 5,
+                  "y": 17,
+                  "w": 8,
+                  "h": 7
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-1-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-1-roof",
+                    "props": {
+                      "colour": "blue",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-2",
+                "frame": {
+                  "x": 5,
+                  "y": 28,
+                  "w": 10,
+                  "h": 10
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-2-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "top"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "druid-cottage-2-p0",
+                    "props": {
+                      "side": "e",
+                      "use": "seating",
+                      "depth": 3
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-2-roof",
+                    "props": {
+                      "colour": "blue"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-herbalist",
+                "frame": {
+                  "x": 43,
+                  "y": 4,
+                  "w": 11,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-herbalist-f0",
+                    "props": {
+                      "use": "shop",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-herbalist-f1",
+                    "props": {
+                      "use": "house"
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-herbalist-roof",
+                    "props": {
+                      "colour": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-3",
+                "frame": {
+                  "x": 44,
+                  "y": 14,
+                  "w": 9,
+                  "h": 6
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-3-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-3-roof",
+                    "props": {
+                      "colour": "blue",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-pub",
+                "frame": {
+                  "x": 40,
+                  "y": 28,
+                  "w": 14,
+                  "h": 12
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-pub-f0",
+                    "props": {
+                      "use": "pub",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "top"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-pub-f1",
+                    "props": {
+                      "use": "inn",
+                      "rooms": 3
+                    }
+                  },
+                  {
+                    "type": "cellar",
+                    "key": "druid-pub-c0",
+                    "props": {
+                      "use": "storage"
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-pub-roof",
+                    "props": {
+                      "colour": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-4",
+                "frame": {
+                  "x": 17,
+                  "y": 35,
+                  "w": 8,
+                  "h": 7
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-4-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-4-roof",
+                    "props": {
+                      "colour": "blue",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "road",
+                "key": "druid-south-street",
+                "props": {
+                  "from": {
+                    "x": 29,
+                    "y": 46
+                  },
+                  "to": {
+                    "x": 29,
+                    "y": 27
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-east-street",
+                "props": {
+                  "from": {
+                    "x": 58,
+                    "y": 22
+                  },
+                  "to": {
+                    "x": 39,
+                    "y": 22
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-north-street",
+                "props": {
+                  "from": {
+                    "x": 29,
+                    "y": -1
+                  },
+                  "to": {
+                    "x": 29,
+                    "y": 10
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-gardens",
+                "frame": {
+                  "x": 3,
+                  "y": 3,
+                  "w": 52,
+                  "h": 40
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "red-flowers",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "yellow-flowers",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "blue-mushroom-patch",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 10,
+                  "onlyOn": ["grass"],
+                  "clumping": 70
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "warrior-town",
+            "frame": {
+              "x": 190,
+              "y": 118,
+              "w": 58,
+              "h": 44
+            },
+            "children": [
+              {
+                "type": "fill",
+                "key": "warrior-yard",
+                "frame": {
+                  "x": 22,
+                  "y": 16,
+                  "w": 22,
+                  "h": 14
+                },
+                "props": {
+                  "tiles": ["dirt"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["grass", "sand"]
+                }
+              },
+              {
+                "type": "wall",
+                "key": "warrior-wall",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "from": {
+                    "x": 1,
+                    "y": 1
+                  },
+                  "via": [
+                    {
+                      "x": 1,
+                      "y": 1,
+                      "pinX": "right"
+                    },
+                    {
+                      "x": 1,
+                      "y": 1,
+                      "pinX": "right",
+                      "pinY": "bottom"
+                    }
+                  ],
+                  "to": {
+                    "x": 1,
+                    "y": 1,
+                    "pinY": "bottom"
+                  },
+                  "closed": true,
+                  "height": 2,
+                  "thickness": 3,
+                  "merlonEvery": 2,
+                  "gates": [
+                    {
+                      "x": 0,
+                      "y": 1,
+                      "pinX": "center",
+                      "pinY": "bottom"
+                    },
+                    {
+                      "x": 1,
+                      "y": 0,
+                      "pinY": "center"
+                    },
+                    {
+                      "x": 1,
+                      "y": 0,
+                      "pinX": "right",
+                      "pinY": "center"
+                    },
+                    {
+                      "x": 0,
+                      "y": 1,
+                      "pinX": "center"
+                    }
+                  ],
+                  "stairs": [
+                    {
+                      "x": 12,
+                      "y": 5
+                    },
+                    {
+                      "x": 12,
+                      "y": 5,
+                      "pinX": "right"
+                    },
+                    {
+                      "x": 12,
+                      "y": 5,
+                      "pinY": "bottom"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "house",
+                "key": "warrior-barracks",
+                "frame": {
+                  "x": 5,
+                  "y": 5,
+                  "w": 16,
+                  "h": 10
+                },
+                "props": {
+                  "wall": "sw2"
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-barracks-f0",
+                    "props": {
+                      "use": "barracks",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "warrior-barracks-f1",
+                    "props": {
+                      "use": "barracks",
+                      "rooms": 2
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "warrior-barracks-p0",
+                    "props": {
+                      "side": "e",
+                      "use": "drill",
+                      "depth": 4
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-barracks-roof",
+                    "props": {
+                      "colour": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-smithy",
+                "frame": {
+                  "x": 40,
+                  "y": 5,
+                  "w": 14,
+                  "h": 11
+                },
+                "props": {
+                  "wall": "sw2"
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-smithy-f0",
+                    "props": {
+                      "use": "smithy",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "warrior-smithy-p0",
+                    "props": {
+                      "side": "s",
+                      "use": "smithy",
+                      "depth": 3
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-smithy-roof",
+                    "props": {
+                      "colour": "red",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-armoury",
+                "frame": {
+                  "x": 44,
+                  "y": 26,
+                  "w": 10,
+                  "h": 7
+                },
+                "props": {
+                  "wall": "sw2"
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-armoury-f0",
+                    "props": {
+                      "use": "shop",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "warrior-armoury-f1",
+                    "props": {
+                      "use": "storage"
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-armoury-roof",
+                    "props": {
+                      "colour": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-pub",
+                "frame": {
+                  "x": 5,
+                  "y": 19,
+                  "w": 14,
+                  "h": 11
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-pub-f0",
+                    "props": {
+                      "use": "pub",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "warrior-pub-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 3
+                    }
+                  },
+                  {
+                    "type": "cellar",
+                    "key": "warrior-pub-c0",
+                    "props": {
+                      "use": "storage"
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "warrior-pub-p0",
+                    "props": {
+                      "side": "s",
+                      "use": "seating",
+                      "depth": 3
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-pub-roof",
+                    "props": {
+                      "colour": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-house-1",
+                "frame": {
+                  "x": 5,
+                  "y": 33,
+                  "w": 9,
+                  "h": 7
+                },
+                "props": {
+                  "wall": "sw2"
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-house-1-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "top"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-house-1-roof",
+                    "props": {
+                      "colour": "red",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-house-2",
+                "frame": {
+                  "x": 35,
+                  "y": 32,
+                  "w": 8,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-house-2-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "top"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-house-2-roof",
+                    "props": {
+                      "colour": "yellow",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "warrior-house-3",
+                "frame": {
+                  "x": 45,
+                  "y": 34,
+                  "w": 9,
+                  "h": 6
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "warrior-house-3-f0",
+                    "props": {
+                      "use": "house",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "warrior-house-3-roof",
+                    "props": {
+                      "colour": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "scatter",
+                "key": "warrior-dummies",
+                "frame": {
+                  "x": 24,
+                  "y": 17,
+                  "w": 16,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "training-dummy",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 8,
+                  "onlyOn": ["dirt"],
+                  "spacing": 2
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-waking",
+                "props": {
+                  "tile": "respawn-point",
+                  "at": {
+                    "x": 33,
+                    "y": 29
+                  }
+                }
+              },
+              {
+                "type": "road",
+                "key": "warrior-south-street",
+                "props": {
+                  "from": {
+                    "x": 29,
+                    "y": 44
+                  },
+                  "to": {
+                    "x": 29,
+                    "y": 30
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              },
+              {
+                "type": "road",
+                "key": "warrior-west-street",
+                "props": {
+                  "from": {
+                    "x": -1,
+                    "y": 22
+                  },
+                  "to": {
+                    "x": 22,
+                    "y": 22
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              },
+              {
+                "type": "road",
+                "key": "warrior-north-street",
+                "props": {
+                  "from": {
+                    "x": 29,
+                    "y": -1
+                  },
+                  "to": {
+                    "x": 29,
+                    "y": 16
+                  },
+                  "tile": "cobblestone",
+                  "width": 2
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "camp",
+            "frame": {
+              "x": 76,
+              "y": 150,
+              "w": 26,
+              "h": 18
+            },
+            "children": [
+              {
+                "type": "fill",
+                "key": "camp-ground",
+                "frame": {
+                  "x": 8,
+                  "y": 6,
+                  "w": 14,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": ["dirt"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["grass", "sand"]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "camp-ground-shape",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 14,
+                      "h": 10
+                    },
+                    "props": {
+                      "shape": "oval",
+                      "op": "intersect",
+                      "ragged": 40
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "camp-trader",
+                "frame": {
+                  "x": 1,
+                  "y": 2,
+                  "w": 8,
+                  "h": 7
+                },
+                "props": {
+                  "wall": "half-wall"
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "camp-trader-f0",
+                    "props": {
+                      "use": "shop",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "camp-trader-p0",
+                    "props": {
+                      "side": "s",
+                      "use": "seating",
+                      "depth": 2
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "camp-trader-roof",
+                    "props": {
+                      "colour": "yellow",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "camp-bunkhouse",
+                "frame": {
+                  "x": 18,
+                  "y": 2,
+                  "w": 8,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "camp-bunkhouse-f0",
+                    "props": {
+                      "use": "barracks",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "camp-bunkhouse-roof",
+                    "props": {
+                      "colour": "yellow",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "tile",
+                "key": "camp-fire",
+                "props": {
+                  "tile": "campfire",
+                  "at": {
+                    "x": 15,
+                    "y": 10
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-stool-1",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 13,
+                    "y": 10
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-stool-2",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 17,
+                    "y": 11
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-waking",
+                "props": {
+                  "tile": "respawn-point",
+                  "at": {
+                    "x": 15,
+                    "y": 13
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-barrel",
+                "props": {
+                  "tile": "barrel",
+                  "at": {
+                    "x": 11,
+                    "y": 14
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-crate",
+                "props": {
+                  "tile": "wooden-box",
+                  "at": {
+                    "x": 12,
+                    "y": 14
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "crossroads",
+            "frame": {
+              "x": 158,
+              "y": 128,
+              "w": 24,
+              "h": 20
+            },
+            "children": [
+              {
+                "type": "house",
+                "key": "crossroads-inn",
+                "frame": {
+                  "x": 3,
+                  "y": 2,
+                  "w": 16,
+                  "h": 12
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "crossroads-inn-f0",
+                    "props": {
+                      "use": "inn",
+                      "rooms": 3,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "crossroads-inn-f1",
+                    "props": {
+                      "use": "inn",
+                      "rooms": 4
+                    }
+                  },
+                  {
+                    "type": "cellar",
+                    "key": "crossroads-inn-c0",
+                    "props": {
+                      "use": "storage",
+                      "rooms": 2
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "crossroads-inn-p0",
+                    "props": {
+                      "side": "s",
+                      "use": "seating",
+                      "depth": 3
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "crossroads-inn-roof",
+                    "props": {
+                      "colour": "red"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "tile",
+                "key": "crossroads-sign",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 20,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "crossroads-lamp",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 2,
+                    "y": 17
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "old-harbour",
+            "frame": {
+              "x": 92,
+              "y": 172,
+              "w": 38,
+              "h": 20
+            },
+            "children": [
+              {
+                "type": "fill",
+                "key": "harbour-quay",
+                "frame": {
+                  "x": 26,
+                  "y": 10,
+                  "w": 12,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": ["flagstone-floor"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["sand", "grass"]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "quay-worn",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 12,
+                      "h": 10
+                    },
+                    "props": {
+                      "shape": "oval",
+                      "op": "intersect",
+                      "ragged": 60
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "fill",
+                "key": "harbour-street",
+                "frame": {
+                  "x": 2,
+                  "y": 11,
+                  "w": 26,
+                  "h": 3
+                },
+                "props": {
+                  "tiles": ["moss-flagstone"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["grass"]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "street-gap",
+                    "frame": {
+                      "x": 9,
+                      "y": 0,
+                      "w": 4,
+                      "h": 3
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "subtract"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "temple",
+                "key": "harbour-customs",
+                "frame": {
+                  "x": 2,
+                  "y": 2,
+                  "w": 11,
+                  "h": 9
+                },
+                "props": {
+                  "height": 2,
+                  "gap": 1,
+                  "base": "step",
+                  "roof": "flat",
+                  "ruin": 70
+                }
+              },
+              {
+                "type": "house",
+                "key": "harbour-warehouse",
+                "frame": {
+                  "x": 15,
+                  "y": 1,
+                  "w": 12,
+                  "h": 9
+                },
+                "props": {
+                  "wall": "sw2",
+                  "window": null
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "harbour-warehouse-f0",
+                    "props": {
+                      "use": "storage",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "cellar",
+                    "key": "harbour-warehouse-c0",
+                    "props": {
+                      "use": "storage"
+                    }
+                  },
+                  {
+                    "type": "mask",
+                    "key": "warehouse-broken",
+                    "frame": {
+                      "x": -2,
+                      "y": -3,
+                      "w": 10,
+                      "h": 10
+                    },
+                    "props": {
+                      "shape": "oval",
+                      "op": "subtract",
+                      "ragged": 60,
+                      "only": ["sw2", "door-closed"]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "harbour-house",
+                "frame": {
+                  "x": 29,
+                  "y": 3,
+                  "w": 9,
+                  "h": 8
+                },
+                "props": {
+                  "window": null
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "harbour-house-f0",
+                    "props": {
+                      "use": "empty",
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "mask",
+                    "key": "harbour-house-broken",
+                    "frame": {
+                      "x": 4,
+                      "y": 3,
+                      "w": 8,
+                      "h": 8
+                    },
+                    "props": {
+                      "shape": "oval",
+                      "op": "subtract",
+                      "ragged": 60,
+                      "only": ["sw2", "brick-wall", "door-closed"]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "scatter",
+                "key": "harbour-rubble",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 40,
+                  "h": 22
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "rubble",
+                      "weight": 4
+                    },
+                    {
+                      "tile": "wreck-planks",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "barrel",
+                      "weight": 1
+                    },
+                    {
+                      "tile": "rope-coil",
+                      "weight": 1
+                    },
+                    {
+                      "tile": "fern",
+                      "weight": 2
+                    }
+                  ],
+                  "density": 8,
+                  "onlyOn": ["sand", "grass", "flagstone-floor"],
+                  "clumping": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "lighthouse",
+            "key": "wyrd-lighthouse",
+            "frame": {
+              "x": 180,
+              "y": 182,
+              "w": 17,
+              "h": 17
+            },
+            "props": {
+              "door": "w",
+              "setback": 2
+            },
+            "children": [
+              {
+                "type": "tier",
+                "key": "lighthouse-base",
+                "props": {
+                  "storeys": 4,
+                  "finish": "rubble"
+                }
+              },
+              {
+                "type": "tier",
+                "key": "lighthouse-middle",
+                "props": {
+                  "storeys": 6,
+                  "finish": "limewashed"
+                }
+              },
+              {
+                "type": "tier",
+                "key": "lighthouse-top",
+                "props": {
+                  "storeys": 4,
+                  "finish": "rubble"
+                }
+              }
+            ]
+          },
+          {
+            "type": "lighthouse",
+            "key": "old-tower",
+            "frame": {
+              "x": 75,
+              "y": 50,
+              "w": 11,
+              "h": 11
+            },
+            "props": {
+              "door": "s",
+              "setback": 1,
+              "beacon": null,
+              "crown": true
+            },
+            "children": [
+              {
+                "type": "tier",
+                "key": "old-tower-lower",
+                "props": {
+                  "storeys": 3,
+                  "finish": "rubble"
+                }
+              },
+              {
+                "type": "tier",
+                "key": "old-tower-upper",
+                "props": {
+                  "storeys": 3,
+                  "finish": "rubble",
+                  "slits": true
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "standing-stones",
+            "frame": {
+              "x": 184,
+              "y": 86,
+              "w": 20,
+              "h": 16
+            },
+            "children": [
+              {
+                "type": "tile",
+                "key": "standing-stone-0",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 16,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-1",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 15,
+                    "y": 11
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-2",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 11,
+                    "y": 13
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-3",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 7,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-4",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 4,
+                    "y": 10
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-5",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 4,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-6",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 7,
+                    "y": 4
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-7",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 11,
+                    "y": 3
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stone-8",
+                "props": {
+                  "tile": "rock-pillar",
+                  "at": {
+                    "x": 15,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "standing-stones-altar",
+                "props": {
+                  "tile": "stone-forge",
+                  "at": {
+                    "x": 10,
+                    "y": 8
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "barrow-field",
+            "frame": {
+              "x": 108,
+              "y": 84,
+              "w": 18,
+              "h": 12
+            },
+            "children": [
+              {
+                "type": "clear",
+                "key": "barrow-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "small-bush",
+                    "fallen-log",
+                    "tree-stump"
+                  ]
+                }
+              },
+              {
+                "type": "fill",
+                "key": "barrow-ground",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 18,
+                  "h": 12
+                },
+                "props": {
+                  "tiles": ["dirt"],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": ["grass"]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "barrow-ground-shape",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 18,
+                      "h": 12
+                    },
+                    "props": {
+                      "shape": "oval",
+                      "op": "intersect",
+                      "ragged": 40
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "tile",
+                "key": "barrow-0-0",
+                "props": {
+                  "tile": "sarcophagus-open",
+                  "at": {
+                    "x": 3,
+                    "y": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-0-1",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 6,
+                    "y": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-0-2",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 9,
+                    "y": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-0-3",
+                "props": {
+                  "tile": "sarcophagus-open",
+                  "at": {
+                    "x": 12,
+                    "y": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-1-0",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 3,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-1-1",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 6,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-1-2",
+                "props": {
+                  "tile": "sarcophagus-open",
+                  "at": {
+                    "x": 9,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-1-3",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 12,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-2-0",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 3,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-2-1",
+                "props": {
+                  "tile": "sarcophagus-open",
+                  "at": {
+                    "x": 6,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-2-2",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 9,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-2-3",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 12,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-candle-1",
+                "props": {
+                  "tile": "candle",
+                  "at": {
+                    "x": 2,
+                    "y": 1
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-candle-2",
+                "props": {
+                  "tile": "candle",
+                  "at": {
+                    "x": 15,
+                    "y": 9
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-tree-1",
+                "props": {
+                  "tile": "dead-tree",
+                  "at": {
+                    "x": 16,
+                    "y": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-tree-2",
+                "props": {
+                  "tile": "dead-tree",
+                  "at": {
+                    "x": 1,
+                    "y": 9
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "key": "farmsteads",
+            "frame": {
+              "x": 184,
+              "y": 164,
+              "w": 34,
+              "h": 18
+            },
+            "children": [
+              {
+                "type": "house",
+                "key": "farm-house",
+                "frame": {
+                  "x": 2,
+                  "y": 2,
+                  "w": 10,
+                  "h": 9
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "farm-house-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "porch",
+                    "key": "farm-house-p0",
+                    "props": {
+                      "side": "s",
+                      "use": "seating",
+                      "depth": 2
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "farm-house-roof",
+                    "props": {
+                      "colour": "yellow"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "farm-barn",
+                "frame": {
+                  "x": 14,
+                  "y": 4,
+                  "w": 10,
+                  "h": 8
+                },
+                "props": {
+                  "window": null
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "farm-barn-f0",
+                    "props": {
+                      "use": "storage",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "farm-barn-roof",
+                    "props": {
+                      "colour": "red",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "house",
+            "key": "witch-hut",
+            "frame": {
+              "x": 30,
+              "y": 150,
+              "w": 8,
+              "h": 7
+            },
+            "props": {
+              "wall": "half-wall"
+            },
+            "children": [
+              {
+                "type": "floor",
+                "key": "witch-hut-f0",
+                "props": {
+                  "use": "house",
+                  "doors": [
+                    {
+                      "x": 0,
+                      "y": 0,
+                      "pinX": "right",
+                      "pinY": "center"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "roof",
+                "key": "witch-hut-roof",
+                "props": {
+                  "colour": "blue",
+                  "pitch": "low"
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "oasis",
+            "frame": {
+              "x": 252,
+              "y": 132,
+              "w": 14,
+              "h": 10
+            },
+            "props": {
+              "tiles": ["water"],
+              "edge": ["mud"],
+              "edgeWidth": 1,
+              "mode": "replace",
+              "onlyOn": ["sand"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "oasis-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 14,
+                  "h": 10
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "oasis-green",
+            "frame": {
+              "x": 249,
+              "y": 129,
+              "w": 20,
+              "h": 16
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "reeds",
+                  "weight": 3
+                },
+                {
+                  "tile": "cattails",
+                  "weight": 2
+                },
+                {
+                  "tile": "tree",
+                  "weight": 1
+                },
+                {
+                  "tile": "bush",
+                  "weight": 1
+                }
+              ],
+              "density": 30,
+              "onlyOn": ["mud", "sand"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "oasis-green-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 20,
+                  "h": 16
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "lake-grove",
+            "frame": {
+              "x": 172,
+              "y": 112,
+              "w": 16,
+              "h": 12
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 55,
+              "path": null,
+              "paths": 1,
+              "undergrowthDensity": 8
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "lake-grove-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "camp-grove",
+            "frame": {
+              "x": 62,
+              "y": 168,
+              "w": 16,
+              "h": 12
+            },
+            "props": {
+              "onlyOn": ["grass"],
+              "density": 45,
+              "path": null,
+              "paths": 1,
+              "undergrowthDensity": 8
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "camp-grove-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "downs-grove",
+            "frame": {
+              "x": 208,
+              "y": 104,
+              "w": 14,
+              "h": 12
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 50,
+              "path": null,
+              "paths": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "downs-grove-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 14,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "tile",
+            "key": "lake-isle-tree",
+            "props": {
+              "tile": "old-tree",
+              "at": {
+                "x": 159,
+                "y": 103
+              }
+            }
+          },
+          {
+            "type": "temple",
+            "key": "desert-ruin",
+            "frame": {
+              "x": 210,
+              "y": 92,
+              "w": 15,
+              "h": 13
+            },
+            "props": {
+              "height": 3,
+              "gap": 1,
+              "base": "podium",
+              "roof": "flat",
+              "ruin": 85,
+              "floor": "slate-floor"
+            }
+          },
+          {
+            "type": "temple",
+            "key": "pine-ruin",
+            "frame": {
+              "x": 214,
+              "y": 30,
+              "w": 9,
+              "h": 9
+            },
+            "props": {
+              "height": 2,
+              "gap": 1,
+              "base": "step",
+              "roof": "flat",
+              "ruin": 50
+            }
+          },
+          {
+            "type": "temple",
+            "key": "meadow-ruin",
+            "frame": {
+              "x": 136,
+              "y": 128,
+              "w": 9,
+              "h": 9
+            },
+            "props": {
+              "height": 2,
+              "gap": 2,
+              "base": "step",
+              "roof": "flat",
+              "ruin": 95
+            }
+          },
+          {
+            "type": "temple",
+            "key": "crypt-shrine",
+            "frame": {
+              "x": 212,
+              "y": 70,
+              "w": 11,
+              "h": 11
+            },
+            "props": {
+              "height": 2,
+              "gap": 1,
+              "base": "step",
+              "roof": "flat",
+              "ruin": 60
+            }
+          },
+          {
+            "type": "cave",
+            "key": "bat-cave",
+            "frame": {
+              "x": 118,
+              "y": 151,
+              "w": 24,
+              "h": 17,
+              "z": 1
+            },
+            "props": {
+              "shape": "caverns",
+              "density": 35,
+              "floor": "dirt",
+              "prop": "stalagmite",
+              "propEvery": 18,
+              "mouths": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "center",
+                  "pinY": "bottom"
+                }
+              ]
+            }
+          },
+          {
+            "type": "cave",
+            "key": "bear-den",
+            "frame": {
+              "x": 38,
+              "y": 109,
+              "w": 28,
+              "h": 23,
+              "z": 1
+            },
+            "props": {
+              "shape": "caverns",
+              "density": 30,
+              "floor": "dirt",
+              "prop": "stalagmite",
+              "propEvery": 14,
+              "mouths": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "right",
+                  "pinY": "center"
+                }
+              ]
+            }
+          },
+          {
+            "type": "dungeon",
+            "key": "sunken-crypt",
+            "frame": {
+              "x": 198,
+              "y": 60,
+              "w": 40,
+              "h": 36,
+              "z": -1
+            },
+            "children": [
+              {
+                "type": "level",
+                "key": "crypt-hall",
+                "props": {
+                  "shape": "crypt",
+                  "door": "door-closed",
+                  "corridor": 2,
+                  "spacing": 3,
+                  "prop": "candle",
+                  "propEvery": 20,
+                  "up": {
+                    "x": 19,
+                    "y": 15
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "crypt-ossuary",
+                "props": {
+                  "shape": "crypt",
+                  "corridor": 1,
+                  "spacing": 2,
+                  "prop": "rock-pillar",
+                  "propEvery": 16,
+                  "upBy": "stairs"
+                }
+              },
+              {
+                "type": "level",
+                "key": "crypt-roots",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "dirt",
+                  "prop": "stalagmite-grey",
+                  "propEvery": 20,
+                  "upBy": "ladder"
+                }
+              }
+            ]
+          },
+          {
+            "type": "dungeon",
+            "key": "ice-caves",
+            "frame": {
+              "x": 120,
+              "y": 22,
+              "w": 60,
+              "h": 40,
+              "z": 2
+            },
+            "children": [
+              {
+                "type": "level",
+                "key": "ice-hall",
+                "props": {
+                  "shape": "caverns",
+                  "density": 40,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 16,
+                  "up": {
+                    "x": 0,
+                    "y": 0,
+                    "pinX": "center",
+                    "pinY": "bottom"
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "ice-deep",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 14
+                }
+              }
+            ]
+          },
+          {
+            "type": "dungeon",
+            "key": "obsidian-deeps",
+            "frame": {
+              "x": 236,
+              "y": 80,
+              "w": 32,
+              "h": 38,
+              "z": 0
+            },
+            "children": [
+              {
+                "type": "level",
+                "key": "deeps-mouth",
+                "props": {
+                  "shape": "tunnels",
+                  "density": 35,
+                  "floor": "basalt",
+                  "wall": "hill-wall-basalt",
+                  "up": {
+                    "x": 0,
+                    "y": 0,
+                    "pinX": "left",
+                    "pinY": "center"
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "deeps-veins",
+                "props": {
+                  "shape": "tunnels",
+                  "density": 30,
+                  "floor": "basalt",
+                  "wall": "hill-wall-basalt",
+                  "prop": "obsidian-vein-1",
+                  "propEvery": 10,
+                  "upBy": "ramp"
+                }
+              },
+              {
+                "type": "level",
+                "key": "deeps-forge",
+                "props": {
+                  "shape": "caverns",
+                  "density": 40,
+                  "floor": "basalt",
+                  "wall": "hill-wall-basalt",
+                  "prop": "obsidian-vein-2",
+                  "propEvery": 8
+                }
+              }
+            ]
+          },
+          {
+            "type": "road",
+            "key": "beach-path",
+            "props": {
+              "from": {
+                "in": "shipwreck",
+                "x": 0.5,
+                "y": 0.2,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "to": {
+                "in": "camp",
+                "x": 0.5,
+                "y": 0.7,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "tile": "dirt",
+              "width": 1
+            }
+          },
+          {
+            "type": "road",
+            "key": "camp-to-druids",
+            "props": {
+              "from": {
+                "in": "camp",
+                "x": 0.5,
+                "y": 0.4,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "to": {
+                "in": "druid-town",
+                "x": 29,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "bottom"
+              },
+              "via": [
+                {
+                  "x": 98,
+                  "y": 160
+                }
+              ],
+              "tile": "dirt",
+              "width": 2,
+              "wander": 20
+            }
+          },
+          {
+            "type": "road",
+            "key": "druids-to-inn",
+            "props": {
+              "from": {
+                "in": "druid-town",
+                "x": 0,
+                "y": 22,
+                "pinX": "right",
+                "pinY": "top"
+              },
+              "to": {
+                "in": "crossroads",
+                "x": 10,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "bottom"
+              },
+              "via": [
+                {
+                  "x": 140,
+                  "y": 130
+                }
+              ],
+              "tile": "dirt",
+              "width": 2,
+              "wander": 25
+            }
+          },
+          {
+            "type": "road",
+            "key": "inn-to-warriors",
+            "props": {
+              "from": {
+                "in": "crossroads",
+                "x": 10,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "bottom"
+              },
+              "to": {
+                "in": "warrior-town",
+                "x": 0,
+                "y": 23,
+                "pinX": "left",
+                "pinY": "top"
+              },
+              "tile": "dirt",
+              "width": 2,
+              "wander": 25
+            }
+          },
+          {
+            "type": "road",
+            "key": "camp-to-inn",
+            "props": {
+              "from": {
+                "in": "camp",
+                "x": 1,
+                "y": 0.4,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "to": {
+                "in": "crossroads",
+                "x": 10,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "bottom"
+              },
+              "via": [
+                {
+                  "x": 150,
+                  "y": 186
+                }
+              ],
+              "tile": "dirt",
+              "width": 1,
+              "wander": 30
+            }
+          },
+          {
+            "type": "road",
+            "key": "harbour-road",
+            "props": {
+              "from": {
+                "in": "old-harbour",
+                "x": 0.5,
+                "y": 0.9,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "to": {
+                "in": "wyrd-lighthouse",
+                "x": 0,
+                "y": 0.5,
+                "pinX": "left",
+                "pinY": "scale"
+              },
+              "tile": "cobblestone",
+              "width": 1,
+              "cuts": ["grass"]
+            }
+          },
+          {
+            "type": "road",
+            "key": "tower-trail",
+            "props": {
+              "from": {
+                "in": "druid-town",
+                "x": 29,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "top"
+              },
+              "to": {
+                "in": "old-tower",
+                "x": 5,
+                "y": 2,
+                "pinX": "left",
+                "pinY": "bottom"
+              },
+              "via": [
+                {
+                  "x": 60,
+                  "y": 92
+                }
+              ],
+              "tile": null,
+              "width": 1,
+              "wander": 20
+            }
+          },
+          {
+            "type": "road",
+            "key": "mountain-road",
+            "props": {
+              "from": {
+                "in": "crossroads",
+                "x": 10,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "top"
+              },
+              "to": {
+                "in": "ice-caves",
+                "x": 0.5,
+                "y": 1.15,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "via": [
+                {
+                  "x": 170,
+                  "y": 96
+                }
+              ],
+              "tile": "dirt",
+              "width": 1,
+              "wander": 25
+            }
+          },
+          {
+            "type": "road",
+            "key": "north-road",
+            "props": {
+              "from": {
+                "in": "warrior-town",
+                "x": 31,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "top"
+              },
+              "to": {
+                "in": "crypt-shrine",
+                "x": 0.5,
+                "y": 1.2,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "via": [
+                {
+                  "x": 222,
+                  "y": 110
+                }
+              ],
+              "tile": "dirt",
+              "width": 1,
+              "wander": 25
+            }
+          },
+          {
+            "type": "road",
+            "key": "gorge-trail",
+            "props": {
+              "from": {
+                "in": "warrior-town",
+                "x": 1,
+                "y": 0.3,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "to": {
+                "in": "obsidian-deeps",
+                "x": -0.1,
+                "y": 0.5,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "tile": null,
+              "width": 1,
+              "wander": 20
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "woodland-floor",
+            "frame": {
+              "x": 20,
+              "y": 36,
+              "w": 110,
+              "h": 116
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "fern",
+                  "weight": 4
+                },
+                {
+                  "tile": "mushroom-patch",
+                  "weight": 1
+                },
+                {
+                  "tile": "blue-mushroom-patch",
+                  "weight": 1
+                },
+                {
+                  "tile": "tuft",
+                  "weight": 2
+                }
+              ],
+              "density": 10,
+              "onlyOn": ["grass", "grass-2"],
+              "clumping": 60
+            }
+          },
+          {
+            "type": "forest",
+            "key": "apple-orchard",
+            "frame": {
+              "x": 170,
+              "y": 156,
+              "w": 16,
+              "h": 12
+            },
+            "props": {
+              "onlyOn": ["grass"],
+              "tree": "apple-tree",
+              "density": 35,
+              "path": null,
+              "paths": 1,
+              "undergrowthDensity": 3
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "apple-orchard-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 15
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "foothill-pines",
+            "frame": {
+              "x": 198,
+              "y": 20,
+              "w": 34,
+              "h": 30
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 40,
+              "path": null,
+              "paths": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "foothill-pines-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 34,
+                  "h": 30
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "snow-pines",
+            "frame": {
+              "x": 118,
+              "y": 14,
+              "w": 64,
+              "h": 44
+            },
+            "props": {
+              "onlyOn": ["snow"],
+              "tree": "snowy-pine",
+              "density": 22,
+              "path": null,
+              "paths": 1,
+              "undergrowth": [
+                {
+                  "tile": "snowy-rock",
+                  "weight": 1
+                }
+              ],
+              "undergrowthDensity": 4
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "meadow-flowers",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 300,
+              "h": 230
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "red-flowers",
+                  "weight": 2
+                },
+                {
+                  "tile": "yellow-flowers",
+                  "weight": 2
+                },
+                {
+                  "tile": "tuft",
+                  "weight": 4
+                },
+                {
+                  "tile": "bush",
+                  "weight": 1
+                },
+                {
+                  "tile": "mushroom",
+                  "weight": 1
+                }
+              ],
+              "density": 6,
+              "onlyOn": ["grass", "grass-2"],
+              "clumping": 55
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "camp-rats",
+            "frame": {
+              "x": 70,
+              "y": 160,
+              "w": 50,
+              "h": 30
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rat",
+                  "weight": 1
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["grass"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "meadow-game",
+            "frame": {
+              "x": 120,
+              "y": 120,
+              "w": 70,
+              "h": 40
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "deer",
+                  "weight": 2
+                },
+                {
+                  "tile": "rabbit",
+                  "weight": 3
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["grass"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "wood-wolves",
+            "frame": {
+              "x": 10,
+              "y": 40,
+              "w": 50,
+              "h": 60
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "wolf",
+                  "weight": 1
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["grass", "grass-2"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "bog-imps",
+            "frame": {
+              "x": 16,
+              "y": 138,
+              "w": 46,
+              "h": 36
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "bog-imp",
+                  "weight": 2
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 1
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["mud"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "desert-slimes",
+            "frame": {
+              "x": 220,
+              "y": 60,
+              "w": 60,
+              "h": 110
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "fire-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-fire-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "snake",
+                  "weight": 1
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["sand"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "peak-beasts",
+            "frame": {
+              "x": 124,
+              "y": 18,
+              "w": 50,
+              "h": 36
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "snow-wolf",
+                  "weight": 3
+                },
+                {
+                  "tile": "yeti",
+                  "weight": 1
+                }
+              ],
+              "density": 2,
+              "onlyOn": ["snow"]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "shore-slimes",
+            "frame": {
+              "x": 60,
+              "y": 190,
+              "w": 90,
+              "h": 40
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "small-water-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "water-slime",
+                  "weight": 1
+                }
+              ],
+              "density": 1,
+              "onlyOn": ["sand"]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "castaway",
+            "props": {
+              "tile": "player",
+              "at": {
+                "x": 92,
+                "y": 192
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "island",
+        "key": "temple-islet",
+        "frame": {
+          "x": 292,
+          "y": 18,
+          "w": 30,
+          "h": 24
+        },
+        "props": {
+          "fill": "sand",
+          "shore": 2,
+          "roughness": 40,
+          "beach": 1
+        },
+        "children": [
+          {
+            "type": "grass",
+            "key": "islet-grass"
+          },
+          {
+            "type": "temple",
+            "key": "islet-temple",
+            "frame": {
+              "x": 9,
+              "y": 7,
+              "w": 13,
+              "h": 11
+            },
+            "props": {
+              "height": 3,
+              "gap": 1,
+              "base": "podium",
+              "roof": "gabled",
+              "ruin": 75
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
