@@ -43,6 +43,36 @@
             }
           },
           {
+            "type": "mask",
+            "key": "bog-cove",
+            "frame": {
+              "x": 18,
+              "y": 136,
+              "w": 16,
+              "h": 20
+            },
+            "props": {
+              "shape": "oval",
+              "op": "subtract",
+              "ragged": 40
+            }
+          },
+          {
+            "type": "mask",
+            "key": "north-fjord",
+            "frame": {
+              "x": 228,
+              "y": 28,
+              "w": 12,
+              "h": 22
+            },
+            "props": {
+              "shape": "oval",
+              "op": "subtract",
+              "ragged": 35
+            }
+          },
+          {
             "type": "grass",
             "key": "grass",
             "children": [
@@ -67,10 +97,10 @@
             "type": "temple",
             "key": "woodland-shrine",
             "frame": {
-              "x": 52,
-              "y": 72,
-              "w": 10,
-              "h": 10
+              "x": 53,
+              "y": 73,
+              "w": 7,
+              "h": 7
             },
             "props": {
               "height": 2,
@@ -78,23 +108,6 @@
               "base": "step",
               "roof": "open",
               "ruin": 55
-            }
-          },
-          {
-            "type": "temple",
-            "key": "shoulder-ruin",
-            "frame": {
-              "x": 184,
-              "y": 64,
-              "w": 9,
-              "h": 9
-            },
-            "props": {
-              "height": 2,
-              "gap": 1,
-              "base": "none",
-              "roof": "gabled",
-              "ruin": 40
             }
           },
           {
@@ -116,15 +129,15 @@
                 "type": "mask",
                 "key": "peak-foot-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 116,
-                  "h": 80
+                  "x": 6,
+                  "y": 4,
+                  "w": 104,
+                  "h": 72
                 },
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 40
+                  "ragged": 30
                 }
               }
             ]
@@ -146,7 +159,17 @@
               "brink": "snow-brink",
               "wall": "hill-wall-frost",
               "ramp": "snowy-ramp",
-              "rampBlock": "frosted-half-stone"
+              "rampBlock": "frosted-half-stone",
+              "ramps": [
+                {
+                  "x": 46,
+                  "y": 50
+                },
+                {
+                  "x": 38,
+                  "y": 42
+                }
+              ]
             },
             "children": [
               {
@@ -183,7 +206,13 @@
               "brink": "snow-brink",
               "wall": "hill-wall-frost",
               "ramp": "snowy-ramp",
-              "rampBlock": "frosted-half-stone"
+              "rampBlock": "frosted-half-stone",
+              "ramps": [
+                {
+                  "x": 31,
+                  "y": 30
+                }
+              ]
             },
             "children": [
               {
@@ -207,13 +236,13 @@
             "type": "hill",
             "key": "peak-crown",
             "frame": {
-              "x": 136,
-              "y": 22,
+              "x": 138,
+              "y": 27,
               "w": 22,
               "h": 18
             },
             "props": {
-              "levels": 3,
+              "levels": 4,
               "terrace": 1,
               "roughness": 30,
               "ground": "snow",
@@ -237,6 +266,23 @@
                 }
               }
             ]
+          },
+          {
+            "type": "temple",
+            "key": "shoulder-ruin",
+            "frame": {
+              "x": 176,
+              "y": 60,
+              "w": 9,
+              "h": 9
+            },
+            "props": {
+              "height": 2,
+              "gap": 1,
+              "base": "none",
+              "roof": "gabled",
+              "ruin": 40
+            }
           },
           {
             "type": "hill",
@@ -316,7 +362,7 @@
               "h": 42
             },
             "props": {
-              "levels": 3,
+              "levels": 2,
               "terrace": 0,
               "roughness": 30,
               "ground": "basalt",
@@ -327,15 +373,15 @@
                 "type": "mask",
                 "key": "gorge-rim-shape",
                 "frame": {
-                  "x": 0,
+                  "x": 4,
                   "y": 0,
-                  "w": 36,
-                  "h": 42
+                  "w": 26,
+                  "h": 36
                 },
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 30
+                  "ragged": 45
                 }
               }
             ]
@@ -344,10 +390,10 @@
             "type": "fill",
             "key": "lava-gorge",
             "frame": {
-              "x": 249,
-              "y": 82,
-              "w": 7,
-              "h": 30
+              "x": 244,
+              "y": 80,
+              "w": 12,
+              "h": 18
             },
             "props": {
               "tiles": ["lava", "lava-crust"],
@@ -363,13 +409,47 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 7,
-                  "h": 30
+                  "w": 12,
+                  "h": 18
                 },
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 40
+                  "ragged": 55
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "lava-gorge-south",
+            "frame": {
+              "x": 249,
+              "y": 94,
+              "w": 10,
+              "h": 18
+            },
+            "props": {
+              "tiles": ["lava", "lava-crust"],
+              "edge": ["lava-crust"],
+              "edgeWidth": 1,
+              "mode": "replace",
+              "onlyOn": ["basalt"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "lava-gorge-south-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 10,
+                  "h": 18
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 55
                 }
               }
             ]
@@ -394,9 +474,10 @@
                   "weight": 1
                 }
               ],
-              "density": 5,
+              "density": 4,
               "onlyOn": ["sand"],
-              "clumping": 60,
+              "clumping": 95,
+              "clumpSize": 16,
               "spacing": 2
             },
             "children": [
@@ -614,17 +695,25 @@
             "props": {
               "levels": 1,
               "terrace": 4,
-              "roughness": 40
+              "roughness": 40,
+              "ramps": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "right",
+                  "pinY": "center"
+                }
+              ]
             },
             "children": [
               {
                 "type": "mask",
                 "key": "bear-hill-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 36,
-                  "h": 30
+                  "x": 3,
+                  "y": 3,
+                  "w": 30,
+                  "h": 24
                 },
                 "props": {
                   "shape": "oval",
@@ -699,10 +788,10 @@
                 "type": "mask",
                 "key": "east-downs-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 36,
-                  "h": 28
+                  "x": 3,
+                  "y": 3,
+                  "w": 30,
+                  "h": 22
                 },
                 "props": {
                   "shape": "oval",
@@ -796,8 +885,8 @@
                 "type": "mask",
                 "key": "witch-hummock",
                 "frame": {
-                  "x": 11,
-                  "y": 9,
+                  "x": 22,
+                  "y": 10,
                   "w": 14,
                   "h": 13
                 },
@@ -1049,7 +1138,7 @@
                   "h": 22
                 },
                 "props": {
-                  "tiles": ["cobblestone"],
+                  "tiles": ["moss-flagstone"],
                   "edge": [],
                   "mode": "replace",
                   "onlyOn": ["grass", "sand", "grass-2"]
@@ -1477,7 +1566,7 @@
                     "x": 29,
                     "y": 27
                   },
-                  "tile": "cobblestone",
+                  "tile": "moss-flagstone",
                   "width": 2
                 }
               },
@@ -1493,7 +1582,7 @@
                     "x": 39,
                     "y": 22
                   },
-                  "tile": "cobblestone",
+                  "tile": "moss-flagstone",
                   "width": 2
                 }
               },
@@ -1509,8 +1598,74 @@
                     "x": 29,
                     "y": 10
                   },
-                  "tile": "cobblestone",
+                  "tile": "moss-flagstone",
                   "width": 2
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-n1",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 27,
+                    "y": 9
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-n2",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 32,
+                    "y": 9
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-e1",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 40,
+                    "y": 20
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-e2",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 40,
+                    "y": 25
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-s1",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 27,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-s2",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 32,
+                    "y": 42
+                  }
                 }
               },
               {
@@ -1564,7 +1719,7 @@
                   "h": 14
                 },
                 "props": {
-                  "tiles": ["dirt"],
+                  "tiles": ["flagstone-floor"],
                   "edge": [],
                   "mode": "replace",
                   "onlyOn": ["grass", "sand"]
@@ -1756,7 +1911,7 @@
                 "key": "warrior-armoury",
                 "frame": {
                   "x": 44,
-                  "y": 26,
+                  "y": 24,
                   "w": 10,
                   "h": 7
                 },
@@ -1897,7 +2052,7 @@
                 "key": "warrior-house-2",
                 "frame": {
                   "x": 35,
-                  "y": 32,
+                  "y": 30,
                   "w": 8,
                   "h": 8
                 },
@@ -1932,7 +2087,7 @@
                 "key": "warrior-house-3",
                 "frame": {
                   "x": 45,
-                  "y": 34,
+                  "y": 32,
                   "w": 9,
                   "h": 6
                 },
@@ -1962,50 +2117,18 @@
                 ]
               },
               {
-                "type": "scatter",
-                "key": "warrior-dummies",
-                "frame": {
-                  "x": 24,
-                  "y": 17,
-                  "w": 16,
-                  "h": 10
-                },
-                "props": {
-                  "tiles": [
-                    {
-                      "tile": "training-dummy",
-                      "weight": 1
-                    }
-                  ],
-                  "density": 8,
-                  "onlyOn": ["dirt"],
-                  "spacing": 2
-                }
-              },
-              {
-                "type": "tile",
-                "key": "warrior-waking",
-                "props": {
-                  "tile": "respawn-point",
-                  "at": {
-                    "x": 33,
-                    "y": 29
-                  }
-                }
-              },
-              {
                 "type": "road",
-                "key": "warrior-south-street",
+                "key": "warrior-main-street",
                 "props": {
                   "from": {
                     "x": 29,
-                    "y": 44
+                    "y": -1
                   },
                   "to": {
                     "x": 29,
-                    "y": 30
+                    "y": 44
                   },
-                  "tile": "cobblestone",
+                  "tile": "slate-floor",
                   "width": 2
                 }
               },
@@ -2018,27 +2141,335 @@
                     "y": 22
                   },
                   "to": {
-                    "x": 22,
+                    "x": 29,
                     "y": 22
                   },
-                  "tile": "cobblestone",
+                  "tile": "slate-floor",
                   "width": 2
                 }
               },
               {
                 "type": "road",
-                "key": "warrior-north-street",
+                "key": "warrior-east-street",
                 "props": {
                   "from": {
-                    "x": 29,
-                    "y": -1
+                    "x": 58,
+                    "y": 22
                   },
                   "to": {
-                    "x": 29,
-                    "y": 16
+                    "x": 44,
+                    "y": 22
                   },
-                  "tile": "cobblestone",
+                  "tile": "slate-floor",
                   "width": 2
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n24",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 24,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n25",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 25,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n26",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 26,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n27",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 27,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n32",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 32,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n33",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 33,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n34",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 34,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n35",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 35,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n36",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 36,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n37",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 37,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-n38",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 38,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w17",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w18",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 18
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w19",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 19
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w20",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 20
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w25",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 25
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w26",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 26
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w27",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 27
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-fence-w28",
+                "props": {
+                  "tile": "fence",
+                  "at": {
+                    "x": 22,
+                    "y": 28
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-dummy-0",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 25,
+                    "y": 18
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-dummy-1",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 28,
+                    "y": 18
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-dummy-2",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 33,
+                    "y": 18
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-dummy-3",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 36,
+                    "y": 18
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-dummy-4",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 24,
+                    "y": 26
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-waking",
+                "props": {
+                  "tile": "respawn-point",
+                  "at": {
+                    "x": 33,
+                    "y": 27
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-gate-lamp-w",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 27,
+                    "y": 37
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-gate-lamp-e",
+                "props": {
+                  "tile": "lamppost",
+                  "at": {
+                    "x": 32,
+                    "y": 37
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "warrior-yard-crate",
+                "props": {
+                  "tile": "crate-chest",
+                  "at": {
+                    "x": 41,
+                    "y": 27
+                  }
                 }
               }
             ]
@@ -2240,7 +2671,7 @@
             "type": "group",
             "key": "crossroads",
             "frame": {
-              "x": 158,
+              "x": 162,
               "y": 128,
               "w": 24,
               "h": 20
@@ -2336,57 +2767,24 @@
             "frame": {
               "x": 92,
               "y": 172,
-              "w": 38,
-              "h": 20
+              "w": 46,
+              "h": 24
             },
             "children": [
-              {
-                "type": "fill",
-                "key": "harbour-quay",
-                "frame": {
-                  "x": 26,
-                  "y": 10,
-                  "w": 12,
-                  "h": 10
-                },
-                "props": {
-                  "tiles": ["flagstone-floor"],
-                  "edge": [],
-                  "mode": "replace",
-                  "onlyOn": ["sand", "grass"]
-                },
-                "children": [
-                  {
-                    "type": "mask",
-                    "key": "quay-worn",
-                    "frame": {
-                      "x": 0,
-                      "y": 0,
-                      "w": 12,
-                      "h": 10
-                    },
-                    "props": {
-                      "shape": "oval",
-                      "op": "intersect",
-                      "ragged": 60
-                    }
-                  }
-                ]
-              },
               {
                 "type": "fill",
                 "key": "harbour-street",
                 "frame": {
                   "x": 2,
                   "y": 11,
-                  "w": 26,
+                  "w": 32,
                   "h": 3
                 },
                 "props": {
                   "tiles": ["moss-flagstone"],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass"]
+                  "onlyOn": ["grass", "sand"]
                 },
                 "children": [
                   {
@@ -2572,7 +2970,7 @@
               "h": 17
             },
             "props": {
-              "door": "w",
+              "door": "n",
               "setback": 2
             },
             "children": [
@@ -2793,7 +3191,7 @@
                   "h": 12
                 },
                 "props": {
-                  "tiles": ["dirt"],
+                  "tiles": ["grass-2"],
                   "edge": [],
                   "mode": "replace",
                   "onlyOn": ["grass"]
@@ -2811,14 +3209,14 @@
                     "props": {
                       "shape": "oval",
                       "op": "intersect",
-                      "ragged": 40
+                      "ragged": 45
                     }
                   }
                 ]
               },
               {
                 "type": "tile",
-                "key": "barrow-0-0",
+                "key": "barrow-0",
                 "props": {
                   "tile": "sarcophagus-open",
                   "at": {
@@ -2829,51 +3227,51 @@
               },
               {
                 "type": "tile",
-                "key": "barrow-0-1",
+                "key": "barrow-1",
                 "props": {
                   "tile": "sarcophagus-closed",
                   "at": {
-                    "x": 6,
+                    "x": 7,
+                    "y": 1
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-2",
+                "props": {
+                  "tile": "sarcophagus-closed",
+                  "at": {
+                    "x": 10,
+                    "y": 3
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-3",
+                "props": {
+                  "tile": "sarcophagus-open",
+                  "at": {
+                    "x": 14,
                     "y": 2
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-0-2",
+                "key": "barrow-4",
                 "props": {
                   "tile": "sarcophagus-closed",
                   "at": {
-                    "x": 9,
-                    "y": 2
+                    "x": 2,
+                    "y": 6
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-0-3",
-                "props": {
-                  "tile": "sarcophagus-open",
-                  "at": {
-                    "x": 12,
-                    "y": 2
-                  }
-                }
-              },
-              {
-                "type": "tile",
-                "key": "barrow-1-0",
-                "props": {
-                  "tile": "sarcophagus-closed",
-                  "at": {
-                    "x": 3,
-                    "y": 5
-                  }
-                }
-              },
-              {
-                "type": "tile",
-                "key": "barrow-1-1",
+                "key": "barrow-5",
                 "props": {
                   "tile": "sarcophagus-closed",
                   "at": {
@@ -2884,67 +3282,78 @@
               },
               {
                 "type": "tile",
-                "key": "barrow-1-2",
+                "key": "barrow-6",
                 "props": {
                   "tile": "sarcophagus-open",
                   "at": {
                     "x": 9,
-                    "y": 5
+                    "y": 7
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-1-3",
+                "key": "barrow-7",
                 "props": {
                   "tile": "sarcophagus-closed",
                   "at": {
-                    "x": 12,
-                    "y": 5
+                    "x": 13,
+                    "y": 6
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-2-0",
+                "key": "barrow-8",
                 "props": {
                   "tile": "sarcophagus-closed",
                   "at": {
-                    "x": 3,
-                    "y": 8
+                    "x": 4,
+                    "y": 9
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-2-1",
+                "key": "barrow-9",
                 "props": {
                   "tile": "sarcophagus-open",
                   "at": {
-                    "x": 6,
-                    "y": 8
+                    "x": 11,
+                    "y": 9
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-2-2",
+                "key": "barrow-bones-1",
                 "props": {
-                  "tile": "sarcophagus-closed",
+                  "tile": "bleached-bones",
                   "at": {
-                    "x": 9,
-                    "y": 8
+                    "x": 5,
+                    "y": 3
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "barrow-2-3",
+                "key": "barrow-bones-2",
                 "props": {
-                  "tile": "sarcophagus-closed",
+                  "tile": "bleached-bones",
                   "at": {
                     "x": 12,
                     "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "barrow-skull",
+                "props": {
+                  "tile": "skull-troll",
+                  "at": {
+                    "x": 8,
+                    "y": 4
                   }
                 }
               },
@@ -3093,8 +3502,8 @@
             "type": "house",
             "key": "witch-hut",
             "frame": {
-              "x": 30,
-              "y": 150,
+              "x": 41,
+              "y": 151,
               "w": 8,
               "h": 7
             },
@@ -3326,17 +3735,17 @@
             "type": "temple",
             "key": "desert-ruin",
             "frame": {
-              "x": 210,
-              "y": 92,
-              "w": 15,
-              "h": 13
+              "x": 255,
+              "y": 146,
+              "w": 13,
+              "h": 11
             },
             "props": {
-              "height": 3,
+              "height": 1,
               "gap": 1,
-              "base": "podium",
+              "base": "step",
               "roof": "flat",
-              "ruin": 85,
+              "ruin": 90,
               "floor": "slate-floor"
             }
           },
@@ -3344,10 +3753,10 @@
             "type": "temple",
             "key": "pine-ruin",
             "frame": {
-              "x": 214,
-              "y": 30,
-              "w": 9,
-              "h": 9
+              "x": 215,
+              "y": 28,
+              "w": 7,
+              "h": 11
             },
             "props": {
               "height": 2,
@@ -3369,9 +3778,9 @@
             "props": {
               "height": 2,
               "gap": 2,
-              "base": "step",
-              "roof": "flat",
-              "ruin": 95
+              "base": "none",
+              "roof": "open",
+              "ruin": 92
             }
           },
           {
@@ -3717,7 +4126,7 @@
               "via": [
                 {
                   "x": 150,
-                  "y": 186
+                  "y": 166
                 }
               ],
               "tile": "dirt",
@@ -3727,25 +4136,22 @@
           },
           {
             "type": "road",
-            "key": "harbour-road",
+            "key": "witch-path",
             "props": {
               "from": {
-                "in": "old-harbour",
-                "x": 0.5,
-                "y": 0.9,
-                "pinX": "scale",
+                "in": "witch-hut",
+                "x": 0,
+                "y": 0.5,
+                "pinX": "right",
                 "pinY": "scale"
               },
               "to": {
-                "in": "wyrd-lighthouse",
-                "x": 0,
-                "y": 0.5,
-                "pinX": "left",
-                "pinY": "scale"
+                "x": 66,
+                "y": 157
               },
-              "tile": "cobblestone",
+              "tile": "dirt",
               "width": 1,
-              "cuts": ["grass"]
+              "wander": 15
             }
           },
           {
@@ -3797,8 +4203,8 @@
               },
               "via": [
                 {
-                  "x": 170,
-                  "y": 96
+                  "x": 175,
+                  "y": 95
                 }
               ],
               "tile": "dirt",
@@ -3981,7 +4387,37 @@
                 }
               ],
               "undergrowthDensity": 4
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "snow-ramp-foot",
+                "frame": {
+                  "x": 34,
+                  "y": 35,
+                  "w": 5,
+                  "h": 5
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "shoulder-ramp-foot",
+                "frame": {
+                  "x": 30,
+                  "y": 43,
+                  "w": 5,
+                  "h": 5
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
@@ -4009,16 +4445,42 @@
                 {
                   "tile": "bush",
                   "weight": 1
-                },
-                {
-                  "tile": "mushroom",
-                  "weight": 1
                 }
               ],
               "density": 6,
               "onlyOn": ["grass", "grass-2"],
               "clumping": 55
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "flowers-off-druids",
+                "frame": {
+                  "x": 72,
+                  "y": 100,
+                  "w": 58,
+                  "h": 46
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "flowers-off-warriors",
+                "frame": {
+                  "x": 190,
+                  "y": 118,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
@@ -4062,16 +4524,46 @@
               ],
               "density": 1,
               "onlyOn": ["grass"]
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "game-off-druids",
+                "frame": {
+                  "x": -48,
+                  "y": -20,
+                  "w": 58,
+                  "h": 46
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "game-off-warriors",
+                "frame": {
+                  "x": 70,
+                  "y": -2,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
             "key": "wood-wolves",
             "frame": {
-              "x": 10,
-              "y": 40,
-              "w": 50,
-              "h": 60
+              "x": 30,
+              "y": 36,
+              "w": 100,
+              "h": 116
             },
             "props": {
               "tiles": [
@@ -4082,7 +4574,23 @@
               ],
               "density": 1,
               "onlyOn": ["grass", "grass-2"]
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wolves-off-druids",
+                "frame": {
+                  "x": 42,
+                  "y": 64,
+                  "w": 58,
+                  "h": 46
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
@@ -4104,8 +4612,8 @@
                   "weight": 1
                 }
               ],
-              "density": 1,
-              "onlyOn": ["mud"]
+              "density": 2,
+              "onlyOn": ["mud", "swamp"]
             }
           },
           {
@@ -4134,7 +4642,23 @@
               ],
               "density": 1,
               "onlyOn": ["sand"]
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "slimes-off-warriors",
+                "frame": {
+                  "x": -30,
+                  "y": 58,
+                  "w": 58,
+                  "h": 44
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
@@ -4149,15 +4673,22 @@
               "tiles": [
                 {
                   "tile": "snow-wolf",
-                  "weight": 3
-                },
-                {
-                  "tile": "yeti",
                   "weight": 1
                 }
               ],
               "density": 2,
               "onlyOn": ["snow"]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "peak-yeti",
+            "props": {
+              "tile": "yeti",
+              "at": {
+                "x": 160,
+                "y": 34
+              }
             }
           },
           {
@@ -4186,12 +4717,403 @@
           },
           {
             "type": "tile",
+            "key": "bat-cave-bat-0",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 126,
+                "y": 157,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "bat-cave-bat-1",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 134,
+                "y": 161,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "bat-cave-bat-2",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 132,
+                "y": 156,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "bat-cave-silver-chest-3",
+            "props": {
+              "tile": "silver-chest",
+              "at": {
+                "x": 123,
+                "y": 161,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "bear-den-bear-0",
+            "props": {
+              "tile": "bear",
+              "at": {
+                "x": 47,
+                "y": 125,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "bear-den-silver-chest-1",
+            "props": {
+              "tile": "silver-chest",
+              "at": {
+                "x": 48,
+                "y": 115,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-hall-skeleton-0",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 233,
+                "y": 91,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-ossuary-skeleton-0",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 212,
+                "y": 75,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-ossuary-skeleton-1",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 230,
+                "y": 73,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-ossuary-skeleton-2",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 200,
+                "y": 81,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-roots-skeleton-0",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 215,
+                "y": 88,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-roots-skeleton-1",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 206,
+                "y": 64,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-roots-bat-2",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 224,
+                "y": 63,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "crypt-roots-quest-chest-3",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 205,
+                "y": 90,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-hall-icicle-0",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 136,
+                "y": 54,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-hall-icicle-1",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 158,
+                "y": 36,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-deep-snow-wolf-0",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 169,
+                "y": 47,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-deep-snow-wolf-1",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 170,
+                "y": 33,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-deep-icicle-2",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 139,
+                "y": 42,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "ice-deep-silver-chest-3",
+            "props": {
+              "tile": "silver-chest",
+              "at": {
+                "x": 125,
+                "y": 48,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-mouth-fire-slime-0",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 255,
+                "y": 88,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-mouth-small-fire-slime-1",
+            "props": {
+              "tile": "small-fire-slime",
+              "at": {
+                "x": 246,
+                "y": 87,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-veins-ember-wisp-0",
+            "props": {
+              "tile": "ember-wisp",
+              "at": {
+                "x": 253,
+                "y": 106,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-veins-ember-wisp-1",
+            "props": {
+              "tile": "ember-wisp",
+              "at": {
+                "x": 265,
+                "y": 98,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-veins-fire-slime-2",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 243,
+                "y": 114,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-forge-cave-troll-0",
+            "props": {
+              "tile": "cave-troll",
+              "at": {
+                "x": 264,
+                "y": 112,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-forge-fire-slime-1",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 239,
+                "y": 102,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-forge-fire-slime-2",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 248,
+                "y": 99,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-forge-quest-chest-3",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 262,
+                "y": 84,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
             "key": "castaway",
             "props": {
               "tile": "player",
               "at": {
                 "x": 92,
                 "y": 192
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "group",
+        "key": "harbour-pier",
+        "frame": {
+          "x": 143,
+          "y": 203,
+          "w": 15,
+          "h": 3
+        },
+        "children": [
+          {
+            "type": "fill",
+            "key": "pier-deck",
+            "props": {
+              "tiles": ["wooden-floor"],
+              "edge": [],
+              "mode": "whole stack"
+            }
+          },
+          {
+            "type": "tile",
+            "key": "pier-barrel",
+            "props": {
+              "tile": "barrel",
+              "at": {
+                "x": 14,
+                "y": 0
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "pier-rope",
+            "props": {
+              "tile": "rope-coil",
+              "at": {
+                "x": 13,
+                "y": 2
               }
             }
           }
