@@ -7,18 +7,18 @@
     "frame": {
       "x": 0,
       "y": 0,
-      "w": 340,
-      "h": 272
+      "w": 680,
+      "h": 540
     },
     "children": [
       {
         "type": "island",
         "key": "rune-isle",
         "frame": {
-          "x": 20,
-          "y": 20,
-          "w": 300,
-          "h": 230
+          "x": 40,
+          "y": 40,
+          "w": 600,
+          "h": 460
         },
         "props": {
           "fill": "sand",
@@ -31,10 +31,10 @@
             "type": "mask",
             "key": "wreckers-bay",
             "frame": {
-              "x": 120,
-              "y": 172,
-              "w": 60,
-              "h": 64
+              "x": 240,
+              "y": 344,
+              "w": 120,
+              "h": 128
             },
             "props": {
               "shape": "oval",
@@ -46,10 +46,10 @@
             "type": "mask",
             "key": "bog-cove",
             "frame": {
-              "x": 18,
-              "y": 136,
-              "w": 16,
-              "h": 20
+              "x": 36,
+              "y": 272,
+              "w": 32,
+              "h": 40
             },
             "props": {
               "shape": "oval",
@@ -61,10 +61,10 @@
             "type": "mask",
             "key": "north-fjord",
             "frame": {
-              "x": 228,
-              "y": 28,
-              "w": 12,
-              "h": 22
+              "x": 456,
+              "y": 56,
+              "w": 24,
+              "h": 44
             },
             "props": {
               "shape": "oval",
@@ -80,10 +80,10 @@
                 "type": "mask",
                 "key": "desert-sand",
                 "frame": {
-                  "x": 206,
-                  "y": 46,
-                  "w": 110,
-                  "h": 140
+                  "x": 412,
+                  "y": 92,
+                  "w": 220,
+                  "h": 280
                 },
                 "props": {
                   "shape": "oval",
@@ -97,8 +97,8 @@
             "type": "temple",
             "key": "woodland-shrine",
             "frame": {
-              "x": 53,
-              "y": 73,
+              "x": 106,
+              "y": 146,
               "w": 7,
               "h": 7
             },
@@ -114,14 +114,14 @@
             "type": "hill",
             "key": "peak-foot",
             "frame": {
-              "x": 92,
-              "y": 10,
-              "w": 116,
-              "h": 80
+              "x": 184,
+              "y": 20,
+              "w": 232,
+              "h": 160
             },
             "props": {
-              "levels": 2,
-              "terrace": 4,
+              "levels": 3,
+              "terrace": 6,
               "roughness": 45
             },
             "children": [
@@ -129,10 +129,10 @@
                 "type": "mask",
                 "key": "peak-foot-shape",
                 "frame": {
-                  "x": 6,
-                  "y": 4,
-                  "w": 104,
-                  "h": 72
+                  "x": 12,
+                  "y": 8,
+                  "w": 208,
+                  "h": 144
                 },
                 "props": {
                   "shape": "oval",
@@ -146,10 +146,10 @@
             "type": "hill",
             "key": "peak-shoulder",
             "frame": {
-              "x": 112,
-              "y": 14,
-              "w": 76,
-              "h": 54
+              "x": 224,
+              "y": 28,
+              "w": 152,
+              "h": 108
             },
             "props": {
               "levels": 2,
@@ -162,12 +162,12 @@
               "rampBlock": "frosted-half-stone",
               "ramps": [
                 {
-                  "x": 46,
-                  "y": 50
+                  "x": 92,
+                  "y": 100
                 },
                 {
-                  "x": 38,
-                  "y": 42
+                  "x": 76,
+                  "y": 84
                 }
               ]
             },
@@ -178,8 +178,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 76,
-                  "h": 54
+                  "w": 152,
+                  "h": 108
                 },
                 "props": {
                   "shape": "oval",
@@ -193,10 +193,10 @@
             "type": "hill",
             "key": "peak-snow",
             "frame": {
-              "x": 124,
-              "y": 18,
-              "w": 50,
-              "h": 36
+              "x": 248,
+              "y": 36,
+              "w": 100,
+              "h": 72
             },
             "props": {
               "levels": 1,
@@ -209,8 +209,8 @@
               "rampBlock": "frosted-half-stone",
               "ramps": [
                 {
-                  "x": 31,
-                  "y": 30
+                  "x": 62,
+                  "y": 60
                 }
               ]
             },
@@ -221,8 +221,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 50,
-                  "h": 36
+                  "w": 100,
+                  "h": 72
                 },
                 "props": {
                   "shape": "oval",
@@ -236,10 +236,10 @@
             "type": "hill",
             "key": "peak-crown",
             "frame": {
-              "x": 138,
-              "y": 27,
-              "w": 22,
-              "h": 18
+              "x": 276,
+              "y": 54,
+              "w": 44,
+              "h": 36
             },
             "props": {
               "levels": 4,
@@ -256,8 +256,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 22,
-                  "h": 18
+                  "w": 44,
+                  "h": 36
                 },
                 "props": {
                   "shape": "oval",
@@ -271,8 +271,8 @@
             "type": "temple",
             "key": "shoulder-ruin",
             "frame": {
-              "x": 176,
-              "y": 60,
+              "x": 352,
+              "y": 120,
               "w": 9,
               "h": 9
             },
@@ -288,10 +288,10 @@
             "type": "hill",
             "key": "red-mesa",
             "frame": {
-              "x": 238,
-              "y": 56,
-              "w": 28,
-              "h": 20
+              "x": 476,
+              "y": 112,
+              "w": 56,
+              "h": 40
             },
             "props": {
               "levels": 2,
@@ -307,8 +307,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 28,
-                  "h": 20
+                  "w": 56,
+                  "h": 40
                 },
                 "props": {
                   "shape": "oval",
@@ -322,10 +322,10 @@
             "type": "hill",
             "key": "low-mesa",
             "frame": {
-              "x": 238,
-              "y": 168,
-              "w": 16,
-              "h": 10
+              "x": 476,
+              "y": 336,
+              "w": 32,
+              "h": 20
             },
             "props": {
               "levels": 1,
@@ -341,8 +341,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 16,
-                  "h": 10
+                  "w": 32,
+                  "h": 20
                 },
                 "props": {
                   "shape": "oval",
@@ -356,10 +356,10 @@
             "type": "hill",
             "key": "gorge-rim",
             "frame": {
-              "x": 234,
-              "y": 78,
-              "w": 36,
-              "h": 42
+              "x": 468,
+              "y": 156,
+              "w": 72,
+              "h": 84
             },
             "props": {
               "levels": 2,
@@ -373,10 +373,10 @@
                 "type": "mask",
                 "key": "gorge-rim-shape",
                 "frame": {
-                  "x": 4,
+                  "x": 8,
                   "y": 0,
-                  "w": 26,
-                  "h": 36
+                  "w": 52,
+                  "h": 72
                 },
                 "props": {
                   "shape": "oval",
@@ -390,10 +390,10 @@
             "type": "fill",
             "key": "lava-gorge",
             "frame": {
-              "x": 244,
-              "y": 80,
-              "w": 12,
-              "h": 18
+              "x": 488,
+              "y": 160,
+              "w": 24,
+              "h": 36
             },
             "props": {
               "tiles": ["lava", "lava-crust"],
@@ -409,8 +409,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 12,
-                  "h": 18
+                  "w": 24,
+                  "h": 36
                 },
                 "props": {
                   "shape": "oval",
@@ -424,10 +424,10 @@
             "type": "fill",
             "key": "lava-gorge-south",
             "frame": {
-              "x": 249,
-              "y": 94,
-              "w": 10,
-              "h": 18
+              "x": 498,
+              "y": 188,
+              "w": 20,
+              "h": 36
             },
             "props": {
               "tiles": ["lava", "lava-crust"],
@@ -443,8 +443,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 10,
-                  "h": 18
+                  "w": 20,
+                  "h": 36
                 },
                 "props": {
                   "shape": "oval",
@@ -458,10 +458,10 @@
             "type": "scatter",
             "key": "dunes",
             "frame": {
-              "x": 206,
-              "y": 46,
-              "w": 94,
-              "h": 140
+              "x": 412,
+              "y": 92,
+              "w": 188,
+              "h": 280
             },
             "props": {
               "tiles": [
@@ -485,8 +485,8 @@
                 "type": "mask",
                 "key": "dunes-off-town",
                 "frame": {
-                  "x": -16,
-                  "y": 72,
+                  "x": -32,
+                  "y": 144,
                   "w": 58,
                   "h": 44
                 },
@@ -501,10 +501,10 @@
             "type": "scatter",
             "key": "cacti",
             "frame": {
-              "x": 210,
-              "y": 50,
-              "w": 90,
-              "h": 130
+              "x": 420,
+              "y": 100,
+              "w": 180,
+              "h": 260
             },
             "props": {
               "tiles": [
@@ -539,8 +539,8 @@
                 "type": "mask",
                 "key": "cacti-off-town",
                 "frame": {
-                  "x": -20,
-                  "y": 68,
+                  "x": -40,
+                  "y": 136,
                   "w": 58,
                   "h": 44
                 },
@@ -555,10 +555,10 @@
             "type": "scatter",
             "key": "gorge-glass",
             "frame": {
-              "x": 234,
-              "y": 78,
-              "w": 36,
-              "h": 42
+              "x": 468,
+              "y": 156,
+              "w": 72,
+              "h": 84
             },
             "props": {
               "tiles": [
@@ -575,10 +575,10 @@
             "type": "hill",
             "key": "tower-hill",
             "frame": {
-              "x": 66,
-              "y": 42,
-              "w": 30,
-              "h": 28
+              "x": 132,
+              "y": 84,
+              "w": 60,
+              "h": 56
             },
             "props": {
               "levels": 2,
@@ -588,6 +588,12 @@
                 {
                   "x": 0,
                   "y": 0,
+                  "pinX": "center",
+                  "pinY": "bottom"
+                },
+                {
+                  "x": 0,
+                  "y": 4,
                   "pinX": "center",
                   "pinY": "bottom"
                 }
@@ -600,8 +606,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 30,
-                  "h": 28
+                  "w": 60,
+                  "h": 56
                 },
                 "props": {
                   "shape": "oval",
@@ -615,14 +621,14 @@
             "type": "hill",
             "key": "bat-hill",
             "frame": {
-              "x": 112,
-              "y": 147,
-              "w": 36,
-              "h": 26
+              "x": 224,
+              "y": 294,
+              "w": 72,
+              "h": 52
             },
             "props": {
               "levels": 1,
-              "terrace": 4,
+              "terrace": 6,
               "roughness": 35,
               "ramps": [
                 {
@@ -640,8 +646,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 36,
-                  "h": 26
+                  "w": 72,
+                  "h": 52
                 },
                 "props": {
                   "shape": "oval",
@@ -655,10 +661,10 @@
             "type": "hill",
             "key": "bat-crag",
             "frame": {
-              "x": 117,
-              "y": 150,
-              "w": 26,
-              "h": 19
+              "x": 234,
+              "y": 300,
+              "w": 52,
+              "h": 38
             },
             "props": {
               "levels": 3,
@@ -672,8 +678,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 26,
-                  "h": 19
+                  "w": 52,
+                  "h": 38
                 },
                 "props": {
                   "shape": "oval",
@@ -687,14 +693,14 @@
             "type": "hill",
             "key": "bear-hill",
             "frame": {
-              "x": 34,
-              "y": 106,
-              "w": 36,
-              "h": 30
+              "x": 68,
+              "y": 212,
+              "w": 72,
+              "h": 60
             },
             "props": {
               "levels": 1,
-              "terrace": 4,
+              "terrace": 6,
               "roughness": 40,
               "ramps": [
                 {
@@ -710,10 +716,10 @@
                 "type": "mask",
                 "key": "bear-hill-shape",
                 "frame": {
-                  "x": 3,
-                  "y": 3,
-                  "w": 30,
-                  "h": 24
+                  "x": 6,
+                  "y": 6,
+                  "w": 60,
+                  "h": 48
                 },
                 "props": {
                   "shape": "oval",
@@ -727,10 +733,10 @@
             "type": "hill",
             "key": "bear-crag",
             "frame": {
-              "x": 37,
-              "y": 108,
-              "w": 30,
-              "h": 25
+              "x": 74,
+              "y": 216,
+              "w": 60,
+              "h": 50
             },
             "props": {
               "levels": 3,
@@ -744,8 +750,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 30,
-                  "h": 25
+                  "w": 60,
+                  "h": 50
                 },
                 "props": {
                   "shape": "oval",
@@ -759,14 +765,14 @@
             "type": "hill",
             "key": "east-downs",
             "frame": {
-              "x": 176,
-              "y": 80,
-              "w": 36,
-              "h": 28
+              "x": 352,
+              "y": 160,
+              "w": 72,
+              "h": 56
             },
             "props": {
               "levels": 1,
-              "terrace": 4,
+              "terrace": 6,
               "roughness": 40,
               "ramps": [
                 {
@@ -788,10 +794,10 @@
                 "type": "mask",
                 "key": "east-downs-shape",
                 "frame": {
-                  "x": 3,
-                  "y": 3,
-                  "w": 30,
-                  "h": 22
+                  "x": 6,
+                  "y": 6,
+                  "w": 60,
+                  "h": 44
                 },
                 "props": {
                   "shape": "oval",
@@ -805,10 +811,10 @@
             "type": "fill",
             "key": "mirror-lake",
             "frame": {
-              "x": 134,
-              "y": 94,
-              "w": 38,
-              "h": 26
+              "x": 268,
+              "y": 188,
+              "w": 76,
+              "h": 52
             },
             "props": {
               "tiles": ["water", "deep-water"],
@@ -823,8 +829,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 38,
-                  "h": 26
+                  "w": 76,
+                  "h": 52
                 },
                 "props": {
                   "shape": "oval",
@@ -836,10 +842,10 @@
                 "type": "mask",
                 "key": "lake-isle",
                 "frame": {
-                  "x": 22,
-                  "y": 7,
-                  "w": 9,
-                  "h": 7
+                  "x": 44,
+                  "y": 14,
+                  "w": 18,
+                  "h": 14
                 },
                 "props": {
                   "shape": "oval",
@@ -853,10 +859,10 @@
             "type": "fill",
             "key": "bog",
             "frame": {
-              "x": 16,
-              "y": 138,
-              "w": 46,
-              "h": 36
+              "x": 32,
+              "y": 276,
+              "w": 92,
+              "h": 72
             },
             "props": {
               "tiles": ["mud", "water", "swamp"],
@@ -872,8 +878,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 46,
-                  "h": 36
+                  "w": 92,
+                  "h": 72
                 },
                 "props": {
                   "shape": "oval",
@@ -885,10 +891,10 @@
                 "type": "mask",
                 "key": "witch-hummock",
                 "frame": {
-                  "x": 22,
-                  "y": 10,
-                  "w": 14,
-                  "h": 13
+                  "x": 44,
+                  "y": 20,
+                  "w": 28,
+                  "h": 26
                 },
                 "props": {
                   "shape": "oval",
@@ -902,10 +908,10 @@
             "type": "scatter",
             "key": "bog-plants",
             "frame": {
-              "x": 16,
-              "y": 138,
-              "w": 46,
-              "h": 36
+              "x": 32,
+              "y": 276,
+              "w": 92,
+              "h": 72
             },
             "props": {
               "tiles": [
@@ -935,10 +941,10 @@
             "type": "scatter",
             "key": "bog-snags",
             "frame": {
-              "x": 16,
-              "y": 138,
-              "w": 46,
-              "h": 36
+              "x": 32,
+              "y": 276,
+              "w": 92,
+              "h": 72
             },
             "props": {
               "tiles": [
@@ -964,13 +970,13 @@
             "key": "snowmelt",
             "props": {
               "from": {
-                "x": 150,
-                "y": 38
+                "x": 300,
+                "y": 76
               },
               "via": [
                 {
-                  "x": 144,
-                  "y": 74
+                  "x": 288,
+                  "y": 148
                 }
               ],
               "to": {
@@ -998,13 +1004,13 @@
               },
               "via": [
                 {
-                  "x": 156,
-                  "y": 160
+                  "x": 312,
+                  "y": 320
                 }
               ],
               "to": {
-                "x": 150,
-                "y": 206
+                "x": 300,
+                "y": 412
               },
               "width": 2,
               "wander": 35,
@@ -1016,18 +1022,18 @@
             "key": "westwater",
             "props": {
               "from": {
-                "x": 104,
-                "y": 58
+                "x": 208,
+                "y": 116
               },
               "via": [
                 {
-                  "x": 72,
-                  "y": 88
+                  "x": 144,
+                  "y": 176
                 }
               ],
               "to": {
-                "x": 30,
-                "y": 102
+                "x": 60,
+                "y": 204
               },
               "width": 2,
               "wander": 35,
@@ -1038,10 +1044,10 @@
             "type": "forest",
             "key": "deep-woods",
             "frame": {
-              "x": 30,
-              "y": 36,
-              "w": 100,
-              "h": 116
+              "x": 60,
+              "y": 72,
+              "w": 200,
+              "h": 232
             },
             "props": {
               "onlyOn": ["grass", "grass-2"],
@@ -1079,8 +1085,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 100,
-                  "h": 116
+                  "w": 200,
+                  "h": 232
                 },
                 "props": {
                   "shape": "oval",
@@ -1092,10 +1098,10 @@
                 "type": "mask",
                 "key": "druid-clearing",
                 "frame": {
-                  "x": 38,
-                  "y": 60,
-                  "w": 66,
-                  "h": 54
+                  "x": 76,
+                  "y": 120,
+                  "w": 132,
+                  "h": 108
                 },
                 "props": {
                   "shape": "oval",
@@ -1106,11 +1112,389 @@
             ]
           },
           {
+            "type": "hill",
+            "key": "gull-downs",
+            "frame": {
+              "x": 392,
+              "y": 336,
+              "w": 56,
+              "h": 38
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 4,
+              "roughness": 40,
+              "ramps": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "left",
+                  "pinY": "center"
+                },
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "center",
+                  "pinY": "top"
+                }
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "gull-downs-shape",
+                "frame": {
+                  "x": 2,
+                  "y": 2,
+                  "w": 52,
+                  "h": 34
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "gull-tor",
+            "frame": {
+              "x": 414,
+              "y": 348,
+              "w": 16,
+              "h": 12
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 0,
+              "roughness": 35
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "gull-tor-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "downs-stones",
+            "frame": {
+              "x": 392,
+              "y": 336,
+              "w": 56,
+              "h": 38
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "half-stone",
+                  "weight": 3
+                },
+                {
+                  "tile": "rock-pillar",
+                  "weight": 1
+                },
+                {
+                  "tile": "tuft",
+                  "weight": 4
+                }
+              ],
+              "density": 2,
+              "onlyOn": ["grass"]
+            }
+          },
+          {
+            "type": "hill",
+            "key": "south-mesa",
+            "frame": {
+              "x": 426,
+              "y": 300,
+              "w": 40,
+              "h": 28
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 0,
+              "roughness": 40,
+              "ground": "sand",
+              "wall": "hill-wall-sandstone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "south-mesa-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 40,
+                  "h": 28
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "needle-butte",
+            "frame": {
+              "x": 450,
+              "y": 204,
+              "w": 14,
+              "h": 12
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 0,
+              "roughness": 30,
+              "ground": "sand",
+              "wall": "hill-wall-sandstone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "needle-butte-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 14,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 35
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "hazel-copse",
+            "frame": {
+              "x": 200,
+              "y": 248,
+              "w": 62,
+              "h": 40
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 45,
+              "path": null,
+              "paths": 1,
+              "undergrowthDensity": 10
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "hazel-copse-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 62,
+                  "h": 40
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 45
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "birch-hanger",
+            "frame": {
+              "x": 312,
+              "y": 112,
+              "w": 60,
+              "h": 50
+            },
+            "props": {
+              "onlyOn": ["grass", "grass-2"],
+              "density": 40,
+              "path": null,
+              "paths": 1,
+              "undergrowthDensity": 6
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "birch-hanger-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 60,
+                  "h": 50
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 45
+                }
+              },
+              {
+                "type": "mask",
+                "key": "hanger-off-ruin",
+                "frame": {
+                  "x": 36,
+                  "y": 4,
+                  "w": 17,
+                  "h": 17
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              }
+            ]
+          },
+          {
+            "type": "forest",
+            "key": "gull-pines",
+            "frame": {
+              "x": 452,
+              "y": 330,
+              "w": 26,
+              "h": 22
+            },
+            "props": {
+              "onlyOn": ["grass"],
+              "density": 35,
+              "path": null,
+              "paths": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "gull-pines-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 26,
+                  "h": 22
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 40
+                }
+              }
+            ]
+          },
+          {
+            "type": "clear",
+            "key": "shrine-glade",
+            "frame": {
+              "x": 96,
+              "y": 136,
+              "w": 28,
+              "h": 28
+            },
+            "props": {
+              "remove": [
+                "tree",
+                "old-tree",
+                "dead-tree",
+                "small-bush",
+                "bush",
+                "fallen-log",
+                "tree-stump"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "shrine-glade-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 28,
+                  "h": 28
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "clear",
+            "key": "tower-hill-heath",
+            "frame": {
+              "x": 136,
+              "y": 88,
+              "w": 52,
+              "h": 48
+            },
+            "props": {
+              "remove": ["tree", "old-tree", "dead-tree", "fallen-log", "tree-stump"]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "tower-hill-heath-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 52,
+                  "h": 48
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "snow-rocks",
+            "frame": {
+              "x": 236,
+              "y": 28,
+              "w": 128,
+              "h": 88
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "snowy-rock",
+                  "weight": 1
+                }
+              ],
+              "density": 2,
+              "onlyOn": ["snow"],
+              "clumping": 40
+            }
+          },
+          {
             "type": "shipwreck",
             "key": "shipwreck",
             "frame": {
-              "x": 82,
-              "y": 184,
+              "x": 164,
+              "y": 368,
               "w": 34,
               "h": 22
             },
@@ -1122,12 +1506,34 @@
             "type": "group",
             "key": "druid-town",
             "frame": {
-              "x": 72,
-              "y": 100,
+              "x": 144,
+              "y": 200,
               "w": 58,
               "h": 46
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "druid-town-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "fill",
                 "key": "druid-plaza",
@@ -1703,12 +2109,34 @@
             "type": "group",
             "key": "warrior-town",
             "frame": {
-              "x": 190,
-              "y": 118,
+              "x": 380,
+              "y": 236,
               "w": 58,
               "h": 44
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "warrior-town-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "fill",
                 "key": "warrior-yard",
@@ -2478,12 +2906,34 @@
             "type": "group",
             "key": "camp",
             "frame": {
-              "x": 76,
-              "y": 150,
+              "x": 152,
+              "y": 300,
               "w": 26,
               "h": 18
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "camp-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "fill",
                 "key": "camp-ground",
@@ -2671,12 +3121,34 @@
             "type": "group",
             "key": "crossroads",
             "frame": {
-              "x": 162,
-              "y": 128,
+              "x": 324,
+              "y": 256,
               "w": 24,
               "h": 20
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "crossroads-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "house",
                 "key": "crossroads-inn",
@@ -2765,12 +3237,34 @@
             "type": "group",
             "key": "old-harbour",
             "frame": {
-              "x": 92,
-              "y": 172,
+              "x": 220,
+              "y": 344,
               "w": 46,
               "h": 24
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "old-harbour-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "fill",
                 "key": "harbour-street",
@@ -2964,8 +3458,8 @@
             "type": "lighthouse",
             "key": "wyrd-lighthouse",
             "frame": {
-              "x": 180,
-              "y": 182,
+              "x": 360,
+              "y": 364,
               "w": 17,
               "h": 17
             },
@@ -3004,8 +3498,8 @@
             "type": "lighthouse",
             "key": "old-tower",
             "frame": {
-              "x": 75,
-              "y": 50,
+              "x": 157,
+              "y": 104,
               "w": 11,
               "h": 11
             },
@@ -3039,8 +3533,8 @@
             "type": "group",
             "key": "standing-stones",
             "frame": {
-              "x": 184,
-              "y": 86,
+              "x": 368,
+              "y": 172,
               "w": 20,
               "h": 16
             },
@@ -3161,8 +3655,8 @@
             "type": "group",
             "key": "barrow-field",
             "frame": {
-              "x": 108,
-              "y": 84,
+              "x": 216,
+              "y": 168,
               "w": 18,
               "h": 12
             },
@@ -3407,12 +3901,34 @@
             "type": "group",
             "key": "farmsteads",
             "frame": {
-              "x": 184,
-              "y": 164,
+              "x": 368,
+              "y": 328,
               "w": 34,
               "h": 18
             },
             "children": [
+              {
+                "type": "clear",
+                "key": "farmsteads-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump",
+                    "sand-dune",
+                    "sand-dune-crescent",
+                    "saguaro",
+                    "barrel-cactus",
+                    "prickly-pear",
+                    "snowy-pine"
+                  ]
+                }
+              },
               {
                 "type": "house",
                 "key": "farm-house",
@@ -3502,8 +4018,8 @@
             "type": "house",
             "key": "witch-hut",
             "frame": {
-              "x": 41,
-              "y": 151,
+              "x": 82,
+              "y": 302,
               "w": 8,
               "h": 7
             },
@@ -3540,10 +4056,10 @@
             "type": "fill",
             "key": "oasis",
             "frame": {
-              "x": 252,
-              "y": 132,
-              "w": 14,
-              "h": 10
+              "x": 504,
+              "y": 264,
+              "w": 28,
+              "h": 20
             },
             "props": {
               "tiles": ["water"],
@@ -3559,8 +4075,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 14,
-                  "h": 10
+                  "w": 28,
+                  "h": 20
                 },
                 "props": {
                   "shape": "oval",
@@ -3574,10 +4090,10 @@
             "type": "scatter",
             "key": "oasis-green",
             "frame": {
-              "x": 249,
-              "y": 129,
-              "w": 20,
-              "h": 16
+              "x": 498,
+              "y": 258,
+              "w": 40,
+              "h": 32
             },
             "props": {
               "tiles": [
@@ -3608,8 +4124,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 20,
-                  "h": 16
+                  "w": 40,
+                  "h": 32
                 },
                 "props": {
                   "shape": "oval",
@@ -3623,10 +4139,10 @@
             "type": "forest",
             "key": "lake-grove",
             "frame": {
-              "x": 172,
-              "y": 112,
-              "w": 16,
-              "h": 12
+              "x": 344,
+              "y": 224,
+              "w": 32,
+              "h": 24
             },
             "props": {
               "onlyOn": ["grass", "grass-2"],
@@ -3642,8 +4158,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 16,
-                  "h": 12
+                  "w": 32,
+                  "h": 24
                 },
                 "props": {
                   "shape": "oval",
@@ -3657,10 +4173,10 @@
             "type": "forest",
             "key": "camp-grove",
             "frame": {
-              "x": 62,
-              "y": 168,
-              "w": 16,
-              "h": 12
+              "x": 124,
+              "y": 336,
+              "w": 32,
+              "h": 24
             },
             "props": {
               "onlyOn": ["grass"],
@@ -3676,8 +4192,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 16,
-                  "h": 12
+                  "w": 32,
+                  "h": 24
                 },
                 "props": {
                   "shape": "oval",
@@ -3691,10 +4207,10 @@
             "type": "forest",
             "key": "downs-grove",
             "frame": {
-              "x": 208,
-              "y": 104,
-              "w": 14,
-              "h": 12
+              "x": 416,
+              "y": 208,
+              "w": 28,
+              "h": 24
             },
             "props": {
               "onlyOn": ["grass", "grass-2"],
@@ -3709,8 +4225,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 14,
-                  "h": 12
+                  "w": 28,
+                  "h": 24
                 },
                 "props": {
                   "shape": "oval",
@@ -3726,8 +4242,8 @@
             "props": {
               "tile": "old-tree",
               "at": {
-                "x": 159,
-                "y": 103
+                "x": 318,
+                "y": 206
               }
             }
           },
@@ -3735,8 +4251,8 @@
             "type": "temple",
             "key": "desert-ruin",
             "frame": {
-              "x": 255,
-              "y": 146,
+              "x": 510,
+              "y": 292,
               "w": 13,
               "h": 11
             },
@@ -3753,8 +4269,8 @@
             "type": "temple",
             "key": "pine-ruin",
             "frame": {
-              "x": 215,
-              "y": 28,
+              "x": 430,
+              "y": 56,
               "w": 7,
               "h": 11
             },
@@ -3770,8 +4286,8 @@
             "type": "temple",
             "key": "meadow-ruin",
             "frame": {
-              "x": 136,
-              "y": 128,
+              "x": 272,
+              "y": 256,
               "w": 9,
               "h": 9
             },
@@ -3787,8 +4303,8 @@
             "type": "temple",
             "key": "crypt-shrine",
             "frame": {
-              "x": 212,
-              "y": 70,
+              "x": 424,
+              "y": 140,
               "w": 11,
               "h": 11
             },
@@ -3804,10 +4320,10 @@
             "type": "cave",
             "key": "bat-cave",
             "frame": {
-              "x": 118,
-              "y": 151,
-              "w": 24,
-              "h": 17,
+              "x": 236,
+              "y": 302,
+              "w": 48,
+              "h": 34,
               "z": 1
             },
             "props": {
@@ -3830,10 +4346,10 @@
             "type": "cave",
             "key": "bear-den",
             "frame": {
-              "x": 38,
-              "y": 109,
-              "w": 28,
-              "h": 23,
+              "x": 76,
+              "y": 218,
+              "w": 56,
+              "h": 46,
               "z": 1
             },
             "props": {
@@ -3856,10 +4372,10 @@
             "type": "dungeon",
             "key": "sunken-crypt",
             "frame": {
-              "x": 198,
-              "y": 60,
-              "w": 40,
-              "h": 36,
+              "x": 396,
+              "y": 120,
+              "w": 80,
+              "h": 72,
               "z": -1
             },
             "children": [
@@ -3874,8 +4390,8 @@
                   "prop": "candle",
                   "propEvery": 20,
                   "up": {
-                    "x": 19,
-                    "y": 15
+                    "x": 38,
+                    "y": 30
                   }
                 }
               },
@@ -3909,11 +4425,11 @@
             "type": "dungeon",
             "key": "ice-caves",
             "frame": {
-              "x": 120,
-              "y": 22,
-              "w": 60,
-              "h": 40,
-              "z": 2
+              "x": 240,
+              "y": 44,
+              "w": 120,
+              "h": 80,
+              "z": 3
             },
             "children": [
               {
@@ -3952,10 +4468,10 @@
             "type": "dungeon",
             "key": "obsidian-deeps",
             "frame": {
-              "x": 236,
-              "y": 80,
-              "w": 32,
-              "h": 38,
+              "x": 472,
+              "y": 160,
+              "w": 64,
+              "h": 76,
               "z": 0
             },
             "children": [
@@ -4044,8 +4560,8 @@
               },
               "via": [
                 {
-                  "x": 98,
-                  "y": 160
+                  "x": 196,
+                  "y": 320
                 }
               ],
               "tile": "dirt",
@@ -4073,8 +4589,8 @@
               },
               "via": [
                 {
-                  "x": 140,
-                  "y": 130
+                  "x": 280,
+                  "y": 260
                 }
               ],
               "tile": "dirt",
@@ -4125,8 +4641,8 @@
               },
               "via": [
                 {
-                  "x": 150,
-                  "y": 166
+                  "x": 300,
+                  "y": 332
                 }
               ],
               "tile": "dirt",
@@ -4146,8 +4662,8 @@
                 "pinY": "scale"
               },
               "to": {
-                "x": 66,
-                "y": 157
+                "x": 132,
+                "y": 314
               },
               "tile": "dirt",
               "width": 1,
@@ -4174,8 +4690,8 @@
               },
               "via": [
                 {
-                  "x": 60,
-                  "y": 92
+                  "x": 120,
+                  "y": 184
                 }
               ],
               "tile": null,
@@ -4203,8 +4719,8 @@
               },
               "via": [
                 {
-                  "x": 175,
-                  "y": 95
+                  "x": 350,
+                  "y": 190
                 }
               ],
               "tile": "dirt",
@@ -4232,8 +4748,8 @@
               },
               "via": [
                 {
-                  "x": 222,
-                  "y": 110
+                  "x": 444,
+                  "y": 220
                 }
               ],
               "tile": "dirt",
@@ -4268,10 +4784,10 @@
             "type": "scatter",
             "key": "woodland-floor",
             "frame": {
-              "x": 20,
-              "y": 36,
-              "w": 110,
-              "h": 116
+              "x": 40,
+              "y": 72,
+              "w": 220,
+              "h": 232
             },
             "props": {
               "tiles": [
@@ -4301,10 +4817,10 @@
             "type": "forest",
             "key": "apple-orchard",
             "frame": {
-              "x": 170,
-              "y": 156,
-              "w": 16,
-              "h": 12
+              "x": 340,
+              "y": 312,
+              "w": 32,
+              "h": 24
             },
             "props": {
               "onlyOn": ["grass"],
@@ -4321,8 +4837,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 16,
-                  "h": 12
+                  "w": 32,
+                  "h": 24
                 },
                 "props": {
                   "shape": "oval",
@@ -4336,10 +4852,10 @@
             "type": "forest",
             "key": "foothill-pines",
             "frame": {
-              "x": 198,
-              "y": 20,
-              "w": 34,
-              "h": 30
+              "x": 396,
+              "y": 40,
+              "w": 68,
+              "h": 60
             },
             "props": {
               "onlyOn": ["grass", "grass-2"],
@@ -4354,8 +4870,8 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 34,
-                  "h": 30
+                  "w": 68,
+                  "h": 60
                 },
                 "props": {
                   "shape": "oval",
@@ -4369,10 +4885,10 @@
             "type": "forest",
             "key": "snow-pines",
             "frame": {
-              "x": 118,
-              "y": 14,
-              "w": 64,
-              "h": 44
+              "x": 236,
+              "y": 28,
+              "w": 128,
+              "h": 88
             },
             "props": {
               "onlyOn": ["snow"],
@@ -4393,10 +4909,10 @@
                 "type": "mask",
                 "key": "snow-ramp-foot",
                 "frame": {
-                  "x": 34,
-                  "y": 35,
-                  "w": 5,
-                  "h": 5
+                  "x": 68,
+                  "y": 70,
+                  "w": 10,
+                  "h": 10
                 },
                 "props": {
                   "shape": "rect",
@@ -4407,10 +4923,10 @@
                 "type": "mask",
                 "key": "shoulder-ramp-foot",
                 "frame": {
-                  "x": 30,
-                  "y": 43,
-                  "w": 5,
-                  "h": 5
+                  "x": 60,
+                  "y": 86,
+                  "w": 10,
+                  "h": 10
                 },
                 "props": {
                   "shape": "rect",
@@ -4425,8 +4941,8 @@
             "frame": {
               "x": 0,
               "y": 0,
-              "w": 300,
-              "h": 230
+              "w": 600,
+              "h": 460
             },
             "props": {
               "tiles": [
@@ -4456,8 +4972,8 @@
                 "type": "mask",
                 "key": "flowers-off-druids",
                 "frame": {
-                  "x": 72,
-                  "y": 100,
+                  "x": 144,
+                  "y": 200,
                   "w": 58,
                   "h": 46
                 },
@@ -4470,8 +4986,8 @@
                 "type": "mask",
                 "key": "flowers-off-warriors",
                 "frame": {
-                  "x": 190,
-                  "y": 118,
+                  "x": 380,
+                  "y": 236,
                   "w": 58,
                   "h": 44
                 },
@@ -4486,10 +5002,10 @@
             "type": "scatter",
             "key": "camp-rats",
             "frame": {
-              "x": 70,
-              "y": 160,
-              "w": 50,
-              "h": 30
+              "x": 140,
+              "y": 320,
+              "w": 100,
+              "h": 60
             },
             "props": {
               "tiles": [
@@ -4506,10 +5022,10 @@
             "type": "scatter",
             "key": "meadow-game",
             "frame": {
-              "x": 120,
-              "y": 120,
-              "w": 70,
-              "h": 40
+              "x": 240,
+              "y": 240,
+              "w": 140,
+              "h": 80
             },
             "props": {
               "tiles": [
@@ -4530,8 +5046,8 @@
                 "type": "mask",
                 "key": "game-off-druids",
                 "frame": {
-                  "x": -48,
-                  "y": -20,
+                  "x": -96,
+                  "y": -40,
                   "w": 58,
                   "h": 46
                 },
@@ -4544,8 +5060,8 @@
                 "type": "mask",
                 "key": "game-off-warriors",
                 "frame": {
-                  "x": 70,
-                  "y": -2,
+                  "x": 140,
+                  "y": -4,
                   "w": 58,
                   "h": 44
                 },
@@ -4560,10 +5076,10 @@
             "type": "scatter",
             "key": "wood-wolves",
             "frame": {
-              "x": 30,
-              "y": 36,
-              "w": 100,
-              "h": 116
+              "x": 60,
+              "y": 72,
+              "w": 200,
+              "h": 232
             },
             "props": {
               "tiles": [
@@ -4580,8 +5096,8 @@
                 "type": "mask",
                 "key": "wolves-off-druids",
                 "frame": {
-                  "x": 42,
-                  "y": 64,
+                  "x": 84,
+                  "y": 128,
                   "w": 58,
                   "h": 46
                 },
@@ -4596,10 +5112,10 @@
             "type": "scatter",
             "key": "bog-imps",
             "frame": {
-              "x": 16,
-              "y": 138,
-              "w": 46,
-              "h": 36
+              "x": 32,
+              "y": 276,
+              "w": 92,
+              "h": 72
             },
             "props": {
               "tiles": [
@@ -4620,10 +5136,10 @@
             "type": "scatter",
             "key": "desert-slimes",
             "frame": {
-              "x": 220,
-              "y": 60,
-              "w": 60,
-              "h": 110
+              "x": 440,
+              "y": 120,
+              "w": 120,
+              "h": 220
             },
             "props": {
               "tiles": [
@@ -4648,8 +5164,8 @@
                 "type": "mask",
                 "key": "slimes-off-warriors",
                 "frame": {
-                  "x": -30,
-                  "y": 58,
+                  "x": -60,
+                  "y": 116,
                   "w": 58,
                   "h": 44
                 },
@@ -4664,10 +5180,10 @@
             "type": "scatter",
             "key": "peak-beasts",
             "frame": {
-              "x": 124,
-              "y": 18,
-              "w": 50,
-              "h": 36
+              "x": 248,
+              "y": 36,
+              "w": 100,
+              "h": 72
             },
             "props": {
               "tiles": [
@@ -4681,24 +5197,13 @@
             }
           },
           {
-            "type": "tile",
-            "key": "peak-yeti",
-            "props": {
-              "tile": "yeti",
-              "at": {
-                "x": 160,
-                "y": 34
-              }
-            }
-          },
-          {
             "type": "scatter",
             "key": "shore-slimes",
             "frame": {
-              "x": 60,
-              "y": 190,
-              "w": 90,
-              "h": 40
+              "x": 120,
+              "y": 380,
+              "w": 180,
+              "h": 80
             },
             "props": {
               "tiles": [
@@ -4717,12 +5222,135 @@
           },
           {
             "type": "tile",
+            "key": "castaway",
+            "props": {
+              "tile": "player",
+              "at": {
+                "x": 184,
+                "y": 384
+              }
+            }
+          },
+          {
+            "type": "road",
+            "key": "shrine-trail",
+            "props": {
+              "from": {
+                "in": "druid-town",
+                "x": 29,
+                "y": 0,
+                "pinX": "left",
+                "pinY": "top"
+              },
+              "to": {
+                "in": "woodland-shrine",
+                "x": 0.5,
+                "y": 1.4,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "tile": null,
+              "width": 1,
+              "wander": 20
+            }
+          },
+          {
+            "type": "clear",
+            "key": "druid-town-weeding",
+            "frame": {
+              "x": 144,
+              "y": 200,
+              "w": 58,
+              "h": 46
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "warrior-town-weeding",
+            "frame": {
+              "x": 380,
+              "y": 236,
+              "w": 58,
+              "h": 44
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "camp-weeding",
+            "frame": {
+              "x": 152,
+              "y": 300,
+              "w": 26,
+              "h": 18
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "crossroads-weeding",
+            "frame": {
+              "x": 324,
+              "y": 256,
+              "w": 24,
+              "h": 20
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "old-harbour-weeding",
+            "frame": {
+              "x": 220,
+              "y": 344,
+              "w": 46,
+              "h": 24
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "farmsteads-weeding",
+            "frame": {
+              "x": 368,
+              "y": 328,
+              "w": 34,
+              "h": 18
+            },
+            "props": {
+              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "peak-yeti",
+            "props": {
+              "tile": "yeti",
+              "at": {
+                "x": 304,
+                "y": 68
+              }
+            }
+          },
+          {
+            "type": "tile",
             "key": "bat-cave-bat-0",
             "props": {
               "tile": "bat",
               "at": {
-                "x": 126,
-                "y": 157,
+                "x": 250,
+                "y": 318,
                 "z": -3
               }
             }
@@ -4733,8 +5361,8 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 134,
-                "y": 161,
+                "x": 270,
+                "y": 318,
                 "z": -3
               }
             }
@@ -4745,8 +5373,8 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 132,
-                "y": 156,
+                "x": 258,
+                "y": 309,
                 "z": -3
               }
             }
@@ -4757,8 +5385,8 @@
             "props": {
               "tile": "silver-chest",
               "at": {
-                "x": 123,
-                "y": 161,
+                "x": 240,
+                "y": 320,
                 "z": -3
               }
             }
@@ -4769,8 +5397,8 @@
             "props": {
               "tile": "bear",
               "at": {
-                "x": 47,
-                "y": 125,
+                "x": 105,
+                "y": 238,
                 "z": -3
               }
             }
@@ -4781,8 +5409,8 @@
             "props": {
               "tile": "silver-chest",
               "at": {
-                "x": 48,
-                "y": 115,
+                "x": 98,
+                "y": 251,
                 "z": -3
               }
             }
@@ -4793,8 +5421,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 233,
-                "y": 91,
+                "x": 467,
+                "y": 150,
                 "z": -1
               }
             }
@@ -4805,8 +5433,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 212,
-                "y": 75,
+                "x": 426,
+                "y": 134,
                 "z": -2
               }
             }
@@ -4817,8 +5445,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 230,
-                "y": 73,
+                "x": 446,
+                "y": 184,
                 "z": -2
               }
             }
@@ -4829,8 +5457,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 200,
-                "y": 81,
+                "x": 410,
+                "y": 168,
                 "z": -2
               }
             }
@@ -4841,8 +5469,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 215,
-                "y": 88,
+                "x": 412,
+                "y": 140,
                 "z": -3
               }
             }
@@ -4853,8 +5481,8 @@
             "props": {
               "tile": "skeleton",
               "at": {
-                "x": 206,
-                "y": 64,
+                "x": 451,
+                "y": 159,
                 "z": -3
               }
             }
@@ -4865,8 +5493,8 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 224,
-                "y": 63,
+                "x": 406,
+                "y": 154,
                 "z": -3
               }
             }
@@ -4877,9 +5505,9 @@
             "props": {
               "tile": "quest-chest",
               "at": {
-                "x": 205,
-                "y": 90,
-                "z": -4
+                "x": 441,
+                "y": 124,
+                "z": -3
               }
             }
           },
@@ -4889,8 +5517,8 @@
             "props": {
               "tile": "icicle",
               "at": {
-                "x": 136,
-                "y": 54,
+                "x": 300,
+                "y": 113,
                 "z": -2
               }
             }
@@ -4901,8 +5529,8 @@
             "props": {
               "tile": "icicle",
               "at": {
-                "x": 158,
-                "y": 36,
+                "x": 263,
+                "y": 61,
                 "z": -3
               }
             }
@@ -4913,9 +5541,9 @@
             "props": {
               "tile": "snow-wolf",
               "at": {
-                "x": 169,
-                "y": 47,
-                "z": -3
+                "x": 288,
+                "y": 56,
+                "z": -4
               }
             }
           },
@@ -4925,9 +5553,9 @@
             "props": {
               "tile": "snow-wolf",
               "at": {
-                "x": 170,
-                "y": 33,
-                "z": -4
+                "x": 339,
+                "y": 92,
+                "z": -3
               }
             }
           },
@@ -4937,9 +5565,9 @@
             "props": {
               "tile": "icicle",
               "at": {
-                "x": 139,
-                "y": 42,
-                "z": -4
+                "x": 303,
+                "y": 66,
+                "z": -8
               }
             }
           },
@@ -4949,9 +5577,9 @@
             "props": {
               "tile": "silver-chest",
               "at": {
-                "x": 125,
-                "y": 48,
-                "z": -3
+                "x": 326,
+                "y": 64,
+                "z": -4
               }
             }
           },
@@ -4961,8 +5589,8 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 255,
-                "y": 88,
+                "x": 498,
+                "y": 201,
                 "z": -2
               }
             }
@@ -4973,8 +5601,8 @@
             "props": {
               "tile": "small-fire-slime",
               "at": {
-                "x": 246,
-                "y": 87,
+                "x": 497,
+                "y": 215,
                 "z": -2
               }
             }
@@ -4985,8 +5613,8 @@
             "props": {
               "tile": "ember-wisp",
               "at": {
-                "x": 253,
-                "y": 106,
+                "x": 518,
+                "y": 186,
                 "z": -3
               }
             }
@@ -4997,8 +5625,8 @@
             "props": {
               "tile": "ember-wisp",
               "at": {
-                "x": 265,
-                "y": 98,
+                "x": 532,
+                "y": 200,
                 "z": -1
               }
             }
@@ -5009,8 +5637,8 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 243,
-                "y": 114,
+                "x": 520,
+                "y": 218,
                 "z": -1
               }
             }
@@ -5021,8 +5649,8 @@
             "props": {
               "tile": "cave-troll",
               "at": {
-                "x": 264,
-                "y": 112,
+                "x": 520,
+                "y": 168,
                 "z": -2
               }
             }
@@ -5033,8 +5661,8 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 239,
-                "y": 102,
+                "x": 482,
+                "y": 200,
                 "z": -4
               }
             }
@@ -5045,9 +5673,9 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 248,
-                "y": 99,
-                "z": -4
+                "x": 532,
+                "y": 215,
+                "z": -2
               }
             }
           },
@@ -5057,21 +5685,49 @@
             "props": {
               "tile": "quest-chest",
               "at": {
-                "x": 262,
-                "y": 84,
-                "z": -2
+                "x": 506,
+                "y": 224,
+                "z": -4
               }
             }
+          }
+        ]
+      },
+      {
+        "type": "island",
+        "key": "temple-islet",
+        "frame": {
+          "x": 600,
+          "y": 30,
+          "w": 30,
+          "h": 24
+        },
+        "props": {
+          "fill": "sand",
+          "shore": 2,
+          "roughness": 40,
+          "beach": 1
+        },
+        "children": [
+          {
+            "type": "grass",
+            "key": "islet-grass"
           },
           {
-            "type": "tile",
-            "key": "castaway",
+            "type": "temple",
+            "key": "islet-temple",
+            "frame": {
+              "x": 9,
+              "y": 7,
+              "w": 13,
+              "h": 11
+            },
             "props": {
-              "tile": "player",
-              "at": {
-                "x": 92,
-                "y": 192
-              }
+              "height": 3,
+              "gap": 1,
+              "base": "podium",
+              "roof": "gabled",
+              "ruin": 75
             }
           }
         ]
@@ -5080,8 +5736,8 @@
         "type": "group",
         "key": "harbour-pier",
         "frame": {
-          "x": 143,
-          "y": 203,
+          "x": 302,
+          "y": 395,
           "w": 15,
           "h": 3
         },
@@ -5115,45 +5771,6 @@
                 "x": 13,
                 "y": 2
               }
-            }
-          }
-        ]
-      },
-      {
-        "type": "island",
-        "key": "temple-islet",
-        "frame": {
-          "x": 292,
-          "y": 18,
-          "w": 30,
-          "h": 24
-        },
-        "props": {
-          "fill": "sand",
-          "shore": 2,
-          "roughness": 40,
-          "beach": 1
-        },
-        "children": [
-          {
-            "type": "grass",
-            "key": "islet-grass"
-          },
-          {
-            "type": "temple",
-            "key": "islet-temple",
-            "frame": {
-              "x": 9,
-              "y": 7,
-              "w": 13,
-              "h": 11
-            },
-            "props": {
-              "height": 3,
-              "gap": 1,
-              "base": "podium",
-              "roof": "gabled",
-              "ruin": 75
             }
           }
         ]
