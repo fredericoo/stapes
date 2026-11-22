@@ -19937,3 +19937,28 @@ edge and a troll or a yeti at its centre or on its lowest floor.
 - **A wisp gets its flower ring from the generator.** The ring and the cleared
   flowers round it follow *The forest wisps*, so a moved wisp moves its ring
   on the next run.
+
+## Server memory: one copy of each distinct stack
+
+A board of 480k cells holds about 1,700 distinct stacks, and most cells are
+one of a handful (`[{ "tileId": "grass" }]`, `[{ "tileId": "deep-water" }]`).
+A world being played keeps one frozen copy of each distinct stack that has no
+nested data and every cell holding those tiles points at it (`StackPool`,
+`app/lib/stackPool.ts`). The production map's board went from 87 MB of heap
+to 22 MB, and the server's heap objects after load from 2.1 million to
+0.45 million, which also shortens every full collection.
+
+- **Where it is applied.** `GameSession` builds its board with `shareMap`,
+  which replaced a `structuredClone` of the whole map. `GameServer` reads the
+  map file with `parseSharedMap`, which reads `serializeMap`'s layout a line at
+  a time and parses each distinct stack once, and reads the checkpointed
+  chunks through `WorldStore.list`'s `revive`, so the decoded chunks are never
+  all held at once.
+- **Stacks with nested data are not pooled.** `contents`, `spots`, `span`,
+  `teleportTo` and the reward fields are objects that the shallow freeze
+  would not cover, so those stacks stay per cell. They are a few hundred cells
+  of a world.
+- **Placements are shared within a stack, never between stacks.** A
+  placement found at index 2 of a pooled stack is at index 2 in every cell
+  sharing it, which is what `applyPlacementTurns` assumes when it keys its
+  indexes by placement.

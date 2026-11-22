@@ -53,7 +53,9 @@ import {
   getStack,
   mapFromChunks,
   presentInEither,
+  shareCells,
 } from "../app/lib/mapData";
+import { StackPool } from "../app/lib/stackPool";
 import type { DataStore } from "../app/lib/dataStore";
 import {
   removeUnfitPlacements,
@@ -927,8 +929,9 @@ export class GameServer {
     GameServer.warnUnloadableBrains(this.tiles, this.traits);
     this.weatherAreas = await store.readWeatherAreas();
 
+    const pool = new StackPool();
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
-    const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
+    const board = checkpoint ? await this.checkpointedBoard(checkpoint, pool) : null;
     this.session = board
       ? new GameSession(board, this.tiles, {
           actorIds: [],
@@ -939,7 +942,7 @@ export class GameServer {
           clock: () => this.minutesOfDay(),
           depots: this.depots,
         })
-      : new GameSession(await store.readMap(), this.tiles, {
+      : new GameSession(await store.readMap(pool), this.tiles, {
           actorIds: [],
           seed: this.env.seed,
           statuses: this.statusDefs,
@@ -960,11 +963,15 @@ export class GameServer {
     await this.loadRespawnState(board != null);
   }
 
-  private async checkpointedBoard(checkpoint: Checkpoint): Promise<MapFile | null> {
+  private async checkpointedBoard(
+    checkpoint: Checkpoint,
+    pool: StackPool,
+  ): Promise<MapFile | null> {
     if (checkpoint.map) return chunkifyMap(checkpoint.map);
 
     const stored = await this.ctx.storage.list<ChunkCells>({
       prefix: CHUNK_KEY_PREFIX,
+      revive: (cells) => shareCells(cells as ChunkCells, pool),
     });
     const chunks = [];
     for (const [key, cells] of stored) {

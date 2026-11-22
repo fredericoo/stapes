@@ -26,6 +26,7 @@ import {
   removeTileAt,
   replaceStack,
   tileIdsInChunk,
+  shareMap,
 } from "../lib/mapData";
 import {
   resolveRespawn,
@@ -1157,7 +1158,7 @@ export class GameSession implements PlaySession {
     this.clock = clock;
     this.depots = depots;
     this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
-    this.board = settleAllSpans(structuredClone(map), this.tilesById);
+    this.board = settleAllSpans(shareMap(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
