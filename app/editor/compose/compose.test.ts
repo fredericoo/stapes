@@ -127,7 +127,7 @@ describe("buildMap", () => {
     const road: MapNode = {
       type: "road",
       key: "lane",
-      props: { tile: "cobblestone", from: { x: 0, y: 15 }, to: { x: 39, y: 15 } },
+      props: { wander: 0, tile: "cobblestone", from: { x: 0, y: 15 }, to: { x: 39, y: 15 } },
     };
     const bridged = build(doc(field([river, road]))).map;
     const washed = build(doc(field([road, river]))).map;
@@ -1272,7 +1272,7 @@ describe("a bridge takes its style from the water under it", () => {
           {
             type: "road",
             key: "lane",
-            props: { tile: "cobblestone", from: { x: 0, y: 14 }, to: { x: 39, y: 14 } },
+            props: { wander: 0, tile: "cobblestone", from: { x: 0, y: 14 }, to: { x: 39, y: 14 } },
           },
         ]),
       ),

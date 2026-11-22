@@ -15876,9 +15876,10 @@ and siblings are still built.
 parent's seed or its position.** Re-rolling the island (giving it a `seed`)
 then does not re-roll the forest on it, and moving a node to another parent or
 another place among its siblings keeps its randomness. The trees can still move
-when the island is re-rolled, because the sand they grow on did; a tree that
-stays on sand stays where it was, since `growForest` picks per cell from
-`randomAt`. This is why every key in a tree must be unique, not only among
+when the island is re-rolled, because the sand they grow on did, and so can
+the trees near it, since a wood thins with the distance to the end of its
+ground. Deep in the wood a tree stays where it was: each cell is still picked
+from `randomAt`. This is why every key in a tree must be unique, not only among
 siblings: points name other nodes by key, so a duplicate is refused.
 
 **Every frame is resolved before anything is built**, so a road can name a node
@@ -15955,6 +15956,17 @@ route runs from `from` through each `via` point to `to`, and `wander` pushes
 each stretch sideways by noise multiplied by a sine that is zero at both ends
 of the stretch, so the route still meets every point exactly.
 
+**A long stretch sweeps as well as wobbles.** The noise bends are
+`bendLength` cells long and at most `wander × bendLength` out, which on a
+stretch of two hundred cells is a straight line with a tremor. On top of them
+each stretch swings from side to side about one and a half times, at most
+`wander × 0.3` of its length out. That sweep is a sine with its phase and
+strength from noise rather than noise alone, because one-octave noise at that
+size has three samples per stretch and can lie flat for the whole of it. Its
+envelope is squared so the route still leaves an anchor nearly head on. A
+road wanders 30 by default and a river 0: the tests that check exact bridge
+and verge cells set `wander: 0`.
+
 **A tile node is one tile on one cell with its placement settings,** edited in
 the map editor's own `PlacementSettingsDialog` through `placementWriter`,
 which applies the map editor's `updatePlaced*` functions to a one-cell map so
@@ -16020,11 +16032,29 @@ is. Removing still works there: a road cuts across the beach.
 ### A hill is the columns `docs/terrain.md` describes, counted in from its foot
 
 `hill` raises ground the nodes before it left. A cell's level is how many
-terraces it lies from the nearest cell that is not raised, in eight-neighbour
-steps, capped at `levels`. That one rule gives everything the terrain rules
-ask for: each level is the one below drawn in on every side, corners included,
-so ground and brinks always sit over rock and, with a terrace of at least
-one, no cliff is two levels high. Plants on a cell go to the top of its column.
+terraces it lies from the nearest cell that is not raised, capped at `levels`.
+That one rule gives everything the terrain rules ask for: each level is the
+one below drawn in on every side, so ground and brinks always sit over rock
+and no cliff is two levels high. Plants on a cell go to the top of its column.
+
+**The distance is a straight line for a terrace of two or more**
+(`distanceTo` in `app/editor/compose/distance.ts`, an exact Euclidean
+transform). Counted in eight-neighbour steps, each level is the one below
+eroded by a square, so every bend in the foot turns into a run along one axis
+and the upper terraces come out as stacked rectangles; on the 4× showcase
+island that was the first thing anyone saw. Two neighbours are at most √2
+apart, under two terraces, so the straight line keeps every cliff one level
+high. A terrace of one would let diagonal neighbours differ by two, so it
+still counts steps. Each terrace's edge is then pushed in or out by noise, up
+to 0.45 of a terrace at full roughness, and `capSteps` lowers any cell left
+more than a level above a neighbour.
+
+**The foot does not touch its frame.** The noisy ellipse is drawn in by 0.6 of
+its wobble, and the noise may push it out only as far as the frame's margin
+leaves room for, squeezed with a `tanh` towards that limit. Cut off by the
+frame instead, a side of the hill was a straight line, and every terrace
+inside it inherited the line. This makes a hill of a given frame about a
+tenth smaller across than before at the default roughness.
 
 `terrace` is the width of each level's shelf, from 0 to 12. At 1 the hill
 climbs a level every cell. At 0 there is no shelf: every level ends at the
@@ -16044,6 +16074,42 @@ A ramp needs three clear cells on the lower level and two on the upper
 (`rampFits`), so a shelf narrower than three cells takes none, from the hill's
 own `ramps` or from a road. A road across such a cliff is laid on both levels
 unjoined.
+
+### A forest thins out at its edge and grows in stands
+
+The `forest` component no longer runs the editor's `growForest`. It shares
+only the walked paths (`forestPaths`) and plants with `growWoodland`
+(`app/editor/compose/woodland.ts`) on the cells its masks leave in and whose
+top tile is in `onlyOn`. On the 4× showcase island every wood was a dark
+block with a hard rim and square holes in it, for three reasons, and each has
+its own fix:
+
+- **Its edge was the frame's.** The chance of a tree is now scaled by a canopy
+  that rises from nothing at the end of the wood's ground to one `edge` cells
+  in, measured in a straight line from whatever ends it (frame, mask, a road
+  through it, a house) and pushed in and out by noise, more in than out. A
+  wood then ends in bays and tongues, and `outliers` (3% by default) stands
+  lone trees in the open past it. Undergrowth grows up to five times as thick
+  where the canopy is half closed, which is the scrub at a wood's edge.
+- **`widenToTwo` made the holes square.** Run to a fixed point on a noisy
+  field, it plants every open cell that is not in a clear 2×2 square, so all
+  that survives is unions of squares. The new pass plants only an open cell
+  with six or more trees around it, and only where the canopy is past half,
+  twice. That removes the one-cell slits the camera hides in the thick of the
+  wood and leaves the gaps between lone trees where the wood is thin, the way
+  a scatter leaves them.
+- **`joinRegions` cut L-shaped tunnels.** A glade of `MIN_GLADE_CELLS` or more
+  that cannot be walked into is now joined by the way that fells the fewest
+  trees (Dijkstra, each tree costing 4 to 8 so the track bends round the thick
+  of the wood), two cells wide, to open ground at the wood's edge or the path.
+
+**`trees` is a weighted mix, and each kind comes in stands.** Each kind's
+weight is multiplied by `exp(7 × (noise − 0.5))` from its own noise field 13
+cells across, so one kind dominates a patch without the others vanishing. The
+default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
+grass and, in stands, reads as a hole in the map. A tree wider than a cell
+that does not fit falls back to the commonest one-cell kind. A saved forest
+with the old single `tree` prop is read as a mix of one (`migrateDoc`).
 
 ### A hill and a river declare; a road builds
 
