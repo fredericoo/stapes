@@ -79,9 +79,36 @@ function houseFrom(node: Raw, taken: Set<string>): Raw {
   };
 }
 
-/** Brings a saved tree of an earlier version up to the current one; anything else is returned as it was. */
+/** A forest named one `tree`; it now takes a weighted mix of `trees`. */
+function forestFrom(node: Raw): Raw {
+  const props = node.props as Raw | undefined;
+  if (!props || typeof props.tree !== "string" || props.trees !== undefined) return node;
+  const { tree, ...rest } = props;
+  return { ...node, props: { ...rest, trees: [{ tile: tree, weight: 1 }] } };
+}
+
+function renamedProps(node: Raw): Raw {
+  const children = Array.isArray(node.children)
+    ? { children: node.children.map((c) => renamedProps(c as Raw)) }
+    : {};
+  const next: Raw = { ...node, ...children };
+  return next.type === "forest" ? forestFrom(next) : next;
+}
+
+/**
+ * Brings a saved tree of an earlier version up to the current one, and
+ * renames props that changed within a version; anything else is returned as
+ * it was.
+ */
 export function migrateDoc(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object" || (raw as Raw).version !== 1) return raw;
+  if (!raw || typeof raw !== "object") return raw;
+  const upgraded = upgradeDoc(raw as Raw);
+  if (!upgraded.root || typeof upgraded.root !== "object") return upgraded;
+  return { ...upgraded, root: renamedProps(upgraded.root as Raw) };
+}
+
+function upgradeDoc(raw: Raw): Raw {
+  if (raw.version !== 1) return raw;
   const doc = raw as Raw;
   if (!doc.root || typeof doc.root !== "object") return raw;
   const taken = new Set<string>();

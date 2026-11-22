@@ -15876,9 +15876,10 @@ and siblings are still built.
 parent's seed or its position.** Re-rolling the island (giving it a `seed`)
 then does not re-roll the forest on it, and moving a node to another parent or
 another place among its siblings keeps its randomness. The trees can still move
-when the island is re-rolled, because the sand they grow on did; a tree that
-stays on sand stays where it was, since `growForest` picks per cell from
-`randomAt`. This is why every key in a tree must be unique, not only among
+when the island is re-rolled, because the sand they grow on did, and so can
+the trees near it, since a wood thins with the distance to the end of its
+ground. Deep in the wood a tree stays where it was: each cell is still picked
+from `randomAt`. This is why every key in a tree must be unique, not only among
 siblings: points name other nodes by key, so a duplicate is refused.
 
 **Every frame is resolved before anything is built**, so a road can name a node
@@ -16062,6 +16063,42 @@ A ramp needs three clear cells on the lower level and two on the upper
 (`rampFits`), so a shelf narrower than three cells takes none, from the hill's
 own `ramps` or from a road. A road across such a cliff is laid on both levels
 unjoined.
+
+### A forest thins out at its edge and grows in stands
+
+The `forest` component no longer runs the editor's `growForest`. It shares
+only the walked paths (`forestPaths`) and plants with `growWoodland`
+(`app/editor/compose/woodland.ts`) on the cells its masks leave in and whose
+top tile is in `onlyOn`. On the 4× showcase island every wood was a dark
+block with a hard rim and square holes in it, for three reasons, and each has
+its own fix:
+
+- **Its edge was the frame's.** The chance of a tree is now scaled by a canopy
+  that rises from nothing at the end of the wood's ground to one `edge` cells
+  in, measured in a straight line from whatever ends it (frame, mask, a road
+  through it, a house) and pushed in and out by noise, more in than out. A
+  wood then ends in bays and tongues, and `outliers` (3% by default) stands
+  lone trees in the open past it. Undergrowth grows up to five times as thick
+  where the canopy is half closed, which is the scrub at a wood's edge.
+- **`widenToTwo` made the holes square.** Run to a fixed point on a noisy
+  field, it plants every open cell that is not in a clear 2×2 square, so all
+  that survives is unions of squares. The new pass plants only an open cell
+  with six or more trees around it, and only where the canopy is past half,
+  twice. That removes the one-cell slits the camera hides in the thick of the
+  wood and leaves the gaps between lone trees where the wood is thin, the way
+  a scatter leaves them.
+- **`joinRegions` cut L-shaped tunnels.** A glade of `MIN_GLADE_CELLS` or more
+  that cannot be walked into is now joined by the way that fells the fewest
+  trees (Dijkstra, each tree costing 4 to 8 so the track bends round the thick
+  of the wood), two cells wide, to open ground at the wood's edge or the path.
+
+**`trees` is a weighted mix, and each kind comes in stands.** Each kind's
+weight is multiplied by `exp(7 × (noise − 0.5))` from its own noise field 13
+cells across, so one kind dominates a patch without the others vanishing. The
+default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
+grass and, in stands, reads as a hole in the map. A tree wider than a cell
+that does not fit falls back to the commonest one-cell kind. A saved forest
+with the old single `tree` prop is read as a mix of one (`migrateDoc`).
 
 ### A hill and a river declare; a road builds
 
