@@ -109,6 +109,7 @@ export class World {
 
   private startCheckpointing() {
     this.checkpointTimer = setInterval(() => {
+      this.server.settleResidency();
       if (!this.store.dirty) return;
       void this.store.flush().catch((error: unknown) => {
         console.error("[world] checkpoint failed", error);
