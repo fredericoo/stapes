@@ -300,7 +300,9 @@ an agent drives", lists every call.
   `data/world.json` is the world's tree, a whole island built from every
   component, and `data/world-staging.json` the small one staging and the
   previews play (`SEED_TREE`). The server builds the same map at start, in
-  `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`.
+  `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`. The
+  Docker image builds both trees ahead of time into `data/built/`
+  (`bun server/worldMap.ts --prebuild data world.json world-staging.json`).
 - `bun run build:world` — build `data/map.json` from `data/world.json` the way
   the server does at start, for the `verify` checks and benches that read
   `data/map.json` without a server running. CI runs it before them

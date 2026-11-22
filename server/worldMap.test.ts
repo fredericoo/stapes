@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getStack } from "../app/lib/mapData";
@@ -7,6 +7,7 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import { readConfig, type Config } from "./config";
 import { rowTree } from "./testHarness";
 import { World } from "./world";
+import { buildWorldMap, prebuildWorldMap, PREBUILT_DIR } from "./worldMap";
 
 let directory: string;
 let seed: string;
@@ -57,6 +58,42 @@ describe("building the world's map at start", () => {
       "grass",
       PLAYER_TILE_ID,
     ]);
+    await world.drain();
+  });
+});
+
+describe("the map an image built", () => {
+  async function spawnColumn(world: World): Promise<number> {
+    const map = await world.blobs.readMap();
+    for (let x = 0; x < 5; x++) {
+      if (getStack(map, x, 0, 0).some((p) => p.tileId === PLAYER_TILE_ID)) return x;
+    }
+    return -1;
+  }
+
+  /** Stands a different map in for the prebuilt one, so a test can tell which was played. */
+  async function replacePrebuiltWith(tree: string) {
+    const tiles = await readFile(join(seed, "tiles.json"), "utf8");
+    await writeFile(join(seed, PREBUILT_DIR, "world.map.json"), buildWorldMap(tree, tiles).text);
+  }
+
+  it("is played instead of building, when it was built from the same inputs", async () => {
+    await prebuildWorldMap(seed, "world.json");
+    await replacePrebuiltWith(rowTree(5, 4));
+
+    const world = await World.open(config);
+
+    expect(await spawnColumn(world)).toBe(4);
+    await world.drain();
+  });
+
+  it("is ignored once the tree has changed since the image built it", async () => {
+    await prebuildWorldMap(seed, "world.json");
+    await writeFile(join(seed, "world.json"), rowTree(5, 1));
+
+    const world = await World.open(config);
+
+    expect(await spawnColumn(world)).toBe(1);
     await world.drain();
   });
 });

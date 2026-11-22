@@ -68,6 +68,40 @@ export function hashOf(...parts: string[]): string {
   return hash.digest("hex");
 }
 
+/** Where an image keeps the maps it built, beside the trees in its data directory. */
+export const PREBUILT_DIR = "built";
+
+function prebuiltPaths(dataDir: string, treeFile: string) {
+  const stem = join(dataDir, PREBUILT_DIR, treeFile.replace(/\.json$/, ""));
+  return { map: `${stem}.map.json`, inputs: `${stem}.inputs` };
+}
+
+export async function prebuildWorldMap(dataDir: string, treeFile: string): Promise<BuiltWorldMap> {
+  const tree = await readFile(join(dataDir, treeFile), "utf8");
+  const tiles = await readFile(join(dataDir, "tiles.json"), "utf8");
+  const built = buildWorldMap(tree, tiles);
+  const paths = prebuiltPaths(dataDir, treeFile);
+  await mkdir(join(dataDir, PREBUILT_DIR), { recursive: true });
+  await writeFile(paths.map, built.text);
+  await writeFile(paths.inputs, hashOf(tree, tiles, await builderSourceHash()));
+  return built;
+}
+
+/** The map an image built for `treeFile`, when it was built from exactly these inputs. */
+export async function readPrebuiltMap(
+  dataDir: string,
+  treeFile: string,
+  inputs: string,
+): Promise<string | null> {
+  const paths = prebuiltPaths(dataDir, treeFile);
+  try {
+    if ((await readFile(paths.inputs, "utf8")) !== inputs) return null;
+    return await readFile(paths.map, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 const ENTRY = import.meta.path;
 
 /**
@@ -106,7 +140,21 @@ export async function buildWorldMapApart(
   }
 }
 
-if (import.meta.main) {
+if (import.meta.main && process.argv[2] === "--prebuild") {
+  const [dataDir, ...trees] = process.argv.slice(3);
+  if (!dataDir || trees.length === 0) {
+    console.error("usage: bun server/worldMap.ts --prebuild <data dir> <tree.json>...");
+    process.exit(1);
+  }
+  for (const treeFile of trees) {
+    const started = performance.now();
+    const { problems } = await prebuildWorldMap(dataDir, treeFile);
+    for (const problem of problems) {
+      console.warn(`${treeFile}: ${problem.key} was left out of the map: ${problem.reason}`);
+    }
+    console.log(`built ${treeFile} in ${Math.round(performance.now() - started)} ms`);
+  }
+} else if (import.meta.main) {
   const [treePath, tilesPath, outPath] = process.argv.slice(2);
   if (!treePath || !tilesPath || !outPath) {
     console.error("usage: bun server/worldMap.ts <tree.json> <tiles.json> <out.json>");

@@ -8,6 +8,7 @@ import { seedIfChanged } from "./seed";
 import {
   AUTHORED_MAP_KEY,
   buildWorldMapApart,
+  readPrebuiltMap,
   builderSourceHash,
   hashOf,
   type AuthoredMap,
@@ -316,7 +317,7 @@ export class World {
     const recorded = await this.store.get<AuthoredMap>(AUTHORED_MAP_KEY);
     let replaced = false;
     if (recorded?.inputs !== inputs) {
-      const built = await this.buildMap(tree, tiles);
+      const built = await this.buildMap(tree, tiles, inputs);
       if (recorded?.map !== built.hash) {
         await this.server.replaceWorld(built.read(), { keepPositions: true });
         replaced = true;
@@ -328,19 +329,30 @@ export class World {
     return replaced;
   }
 
-  /** `read` parses the built map for play, once, so its text is not kept beside the board. */
+  /**
+   * `read` parses the built map for play, once, so its text is not kept beside
+   * the board. A map the image built from the same inputs is used instead of
+   * building it here.
+   */
   private async buildMap(
     tree: string,
     tiles: string,
+    inputs: string,
   ): Promise<{ hash: string; read: () => MapFile }> {
     const started = performance.now();
-    const built = await buildWorldMapApart(tree, tiles, join(this.config.DATA_DIR, "builds"));
-    let text = built.text;
-    for (const problem of built.problems) {
-      console.warn(`[world] ${problem.key} was left out of the map: ${problem.reason}`);
+    const prebuilt = await readPrebuiltMap(this.config.SEED_DIR, this.config.SEED_TREE, inputs);
+    let text: string;
+    if (prebuilt === null) {
+      const built = await buildWorldMapApart(tree, tiles, join(this.config.DATA_DIR, "builds"));
+      for (const problem of built.problems) {
+        console.warn(`[world] ${problem.key} was left out of the map: ${problem.reason}`);
+      }
+      text = built.text;
+    } else {
+      text = prebuilt;
     }
     console.log(
-      `[world] built the map from its tree in ${Math.round(performance.now() - started)} ms`,
+      `[world] ${prebuilt === null ? "built the map from its tree" : "read the map the image built"} in ${Math.round(performance.now() - started)} ms`,
     );
     return {
       hash: hashOf(text),

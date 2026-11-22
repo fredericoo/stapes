@@ -18,6 +18,8 @@ COPY server ./server
 COPY bots ./bots
 COPY app ./app
 COPY data ./data
+# The server plays these instead of building at start, while their inputs match.
+RUN bun --smol server/worldMap.ts --prebuild data world.json world-staging.json
 
 ENV DATA_DIR=/data
 VOLUME ["/data"]
