@@ -34,4 +34,25 @@ describe("tile", () => {
     expect(built.problems.map((p) => p.reason)).toEqual(["Nothing can stand on the Tree at 5,0"]);
     expect(stands(built, "old-tree")).toEqual([]);
   });
+
+  it("stands a tile taller than a level where the level above it is clear, and not under a floor", () => {
+    const open = buildTree(land(LANE, [node("tile", { tile: "yeti", at: at(6, 1) })]));
+    expect(stands(open, "yeti")).toHaveLength(1);
+    const SITE = { x: 2, y: 0, w: 8, h: 2 };
+    const indoors = buildTree(
+      land({ w: 12, h: 8 }, [
+        node(
+          "house",
+          {},
+          {
+            frame: { ...SITE, h: 7 },
+            children: [node("floor", { use: "empty" }), node("floor", { use: "empty" })],
+          },
+        ),
+        node("tile", { tile: "yeti", at: at(6, 3) }),
+      ]),
+      { problems: "returned" },
+    );
+    expect(indoors.problems.map((p) => p.reason)).toEqual(["There is no room for a Yeti at 6,3"]);
+  });
 });
