@@ -154,6 +154,46 @@ function fillPits(g: CellGrid, level: Uint8Array, mayRaise: Uint8Array): Uint8Ar
   return filled;
 }
 
+/** The fewest cells a piece of one level of a hill may have apart from the rest of that level; `MIN_PATCH_CELLS` in `app/verify/landscape.ts` is the same bar. */
+const MIN_KNOB_CELLS = 16;
+
+/**
+ * Lowers each piece of a level that is smaller than `MIN_KNOB_CELLS` and is
+ * not that level's largest piece to the level below, from the top down. The
+ * foot's noise leaves knobs a cell or two across beside a hill's edge, which
+ * read as specks of its ground in the ground below.
+ */
+function lowerKnobs(g: CellGrid, level: Uint8Array): Uint8Array {
+  const top = Math.max(...level);
+  for (let l = top; l >= 1; l--) {
+    const piece = new Int32Array(level.length).fill(-1);
+    const pieces: number[][] = [];
+    for (let start = 0; start < level.length; start++) {
+      if (level[start]! < l || piece[start] !== -1) continue;
+      const cells = [start];
+      piece[start] = pieces.length;
+      for (let k = 0; k < cells.length; k++) {
+        for (const [dx, dy] of N4) {
+          const x = gridX(g, cells[k]!) + dx;
+          const y = gridY(g, cells[k]!) + dy;
+          if (!inGrid(g, x, y)) continue;
+          const j = gridIndex(g, x, y);
+          if (level[j]! < l || piece[j] !== -1) continue;
+          piece[j] = pieces.length;
+          cells.push(j);
+        }
+      }
+      pieces.push(cells);
+    }
+    const largest = Math.max(0, ...pieces.map((p) => p.length));
+    for (const cells of pieces) {
+      if (cells.length >= MIN_KNOB_CELLS || cells.length === largest) continue;
+      for (const i of cells) level[i] = l - 1;
+    }
+  }
+  return level;
+}
+
 /**
  * How many levels each cell is raised. The foot of the hill is a noisy
  * ellipse cut down to dry ground its masks leave in, and a cell's level is how
@@ -220,7 +260,7 @@ function levelsOf(
       const push = (fbm(gridX(g, i), gridY(g, i), seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway;
       return Math.max(1, Math.min(props.levels, Math.ceil((d + push) / props.terrace)));
     });
-    return fillPits(g, capSteps(g, level), mayRaise);
+    return lowerKnobs(g, fillPits(g, capSteps(g, level), mayRaise));
   }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head]!;
@@ -237,7 +277,7 @@ function levelsOf(
   const level = Uint8Array.from(distance, (d) =>
     d === 0 ? 0 : props.terrace === 0 ? props.levels : Math.min(props.levels, d),
   );
-  return fillPits(g, level, mayRaise);
+  return lowerKnobs(g, fillPits(g, level, mayRaise));
 }
 
 /**

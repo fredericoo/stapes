@@ -39,6 +39,26 @@ describe("hill", () => {
     },
   );
 
+  it("lowers a knob of a few cells that a mask leaves apart from the rest of its top", () => {
+    const built = buildTree(
+      land(SIZE, [
+        node(
+          "hill",
+          { roughness: 0, levels: 1, terrace: 0 },
+          {
+            frame: frame(8, 4, 24, 20),
+            children: [
+              node("mask", { shape: "rect", op: "subtract" }, { frame: frame(9, 0, 3, 20) }),
+              node("mask", { shape: "rect", op: "add" }, { frame: frame(10, 3, 1, 2) }),
+            ],
+          },
+        ),
+      ]),
+    );
+    expect(built.elevation.get("18,8") ?? 0, sketch(built)).toBe(0);
+    expect(built.elevation.get(`${TOP.x - 6},${TOP.y}`), sketch(built)).toBe(1);
+  });
+
   it("is climbed by the ramp a point of its own puts on the nearest cliff", () => {
     const built = raised({ levels: 1, ramps: [{ x: 0, y: 10 }] });
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
