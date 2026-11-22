@@ -2127,7 +2127,7 @@ describe("a creature that fades at dawn", () => {
   ];
 
   function tileIdsOnBoard(session: GameSession): string[] {
-    return listCoords(session.getMap(), 0).flatMap(({ stack }) => stack.map((p) => p.tileId));
+    return [...listCoords(session.getMap(), 0)].flatMap(({ stack }) => stack.map((p) => p.tileId));
   }
 
   it("leaves the board with no remains once the morning comes, and says so once", () => {

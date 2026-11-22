@@ -27,7 +27,15 @@ export class WorldStore {
     return row ? (decode(row.value) as T) : undefined;
   }
 
-  async list<T>(options: { prefix: string }): Promise<Map<string, T>> {
+  /**
+   * `revive` runs on each stored value as it is decoded, so a caller that
+   * shrinks what it keeps never holds every decoded value at once. Values
+   * still pending were put by this process and are returned as they are.
+   */
+  async list<T>(options: {
+    prefix: string;
+    revive?: (value: unknown) => T;
+  }): Promise<Map<string, T>> {
     const statement = await this.db.prepare(
       "SELECT key, value FROM kv WHERE key >= ? AND key < ? ORDER BY key",
     );
@@ -39,7 +47,8 @@ export class WorldStore {
     const out = new Map<string, T>();
     for (const row of rows) {
       if (this.tombstones.has(row.key)) continue;
-      out.set(row.key, decode(row.value) as T);
+      const value = decode(row.value);
+      out.set(row.key, options.revive ? options.revive(value) : (value as T));
     }
     for (const [key, value] of this.pending) {
       if (key.startsWith(options.prefix)) out.set(key, value as T);

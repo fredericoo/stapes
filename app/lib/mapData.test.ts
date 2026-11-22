@@ -80,7 +80,7 @@ describe("mapData copy-on-write", () => {
     const otherKeys = Object.keys(fixtureMap.levels).filter((k) => k !== levelKey(z));
     const otherLevelRefs = otherKeys.map((k) => fixtureMap.levels[k]);
 
-    const coords = listCoords(fixtureMap, z);
+    const coords = [...listCoords(fixtureMap, z)];
     const target = coords[0]!;
     const chk = chunkKeyFor(target.x, target.y);
 
@@ -105,7 +105,7 @@ describe("mapData copy-on-write", () => {
   });
 
   it("clearing a cell does not clone sibling stacks", () => {
-    const coords = listCoords(fixtureMap, 0);
+    const coords = [...listCoords(fixtureMap, 0)];
     expect(coords.length).toBeGreaterThan(10);
     const a = coords[0]!;
     const b = coords.find((c) => c.x !== a.x || c.y !== a.y)!;

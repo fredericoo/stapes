@@ -1,7 +1,8 @@
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
 import type { FlatMapFile, MapFile, TileDef, TilesetDef } from "./types";
 import { MAP_FILE_VERSION, normalizeTiles } from "./types";
-import { emptyMap, parseFlatMap, parseMap, serializeMap } from "./mapData";
+import { emptyMap, parseFlatMap, parseMap, parseSharedMap, serializeMap } from "./mapData";
+import type { StackPool } from "./stackPool";
 
 const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
@@ -99,10 +100,11 @@ export class DataStore {
     await this.blobs.put(TILESETS_KEY, `${JSON.stringify(unversioned, null, 2)}\n`, JSON_TYPE);
   }
 
-  async readMap(): Promise<MapFile> {
+  /** With a pool, the map is read for play: see `parseSharedMap`. */
+  async readMap(pool?: StackPool): Promise<MapFile> {
     const raw = await this.blobs.getText(MAP_KEY);
     if (raw === null) return emptyMap();
-    return parseMap(raw);
+    return pool ? parseSharedMap(raw, pool) : parseMap(raw);
   }
 
   async readFlatMap(): Promise<FlatMapFile> {

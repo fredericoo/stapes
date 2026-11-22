@@ -7,7 +7,8 @@ import {
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { getStack, listCoords, presentLevels, replaceStack } from "../lib/mapData";
+import { getStack, listCoords, presentLevels, setStacks } from "../lib/mapData";
+import type { StackEdit } from "../lib/mapData";
 import { MIN_EARNED_MASTERY, masteryLevel, type Masteries } from "../lib/mastery";
 import { stow } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -177,23 +178,23 @@ export function withoutReservations(placed: PlacedTile): PlacedTile {
   return rest;
 }
 
+/** One `setStacks` for the whole sweep, for the reason `mintItemIds` gives. */
 export function clearExtractReservations(map: MapFile): MapFile {
-  let next = map;
+  const edits: StackEdit[] = [];
   for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       if (!stack.some((placed) => placed.extractsReserved != null)) continue;
-      next = replaceStack(
-        next,
+      edits.push({
         x,
         y,
         z,
-        stack.map((placed) =>
+        stack: stack.map((placed) =>
           placed.extractsReserved == null ? placed : withoutReservations(placed),
         ),
-      );
+      });
     }
   }
-  return next;
+  return setStacks(map, edits);
 }
 
 function drawn(slot: ExtractSlot, random: () => number): boolean {

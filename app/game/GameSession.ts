@@ -26,6 +26,9 @@ import {
   removeTileAt,
   replaceStack,
   tileIdsInChunk,
+  setStacks,
+  shareMap,
+  type StackEdit,
 } from "../lib/mapData";
 import {
   resolveRespawn,
@@ -96,7 +99,6 @@ import {
 import {
   actorDirection,
   adoptAuthoredPlayer,
-  adoptBodyAt,
   DEFAULT_FACING,
   listActorOwners,
   listResidentBodies,
@@ -1157,7 +1159,7 @@ export class GameSession implements PlaySession {
     this.clock = clock;
     this.depots = depots;
     this.tilesById = tilesByIdFromList(withTraits(tiles, traits));
-    this.board = settleAllSpans(structuredClone(map), this.tilesById);
+    this.board = settleAllSpans(shareMap(map), this.tilesById);
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
@@ -1213,19 +1215,37 @@ export class GameSession implements PlaySession {
     this.settleBoardNow();
   }
 
+  /** Adopts every body in one write, for the reason `mintItemIds` gives. */
   private adoptResidents() {
     const owned = listActorOwners(this.map);
-    for (const body of listResidentBodies(this.map, this.tilesById)) {
+    const bodies = listResidentBodies(this.map, this.tilesById);
+    const owners: string[] = [];
+    const adopted = new Map<string, StackEdit>();
+    for (const body of bodies) {
       let owner = body.placed.owner;
       if (!owner) {
         owner = this.residentIds.mint(owned);
-        this.map = adoptBodyAt(this.map, body, owner);
+        const key = cellKey(body);
+        let edit = adopted.get(key);
+        if (!edit) {
+          edit = {
+            x: body.x,
+            y: body.y,
+            z: body.z,
+            stack: [...getStack(this.map, body.x, body.y, body.z)],
+          };
+          adopted.set(key, edit);
+        }
+        edit.stack[body.stackIndex] = { ...body.placed, owner };
         this.residentHomes.set(owner, { x: body.x, y: body.y, z: body.z });
       }
-      if (!this.actors.has(owner)) {
-        this.addResident(owner, body.placed.tileId, body);
-      }
+      owners.push(owner);
     }
+    this.map = setStacks(this.map, [...adopted.values()]);
+    bodies.forEach((body, i) => {
+      const owner = owners[i]!;
+      if (!this.actors.has(owner)) this.addResident(owner, body.placed.tileId, body);
+    });
   }
 
   /**
