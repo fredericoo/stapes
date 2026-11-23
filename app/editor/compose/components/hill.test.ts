@@ -215,3 +215,39 @@ describe("the foot of a rough hill", () => {
     },
   );
 });
+
+describe("the terraces of a hill", () => {
+  const AREA = { w: 120, h: 90 };
+  const TERRACE = 6;
+  /** Without the jag, seeds 1 and 3 leave a straight edge longer than this. */
+  const MAX_STRAIGHT = 10;
+
+  it.each([1, 2, 3])("do not run straight along the line below them, seed %i", (seed) => {
+    const built = buildTree(
+      land(AREA, [
+        node(
+          "hill",
+          { levels: 3, terrace: TERRACE, roughness: 40 },
+          { frame: frame(10, 10, 100, 70) },
+        ),
+      ]),
+      { seed },
+    );
+    const level = (x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+    const upper = (x: number, y: number) => level(x, y) >= 2;
+    let longest = 0;
+    for (const [along, across, edgeAt] of [
+      [AREA.w, AREA.h, (a: number, b: number) => upper(a, b) !== upper(a, b + 1)],
+      [AREA.h, AREA.w, (a: number, b: number) => upper(b, a) !== upper(b + 1, a)],
+    ] as const) {
+      for (let b = 0; b < across - 1; b++) {
+        let run = 0;
+        for (let a = 0; a < along; a++) {
+          run = edgeAt(a, b) ? run + 1 : 0;
+          longest = Math.max(longest, run);
+        }
+      }
+    }
+    expect(longest, sketch(built)).toBeLessThanOrEqual(MAX_STRAIGHT);
+  });
+});

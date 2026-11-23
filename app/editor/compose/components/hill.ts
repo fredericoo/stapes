@@ -62,6 +62,13 @@ const N8 = [
  */
 const TERRACE_SWAY = 0.45;
 const TERRACE_SWAY_SCALE = 3;
+/**
+ * How far, in cells at full roughness, a finer noise than the foot's and the
+ * sway's pushes the foot and each terrace's edge in or out, and how many cells
+ * across one of its bends is, so neither runs straight for long on a large hill.
+ */
+const EDGE_JAG = 5;
+const EDGE_JAG_SCALE = 3;
 
 /** Lowers every cell to at most one level above its lowest eight-neighbour, which the sway alone does not promise. */
 function capSteps(g: CellGrid, level: Uint8Array): Uint8Array {
@@ -213,6 +220,8 @@ function levelsOf(
   covered: (x: number, y: number) => boolean,
 ): Uint8Array {
   const wobble = (props.roughness / 100) * MAX_WOBBLE;
+  /** A steep hill keeps a smooth foot: a jagged one leaves shelves wide enough for a ramp up its cliffs. */
+  const jag = props.terrace >= 2 ? (props.roughness / 100) * EDGE_JAG : 0;
   const rx = (g.width / 2 - MARGIN) / (1 + wobble * HEADROOM);
   const ry = (g.height / 2 - MARGIN) / (1 + wobble * HEADROOM);
   const cx = g.minX + (g.width - 1) / 2;
@@ -232,7 +241,9 @@ function levelsOf(
       g.minY + g.height - 1 - y,
     );
     const d = rx < 1 || ry < 1 ? Infinity : Math.hypot((x - cx) / rx, (y - cy) / ry);
-    const noise = (fbm(x, y, seed, scale, EDGE_OCTAVES) - 0.5) * 2 * wobble;
+    const jagged = (fbm(x, y, seed ^ 0x1a66, EDGE_JAG_SCALE, 2) - 0.5) * 2 * jag;
+    const noise =
+      (fbm(x, y, seed, scale, EDGE_OCTAVES) - 0.5) * 2 * wobble + jagged / Math.min(rx, ry);
     /**
      * The noise pushes the foot out only as far as the frame's margin leaves
      * room for, squeezed smoothly towards that limit. Cut off by the frame
@@ -257,7 +268,11 @@ function levelsOf(
     const swayScale = Math.max(MIN_EDGE_SCALE, props.terrace * TERRACE_SWAY_SCALE);
     const level = Uint8Array.from(round, (d, i) => {
       if (d === 0) return 0;
-      const push = (fbm(gridX(g, i), gridY(g, i), seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway;
+      const x = gridX(g, i);
+      const y = gridY(g, i);
+      const push =
+        (fbm(x, y, seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway +
+        (fbm(x, y, seed ^ 0x1a66, EDGE_JAG_SCALE, 2) - 0.5) * 2 * jag;
       return Math.max(1, Math.min(props.levels, Math.ceil((d + push) / props.terrace)));
     });
     return lowerKnobs(g, fillPits(g, capSteps(g, level), mayRaise));
