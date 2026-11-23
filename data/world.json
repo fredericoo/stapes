@@ -541,8 +541,12 @@
             "props": {
               "tiles": [
                 {
-                  "tile": "obsidian",
-                  "weight": 1
+                  "tile": "lava-crust",
+                  "weight": 3
+                },
+                {
+                  "tile": "obsidian-vein-2",
+                  "weight": 2
                 }
               ],
               "density": 3,
