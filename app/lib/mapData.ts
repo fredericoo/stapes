@@ -950,6 +950,36 @@ export function removeTileAt(
   return setStack(map, x, y, z, stack);
 }
 
+/**
+ * The map with one tile gone from a stack, for reading only. The level is a
+ * prototype view over the original, so a level of thousands of chunks is not
+ * copied for one cell; anything that lists a level's own keys or stores the
+ * result must use `removeTileAt` instead.
+ */
+export function viewWithoutTileAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+): MapFile {
+  const zk = levelKey(z);
+  const chk = chunkKeyFor(x, y);
+  const level = map.levels[zk];
+  const source = level?.[chk];
+  if (!level || !source || source === UNLOADED_CHUNK) return map;
+  const ck = coordKey(x, y);
+  const stack = source[ck];
+  if (!stack || stackIndex < 0 || stackIndex >= stack.length) return map;
+  const chunk: ChunkCells = { ...source };
+  const left = stack.filter((_, i) => i !== stackIndex);
+  if (left.length === 0) delete chunk[ck];
+  else chunk[ck] = left;
+  const view = Object.create(level) as LevelChunks;
+  view[chk] = chunk;
+  return { version: MAP_FILE_VERSION, levels: { ...map.levels, [zk]: view } };
+}
+
 export function reorderStack(
   map: MapFile,
   x: number,
