@@ -5607,7 +5607,7 @@
             ]
           },
           {
-            "type": "forest",
+            "type": "scatter",
             "key": "snow-pines",
             "frame": {
               "x": 472,
@@ -5616,25 +5616,17 @@
               "h": 176
             },
             "props": {
-              "onlyOn": [
-                "snow"
-              ],
-              "density": 15,
-              "path": null,
-              "paths": 1,
-              "undergrowth": [
-                {
-                  "tile": "snowy-rock",
-                  "weight": 1
-                }
-              ],
-              "undergrowthDensity": 1,
-              "trees": [
+              "tiles": [
                 {
                   "tile": "snowy-pine",
                   "weight": 1
                 }
-              ]
+              ],
+              "density": 1.5,
+              "onlyOn": [
+                "snow"
+              ],
+              "clumping": 20
             },
             "children": [
               {
