@@ -20223,6 +20223,13 @@ only the kept chunks. The map text goes into the blob store by
 `SqliteBlobs.putFile`, 1 MB parts read from the file, so it is never one
 string either.
 
+- **A big blob's parts are never moved.** `putFile` writes them under a key
+  of their own and points the `blob` row at it (`parts_key`), then deletes the
+  old parts a few at a time. It used to write them under `<key>~writing` and
+  rename them onto the key in one transaction, which rewrote all 101 MB at
+  once; the database kept about 180 MB of that resident until the process
+  ended, and the first start peaked at 460–525 MB, at the 512 MB limit.
+
 - **The rows are valid only for the image's inputs and traits.** The inputs
   hash covers the tree, tiles and builder source; residents are found through
   traits, which it does not cover, so `start.json` carries a hash of the
@@ -20230,7 +20237,9 @@ string either.
   the map whole.
 - **What it costs**, on the 4× island (101 MB of map, 7,715 rows), measured
   with `World.open` on a fresh store: first start peak 1,243 MB → 443–503 MB,
-  18 s → 7 s, settled 840 → 363 MB; a restart peaks at 126 MB. In a 512 MB
+  18 s → 7 s, settled 840 → 363 MB; a restart peaks at 126 MB. With the
+  parts pointed at rather than moved, and `NODE_ENV=production`, the first
+  start peaks at 290 MB and settles at about 220 MB. In a 512 MB
   memory cgroup the old start was OOM-killed and this one finished. Most of
   what is left is native memory the allocator keeps after the blob copy and
   the row writes; the JS heap after start is about 54 MB.
