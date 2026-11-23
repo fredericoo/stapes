@@ -1,12 +1,13 @@
 import type { ItemInstance } from "../lib/itemInstance";
 import {
+  boardWithAway,
   chunkIndexOf,
   chunkKeyAt,
   chunkKeyFor,
   UNLOADED_CHUNK,
   UNLOADED_TILE_ID,
 } from "../lib/mapData";
-import type { ChunkCells, Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { ChunkCells, Coord, LevelChunks, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { parseCoordKey } from "../lib/types";
 import { resolveTeleport } from "../lib/interactions";
 import { getStack, setStacks, type StackEdit, tileIdsInChunk } from "../lib/mapData";
@@ -43,7 +44,7 @@ export function loadedChunkKeys(map: MapFile): Set<string> {
   const out = new Set<string>();
   for (const zk in map.levels) {
     const level = map.levels[zk]!;
-    for (const chk in level) if (level[chk] !== UNLOADED_CHUNK) out.add(chk);
+    for (const chk of Object.keys(level)) if (level[chk] !== UNLOADED_CHUNK) out.add(chk);
   }
   return out;
 }
@@ -153,7 +154,7 @@ export function teleportTargetsByChunk(
   const seen = new Set<string>();
   for (const zk in map.levels) {
     const level = map.levels[zk]!;
-    for (const chk in level) {
+    for (const chk of Object.keys(level)) {
       const cells = level[chk]!;
       if (cells === UNLOADED_CHUNK) continue;
       if (!seen.has(chk)) {
@@ -226,13 +227,13 @@ export function boardKeeping(map: MapFile, keep: ReadonlySet<string>): MapFile {
   const levels: MapFile["levels"] = {};
   const away = new Set<string>();
   for (const zk in map.levels) {
-    for (const chk in map.levels[zk]!) if (!keep.has(chk)) away.add(chk);
-  }
-  for (const zk in map.levels) {
-    const level: Record<string, ChunkCells> = {};
-    for (const chk in map.levels[zk]!) if (keep.has(chk)) level[chk] = map.levels[zk]![chk]!;
-    for (const chk of away) level[chk] = UNLOADED_CHUNK;
+    const level: LevelChunks = {};
+    const from = map.levels[zk]!;
+    for (const chk in from) {
+      if (!keep.has(chk)) away.add(chk);
+      else if (from[chk] !== UNLOADED_CHUNK) level[chk] = from[chk]!;
+    }
     levels[zk] = level;
   }
-  return { version: map.version, levels };
+  return boardWithAway(levels, away);
 }

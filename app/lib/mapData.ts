@@ -51,12 +51,57 @@ export function isUnloadedAt(map: MapFile, x: number, y: number, z: number): boo
   return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)] === UNLOADED_CHUNK;
 }
 
+/**
+ * The unloaded chunks of a board sit on one frozen record that every level has
+ * as its prototype, so a level's own keys are its loaded chunks and copying a
+ * level for an edit costs only those. A read or a `for...in` still finds every
+ * unloaded chunk; `Object.keys` and a spread do not, so a level is copied with
+ * `copyLevel`.
+ */
+function awayOf(level: LevelChunks | undefined): LevelChunks | null {
+  if (!level) return null;
+  const proto = Object.getPrototypeOf(level) as LevelChunks | null;
+  return proto === Object.prototype || proto === null ? null : proto;
+}
+
+function awayRecord(keys: Iterable<string>): LevelChunks | null {
+  const record: LevelChunks = {};
+  let any = false;
+  for (const chk of keys) {
+    record[chk] = UNLOADED_CHUNK;
+    any = true;
+  }
+  return any ? Object.freeze(record) : null;
+}
+
+function levelOver(away: LevelChunks | null, own: LevelChunks): LevelChunks {
+  return away ? Object.assign(Object.create(away) as LevelChunks, own) : { ...own };
+}
+
+export function copyLevel(level: LevelChunks): LevelChunks {
+  return levelOver(awayOf(level), level);
+}
+
+/** `levels` holds only loaded chunks; every level is given `away` as unloaded. */
+export function boardWithAway(levels: MapFile["levels"], away: Iterable<string>): MapFile {
+  const record = awayRecord(away);
+  const out: MapFile["levels"] = {};
+  for (const zk in levels) out[zk] = levelOver(record, levels[zk]!);
+  return { version: MAP_FILE_VERSION, levels: out };
+}
+
 /** Every chunk key that some level holds as `UNLOADED_CHUNK`. */
 export function unloadedChunkKeys(map: MapFile): Set<string> {
   const out = new Set<string>();
+  const seen = new Set<LevelChunks>();
   for (const zk in map.levels) {
     const level = map.levels[zk]!;
-    for (const chk in level) if (level[chk] === UNLOADED_CHUNK) out.add(chk);
+    const away = awayOf(level);
+    if (away && !seen.has(away)) {
+      seen.add(away);
+      for (const chk of Object.keys(away)) out.add(chk);
+    }
+    for (const chk of Object.keys(level)) if (level[chk] === UNLOADED_CHUNK) out.add(chk);
   }
   return out;
 }
@@ -67,13 +112,17 @@ export function unloadedChunkKeys(map: MapFile): Set<string> {
  * wall into air the chunk does not hold.
  */
 export function unloadChunks(map: MapFile, chunkKeys: Iterable<string>): MapFile {
-  const keys = [...chunkKeys];
-  if (keys.length === 0) return map;
-  const levels = { ...map.levels };
-  for (const zk in levels) {
-    const source = levels[zk]!;
-    const level = { ...source };
-    for (const chk of keys) level[chk] = UNLOADED_CHUNK;
+  const keys = new Set(chunkKeys);
+  if (keys.size === 0) return map;
+  const away = awayRecord([...unloadedChunkKeys(map), ...keys]);
+  const levels: MapFile["levels"] = {};
+  for (const zk in map.levels) {
+    const source = map.levels[zk]!;
+    const own: LevelChunks = {};
+    for (const chk of Object.keys(source)) {
+      if (!keys.has(chk) && source[chk] !== UNLOADED_CHUNK) own[chk] = source[chk]!;
+    }
+    const level = levelOver(away, own);
     lineage.set(level, { parent: new WeakRef(source), keys: [...keys] });
     levels[zk] = level;
   }
@@ -82,38 +131,36 @@ export function unloadChunks(map: MapFile, chunkKeys: Iterable<string>): MapFile
 
 /**
  * Replaces `UNLOADED_CHUNK` with the stored records, each chunk's by level
- * key. A level with no stored record for a chunk drops the key. A level that
- * holds a real record for it already keeps that one. Each level is copied
- * once however many chunks come back, which is most of what this costs.
+ * key. A level with no stored record for a chunk holds nothing there. A level
+ * that holds a real record for it already keeps that one.
  */
 export function loadChunks(
   map: MapFile,
   stored: ReadonlyMap<string, ReadonlyMap<string, ChunkCells>>,
 ): MapFile {
+  const before = unloadedChunkKeys(map);
+  const coming = [...stored.keys()].filter((chk) => before.has(chk));
+  const away = coming.length > 0 ? awayRecord([...before].filter((chk) => !stored.has(chk))) : null;
   const levels = { ...map.levels };
   const levelKeys = new Set(Object.keys(levels));
   for (const records of stored.values()) for (const zk of records.keys()) levelKeys.add(zk);
   for (const zk of levelKeys) {
     const source = levels[zk];
-    let level: LevelChunks | null = null;
-    let deleted = false;
     const written: string[] = [];
+    const own: LevelChunks = {};
+    if (source) for (const chk of Object.keys(source)) own[chk] = source[chk]!;
     for (const [chk, records] of stored) {
       const cells = records.get(zk);
       const unloaded = source?.[chk] === UNLOADED_CHUNK;
       if (!unloaded && (!cells || source?.[chk])) continue;
-      level ??= { ...source };
-      if (cells && !isEmptyRecord(cells)) {
-        level[chk] = cells;
-      } else {
-        delete level[chk];
-        deleted = true;
-      }
+      if (cells && !isEmptyRecord(cells)) own[chk] = cells;
+      else delete own[chk];
       written.push(chk);
     }
-    if (!level) continue;
+    if (written.length === 0 && coming.length === 0) continue;
+    const level = levelOver(coming.length > 0 ? away : awayOf(source), own);
     if (source) lineage.set(level, { parent: new WeakRef(source), keys: written });
-    if (deleted && isEmptyRecord(level)) delete levels[zk];
+    if (isEmptyRecord(level)) delete levels[zk];
     else levels[zk] = level;
   }
   return { version: MAP_FILE_VERSION, levels };
@@ -792,7 +839,7 @@ function levelToWrite(
 ): LevelChunks {
   const sourceLevel = levels[zk];
   if (sourceLevel && draft?.owns(sourceLevel)) return sourceLevel;
-  const level = { ...sourceLevel };
+  const level = sourceLevel ? copyLevel(sourceLevel) : {};
   levels[zk] = level;
   if (sourceLevel) lineage.set(level, { parent: new WeakRef(sourceLevel), keys: [] });
   draft?.adopt(level);
@@ -1475,13 +1522,13 @@ export function parseMap(json: string): MapFile {
 export function shareMap(map: MapFile, pool = new StackPool()): MapFile {
   const levels: Record<string, LevelChunks> = {};
   for (const zk in map.levels) {
-    const level: LevelChunks = {};
+    const own: LevelChunks = {};
     const from = map.levels[zk]!;
-    for (const chk in from) {
+    for (const chk of Object.keys(from)) {
       const cells = from[chk]!;
-      level[chk] = cells === UNLOADED_CHUNK ? UNLOADED_CHUNK : shareCells(cells, pool, true);
+      own[chk] = cells === UNLOADED_CHUNK ? UNLOADED_CHUNK : shareCells(cells, pool, true);
     }
-    levels[zk] = level;
+    levels[zk] = levelOver(awayOf(from), own);
   }
   return { version: MAP_FILE_VERSION, levels };
 }

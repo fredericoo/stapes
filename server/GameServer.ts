@@ -52,6 +52,7 @@ import {
   changedChunks,
   chunkifyMap,
   getStack,
+  boardWithAway,
   mapFromChunks,
   presentInEither,
   shareCells,
@@ -1054,12 +1055,9 @@ export class GameServer {
     }
     entries[RESIDENCY_KEY] = start.residency;
     await this.ctx.storage.put(entries, { allowUnconfirmed: true });
-    const board = mapFromChunks(keptRows);
-    for (const zk of levelKeys) {
-      const level = (board.levels[zk] ??= {});
-      for (const chk of away) level[chk] = UNLOADED_CHUNK;
-    }
-    return board;
+    const { levels } = mapFromChunks(keptRows);
+    for (const zk of levelKeys) levels[zk] ??= {};
+    return boardWithAway(levels, away);
   }
 
   /**
@@ -1087,12 +1085,9 @@ export class GameServer {
       );
     }
     if (levelKeys.size === 0) return null;
-    const board = mapFromChunks((await Promise.all(reads)).filter((chunk) => chunk !== null));
-    for (const zk of levelKeys) {
-      const level = (board.levels[zk] ??= {});
-      for (const chk of away) level[chk] = UNLOADED_CHUNK;
-    }
-    return board;
+    const { levels } = mapFromChunks((await Promise.all(reads)).filter((chunk) => chunk !== null));
+    for (const zk of levelKeys) levels[zk] ??= {};
+    return boardWithAway(levels, away);
   }
 
   private async checkpointedBoard(

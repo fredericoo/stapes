@@ -20122,6 +20122,14 @@ so a chunk is back before anybody can see it.
   there, and nothing can write a cell the store would then overwrite. It is
   put in every present level, not only those the chunk had cells on, so a
   flying creature cannot rise over the wall into air.
+- **The unloaded chunks are a level's prototype, not its own keys.** Every
+  level of a board has the same frozen record of unloaded chunks as its
+  prototype (`boardWithAway`), so a read or a `for...in` finds them and
+  `Object.keys` and a spread do not. With each level holding all of them as
+  keys, the full island's ground level had 5,040 keys, every edit after a seal
+  copied it, and copying levels was a third of the server's CPU with one
+  player on. A level is copied with `copyLevel`, never a spread, and
+  `loadChunks` and `unloadChunks` make a new prototype for every level at once.
 - **Going out or coming back is not a change.** `changedCellsOnLevel` and
   `changedChunkKeysOnLevel` skip a chunk on either side of that swap, so
   clients are sent nothing and `sweepRespawnCells` does not see every spawn
@@ -20184,9 +20192,9 @@ the index, and hand the session only the kept chunks
   While the world ticks, the join waits for ticks to put its chunks back
   (`chunkWaiters`), so other players' ticks do not stall while 121 chunks go
   in; on an idle world they go in at once.
-- **`shareMap` keeps `UNLOADED_CHUNK` as it is.** It copies every other chunk,
-  and a copy of the sentinel is an empty real chunk, which the first
-  checkpoint would write over the stored row.
+- **`shareMap` keeps the unloaded chunks as they are.** It copies every other
+  chunk and keeps the prototype, because a copy of the sentinel is an empty
+  real chunk, which the first checkpoint would write over the stored row.
 - **What it costs.** Measured with `server.step()` on a fresh store and then
   on a restart, `data/map.json` as it is (969 chunks) and tiled 2×2
   (3,860 chunks):
