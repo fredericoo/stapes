@@ -14,7 +14,7 @@ const { values } = parseArgs({
 
 const env = process.env;
 
-/** `thelaststones.com` is read as `https://thelaststones.com`. */
+/** `runeisle.com` is read as `https://runeisle.com`. */
 function withScheme(url: string): string {
   return /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`;
 }

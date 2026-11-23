@@ -18438,7 +18438,7 @@ Not yet fixed, and worth knowing before you profile something else:
 
 ## A bot is a player in another process
 
-`bun run bots --qty 10 --url thelaststones.com` plays ten bots. Each signs in
+`bun run bots --qty 10 --url runeisle.com` plays ten bots. Each signs in
 to an account like anybody else, opens `/online/ws` with the session cookie,
 and plays through a `RemoteSession`, the same client state the browser keeps. The world cannot
 tell it from a person, and nothing on the server was added for it. It never

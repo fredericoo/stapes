@@ -3,7 +3,7 @@
  * need an absolute image URL, and the public pages are prerendered, so the
  * origin is written down rather than read. @see docs/deploy.md
  */
-export const CANONICAL_ORIGIN = "https://thelaststones.com";
+export const CANONICAL_ORIGIN = "https://runeisle.com";
 
 /**
  * Every file in `./media`, by name, as the URL the build gives it. The build
