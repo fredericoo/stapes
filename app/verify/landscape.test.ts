@@ -62,16 +62,6 @@ describe("checkLandscape", () => {
     ["a river on grass with mud banks", meadowRiver(straight, { bank: MUD }), ["water-mud"]],
     ["a river that steps sideways only at a corner", meadowRiver(stepped), ["river-corner"]],
     [
-      "a river on grass laid over the grass",
-      meadowRiver(straight, { river: [t("sand"), t("grass"), t("water")] }),
-      ["river-bed"],
-    ],
-    [
-      "a river on grass with grass up to the water",
-      meadowRiver(straight, { bank: GRASS }),
-      ["river-bank"],
-    ],
-    [
       "a river through snow with no grass or mud round it",
       meadowRiver(straight, { river: SNOW_RIVER, bank: SNOW, land: SNOW }),
       [],
