@@ -176,10 +176,10 @@
                 "type": "mask",
                 "key": "peak-shoulder-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 304,
-                  "h": 216
+                  "x": 8,
+                  "y": 8,
+                  "w": 288,
+                  "h": 200
                 },
                 "props": {
                   "shape": "oval",
@@ -1651,7 +1651,7 @@
                   "weight": 1
                 }
               ],
-              "density": 2,
+              "density": 0.5,
               "onlyOn": [
                 "snow"
               ],
@@ -5619,7 +5619,7 @@
               "onlyOn": [
                 "snow"
               ],
-              "density": 22,
+              "density": 15,
               "path": null,
               "paths": 1,
               "undergrowth": [
@@ -5628,7 +5628,7 @@
                   "weight": 1
                 }
               ],
-              "undergrowthDensity": 4,
+              "undergrowthDensity": 1,
               "trees": [
                 {
                   "tile": "snowy-pine",
