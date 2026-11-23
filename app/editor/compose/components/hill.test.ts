@@ -19,6 +19,46 @@ describe("hill", () => {
     expect(walks(built, TOP, FOOT), sketch(built)).toBe(true);
   });
 
+  it.each([0, 2])(
+    "raises a small hole its mask cuts inside it, with a terrace of %i, so the hole is no pit",
+    (terrace) => {
+      const built = buildTree(
+        land(SIZE, [
+          node(
+            "hill",
+            { roughness: 0, levels: 2, terrace },
+            {
+              frame: frame(8, 4, 24, 20),
+              children: [node("mask", { op: "subtract" }, { frame: frame(11, 9, 2, 2) })],
+            },
+          ),
+        ]),
+      );
+      expect(built.elevation.get(`${TOP.x - 1},${TOP.y - 1}`), sketch(built)).toBe(2);
+      expect(walks(built, { x: TOP.x - 1, y: TOP.y - 1 }, FOOT), sketch(built)).toBe(true);
+    },
+  );
+
+  it("lowers a knob of a few cells that a mask leaves apart from the rest of its top", () => {
+    const built = buildTree(
+      land(SIZE, [
+        node(
+          "hill",
+          { roughness: 0, levels: 1, terrace: 0 },
+          {
+            frame: frame(8, 4, 24, 20),
+            children: [
+              node("mask", { shape: "rect", op: "subtract" }, { frame: frame(9, 0, 3, 20) }),
+              node("mask", { shape: "rect", op: "add" }, { frame: frame(10, 3, 1, 2) }),
+            ],
+          },
+        ),
+      ]),
+    );
+    expect(built.elevation.get("18,8") ?? 0, sketch(built)).toBe(0);
+    expect(built.elevation.get(`${TOP.x - 6},${TOP.y}`), sketch(built)).toBe(1);
+  });
+
   it("is climbed by the ramp a point of its own puts on the nearest cliff", () => {
     const built = raised({ levels: 1, ramps: [{ x: 0, y: 10 }] });
     expect(walks(built, FOOT, TOP), sketch(built)).toBe(true);
@@ -174,4 +214,40 @@ describe("the foot of a rough hill", () => {
       expect(longest, sketch(built)).toBeLessThanOrEqual(4);
     },
   );
+});
+
+describe("the terraces of a hill", () => {
+  const AREA = { w: 120, h: 90 };
+  const TERRACE = 6;
+  /** Without the jag, seeds 1 and 3 leave a straight edge longer than this. */
+  const MAX_STRAIGHT = 10;
+
+  it.each([1, 2, 3])("do not run straight along the line below them, seed %i", (seed) => {
+    const built = buildTree(
+      land(AREA, [
+        node(
+          "hill",
+          { levels: 3, terrace: TERRACE, roughness: 40 },
+          { frame: frame(10, 10, 100, 70) },
+        ),
+      ]),
+      { seed },
+    );
+    const level = (x: number, y: number) => built.elevation.get(`${x},${y}`) ?? 0;
+    const upper = (x: number, y: number) => level(x, y) >= 2;
+    let longest = 0;
+    for (const [along, across, edgeAt] of [
+      [AREA.w, AREA.h, (a: number, b: number) => upper(a, b) !== upper(a, b + 1)],
+      [AREA.h, AREA.w, (a: number, b: number) => upper(b, a) !== upper(b + 1, a)],
+    ] as const) {
+      for (let b = 0; b < across - 1; b++) {
+        let run = 0;
+        for (let a = 0; a < along; a++) {
+          run = edgeAt(a, b) ? run + 1 : 0;
+          longest = Math.max(longest, run);
+        }
+      }
+    }
+    expect(longest, sketch(built)).toBeLessThanOrEqual(MAX_STRAIGHT);
+  });
 });

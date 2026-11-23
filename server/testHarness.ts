@@ -251,3 +251,20 @@ function buildServer(
 }
 
 export { Pair };
+
+/** A compose tree of one row of grass with the spawn at `spawnX`, as `data/world.json` holds one. */
+export function rowTree(width: number, spawnX: number): string {
+  return JSON.stringify({
+    version: 2,
+    seed: 7,
+    root: {
+      type: "group",
+      key: "row",
+      frame: { x: 0, y: 0, w: width, h: 1 },
+      children: [
+        { type: "fill", key: "ground", props: { tiles: ["grass"], edge: [], mode: "whole stack" } },
+        { type: "tile", key: "spawn", props: { tile: "player", at: { x: spawnX, y: 0 } } },
+      ],
+    },
+  });
+}

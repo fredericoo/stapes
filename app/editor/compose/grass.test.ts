@@ -65,6 +65,27 @@ describe("grass", () => {
     expect(sand).toEqual([]);
     expect(ids(map, 15, 15)).toEqual(["sand", "grass"]);
   });
+
+  it("lays no speck of grass apart from the rest, and keeps a piece of at least 16 cells", () => {
+    const apart = (w: number, h: number): MapNode => ({
+      type: "grass",
+      key: "grass",
+      children: [
+        { type: "mask", key: "east", frame: { x: 20, y: 0, w: 20, h: 30 }, props: {} },
+        {
+          type: "mask",
+          key: "piece",
+          frame: { x: 28, y: 12, w, h },
+          props: { shape: "rect", op: "add" },
+        },
+      ],
+    });
+    const speck = build([apart(3, 3)], { beach: 0 });
+    expect(ids(speck, 29, 13)).toEqual(["sand"]);
+    expect(ids(speck, 10, 15)).toEqual(["sand", "grass"]);
+    const piece = build([apart(4, 4)], { beach: 0 });
+    expect(ids(piece, 29, 13)).toEqual(["sand", "grass"]);
+  });
 });
 
 describe("an island's beach", () => {

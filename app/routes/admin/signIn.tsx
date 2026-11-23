@@ -6,7 +6,7 @@ import { fetchMe, signOut, type Me } from "../../lib/auth";
 
 export async function clientLoader() {
   const me = await fetchMe();
-  if (me.user?.role === "ADMIN") throw redirect("/admin/map");
+  if (me.user?.role === "ADMIN") throw redirect("/admin/compose");
   return { me };
 }
 
@@ -21,7 +21,7 @@ export default function AdminSignIn() {
       <SignInForm
         onSignedIn={() => {
           void fetchMe().then((now) => {
-            if (now.user?.role === "ADMIN") window.location.assign("/admin/map");
+            if (now.user?.role === "ADMIN") window.location.assign("/admin/compose");
             else setMe(now);
           });
         }}

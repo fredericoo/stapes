@@ -1096,14 +1096,14 @@ describe("hill", () => {
       {
         type: "mask",
         key: "pit",
-        frame: { x: 14, y: 10, w: 6, h: 6 },
+        frame: { x: 12, y: 8, w: 10, h: 10 },
         props: { shape: "rect", op: "subtract" },
       },
     ]);
     expect(topLevel(map, 18, 14)).toBe(0);
     expect(getStack(map, 18, 14, 0).some((p) => p.tileId === "hill-wall")).toBe(false);
-    expect(topLevel(map, 15, 14)).toBe(1);
-    expect(getStack(map, 15, 14, 1)[0]?.tileId).toBe("grass-brink");
+    expect(topLevel(map, 13, 14)).toBe(1);
+    expect(getStack(map, 13, 14, 1)[0]?.tileId).toBe("grass-brink");
   });
 });
 

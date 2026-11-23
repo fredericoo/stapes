@@ -176,10 +176,10 @@
                 "type": "mask",
                 "key": "peak-shoulder-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 304,
-                  "h": 216
+                  "x": 8,
+                  "y": 8,
+                  "w": 288,
+                  "h": 200
                 },
                 "props": {
                   "shape": "oval",
@@ -396,11 +396,18 @@
               "h": 72
             },
             "props": {
-              "tiles": ["lava", "lava-crust"],
-              "edge": ["lava-crust"],
+              "tiles": [
+                "lava",
+                "lava-crust"
+              ],
+              "edge": [
+                "lava-crust"
+              ],
               "edgeWidth": 1,
               "mode": "replace",
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             },
             "children": [
               {
@@ -430,11 +437,18 @@
               "h": 72
             },
             "props": {
-              "tiles": ["lava", "lava-crust"],
-              "edge": ["lava-crust"],
+              "tiles": [
+                "lava",
+                "lava-crust"
+              ],
+              "edge": [
+                "lava-crust"
+              ],
               "edgeWidth": 1,
               "mode": "replace",
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             },
             "children": [
               {
@@ -450,6 +464,47 @@
                   "shape": "oval",
                   "op": "intersect",
                   "ragged": 55
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "oasis",
+            "frame": {
+              "x": 1008,
+              "y": 528,
+              "w": 56,
+              "h": 40
+            },
+            "props": {
+              "tiles": [
+                "water"
+              ],
+              "edge": [
+                "dirt"
+              ],
+              "edgeWidth": 1,
+              "mode": "replace",
+              "onlyOn": [
+                "sand"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "oasis-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 56,
+                  "h": 40
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30,
+                  "raggedScale": 12
                 }
               }
             ]
@@ -474,9 +529,11 @@
                   "weight": 1
                 }
               ],
-              "density": 4,
-              "onlyOn": ["sand"],
-              "clumping": 95,
+              "density": 0.6,
+              "onlyOn": [
+                "sand"
+              ],
+              "clumping": 40,
               "clumpSize": 16,
               "spacing": 2
             },
@@ -529,8 +586,10 @@
                   "weight": 1
                 }
               ],
-              "density": 4,
-              "onlyOn": ["sand"],
+              "density": 0.8,
+              "onlyOn": [
+                "sand"
+              ],
               "clumping": 30,
               "spacing": 1
             },
@@ -568,7 +627,9 @@
                 }
               ],
               "density": 3,
-              "onlyOn": ["basalt"]
+              "onlyOn": [
+                "basalt"
+              ]
             }
           },
           {
@@ -811,8 +872,13 @@
               "h": 104
             },
             "props": {
-              "tiles": ["water", "deep-water"],
-              "edge": ["water"],
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
               "edgeWidth": 2,
               "mode": "replace"
             },
@@ -829,7 +895,8 @@
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 30
+                  "ragged": 30,
+                  "raggedScale": 12
                 }
               },
               {
@@ -859,21 +926,29 @@
               "h": 144
             },
             "props": {
-              "tiles": ["mud", "water", "swamp"],
-              "edge": ["mud"],
+              "tiles": [
+                "mud",
+                "water",
+                "swamp"
+              ],
+              "edge": [
+                "mud"
+              ],
               "edgeWidth": 2,
               "mode": "replace",
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             },
             "children": [
               {
                 "type": "mask",
                 "key": "bog-shape",
                 "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 184,
-                  "h": 144
+                  "x": 8,
+                  "y": 8,
+                  "w": 168,
+                  "h": 128
                 },
                 "props": {
                   "shape": "oval",
@@ -927,7 +1002,11 @@
                 }
               ],
               "density": 18,
-              "onlyOn": ["mud", "swamp", "water"],
+              "onlyOn": [
+                "mud",
+                "swamp",
+                "water"
+              ],
               "clumping": 50
             }
           },
@@ -956,7 +1035,24 @@
                 }
               ],
               "density": 3,
-              "onlyOn": ["mud"]
+              "onlyOn": [
+                "mud"
+              ]
+            }
+          },
+          {
+            "type": "clear",
+            "key": "bog-grass-specks",
+            "frame": {
+              "x": 151,
+              "y": 677,
+              "w": 10,
+              "h": 10
+            },
+            "props": {
+              "remove": [
+                "grass"
+              ]
             }
           },
           {
@@ -969,10 +1065,16 @@
               "h": 7
             },
             "props": {
-              "tiles": ["mud"],
+              "tiles": [
+                "mud"
+              ],
               "edge": [],
               "mode": "replace",
-              "onlyOn": ["water", "swamp", "mud"]
+              "onlyOn": [
+                "water",
+                "swamp",
+                "mud"
+              ]
             }
           },
           {
@@ -1060,7 +1162,10 @@
               "h": 464
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 60,
               "path": null,
               "paths": 1,
@@ -1224,7 +1329,9 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             }
           },
           {
@@ -1260,6 +1367,21 @@
                 }
               }
             ]
+          },
+          {
+            "type": "clear",
+            "key": "south-mesa-grass-specks",
+            "frame": {
+              "x": 898,
+              "y": 642,
+              "w": 8,
+              "h": 8
+            },
+            "props": {
+              "remove": [
+                "grass"
+              ]
+            }
           },
           {
             "type": "hill",
@@ -1305,7 +1427,10 @@
               "h": 80
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 45,
               "path": null,
               "paths": 1,
@@ -1339,7 +1464,10 @@
               "h": 100
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 40,
               "path": null,
               "paths": 1,
@@ -1387,7 +1515,9 @@
               "h": 44
             },
             "props": {
-              "onlyOn": ["grass"],
+              "onlyOn": [
+                "grass"
+              ],
               "density": 35,
               "path": null,
               "paths": 1
@@ -1479,7 +1609,13 @@
               "h": 96
             },
             "props": {
-              "remove": ["tree", "old-tree", "dead-tree", "fallen-log", "tree-stump"]
+              "remove": [
+                "tree",
+                "old-tree",
+                "dead-tree",
+                "fallen-log",
+                "tree-stump"
+              ]
             },
             "children": [
               {
@@ -1515,8 +1651,10 @@
                   "weight": 1
                 }
               ],
-              "density": 2,
-              "onlyOn": ["snow"],
+              "density": 0.5,
+              "onlyOn": [
+                "snow"
+              ],
               "clumping": 40
             }
           },
@@ -1575,10 +1713,16 @@
                   "h": 22
                 },
                 "props": {
-                  "tiles": ["moss-flagstone"],
+                  "tiles": [
+                    "moss-flagstone"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand", "grass-2"]
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
                 }
               },
               {
@@ -2130,7 +2274,9 @@
                     }
                   ],
                   "density": 10,
-                  "onlyOn": ["grass"],
+                  "onlyOn": [
+                    "grass"
+                  ],
                   "clumping": 70
                 }
               }
@@ -2178,10 +2324,15 @@
                   "h": 14
                 },
                 "props": {
-                  "tiles": ["flagstone-floor"],
+                  "tiles": [
+                    "flagstone-floor"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 }
               },
               {
@@ -2975,10 +3126,15 @@
                   "h": 10
                 },
                 "props": {
-                  "tiles": ["dirt"],
+                  "tiles": [
+                    "dirt"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 },
                 "children": [
                   {
@@ -3306,10 +3462,15 @@
                   "h": 3
                 },
                 "props": {
-                  "tiles": ["moss-flagstone"],
+                  "tiles": [
+                    "moss-flagstone"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass", "sand"]
+                  "onlyOn": [
+                    "grass",
+                    "sand"
+                  ]
                 },
                 "children": [
                   {
@@ -3395,7 +3556,10 @@
                       "shape": "oval",
                       "op": "subtract",
                       "ragged": 60,
-                      "only": ["sw2", "door-closed"]
+                      "only": [
+                        "sw2",
+                        "door-closed"
+                      ]
                     }
                   }
                 ]
@@ -3441,7 +3605,11 @@
                       "shape": "oval",
                       "op": "subtract",
                       "ragged": 60,
-                      "only": ["sw2", "brick-wall", "door-closed"]
+                      "only": [
+                        "sw2",
+                        "brick-wall",
+                        "door-closed"
+                      ]
                     }
                   }
                 ]
@@ -3479,7 +3647,11 @@
                     }
                   ],
                   "density": 8,
-                  "onlyOn": ["sand", "grass", "flagstone-floor"],
+                  "onlyOn": [
+                    "sand",
+                    "grass",
+                    "flagstone-floor"
+                  ],
                   "clumping": 40
                 }
               }
@@ -3716,10 +3888,14 @@
                   "h": 12
                 },
                 "props": {
-                  "tiles": ["grass-2"],
+                  "tiles": [
+                    "grass-2"
+                  ],
                   "edge": [],
                   "mode": "replace",
-                  "onlyOn": ["grass"]
+                  "onlyOn": [
+                    "grass"
+                  ]
                 },
                 "children": [
                   {
@@ -4084,30 +4260,23 @@
             ]
           },
           {
-            "type": "fill",
-            "key": "oasis",
+            "type": "grass",
+            "key": "oasis-grass",
             "frame": {
-              "x": 1008,
-              "y": 528,
-              "w": 56,
-              "h": 40
-            },
-            "props": {
-              "tiles": ["water"],
-              "edge": ["mud"],
-              "edgeWidth": 1,
-              "mode": "replace",
-              "onlyOn": ["sand"]
+              "x": 996,
+              "y": 516,
+              "w": 80,
+              "h": 64
             },
             "children": [
               {
                 "type": "mask",
-                "key": "oasis-shape",
+                "key": "oasis-grass-shape",
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 56,
-                  "h": 40
+                  "w": 80,
+                  "h": 64
                 },
                 "props": {
                   "shape": "oval",
@@ -4146,7 +4315,9 @@
                 }
               ],
               "density": 30,
-              "onlyOn": ["mud", "sand"]
+              "onlyOn": [
+                "grass"
+              ]
             },
             "children": [
               {
@@ -4176,7 +4347,10 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 55,
               "path": null,
               "paths": 1,
@@ -4210,7 +4384,9 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass"],
+              "onlyOn": [
+                "grass"
+              ],
               "density": 45,
               "path": null,
               "paths": 1,
@@ -4244,7 +4420,10 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 50,
               "path": null,
               "paths": 1
@@ -5342,7 +5521,10 @@
                 }
               ],
               "density": 10,
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "clumping": 60
             }
           },
@@ -5356,12 +5538,19 @@
               "h": 48
             },
             "props": {
-              "onlyOn": ["grass"],
-              "tree": "apple-tree",
+              "onlyOn": [
+                "grass"
+              ],
               "density": 35,
               "path": null,
               "paths": 1,
-              "undergrowthDensity": 3
+              "undergrowthDensity": 3,
+              "trees": [
+                {
+                  "tile": "apple-tree",
+                  "weight": 1
+                }
+              ]
             },
             "children": [
               {
@@ -5391,7 +5580,10 @@
               "h": 120
             },
             "props": {
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "density": 40,
               "path": null,
               "paths": 1
@@ -5415,7 +5607,7 @@
             ]
           },
           {
-            "type": "forest",
+            "type": "scatter",
             "key": "snow-pines",
             "frame": {
               "x": 472,
@@ -5424,18 +5616,17 @@
               "h": 176
             },
             "props": {
-              "onlyOn": ["snow"],
-              "tree": "snowy-pine",
-              "density": 22,
-              "path": null,
-              "paths": 1,
-              "undergrowth": [
+              "tiles": [
                 {
-                  "tile": "snowy-rock",
+                  "tile": "snowy-pine",
                   "weight": 1
                 }
               ],
-              "undergrowthDensity": 4
+              "density": 1.5,
+              "onlyOn": [
+                "snow"
+              ],
+              "clumping": 20
             },
             "children": [
               {
@@ -5497,7 +5688,10 @@
                 }
               ],
               "density": 6,
-              "onlyOn": ["grass", "grass-2"],
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ],
               "clumping": 55
             },
             "children": [
@@ -5548,7 +5742,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             }
           },
           {
@@ -5572,7 +5768,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass"]
+              "onlyOn": [
+                "grass"
+              ]
             },
             "children": [
               {
@@ -5622,7 +5820,10 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["grass", "grass-2"]
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
             },
             "children": [
               {
@@ -5662,7 +5863,10 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["mud", "swamp"]
+              "onlyOn": [
+                "mud",
+                "swamp"
+              ]
             }
           },
           {
@@ -5690,7 +5894,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["sand"]
+              "onlyOn": [
+                "sand"
+              ]
             },
             "children": [
               {
@@ -5726,7 +5932,9 @@
                 }
               ],
               "density": 2,
-              "onlyOn": ["snow"]
+              "onlyOn": [
+                "snow"
+              ]
             }
           },
           {
@@ -5750,7 +5958,9 @@
                 }
               ],
               "density": 1,
-              "onlyOn": ["sand"]
+              "onlyOn": [
+                "sand"
+              ]
             }
           },
           {
@@ -5798,7 +6008,12 @@
               "h": 46
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5811,7 +6026,12 @@
               "h": 44
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5824,7 +6044,12 @@
               "h": 18
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5837,7 +6062,12 @@
               "h": 20
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5850,7 +6080,12 @@
               "h": 24
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5863,7 +6098,12 @@
               "h": 18
             },
             "props": {
-              "remove": ["bush", "small-bush", "fallen-log", "tree-stump"]
+              "remove": [
+                "bush",
+                "small-bush",
+                "fallen-log",
+                "tree-stump"
+              ]
             }
           },
           {
@@ -5922,6 +6162,9 @@
                 "x": 553,
                 "y": 646,
                 "z": -3
+              },
+              "placement": {
+                "depotTag": "bat-cave"
               }
             }
           },
@@ -5946,6 +6189,9 @@
                 "x": 231,
                 "y": 441,
                 "z": 0
+              },
+              "placement": {
+                "depotTag": "bear-den"
               }
             }
           },
@@ -6114,6 +6360,9 @@
                 "x": 560,
                 "y": 123,
                 "z": -4
+              },
+              "placement": {
+                "depotTag": "ice-caves"
               }
             }
           },
@@ -6280,7 +6529,9 @@
             "type": "fill",
             "key": "pier-deck",
             "props": {
-              "tiles": ["wooden-floor"],
+              "tiles": [
+                "wooden-floor"
+              ],
               "edge": [],
               "mode": "whole stack"
             }

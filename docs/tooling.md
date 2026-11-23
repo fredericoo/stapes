@@ -22,7 +22,7 @@ Two inline disables:
 ## `.oxfmtrc.json`
 
 - **`**/*.md`** — oxfmt rewrites `*emphasis*` as `_emphasis_` and pads tables. Markdown is not formatted; `README.md` and `AGENTS.md` are therefore not checked either.
-- **`data/map.json`, `data/map-staging.json` and `data/tiles.json`** — these are written by `serializeMap` (one line per cell) and `writeTiles` (two-space JSON). The editor sends whole files, and saving an untouched file must rewrite nothing (`server/api.ts`, `app/routes/admin/map.tsx`). oxfmt differs from both writers by a space after the colon, which is not configurable.
+- **`data/world.json`, `data/world-staging.json`, `data/map.json` and `data/tiles.json`** — these are written by `POST /api/tree` (two-space JSON of the parsed tree), `serializeMap` (one line per cell) and `writeTiles` (two-space JSON). The editors send whole files, and saving an untouched file must rewrite nothing (`server/api.ts`). oxfmt differs from these writers by a space after the colon, which is not configurable. `data/map.json` is built by the server and is not in the repository.
 
 ## `vite.config.ts`
 

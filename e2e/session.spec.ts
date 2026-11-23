@@ -233,7 +233,7 @@ test.describe("the editors", () => {
   test("turns away a browser with no administrator behind it", async ({ page }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 60_000);
 
-    await page.goto("/admin/map", { waitUntil: "networkidle" });
+    await page.goto("/admin/compose", { waitUntil: "networkidle" });
     await expect(page.getByText("Administrators only")).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
     });

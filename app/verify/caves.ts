@@ -267,7 +267,10 @@ export function checkCaves(input: CaveCheckInput): CaveReport {
 
   for (const z of levels) {
     for (const { x, y, stack } of listCoords(live, z)) {
-      if (!stack.some((p) => p.tileId === "ramp") || !underGround(x, y, z)) continue;
+      const ramp = stack.findIndex((p) => p.tileId === "ramp");
+      if (ramp === -1 || !underGround(x, y, z)) continue;
+      /** A ramp on a block is the upper step of a flight two cells long, which is climbed from the ramp at its foot, so only the foot is judged. */
+      if (ramp > 0 && (tilesById[stack[ramp - 1]!.tileId]?.height ?? 0) > 0) continue;
       const onRamp = settle(x, y, z * HEIGHT_PER_LEVEL + 2);
       if (!onRamp || onRamp.abs !== z * HEIGHT_PER_LEVEL + 2) {
         problem("ramp-not-stood-on", x, y, z, `ramp at ${where(x, y, z)} is not stood on`);

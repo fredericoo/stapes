@@ -16,7 +16,6 @@ export default [
   ...prefix("admin", [
     index("routes/admin/_index.tsx"),
     route("sign-in", "routes/admin/signIn.tsx"),
-    route("map", "routes/admin/map.tsx"),
     route("tiles", "routes/admin/tiles.tsx"),
     route("statuses", "routes/admin/statuses.tsx"),
     route("traits", "routes/admin/traits.tsx"),

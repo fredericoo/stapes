@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getStack } from "../../../lib/mapData";
 import { buildTree, frame, isle, land, node, sketch, stands, walks } from "../testTree";
 
 const SIZE = { w: 48, h: 28 };
@@ -102,4 +103,27 @@ describe("a long road", () => {
       expect(Math.max(...off)).toBeGreaterThanOrEqual(10);
     },
   );
+});
+
+describe("a road along the top of a cliff", () => {
+  it("leaves the brink bare, since a brink stands in for every cover on it", () => {
+    const area = { w: 30, h: 20 };
+    const built = buildTree(
+      land(area, [
+        node("hill", { levels: 1, terrace: 0, roughness: 0 }, { frame: frame(0, 0, 30, 20) }),
+        node("road", { from: { x: 6, y: 5 }, to: { x: 24, y: 5 }, tile: "dirt", wander: 0 }),
+      ]),
+    );
+    const onBrinks = [];
+    const paved = [];
+    for (let y = 0; y < area.h; y++) {
+      for (let x = 0; x < area.w; x++) {
+        const ids = getStack(built.map, x, y, 1).map((p) => p.tileId);
+        if (ids.includes("dirt")) paved.push({ x, y });
+        if (ids[0] === "grass-brink" && ids.includes("dirt")) onBrinks.push({ x, y });
+      }
+    }
+    expect(paved.length, sketch(built)).toBeGreaterThan(0);
+    expect(onBrinks, sketch(built)).toEqual([]);
+  });
 });
