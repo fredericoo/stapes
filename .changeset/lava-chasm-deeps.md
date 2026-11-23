@@ -2,4 +2,4 @@
 "the-last-stones": minor
 ---
 
-The obsidian deeps in the desert are now cut open by a lava chasm. Drop from ledge to ledge down five levels of the dungeon, past lavafalls, to the lava lake at the bottom, and climb back out by the dungeon's stairs.
+A lava chasm now opens in the desert floor over the obsidian deeps. Each of the dungeon's five levels is a basalt cavern around it, with cave mouths in the cliffs. Drop from ledge to ledge past lavafalls to the lava lake at the bottom, and climb back out by the dungeon's stairs.
