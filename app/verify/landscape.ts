@@ -59,6 +59,7 @@ export const COVER_TILES: ReadonlySet<string> = new Set([
   "lava",
   "cobblestone",
   "flagstone-floor",
+  "slate-floor",
   "moss-flagstone",
   "wooden-floor",
   "half-stone",

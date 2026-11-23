@@ -161,4 +161,16 @@ describe("checkLandscape", () => {
     expect(kindsOf(desert(CROWDED_EVERY_CELLS))).toEqual(["crowded"]);
     expect(kindsOf(desert(SPARSE_EVERY_CELLS))).toEqual([]);
   });
+
+  it("does not count rubble on a ruin's slate floor as crowding the desert", () => {
+    const FLOOR_FROM = 10;
+    const FLOOR_TO = 30;
+    const onFloor = (v: number) => v >= FLOOR_FROM && v < FLOOR_TO;
+    const map = field(DESERT_CELLS, (x, y) =>
+      onFloor(x) && onFloor(y)
+        ? [...SAND, t("slate-floor"), ...((x + y) % 2 === 0 ? [t("rubble")] : [])]
+        : SAND,
+    );
+    expect(kindsOf(map)).toEqual([]);
+  });
 });
