@@ -7,8 +7,8 @@ import { formatReleaseDate, RELEASES } from "../components/releaseNotes";
 import type { Route } from "./+types/changelog";
 import "./home.css";
 
-const TITLE = "What's new · The Last Stones";
-const DESCRIPTION = "Everything that changed in The Last Stones, release by release.";
+const TITLE = "What's new · Rune Isle";
+const DESCRIPTION = "Everything that changed in Rune Isle, release by release.";
 
 const PAGE_STYLE: CSSProperties = { fontFamily: SYSTEM_MONO, "--home-nav-h": `${NAV_HEIGHT_PX}px` };
 

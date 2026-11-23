@@ -15,7 +15,7 @@ import { useOnScreen } from "../components/home/useOnScreen";
 import type { Route } from "./+types/home";
 import "./home.css";
 
-const TITLE = "The Last Stones";
+const TITLE = "Rune Isle";
 const DESCRIPTION =
   "A hardcore retro MMORPG that runs in your browser, on phone or computer. No levels, no classes: you get better at what you do.";
 
@@ -49,7 +49,7 @@ export function meta(): Route.MetaDescriptors {
     { property: "og:image:height", content: String(SHARE_IMAGE.height) },
     {
       property: "og:image:alt",
-      content: "The Last Stones logo over the Gilded Barrel inn at midday, in pixel art.",
+      content: "Rune Isle logo over the Gilded Barrel inn at midday, in pixel art.",
     },
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: TITLE },
@@ -101,7 +101,7 @@ export default function HomePage() {
         </main>
         <footer className="home-footer">
           <p>
-            The Last Stones, in alpha ·{" "}
+            Rune Isle, in alpha ·{" "}
             <a href={DISCORD_INVITE} rel="noreferrer" target="_blank">
               Discord
             </a>

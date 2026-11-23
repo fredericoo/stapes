@@ -71,7 +71,7 @@ jobs:
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body,url > release.json
           jq --arg tag "$TAG" '{
             embeds: [{
-              title: "The Last Stones \($tag)",
+              title: "Rune Isle \($tag)",
               url: .url,
               description: (.url as $url | .body
                 | gsub("### Major Changes"; "### Big changes")

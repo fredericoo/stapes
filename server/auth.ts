@@ -24,7 +24,7 @@ const GUEST_EMAIL_DOMAIN = "guest.stapes.invalid";
 
 export function createAuth(db: Database, config: Config, secret: string) {
   return betterAuth({
-    appName: "The Last Stones",
+    appName: "Rune Isle",
     secret,
     baseURL: config.PUBLIC_ORIGIN,
     basePath: "/api/auth",

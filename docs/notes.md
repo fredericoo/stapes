@@ -1,4 +1,4 @@
-# Agent notes — The Last Stones
+# Agent notes — Rune Isle
 
 ## The server is a Bun process that stays up
 

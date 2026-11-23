@@ -1,4 +1,4 @@
-# The Last Stones
+# Rune Isle
 
 A multiplayer tile game, and the editors that make its world. Each tile is 8×8
 pixels, drawn in an oblique cabinet projection with Three.js. One Bun process
