@@ -469,6 +469,47 @@
             ]
           },
           {
+            "type": "fill",
+            "key": "oasis",
+            "frame": {
+              "x": 1008,
+              "y": 528,
+              "w": 56,
+              "h": 40
+            },
+            "props": {
+              "tiles": [
+                "water"
+              ],
+              "edge": [
+                "dirt"
+              ],
+              "edgeWidth": 1,
+              "mode": "replace",
+              "onlyOn": [
+                "sand"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "oasis-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 56,
+                  "h": 40
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30,
+                  "raggedScale": 12
+                }
+              }
+            ]
+          },
+          {
             "type": "scatter",
             "key": "dunes",
             "frame": {
@@ -488,11 +529,11 @@
                   "weight": 1
                 }
               ],
-              "density": 4,
+              "density": 0.6,
               "onlyOn": [
                 "sand"
               ],
-              "clumping": 95,
+              "clumping": 40,
               "clumpSize": 16,
               "spacing": 2
             },
@@ -545,7 +586,7 @@
                   "weight": 1
                 }
               ],
-              "density": 4,
+              "density": 0.8,
               "onlyOn": [
                 "sand"
               ],
@@ -4219,36 +4260,23 @@
             ]
           },
           {
-            "type": "fill",
-            "key": "oasis",
+            "type": "grass",
+            "key": "oasis-grass",
             "frame": {
-              "x": 1008,
-              "y": 528,
-              "w": 56,
-              "h": 40
-            },
-            "props": {
-              "tiles": [
-                "water"
-              ],
-              "edge": [
-                "dirt"
-              ],
-              "edgeWidth": 1,
-              "mode": "replace",
-              "onlyOn": [
-                "sand"
-              ]
+              "x": 996,
+              "y": 516,
+              "w": 80,
+              "h": 64
             },
             "children": [
               {
                 "type": "mask",
-                "key": "oasis-shape",
+                "key": "oasis-grass-shape",
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 56,
-                  "h": 40
+                  "w": 80,
+                  "h": 64
                 },
                 "props": {
                   "shape": "oval",
@@ -4288,8 +4316,7 @@
               ],
               "density": 30,
               "onlyOn": [
-                "mud",
-                "sand"
+                "grass"
               ]
             },
             "children": [
