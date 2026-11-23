@@ -1,4 +1,4 @@
-# the-last-stones
+# rune-isle
 
 ## 0.25.0
 

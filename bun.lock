@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "the-last-stones",
+      "name": "rune-isle",
       "dependencies": {
         "@dnd-kit/dom": "^0.5.0",
         "@tanstack/ai": "^0.63.0",

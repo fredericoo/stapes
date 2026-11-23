@@ -4,7 +4,7 @@ import { parseChangelog } from "./changelog";
 describe("parseChangelog", () => {
   it("reads releases newest first, with player-facing section titles", () => {
     const markdown = [
-      "# the-last-stones",
+      "# rune-isle",
       "",
       "## 0.2.0",
       "",
@@ -45,6 +45,6 @@ describe("parseChangelog", () => {
   });
 
   it("has no releases before the first one is written", () => {
-    expect(parseChangelog("# the-last-stones\n")).toEqual([]);
+    expect(parseChangelog("# rune-isle\n")).toEqual([]);
   });
 });
