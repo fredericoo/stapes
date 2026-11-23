@@ -59,8 +59,8 @@ const OPPOSITE: Record<Direction, Direction> = { n: "s", s: "n", e: "w", w: "e" 
 /** Stairs climb north or west first, so the flight is drawn rising away from the camera. */
 const CLIMBS: readonly Direction[] = ["n", "w", "e", "s"];
 const STAIR_BLOCK = "half-stone";
-const LADDER_UP = "ladder-up";
-const LADDER_TOP = "ladder-top";
+export const LADDER_UP = "ladder-up";
+export const LADDER_TOP = "ladder-top";
 const SIDEWAYS: Record<Direction, Cell> = {
   n: { x: 1, y: 0 },
   s: { x: 1, y: 0 },

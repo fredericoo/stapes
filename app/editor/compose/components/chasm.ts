@@ -1,12 +1,13 @@
 import * as v from "valibot";
 import { getStack, type StackEdit } from "../../../lib/mapData";
-import type { MapFile, PlacedTile, TileDef } from "../../../lib/types";
+import type { Direction, MapFile, PlacedTile, TileDef } from "../../../lib/types";
 import { HEIGHT_PER_LEVEL } from "../../../lib/types";
-import { placed, type Bounds } from "../../generator";
+import { placed, valueNoise, type Bounds } from "../../generator";
 import { brinkOf, groundOf } from "../brinks";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import type { Point } from "../doc";
+import { LADDER_TOP, LADDER_UP } from "./cave";
 import { isWet } from "./line";
 import { maskShape } from "./mask";
 
@@ -24,6 +25,8 @@ export const ChasmSchema = v.object({
   bottom: v.optional(v.picklist(Object.keys(BOTTOMS) as Array<keyof typeof BOTTOMS>), "lava"),
   /** Points on the rim where lava pours in and runs down every ledge to the bottom. */
   cascades: v.optional(field.points(), []),
+  /** How far, in cells, each level's floor runs back under the rock round the chasm, so the level is a cavern with the chasm in it. 0 leaves a bare ledge. */
+  cavern: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(12)), 5),
   /** How many tunnels join each level's cave to each dry part of its ledge. */
   openings: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3)), 1),
 });
@@ -70,6 +73,7 @@ export type ChasmPlan = {
   readonly holes: ReadonlyArray<ReadonlySet<string>>;
   readonly box: Bounds;
   readonly props: ChasmProps;
+  readonly seed: number;
 };
 
 /**
@@ -131,7 +135,7 @@ export function planChasm(
     maxX: shape.minX + shape.width + 1,
     maxY: shape.minY + shape.height + 1,
   };
-  return { holes, box, props };
+  return { holes, box, props, seed };
 }
 
 type Lay = {
@@ -227,12 +231,15 @@ function dryPieces(
   plan: ChasmPlan,
   i: number,
   stackAt: (x: number, y: number) => readonly PlacedTile[],
+  cavern: ReadonlySet<string>,
 ): Array<Set<string>> {
   const pieces: Array<Set<string>> = [];
   const taken = new Set<string>();
-  for (const k of plan.holes[i]!) {
+  const floor = (x: number, y: number) =>
+    (isLedge(plan, i, x, y) || cavern.has(key(x, y))) && !soaked(stackAt(x, y));
+  for (const k of [...plan.holes[i]!, ...cavern]) {
     const [x, y] = k.split(",").map(Number) as [number, number];
-    if (taken.has(k) || !isLedge(plan, i, x, y) || soaked(stackAt(x, y))) continue;
+    if (taken.has(k) || !floor(x, y)) continue;
     const piece = new Set([k]);
     taken.add(k);
     const queue: Cell[] = [{ x, y }];
@@ -242,7 +249,7 @@ function dryPieces(
         const nx = c.x + dx;
         const ny = c.y + dy;
         const nk = key(nx, ny);
-        if (taken.has(nk) || !isLedge(plan, i, nx, ny) || soaked(stackAt(nx, ny))) continue;
+        if (taken.has(nk) || !floor(nx, ny)) continue;
         taken.add(nk);
         piece.add(nk);
         queue.push({ x: nx, y: ny });
@@ -251,6 +258,148 @@ function dryPieces(
     pieces.push(piece);
   }
   return pieces;
+}
+
+/**
+ * Hollows each level out behind the cliff round its ledge, `cavern` cells
+ * deep give or take half as many again, so the level is a cave with the chasm
+ * in the middle of it rather than a ledge in a shaft. The cliff itself stays:
+ * it is the face under the ledge above, and without it that ledge is drawn
+ * hanging in the air. It is opened every few cells onto the ledge instead,
+ * as a cave mouth where the face is drawn. The hollow runs only through rock
+ * a tunnel could cut, never by a flight of stairs or out from under the
+ * ground, and is walled where it ends. It runs after the cascades are poured,
+ * so their lava stays on the ledges.
+ */
+export function openCaverns(
+  lay: Lay,
+  plan: ChasmPlan,
+): { edits: StackEdit[]; caverns: Array<Set<string>> } {
+  const edits: StackEdit[] = [];
+  const caverns: Array<Set<string>> = [];
+  const reach = plan.props.cavern;
+  const tile = (id: string, direction?: Direction) => placed(id, lay.tilesById, direction);
+  for (let i = 0; i < plan.holes.length - 1; i++) {
+    const z = lay.z - i;
+    const cavern = new Set<string>();
+    caverns.push(cavern);
+    if (reach === 0) continue;
+    const limit = (x: number, y: number) =>
+      reach * (0.5 + valueNoise(x, y, plan.seed ^ (0x5ca1 + i), reach * 2));
+    const climbs = (x: number, y: number, level: number) =>
+      getStack(lay.map, x, y, level).some(
+        (p) => p.direction || p.tileId === LADDER_UP || p.tileId === LADDER_TOP,
+      );
+    /**
+     * A flight lands two cells past its top step, so floor that close to one
+     * would be a lower floor to step onto in place of its landing, and floor
+     * over one would close the shaft it is climbed out of.
+     */
+    const nearStairs = (x: number, y: number) => {
+      if (climbs(x, y, z - 1)) return true;
+      for (let dy = -STAIR_CLEARANCE; dy <= STAIR_CLEARANCE; dy++) {
+        for (let dx = -STAIR_CLEARANCE; dx <= STAIR_CLEARANCE; dx++) {
+          if (climbs(x + dx, y + dy, z)) return true;
+        }
+      }
+      return false;
+    };
+    const roofed = (x: number, y: number) => {
+      for (let level = z + 1; level <= Math.max(lay.raisedAt(x, y), z + 1); level++) {
+        if (getStack(lay.map, x, y, level).length > 0) return true;
+      }
+      return false;
+    };
+    const steps = new Map<string, number>();
+    const queue: Cell[] = [];
+    const ring = new Set<string>();
+    for (let y = plan.box.minY; y <= plan.box.maxY; y++) {
+      for (let x = plan.box.minX; x <= plan.box.maxX; x++) {
+        if (isOpen(plan, i, x, y) || !beside(plan, i, x, y)) continue;
+        ring.add(key(x, y));
+        steps.set(key(x, y), 0);
+        queue.push({ x, y });
+      }
+    }
+    for (let head = 0; head < queue.length; head++) {
+      const c = queue[head]!;
+      const at = steps.get(key(c.x, c.y))!;
+      for (const [dx, dy] of N4) {
+        const x = c.x + dx;
+        const y = c.y + dy;
+        const k = key(x, y);
+        if (steps.has(k) || isOpen(plan, i, x, y)) continue;
+        if (at + 1 > limit(x, y)) continue;
+        if (!cuttable(getStack(lay.map, x, y, z), lay.tilesById)) continue;
+        if (nearStairs(x, y) || !roofed(x, y)) continue;
+        steps.set(k, at + 1);
+        cavern.add(k);
+        queue.push({ x, y });
+      }
+    }
+    for (const k of cavern) {
+      const [x, y] = k.split(",").map(Number) as [number, number];
+      edits.push({ x, y, z, stack: [tile(plan.props.floor)] });
+    }
+    const mouths: Cell[] = [];
+    for (const k of ring) {
+      const [x, y] = k.split(",").map(Number) as [number, number];
+      if (mouths.some((m) => Math.abs(m.x - x) + Math.abs(m.y - y) < MOUTH_SPACING)) continue;
+      if (nearStairs(x, y)) continue;
+      const facing = MOUTH_FACES.find(({ dx, dy }) => {
+        const inside =
+          isLedge(plan, i, x + dx, y + dy) && !soaked(getStack(lay.map, x + dx, y + dy, z));
+        return inside && cavern.has(key(x - dx, y - dy));
+      });
+      if (!facing) continue;
+      mouths.push({ x, y });
+      cavern.add(k);
+      edits.push({
+        x,
+        y,
+        z,
+        stack: facing.drawn
+          ? [tile(plan.props.floor), tile(mouthOf(plan.props.wall, lay.tilesById), facing.drawn)]
+          : [tile(plan.props.floor)],
+      });
+    }
+    const walled = new Set<string>();
+    for (const k of cavern) {
+      const [x, y] = k.split(",").map(Number) as [number, number];
+      for (const [dx, dy] of N8) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const nk = key(nx, ny);
+        if (cavern.has(nk) || walled.has(nk) || isOpen(plan, i, nx, ny)) continue;
+        if (getStack(lay.map, nx, ny, z).length > 0 || climbs(nx, ny, z - 1)) continue;
+        walled.add(nk);
+        edits.push({ x: nx, y: ny, z, stack: [tile(plan.props.floor), tile(plan.props.wall)] });
+      }
+    }
+  }
+  return { edits, caverns };
+}
+
+const STAIR_CLEARANCE = 2;
+/** How far apart, along the cliff round one level's ledge, two ways into its cavern are. */
+const MOUTH_SPACING = 9;
+/**
+ * The ways a ledge can lie from the cliff behind it. Only a south or east face
+ * of a cliff is drawn, so only there is the way in drawn as a cave mouth; on
+ * the other sides the cliff is simply left open.
+ */
+const MOUTH_FACES = [
+  { dx: 0, dy: 1, drawn: "s" },
+  { dx: 1, dy: 0, drawn: "e" },
+  { dx: 0, dy: -1, drawn: null },
+  { dx: -1, dy: 0, drawn: null },
+] as const;
+const HILL_WALL = "hill-wall";
+const CAVE_MOUTH = "hill-cave-mouth";
+
+function mouthOf(wall: string, tilesById: Record<string, TileDef>): string {
+  const matching = wall.startsWith(HILL_WALL) ? CAVE_MOUTH + wall.slice(HILL_WALL.length) : "";
+  return tilesById[matching] ? matching : CAVE_MOUTH;
 }
 
 /** How far from a ledge a tunnel may run to find the cave. */
@@ -270,6 +419,7 @@ export function openOntoLedges(
   lay: Lay,
   plan: ChasmPlan,
   floors: ReadonlyArray<ReadonlySet<string>>,
+  caverns: ReadonlyArray<ReadonlySet<string>>,
 ): StackEdit[] {
   const edits: StackEdit[] = [];
   const tile = (id: string) => placed(id, lay.tilesById);
@@ -279,7 +429,18 @@ export function openOntoLedges(
     if (floor.size === 0) continue;
     const written = new Map<string, PlacedTile[]>();
     const stackAt = (x: number, y: number) => written.get(key(x, y)) ?? getStack(lay.map, x, y, z);
-    const pieces = dryPieces(plan, i, (x, y) => getStack(lay.map, x, y, z));
+    const pieces = dryPieces(
+      plan,
+      i,
+      (x, y) => getStack(lay.map, x, y, z),
+      caverns[i] ?? new Set(),
+    ).filter(
+      (piece) =>
+        ![...piece].some((k) => {
+          const [x, y] = k.split(",").map(Number) as [number, number];
+          return N4.some(([dx, dy]) => floor.has(key(x + dx, y + dy)));
+        }),
+    );
     const starts: Cell[] = [];
     for (let n = 0; n < plan.props.openings * pieces.length; n++) {
       const piece = pieces[n % pieces.length]!;
@@ -298,7 +459,7 @@ export function openOntoLedges(
           const nx = x + dx;
           const ny = y + dy;
           const nk = key(nx, ny);
-          if (isOpen(plan, i, nx, ny) || seen.has(nk)) continue;
+          if (isOpen(plan, i, nx, ny) || piece.has(nk) || seen.has(nk)) continue;
           if (!cuttable(stackAt(nx, ny), lay.tilesById)) continue;
           seen.set(nk, null);
           queue.push({ x: nx, y: ny });
@@ -348,6 +509,7 @@ export function openOntoLedges(
           const y = c.y + dy;
           const k = key(x, y);
           if (cut.has(k) || isOpen(plan, i, x, y) || stackAt(x, y).length > 0) continue;
+          if (getStack(lay.map, x, y, z - 1).some((p) => p.direction)) continue;
           written.set(k, [{ ...ground }, tile(plan.props.wall)]);
         }
       }

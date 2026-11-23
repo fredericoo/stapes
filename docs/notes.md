@@ -16417,6 +16417,15 @@ level's opening is the pool `bottom` fills, lava unless set otherwise.
   cannot walk between with dry feet, so the tunnels are cut after the
   cascades are poured; with one tunnel per level, `verify stranded` found the
   part it missed.
+- **Each level is hollowed out behind its cliff.** `openCaverns` cuts the
+  rock behind the cliff round each ledge back `cavern` cells, so the level is
+  a cave with the chasm in it. The cliff itself is kept and only opened every
+  few cells: it is the face drawn under the ledge above, and with it cut away
+  that ledge was drawn hanging in the air with no face under its brink. The
+  openings on south and east faces are cave mouths, since only those faces are
+  drawn. The hollow keeps two cells from any flight of stairs: floor beside a
+  flight's top step is a lower floor stepped onto in place of its landing, and
+  walling an empty cell next to the hollow closed the shaft over a flight.
 - **A ledge is the only way down and the stairs the only way up.** Walking off
   a ledge drops a body to the next one (no fall damage). A fall that would land
   in lava is refused like one into water, so the pool is seen from every ledge

@@ -9,6 +9,7 @@ import { CaveSchema, cave } from "./cave";
 import {
   CHASM_TYPE,
   cutChasm,
+  openCaverns,
   openOntoLedges,
   planChasm,
   pourCascades,
@@ -135,7 +136,10 @@ export const dungeon: Component<DungeonProps> = {
       const poured = pourCascades(lay(), plan, plan.props.cascades, part.point);
       map = setStacks(map, poured);
       edits.push(...poured);
-      const opened = openOntoLedges(lay(), plan, floors);
+      const hollowed = openCaverns(lay(), plan);
+      map = setStacks(map, hollowed.edits);
+      edits.push(...hollowed.edits);
+      const opened = openOntoLedges(lay(), plan, floors, hollowed.caverns);
       map = setStacks(map, opened);
       edits.push(...opened);
     }

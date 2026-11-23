@@ -65,13 +65,22 @@ describe("chasm", () => {
   });
 
   it("brings somebody on the bottom ledge back to the surface through the dungeon", () => {
-    const sealed = buildTree(dungeon({ openings: 0 }));
+    const sealed = buildTree(dungeon({ openings: 0, cavern: 0 }));
     const stuck = ledges(sealed, -3)[0]!;
     expect(walks(sealed, stuck, OUTSIDE)).toBe(false);
 
     const built = buildTree(dungeon({}));
     for (const z of LEVELS) {
       expect(walks(built, ledges(built, z)[0]!, OUTSIDE), `level ${z}`).toBe(true);
+    }
+  });
+
+  it("opens every level out round the chasm into the cave dug on it", () => {
+    const narrow = buildTree(dungeon({ openings: 0, cavern: 0 }));
+    const wide = buildTree(dungeon({ openings: 0 }));
+    for (const z of LEVELS) {
+      expect(walks(narrow, ledges(narrow, z)[0]!, OUTSIDE), `level ${z}`).toBe(false);
+      expect(walks(wide, ledges(wide, z)[0]!, OUTSIDE), `level ${z}`).toBe(true);
     }
   });
 
