@@ -1409,7 +1409,10 @@ export function shareMap(map: MapFile, pool = new StackPool()): MapFile {
   for (const zk in map.levels) {
     const level: LevelChunks = {};
     const from = map.levels[zk]!;
-    for (const chk in from) level[chk] = shareCells(from[chk]!, pool, true);
+    for (const chk in from) {
+      const cells = from[chk]!;
+      level[chk] = cells === UNLOADED_CHUNK ? UNLOADED_CHUNK : shareCells(cells, pool, true);
+    }
     levels[zk] = level;
   }
   return { version: MAP_FILE_VERSION, levels };
