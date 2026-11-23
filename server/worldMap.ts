@@ -101,7 +101,10 @@ export async function prebuildWorldMap(dataDir: string, treeFile: string): Promi
  * build child does not load the game.
  */
 export async function prepareStartingWorld(dataDir: string, stem: string, text: string) {
-  const { startingWorldOf, writeStartingWorld } = await import("./startingWorld");
+  const [{ startingWorldOf }, { writeStartingWorld }] = await Promise.all([
+    import("./startingWorld"),
+    import("./startingWorldFile"),
+  ]);
   const { DataStore } = await import("../app/lib/dataStore");
   const { DiskBlobs } = await import("./blobs");
   const { parseSharedMap } = await import("../app/lib/mapData");
@@ -145,7 +148,7 @@ export async function readPrebuiltStart(
   try {
     if ((await readFile(paths.inputs, "utf8")) !== inputs) return null;
     const hash = await readFile(paths.hash, "utf8");
-    const { readStartingWorld } = await import("./startingWorld");
+    const { readStartingWorld } = await import("./startingWorldFile");
     const start = await readStartingWorld(paths.stem, traitsHash(traits));
     if (!start) return null;
     return { hash, start, mapPath: paths.map };
