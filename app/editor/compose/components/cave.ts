@@ -12,6 +12,8 @@ import { isWet } from "./line";
 import { carveCrypt } from "./crypt";
 import { STEP, type Cell } from "./ramp";
 
+const DEFAULT_MOUTH = "hill-cave-mouth";
+const HILL_WALL = "hill-wall";
 const CRYPT = "crypt";
 const SHAPES = ["caverns", "veins", "tunnels", CRYPT] as const satisfies ReadonlyArray<
   CaveShape | typeof CRYPT
@@ -35,7 +37,7 @@ export const CaveSchema = v.object({
   wall: v.optional(field.tile(TILES.any)),
   /** What fills the rock a cave closes round below ground, where no wall faces its floor; its wall when left out. */
   rock: v.optional(v.nullable(field.tile(TILES.any))),
-  mouth: v.optional(field.tile(TILES.any), "hill-cave-mouth"),
+  mouth: v.optional(field.tile(TILES.any), DEFAULT_MOUTH),
   mouths: v.optional(field.points(), []),
   steps: v.optional(field.tile(TILES.stairs), "stone-stairs"),
   stairs: v.optional(field.points(), []),
@@ -577,6 +579,12 @@ export const cave: Component<CaveProps> = {
     }
 
     const tile = (id: string, direction?: Direction) => placed(id, ctx.tilesById, direction);
+    /** The default mouth comes in each hill wall's stone: `hill-wall-frost` takes `hill-cave-mouth-frost`. */
+    const mouthIn = (wall: string | undefined) => {
+      if (props.mouth !== DEFAULT_MOUTH || !wall?.startsWith(HILL_WALL)) return props.mouth;
+      const matching = DEFAULT_MOUTH + wall.slice(HILL_WALL.length);
+      return ctx.tilesById[matching] ? matching : props.mouth;
+    };
     /**
      * In a hill the floor lies on the hill's ground, which its edges show;
      * underground there is nothing under it. It is one ground for the whole
@@ -708,11 +716,12 @@ export const cave: Component<CaveProps> = {
     for (const mouth of mouths) {
       const out = STEP[mouth.facing];
       const outside = ctx.stackAt(mouth.at.x + out.x, mouth.at.y + out.y, z)[0]!;
+      const wall = ctx.stackAt(mouth.at.x, mouth.at.y, z).at(-1)?.tileId;
       edits.push({
         x: mouth.at.x,
         y: mouth.at.y,
         z,
-        stack: [{ ...outside }, tile(props.floor), tile(props.mouth, mouth.facing)],
+        stack: [{ ...outside }, tile(props.floor), tile(mouthIn(wall), mouth.facing)],
       });
     }
     /**

@@ -82,6 +82,23 @@ describe("cave", () => {
     ).toBe(true);
   });
 
+  it("cuts its mouth in the stone of the hill wall it opens in", () => {
+    const mouthsIn = (wall: string) => {
+      const built = buildTree(hillWith({ mouths: [MOUTH] }, { wall }));
+      const ids = new Set<string>();
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = 0; x < SIZE.w; x++) {
+          for (const p of getStack(built.map, x, y, 0)) {
+            if (p.tileId.startsWith("hill-cave-mouth")) ids.add(p.tileId);
+          }
+        }
+      }
+      return [...ids];
+    };
+    expect(mouthsIn("hill-wall")).toEqual(["hill-cave-mouth"]);
+    expect(mouthsIn("hill-wall-frost")).toEqual(["hill-cave-mouth-frost"]);
+  });
+
   it("is refused under a hill one level high, whose top would be its roof", () => {
     const built = buildTree(hillWith({ mouths: [MOUTH] }, { levels: 1 }), { problems: "returned" });
     expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
