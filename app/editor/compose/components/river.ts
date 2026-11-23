@@ -39,26 +39,10 @@ const SEGMENTS_PER_LEVEL = 2;
 
 const isFall = (p: PlacedTile) => p.tileId.startsWith("waterfall");
 
-/** Grass laid over sand or snow (`grass`), which a bank loses. */
-const COVER_GRASS = "grass";
-
-const AROUND = [
-  [0, -1],
-  [1, -1],
-  [1, 0],
-  [1, 1],
-  [0, 1],
-  [-1, 1],
-  [-1, 0],
-  [-1, -1],
-] as const;
-
 /**
  * Keeps the bottom tile of every dry cell it crosses and replaces the rest
  * with a bed and `water`, so a road or a tree in its way is washed out. Cells
- * that are already water, a bridge's among them, are left alone. Its banks,
- * the cells beside it on its own level, lose their grass, so the grass stops
- * a cell short of the water.
+ * that are already water, a bridge's among them, are left alone.
  *
  * Laid after a hill it runs over the hill's top, and wherever its water
  * stands above open water to the south or east it draws a waterfall down the
@@ -108,20 +92,6 @@ export const river: Component<RiverProps> = {
       }
     }
     const edits = [...pools.values()];
-    const banks = new Set<string>();
-    for (const { x: wx, y: wy } of wet) {
-      for (const [dx, dy] of AROUND) {
-        const x = wx + dx;
-        const y = wy + dy;
-        const at = `${x},${y}`;
-        if (seen.has(at) || banks.has(at) || ctx.raisedAt(x, y) !== ctx.raisedAt(wx, wy)) continue;
-        banks.add(at);
-        const stack = ctx.stackAt(x, y);
-        if (stack.length === 0 || isWet(stack)) continue;
-        if (stack[1]?.tileId !== COVER_GRASS) continue;
-        edits.push({ x, y, z: ctx.z, stack: stack.filter((_, i) => i !== 1) });
-      }
-    }
     for (const fall of FALLS) {
       for (const top of wet) {
         const x = top.x + fall.dx;

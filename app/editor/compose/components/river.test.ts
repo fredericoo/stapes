@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
 import type { BuildResult } from "../build";
-import { buildTree, frame, isle, land, node, sketch, walks } from "../testTree";
+import { buildTree, frame, land, node, sketch, walks } from "../testTree";
 
 const SIZE = { w: 30, h: 12 };
 const WEST = { x: 3, y: 6 };
@@ -126,27 +126,5 @@ describe("a river off raised ground", () => {
         .sort(),
       sketch(built),
     ).toEqual([14, 15, 16]);
-  });
-});
-
-describe("a river's banks", () => {
-  const AREA = { w: 40, h: 30 };
-  const across = { from: { x: 20, y: 0 }, to: { x: 20, y: 29 }, width: 2, wander: 0 };
-  const ids = (built: BuildResult, x: number, y: number, z = 0) =>
-    getStack(built.map, x, y, z).map((p) => p.tileId);
-  const wetAt = (built: BuildResult, y: number, z = 0) =>
-    Array.from({ length: AREA.w }, (_, x) => x).filter(
-      (x) => Math.abs(x - 20) < 5 && ids(built, x, y, z).includes("water"),
-    );
-
-  it("lose the grass laid over the ground, so the grass stops a cell short of the water", () => {
-    const built = buildTree(isle(AREA, [], 0, { under: [node("grass"), node("river", across)] }));
-    const wet = wetAt(built, 15);
-    expect(wet.length, sketch(built)).toBeGreaterThan(0);
-    const west = Math.min(...wet) - 1;
-    const east = Math.max(...wet) + 1;
-    expect(ids(built, west, 15)).toEqual(["sand"]);
-    expect(ids(built, east, 15)).toEqual(["sand"]);
-    expect(ids(built, west - 1, 15)).toContain("grass");
   });
 });
