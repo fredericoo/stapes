@@ -16411,8 +16411,12 @@ level's opening is the pool `bottom` fills, lava unless set otherwise.
 - **It is cut first.** A cave keeps two cells of rock round any cell that is
   not rock, so every Level dug afterwards stays off the chasm's wall, and no
   flight of stairs is placed where the chasm would cut it. That also means no
-  cave opens onto a ledge by itself: `openOntoLedges` cuts `openings` tunnels
-  per level, the shortest run of rock from the ledge to the cave's floor.
+  cave opens onto a ledge by itself: `openOntoLedges` cuts `openings` tunnels,
+  each the shortest run of rock from the ledge to the cave's floor, into every
+  part of each ledge. Two cascades crossing a ledge cut it into parts a body
+  cannot walk between with dry feet, so the tunnels are cut after the
+  cascades are poured; with one tunnel per level, `verify stranded` found the
+  part it missed.
 - **A ledge is the only way down and the stairs the only way up.** Walking off
   a ledge drops a body to the next one (no fall damage). A fall that would land
   in lava is refused like one into water, so the pool is seen from every ledge

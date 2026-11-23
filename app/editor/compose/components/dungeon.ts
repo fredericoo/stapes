@@ -132,12 +132,12 @@ export const dungeon: Component<DungeonProps> = {
       );
     }
     for (const { plan, part } of chasms) {
-      const opened = openOntoLedges(lay(), plan, floors);
-      map = setStacks(map, opened);
-      edits.push(...opened);
       const poured = pourCascades(lay(), plan, plan.props.cascades, part.point);
       map = setStacks(map, poured);
       edits.push(...poured);
+      const opened = openOntoLedges(lay(), plan, floors);
+      map = setStacks(map, opened);
+      edits.push(...opened);
     }
     return { ok: true, edits };
   },

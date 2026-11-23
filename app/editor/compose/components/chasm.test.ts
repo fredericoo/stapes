@@ -75,6 +75,31 @@ describe("chasm", () => {
     }
   });
 
+  it("brings somebody back from every stretch of ledge between two cascades", () => {
+    const built = buildTree(
+      dungeon({
+        cascades: [
+          { x: 10, y: 0 },
+          { x: 0, y: 12 },
+        ],
+      }),
+    );
+    const lava = (x: number, y: number, z: number) =>
+      getStack(built.map, x, y, z).some((p) => p.tileId === "lava");
+    for (const z of LEVELS) {
+      const ledge = ledges(built, z);
+      const banks = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].flatMap(([dx, dy]) => ledge.find((c) => lava(c.x + dx!, c.y + dy!, z)) ?? []);
+      expect(banks.length, `level ${z}`).toBeGreaterThan(1);
+      const stranded = banks.filter((c) => !walks(built, c, OUTSIDE));
+      expect(stranded, `level ${z}`).toEqual([]);
+    }
+  });
+
   it("keeps the lava at the bottom out of reach of anybody keeping their feet dry", () => {
     const built = buildTree(dungeon({ cascades: [{ x: 10, y: 0 }] }));
     expect(cellsWhere(built, -3, (ids) => ids.includes("lava")).length).toBeGreaterThan(10);

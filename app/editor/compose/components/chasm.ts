@@ -7,6 +7,7 @@ import { brinkOf, groundOf } from "../brinks";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import type { Point } from "../doc";
+import { isWet } from "./line";
 import { maskShape } from "./mask";
 
 export const CHASM_TYPE = "chasm";
@@ -23,7 +24,7 @@ export const ChasmSchema = v.object({
   bottom: v.optional(v.picklist(Object.keys(BOTTOMS) as Array<keyof typeof BOTTOMS>), "lava"),
   /** Points on the rim where lava pours in and runs down every ledge to the bottom. */
   cascades: v.optional(field.points(), []),
-  /** How many tunnels join each level's cave to its ledge. */
+  /** How many tunnels join each level's cave to each dry part of its ledge. */
   openings: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3)), 1),
 });
 
@@ -214,6 +215,44 @@ function cuttable(stack: readonly PlacedTile[], tilesById: Record<string, TileDe
   return top?.walkable === false && top.height === HEIGHT_PER_LEVEL && !stack.at(-1)!.direction;
 }
 
+const soaked = (stack: readonly PlacedTile[]) =>
+  isWet(stack) || stack.some((p) => p.tileId === "lava" || p.tileId.startsWith("lavafall"));
+
+/**
+ * The parts of a level's ledge a body can walk between without stepping in
+ * lava or water. A cascade running across the ledge cuts it in two, and each
+ * part needs its own way out.
+ */
+function dryPieces(
+  plan: ChasmPlan,
+  i: number,
+  stackAt: (x: number, y: number) => readonly PlacedTile[],
+): Array<Set<string>> {
+  const pieces: Array<Set<string>> = [];
+  const taken = new Set<string>();
+  for (const k of plan.holes[i]!) {
+    const [x, y] = k.split(",").map(Number) as [number, number];
+    if (taken.has(k) || !isLedge(plan, i, x, y) || soaked(stackAt(x, y))) continue;
+    const piece = new Set([k]);
+    taken.add(k);
+    const queue: Cell[] = [{ x, y }];
+    for (let head = 0; head < queue.length; head++) {
+      const c = queue[head]!;
+      for (const [dx, dy] of N4) {
+        const nx = c.x + dx;
+        const ny = c.y + dy;
+        const nk = key(nx, ny);
+        if (taken.has(nk) || !isLedge(plan, i, nx, ny) || soaked(stackAt(nx, ny))) continue;
+        taken.add(nk);
+        piece.add(nk);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    pieces.push(piece);
+  }
+  return pieces;
+}
+
 /** How far from a ledge a tunnel may run to find the cave. */
 const REACH = 16;
 /** How far apart along the ledge two openings on one level start. */
@@ -224,7 +263,8 @@ const OPENING_SPACING = 10;
  * cells of rock between itself and the chasm's wall, as it does round any
  * cell that is not rock, so it never opens onto the ledge by itself. Each
  * tunnel is the shortest run of rock from the ledge to the cave's floor, in
- * the floor the cave is made of, walled where it passes empty rock.
+ * the floor the cave is made of, walled where it passes empty rock. It runs
+ * after the cascades, so every part of the ledge their lava cuts off gets one.
  */
 export function openOntoLedges(
   lay: Lay,
@@ -239,14 +279,21 @@ export function openOntoLedges(
     if (floor.size === 0) continue;
     const written = new Map<string, PlacedTile[]>();
     const stackAt = (x: number, y: number) => written.get(key(x, y)) ?? getStack(lay.map, x, y, z);
+    const pieces = dryPieces(plan, i, (x, y) => getStack(lay.map, x, y, z));
     const starts: Cell[] = [];
-    for (let n = 0; n < plan.props.openings; n++) {
+    for (let n = 0; n < plan.props.openings * pieces.length; n++) {
+      const piece = pieces[n % pieces.length]!;
       const seen = new Map<string, string | null>();
       const queue: Cell[] = [];
-      for (const k of plan.holes[i]!) {
+      for (const k of piece) {
         const [x, y] = k.split(",").map(Number) as [number, number];
-        if (!isLedge(plan, i, x, y)) continue;
-        if (starts.some((s) => Math.abs(s.x - x) + Math.abs(s.y - y) < OPENING_SPACING)) continue;
+        if (
+          starts.some(
+            (s) =>
+              piece.has(key(s.x, s.y)) && Math.abs(s.x - x) + Math.abs(s.y - y) < OPENING_SPACING,
+          )
+        )
+          continue;
         for (const [dx, dy] of N4) {
           const nx = x + dx;
           const ny = y + dy;
@@ -280,7 +327,7 @@ export function openOntoLedges(
           queue.push({ x: nx, y: ny });
         }
       }
-      if (!found) break;
+      if (!found) continue;
       const [fx, fy] = found.split(",").map(Number) as [number, number];
       const ground = stackAt(fx, fy)[0]!;
       const path: Cell[] = [];
