@@ -361,5 +361,12 @@
     "file": "lanterns.png",
     "width": 32,
     "height": 64
+  },
+  {
+    "id": "lavafall",
+    "name": "Lavafall",
+    "file": "lavafall.png",
+    "width": 128,
+    "height": 96
   }
 ]
