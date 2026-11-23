@@ -56,6 +56,16 @@ export class WorldStore {
     return new Map([...out].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   }
 
+  /** The keys under `prefix`, without reading or decoding a single value. */
+  async listKeys(prefix: string): Promise<string[]> {
+    const statement = await this.db.prepare("SELECT key FROM kv WHERE key >= ? AND key < ?");
+    const rows = (await statement.all([prefix, prefixEnd(prefix)])) as { key: string }[];
+    const keys = new Set<string>();
+    for (const { key } of rows) if (!this.tombstones.has(key)) keys.add(key);
+    for (const key of this.pending.keys()) if (key.startsWith(prefix)) keys.add(key);
+    return [...keys];
+  }
+
   put(key: string, value: unknown, options?: unknown): Promise<void>;
   put(entries: Record<string, unknown>, options?: unknown): Promise<void>;
   put(

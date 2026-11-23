@@ -80,6 +80,7 @@ export interface WorldContext {
   storage: {
     get<T>(key: string): Promise<T | undefined>;
     list<T>(options: { prefix: string; revive?: (value: unknown) => T }): Promise<Map<string, T>>;
+    listKeys(prefix: string): Promise<string[]>;
     put(key: string, value: unknown, options?: unknown): Promise<void>;
     put(entries: Record<string, unknown>, options?: unknown): Promise<void>;
     delete(key: string): Promise<boolean>;

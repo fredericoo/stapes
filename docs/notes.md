@@ -20098,7 +20098,7 @@ so a chunk is back before anybody can see it.
   around it. `moveThrough` does not ask whether its destination is there, so
   this is what keeps a body from being moved into a chunk that is not. `/goto`
   into an unloaded chunk is refused as `noRoom`. A joining player waits for the
-  chunks round where they enter (`loadChunks(..., { now: true })`).
+  chunks round where they enter (`loadViewAround`).
 - **What it costs.** On `data/map.json` tiled 2×2 (1.93M cells), unloading 32
   chunks takes about 10ms and putting 13 back up to 25ms, most of it copying
   level records, which every edit copies too. So a tick puts back
@@ -20106,5 +20106,50 @@ so a chunk is back before anybody can see it.
   backlog a pass a tick. With every chunk but one out, the heap went from 212
   to 137 MB and the settled RSS from about 560 to 455 MB. It is less than the
   board's share because JSC keeps the structures and partly used blocks the
-  chunk records left. A restart still reads the whole board before anything is
-  unloaded, so the peak is unchanged until loading at start is lazy too.
+  chunk records left.
+
+### A world starts with only the chunks it keeps
+
+A restart reads `residency`, the `ResidencyIndex` written with every board
+checkpoint, lists the stored chunk keys without their values, and reads in
+only the chunks in `index.kept`; every other one is `UNLOADED_CHUNK` from the
+start (`GameServer.keptBoard`). A first start, and `replaceWorld`, run
+`GameSession.startingBoard` on the whole parsed map, write every chunk row and
+the index, and hand the session only the kept chunks
+(`GameServer.startingWorld`).
+
+- **What the index holds is what cannot be read off a partial board.** The
+  kept chunks (`chunksToKeep` at that checkpoint), the teleport targets by the
+  chunk the teleport stands in, the chunk each resident body was last in, and
+  the resident id to mint from. Without the residents, a resident whose body
+  was left in the store, away from its home cell, would be respawned at home
+  and come back twice when its chunk loads. A respawn point in a chunk that is
+  out is neither armed nor has its item ids forgotten at load.
+- **Decay clocks of a chunk that was never loaded start on load**, as every
+  clock did on a restart before. Only a chunk unloaded by this process has
+  parked clocks to catch up.
+- **A join waits for its view, not its whole reach.** `loadViewAround` reads
+  the `INTEREST_REACH_CHUNKS` square round the arrival; the rest of
+  `LOADED_REACH_CHUNKS` follows on ticks once `followWakeful` sees the body.
+  While the world ticks, the join waits for ticks to put its chunks back
+  (`chunkWaiters`), so other players' ticks do not stall while 121 chunks go
+  in; on an idle world they go in at once.
+- **`shareMap` keeps `UNLOADED_CHUNK` as it is.** It copies every other chunk,
+  and a copy of the sentinel is an empty real chunk, which the first
+  checkpoint would write over the stored row.
+- **What it costs.** Measured with `server.step()` on a fresh store and then
+  on a restart, `data/map.json` as it is (969 chunks) and tiled 2×2
+  (3,860 chunks):
+
+  | | before, 1× | lazy, 1× | before, 2×2 | lazy, 2×2 |
+  |---|---|---|---|---|
+  | restart peak RSS | 340 MB | 180 MB | 1,085 MB | 354 MB |
+  | restart load | 3.8 s | 1.0 s | 20 s | 2.4 s |
+  | chunks in memory | 969 | 74 | 3,860 | 254 |
+  | first start peak RSS | 643 MB | 641 MB | 2,139 MB | 1,815 MB |
+
+  A first start still parses the whole map and writes all of it in the first
+  flush, so its peak barely moves; parsing and writing chunk by chunk is the
+  next step for that. Reading and putting back the 121 chunks round a player
+  joining far from the kept chunks took 0.6 s on the 2×2 map with nothing
+  ticking.
