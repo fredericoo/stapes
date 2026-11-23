@@ -2650,8 +2650,8 @@ export class GameServer {
   }
 
   async replaceWorld(
-    flat: FlatMapFile,
-    options: { keepPositions?: boolean } = {},
+    authored: MapFile,
+    options: { keepPositions?: boolean; text?: string } = {},
   ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
     const tiles = await store.readTiles();
@@ -2664,7 +2664,7 @@ export class GameServer {
      */
     this.weatherAreas = await store.readWeatherAreas();
 
-    const { map, removed } = removeUnfitPlacements(chunkifyMap(flat), tilesById);
+    const { map, removed } = removeUnfitPlacements(authored, tilesById);
     /**
      * The check `GameSession` would fail on, run while the running world is
      * still standing, so refusing a map without its `player` marker costs nothing.
@@ -2737,7 +2737,12 @@ export class GameServer {
     this.session = session;
     this.broadcastMap = this.session.getMap();
 
-    await store.writeMap(map);
+    /**
+     * `text` is what `authored` was parsed from. Storing it as it is skips
+     * serializing a whole island again, which costs several times the map.
+     */
+    if (options.text !== undefined && removed.length === 0) await store.writeMapText(options.text);
+    else await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
     await this.deleteCheckpointedBoard();
     this.putStartingBoard(start.whole, start.residency);

@@ -48,6 +48,7 @@
     "generate:gold": "bun scripts/generate-gold.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "build:map": "bun scripts/build-map.ts",
+    "build:world": "bun --smol server/worldMap.ts data/world.json data/tiles.json data/map.json",
     "generate:island": "bun scripts/generate-island.ts",
     "preview:island": "bun scripts/preview-island.ts",
     "raise:hills": "bun scripts/raise-hills.ts",

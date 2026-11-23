@@ -4,7 +4,7 @@ import { PATH_COUNT_RANGE, PATH_WIDTH_RANGE, forestPaths } from "../../forest";
 import { fbm, gridIndex, gridX, gridY, hashCell, inGrid, newGrid, randomAt } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
-import { anchorFrom, placer } from "../placing";
+import { anchorFrom, atCliffFoot, placer } from "../placing";
 import { OPEN, OUTSIDE, TREE, growWoodland } from "../woodland";
 
 const ForestSchema = v.object({
@@ -82,7 +82,8 @@ function pickWeighted(entries: Weighted, hash: number, scale?: (index: number) =
  * mix comes in stands rather than evenly salted. A tree or a plant wider than
  * a cell grows south and east of the cell it starts in, and only where every
  * cell it covers is its own kind of ground; where it does not fit, the
- * commonest one-cell tree stands there instead.
+ * commonest one-cell tree stands there instead. Nothing grows at the foot of
+ * a cliff (`atCliffFoot`).
  */
 export const forest: Component<ForestProps> = {
   type: "forest",
@@ -118,9 +119,12 @@ export const forest: Component<ForestProps> = {
       .sort((a, b) => b.weight - a.weight)[0]?.tile;
     const placing = placer(ctx);
     const wooded = (stack: readonly PlacedTile[], x: number, y: number) =>
-      onlyOn.has(stack.at(-1)!.tileId) && cellAt(x, y) === TREE;
+      onlyOn.has(stack.at(-1)!.tileId) && cellAt(x, y) === TREE && !atCliffFoot(ctx, x, y);
     const open = (stack: readonly PlacedTile[], x: number, y: number) =>
-      onlyOn.has(stack.at(-1)!.tileId) && cellAt(x, y) === OPEN && !ours.has(gridIndex(grid, x, y));
+      onlyOn.has(stack.at(-1)!.tileId) &&
+      cellAt(x, y) === OPEN &&
+      !ours.has(gridIndex(grid, x, y)) &&
+      !atCliffFoot(ctx, x, y);
     const stand = (x: number, y: number) => (n: number) => {
       const swing = fbm(x, y, ctx.seed ^ (STAND_SALT + n * 0x9e37), STAND_SCALE, 2);
       return Math.exp(STAND_CONTRAST * (swing - 0.5));

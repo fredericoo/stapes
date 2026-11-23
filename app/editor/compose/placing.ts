@@ -114,6 +114,28 @@ export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raised
   return { edits, put, taken: (x: number, y: number) => taken.has(`${x},${y}`) };
 }
 
+const AROUND = [
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [-1, -1],
+] as const;
+
+/**
+ * Whether x,y lies beside ground raised higher than its own, at the foot of a
+ * cliff. A layer that plants things in the way leaves these cells open, so
+ * the foot of every cliff is a way along it: one tree each side of a cell a
+ * player drops into from the top closes it, and nothing climbs back up.
+ */
+export function atCliffFoot(ctx: Pick<BuildContext, "raisedAt">, x: number, y: number): boolean {
+  const own = ctx.raisedAt(x, y);
+  return AROUND.some(([dx, dy]) => ctx.raisedAt(x + dx, y + dy) > own);
+}
+
 /** The south-east cell of `tile` when its north-west cell is `nw`, which is how a row-by-row scan places it. */
 export function anchorFrom(def: TileDef | undefined, nw: Cell, facing?: Direction): Cell {
   const { w, d } = footprintOf(def, facing);

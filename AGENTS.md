@@ -21,8 +21,11 @@ an oblique cabinet projection with Three.js.
   on one world persist a board blended from two timelines. Do not remove this to
   make a rolling deploy work.
 - **Authored content lives in `data/`** and is copied into the store on deploy.
-  The world being played prefers its own checkpoint, so writing content alone
-  changes nothing anybody can see.
+  The map is not authored directly: `data/world.json` is a compose tree
+  (`/admin/compose`, `app/editor/compose/`), and the server builds the map from
+  it at start (`server/worldMap.ts`). The world being played prefers its own
+  checkpoint, so writing content alone changes nothing anybody can see until
+  the build or a save replaces the board.
 
 ## Where things are written down
 
@@ -60,8 +63,7 @@ an oblique cabinet projection with Three.js.
   change would break.
 - **`docs/lighthouse.md`** — the lighthouse dungeon's intended design: its
   tiers, the tiles it is built from, how its pedestals open doors and the
-  limits that shape its layout. Read it before building any of it in
-  `data/map.json`.
+  limits that shape its layout. Read it before building any of it.
 - **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules. Each
   exception has its reason in `docs/tooling.md`. A rule turned off without one
   is one nobody can turn back on.
@@ -98,10 +100,11 @@ Neither is a matter of taste any more, which is the point of having them: the
 argument about where a line wraps was had once, and `printWidth` is where it
 landed.
 
-## No unit test reads `data/map.json`
+## No unit test reads `data/world.json` or `data/map.json`
 
-`data/map.json` is the world being authored. It is edited constantly — from
-the in-game editor as much as by hand — and every edit is a legitimate one. A
+`data/world.json` is the world being authored, and `data/map.json` is what the
+server builds from it. The tree is edited constantly — from `/admin/compose` as
+much as by hand — and every edit is a legitimate one. A
 unit test that reads it turns "somebody moved the shopkeeper" or "somebody
 roofed a building" into a red build that says nothing about the code, so the
 test gets re-baselined until nobody trusts it.

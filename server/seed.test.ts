@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore, type Blobs } from "../app/lib/dataStore";
-import { seedFromDirectory } from "./seed";
+import { seedFromDirectory, seedIfChanged } from "./seed";
 
 const made: string[] = [];
 
@@ -38,19 +38,31 @@ describe("seeding a store from a directory", () => {
     expect(await new DataStore(blobs).readTraits()).toEqual(traits);
   });
 
-  it("stores the named map file as the world's map", async () => {
+  it("stores the named tree file as the world's tree", async () => {
     const directory = await mkdtemp(join(tmpdir(), "stapes-seed-"));
     made.push(directory);
-    await writeFile(
-      join(directory, "map.json"),
-      JSON.stringify({ version: 2, levels: { "0": {} } }),
-    );
-    const staging = { version: 2, levels: { "0": { "0,0": [{ tileId: "grass-2" }] } } };
-    await writeFile(join(directory, "map-staging.json"), JSON.stringify(staging));
+    await writeFile(join(directory, "world.json"), "{}");
+    await writeFile(join(directory, "world-staging.json"), '{"staging":true}');
     const blobs = memoryBlobs();
 
-    await seedFromDirectory(blobs, directory, "map-staging.json");
+    await seedFromDirectory(blobs, directory, "world-staging.json");
 
-    expect(JSON.parse((await blobs.getText("map.json"))!)).toEqual(staging);
+    expect(await new DataStore(blobs).readTreeText()).toBe('{"staging":true}');
+  });
+
+  it("seeds again only once the directory's content changes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "stapes-seed-"));
+    made.push(directory);
+    await writeFile(join(directory, "traits.json"), "[]");
+    const blobs = memoryBlobs();
+
+    expect(await seedIfChanged(blobs, directory)).toBe(true);
+    await blobs.put("traits.json", '[{"id":"edited"}]', "application/json");
+    expect(await seedIfChanged(blobs, directory)).toBe(false);
+    expect(await blobs.getText("traits.json")).toBe('[{"id":"edited"}]');
+
+    await writeFile(join(directory, "traits.json"), '[{"id":"shipped"}]');
+    expect(await seedIfChanged(blobs, directory)).toBe(true);
+    expect(await blobs.getText("traits.json")).toBe('[{"id":"shipped"}]');
   });
 });

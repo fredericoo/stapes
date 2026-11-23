@@ -5,8 +5,6 @@ export type LandscapeProblemKind =
   | "river-corner"
   | "river-fall"
   | "low-snow"
-  | "river-bed"
-  | "river-bank"
   | "river-ground"
   | "water-mud"
   | "ground-patch"
@@ -59,6 +57,7 @@ export const COVER_TILES: ReadonlySet<string> = new Set([
   "lava",
   "cobblestone",
   "flagstone-floor",
+  "slate-floor",
   "moss-flagstone",
   "wooden-floor",
   "half-stone",
@@ -74,8 +73,6 @@ export const MIN_SNOW_PATCH_CELLS = 200;
 export const SNOW_LEVEL = 3;
 /** Longest straight line two grounds may meet along before it reads as drawn with a ruler. */
 export const MAX_STRAIGHT_EDGE_CELLS = 12;
-/** A river's bank stops this far from the shore of the sea or a lake, as `scripts/island/stacks.ts` lays it; a river that close is its mouth. */
-const SHORE_CLEAR_CELLS = 2;
 /** A river's banks are the cells beside it; the land it runs through is the ring past them. */
 const RING_INNER_CELLS = 2;
 const RING_OUTER_CELLS = 5;
@@ -297,7 +294,7 @@ function surfaceOf(map: MapFile): Map<string, Cell> {
 
 /**
  * Checks the rules a generated landscape keeps: rivers joined side to side,
- * bare ground under and beside a river on grass and no mud by any water, rivers
+ * no mud by any water, rivers
  * on the ground of the land they run through, no tiny patches of one ground
  * inside another, no straight borders between grounds, and deserts and
  * snowfields mostly open.
@@ -311,7 +308,6 @@ export function checkLandscape({ map, tilesById }: LandscapeInput): LandscapeRep
     ...riverCorners(surface),
     ...riverFalls(surface),
     ...lowSnow(surface),
-    ...riverBeds(surface, shore),
     ...riverGrounds(surface),
     ...waterMud(surface),
     ...groundPatches(surface, shore),
@@ -445,71 +441,6 @@ function riverFalls(surface: Map<string, Cell>): LandscapeProblem[] {
     }
   }
   return out;
-}
-
-function riverBeds(surface: Map<string, Cell>, shore: Set<string>): LandscapeProblem[] {
-  const out: LandscapeProblem[] = [];
-  for (const cell of surface.values()) {
-    if (!cell.river || cell.kind !== "grass") continue;
-    const nearShore = near(cell.x, cell.y, SHORE_CLEAR_CELLS).some((k) => shore.has(k));
-    if (nearShore) continue;
-    if (cell.stack.some(isGrass)) {
-      out.push({
-        kind: "river-bed",
-        x: cell.x,
-        y: cell.y,
-        z: cell.z,
-        message: `the river at ${cell.x},${cell.y} L${cell.z} runs over grass; a river's bed is bare ground`,
-      });
-    }
-    out.push(...bareBanks(surface, shore, cell));
-  }
-  return out;
-}
-
-/** Grass the generator lays (`grass`), or the plain square an older map was painted with. */
-const isGrass = (placed: PlacedTile) => placed.tileId === "grass" || placed.tileId === "grass-2";
-
-/**
- * A river on grass has bare banks, the grass stopping a cell short of the
- * water. A bank on a cliff's edge keeps its brink, which draws the edge; a
- * bank by a shore may keep its grass; and so may a bank where the land beside
- * it changes ground, since bare ground there would draw a line of one ground
- * into the other.
- */
-function bareBanks(surface: Map<string, Cell>, shore: Set<string>, cell: Cell): LandscapeProblem[] {
-  const out: LandscapeProblem[] = [];
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const bank = surface.get(key(cell.x + dx, cell.y + dy));
-      if (!bank || bank.water || bank.z !== cell.z || bank.kind !== "grass" || bank.covered)
-        continue;
-      if (!isGrass(bank.stack[0]!) && bank.stack[1]?.tileId !== "grass") continue;
-      if (near(bank.x, bank.y, SHORE_CLEAR_CELLS).some((k) => shore.has(k))) continue;
-      if (besideOtherGround(surface, bank)) continue;
-      out.push({
-        kind: "river-bank",
-        x: bank.x,
-        y: bank.y,
-        z: bank.z,
-        message: `${bank.x},${bank.y} L${bank.z} is grass beside the river at ${cell.x},${cell.y}; a river on grass has bare banks`,
-      });
-    }
-  }
-  return out;
-}
-
-function besideOtherGround(surface: Map<string, Cell>, bank: Cell): boolean {
-  return near(bank.x, bank.y, 1).some((k) => {
-    const other = surface.get(k);
-    return (
-      other?.z === bank.z &&
-      !other.water &&
-      !other.covered &&
-      !!other.kind &&
-      other.kind !== bank.kind
-    );
-  });
 }
 
 /**

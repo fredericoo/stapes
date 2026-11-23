@@ -37,6 +37,9 @@ jobs:
       - name: World tests
         run: bun run test:server
 
+      - name: Build the map the server would build from data/world.json
+        run: bun run build:world
+
       - name: Every id in the content resolves and the map draws without gaps
         run: bun run verify content --strict
 

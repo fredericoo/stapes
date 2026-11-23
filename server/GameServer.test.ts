@@ -874,7 +874,7 @@ describe("the checkpointed board", () => {
       await state.storage.put(orphan, { "1584,1584": [{ tileId: "grass" }] });
     });
 
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     await settle();
 
     const { chunkKeys } = await storedBoard();
@@ -890,7 +890,7 @@ describe("replacing the world", () => {
     await harness.blobs.put("weather.json", JSON.stringify([desert]), JSON_TYPE);
 
     const fresh = nextMessage(alice.ws);
-    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+    await stub().replaceWorld(chunkifyMap(authoredMap()), { keepPositions: true });
     const hello = await fresh;
 
     expect(hello.weatherAreas).toEqual([desert]);
@@ -901,7 +901,7 @@ describe("replacing the world", () => {
 
     const fresh = nextMessage(alice.ws);
     const replacement = authoredMap();
-    await stub().replaceWorld(replacement);
+    await stub().replaceWorld(chunkifyMap(replacement));
     const hello = await fresh;
 
     expect(hello.type).toBe("hello");
@@ -916,7 +916,7 @@ describe("replacing the world", () => {
     const alice = await connect("alice");
 
     const fresh = nextMessage(alice.ws);
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     const hello = await fresh;
 
     expect(hello.names).toEqual([{ actorId: "alice", name: "Alice" }]);
@@ -928,7 +928,7 @@ describe("replacing the world", () => {
     expect(await actorX("alice")).toBe(ONE_STEP_EAST);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+    await stub().replaceWorld(chunkifyMap(authoredMap()), { keepPositions: true });
     await fresh;
 
     expect(await actorX("alice")).toBe(ONE_STEP_EAST);
@@ -940,7 +940,7 @@ describe("replacing the world", () => {
     expect(await actorX("alice")).toBe(ONE_STEP_EAST);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     await fresh;
 
     expect(await actorX("alice")).toBe(SPAWN_CELL);
@@ -959,7 +959,7 @@ describe("replacing the world", () => {
     expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(withSword);
+    await stub().replaceWorld(chunkifyMap(withSword));
     const hello = await fresh;
 
     expect(kitOf(hello).bag.id).toBe(bagId);
@@ -1010,7 +1010,7 @@ describe("replacing the world", () => {
     await equipmentWithin(alice.ws);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(withSword);
+    await stub().replaceWorld(chunkifyMap(withSword));
     const hello = await fresh;
 
     const stack = (hello.map as FlatMapFile).levels["0"]!["1,0"]!;
@@ -1033,7 +1033,7 @@ describe("replacing the world", () => {
     await harness.blobs.put("tiles.json", JSON.stringify(asProps), JSON_TYPE);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(withSword);
+    await stub().replaceWorld(chunkifyMap(withSword));
     const hello = await fresh;
 
     expect(kitOf(hello).bag.id).toBe(bagId);
@@ -1051,7 +1051,7 @@ describe("replacing the world", () => {
     await waitForCheckpointedAt(who, `${AWAY_FROM_SPAWN},0`);
     expect(await storedKeys("chunk:")).toContain(OUTLYING_CHUNK_KEY);
 
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     await waitForCheckpointedAt(who, `${SPAWN_CELL},0`);
     await simulateEviction();
 
@@ -1815,7 +1815,7 @@ describe("player permanence", () => {
     await simulateEviction();
     await connect(who);
 
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
 
     const { hello } = await connect(who);
     expect(hello.tags).toEqual(["chest-42"]);
@@ -1916,7 +1916,7 @@ describe("player permanence", () => {
 
     const rebuilt = stripSpawningAtTheFarEnd();
     rebuilt.levels["0"]![`${ONE_STEP_EAST},0`] = [{ tileId: "grass" }, { tileId: "stone-wall" }];
-    await stub().replaceWorld(rebuilt);
+    await stub().replaceWorld(chunkifyMap(rebuilt));
 
     await connect(who);
 
@@ -2053,12 +2053,12 @@ async function storedMap(): Promise<FlatMapFile> {
 
 describe("saving a map that cannot start", () => {
   it("refuses it without writing anything", async () => {
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     await putCheckpoint(checkpointWith(["ghost"]));
     const before = await storedMap();
 
     await runInDurableObject(stub(), async (instance: GameServer) => {
-      await expect(instance.replaceWorld(markerlessMap())).rejects.toThrow(/player/);
+      await expect(instance.replaceWorld(chunkifyMap(markerlessMap()))).rejects.toThrow(/player/);
     });
 
     expect(await storedMap()).toEqual(before);
@@ -2072,7 +2072,7 @@ describe("saving a map that cannot start", () => {
     try {
       await wedged.blobs.put("map.json", JSON.stringify(markerlessMap()), JSON_TYPE);
 
-      await wedged.server.replaceWorld(authoredMap());
+      await wedged.server.replaceWorld(chunkifyMap(authoredMap()));
 
       const saved = await wedged.blobs.getText("map.json");
       expect(playerCells(JSON.parse(saved!) as FlatMapFile)).toEqual([0]);
@@ -2600,7 +2600,7 @@ describe("resetting the world", () => {
     await simulateEviction();
     await connect(who);
 
-    await stub().replaceWorld(authoredMap());
+    await stub().replaceWorld(chunkifyMap(authoredMap()));
     expect((await connect(who)).hello.masteryXp).toEqual(EARNED);
 
     await stub().resetWorld();
@@ -2970,7 +2970,7 @@ describe("respawn points", () => {
     await anchorHere(alice.ws);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(mapWithMarker(), { keepPositions: true });
+    await stub().replaceWorld(chunkifyMap(mapWithMarker()), { keepPositions: true });
 
     expect((await fresh).spawnAt).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
     expect(await rebornAt(alice)).toBe(AWAY_FROM_SPAWN);
@@ -2982,7 +2982,7 @@ describe("respawn points", () => {
     await anchorHere(alice.ws);
 
     const fresh = nextMessageOfType(alice.ws, "hello");
-    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+    await stub().replaceWorld(chunkifyMap(authoredMap()), { keepPositions: true });
 
     expect((await fresh).spawnAt).toBeNull();
     expect(await storedSpawn("alice")).toBeUndefined();
