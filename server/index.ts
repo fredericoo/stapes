@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { Elysia } from "elysia";
 import {
   CHARACTER_PARAM,
@@ -15,6 +14,7 @@ import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
 import { serveClient } from "./serveClient";
+import { memoryReading } from "./memory";
 import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
 import { World } from "./world";
 
@@ -101,7 +101,7 @@ const app = new Elysia({
 
 const server = app.listen(config.PORT);
 const port = server.server?.port ?? config.PORT;
-console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION}), ${memoryReading()}`);
+console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION}), ${memoryText()}`);
 
 const bots = startBots(config, port);
 
@@ -121,17 +121,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 
 export type { Api } from "./api";
 
-/**
- * The peak (`VmHWM`) is what a container's memory limit has to cover; Linux
- * reports it in `/proc`, and elsewhere only the current RSS is known.
- */
-function memoryReading(): string {
-  const mb = (kb: string | undefined) => (kb ? `${Math.round(Number(kb) / 1024)} MB` : "?");
-  try {
-    const status = readFileSync("/proc/self/status", "utf8");
-    const field = (name: string) => status.match(new RegExp(`^${name}:\\s+(\\d+) kB`, "m"))?.[1];
-    return `rss ${mb(field("VmRSS"))}, peak ${mb(field("VmHWM"))}`;
-  } catch {
-    return `rss ${Math.round(process.memoryUsage().rss / 1048576)} MB`;
-  }
+function memoryText(): string {
+  const { rssMb, peakMb } = memoryReading();
+  return `rss ${rssMb} MB${peakMb === null ? "" : `, peak ${peakMb} MB`}`;
 }
