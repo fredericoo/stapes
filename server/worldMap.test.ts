@@ -7,7 +7,13 @@ import { PLAYER_TILE_ID } from "../app/game/constants";
 import { readConfig, type Config } from "./config";
 import { rowTree } from "./testHarness";
 import { World } from "./world";
-import { buildWorldMap, prebuildWorldMap, PREBUILT_DIR } from "./worldMap";
+import {
+  buildWorldMap,
+  hashOf,
+  prebuildWorldMap,
+  prepareStartingWorld,
+  PREBUILT_DIR,
+} from "./worldMap";
 
 let directory: string;
 let seed: string;
@@ -63,7 +69,12 @@ describe("building the world's map at start", () => {
 });
 
 describe("the map an image built", () => {
-  async function spawnColumn(world: World): Promise<number> {
+  function playedSpawnColumn(world: World): number {
+    const internals = world.server as unknown as { session: { getSpawnPoint(): { x: number } } };
+    return internals.session.getSpawnPoint().x;
+  }
+
+  async function storedSpawnColumn(world: World): Promise<number> {
     const map = await world.blobs.readMap();
     for (let x = 0; x < 5; x++) {
       if (getStack(map, x, 0, 0).some((p) => p.tileId === PLAYER_TILE_ID)) return x;
@@ -74,7 +85,10 @@ describe("the map an image built", () => {
   /** Stands a different map in for the prebuilt one, so a test can tell which was played. */
   async function replacePrebuiltWith(tree: string) {
     const tiles = await readFile(join(seed, "tiles.json"), "utf8");
-    await writeFile(join(seed, PREBUILT_DIR, "world.map.json"), buildWorldMap(tree, tiles).text);
+    const { text } = buildWorldMap(tree, tiles);
+    await writeFile(join(seed, PREBUILT_DIR, "world.map.json"), text);
+    await prepareStartingWorld(seed, join(seed, PREBUILT_DIR, "world"), text);
+    await writeFile(join(seed, PREBUILT_DIR, "world.hash"), hashOf(text));
   }
 
   it("is played instead of building, when it was built from the same inputs", async () => {
@@ -83,7 +97,34 @@ describe("the map an image built", () => {
 
     const world = await World.open(config);
 
-    expect(await spawnColumn(world)).toBe(4);
+    expect(playedSpawnColumn(world)).toBe(4);
+    expect(await storedSpawnColumn(world)).toBe(4);
+    await world.drain();
+  });
+
+  it("is started from the rows the image prepared, without parsing the map at start", async () => {
+    await prebuildWorldMap(seed, "world.json");
+    await writeFile(join(seed, PREBUILT_DIR, "world.map.json"), "not a map");
+
+    const world = await World.open(config);
+
+    expect(playedSpawnColumn(world)).toBe(2);
+    await world.drain();
+  });
+
+  it("is built again at start when the traits changed since the image prepared its rows", async () => {
+    await prebuildWorldMap(seed, "world.json");
+    await replacePrebuiltWith(rowTree(5, 4));
+    const tiles = await readFile(join(seed, "tiles.json"), "utf8");
+    await writeFile(
+      join(seed, PREBUILT_DIR, "world.map.json"),
+      buildWorldMap(rowTree(5, 3), tiles).text,
+    );
+    await writeFile(join(seed, "traits.json"), "[]");
+
+    const world = await World.open(config);
+
+    expect(playedSpawnColumn(world)).toBe(3);
     await world.drain();
   });
 
@@ -93,7 +134,7 @@ describe("the map an image built", () => {
 
     const world = await World.open(config);
 
-    expect(await spawnColumn(world)).toBe(1);
+    expect(playedSpawnColumn(world)).toBe(1);
     await world.drain();
   });
 });

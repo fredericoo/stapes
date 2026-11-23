@@ -26,6 +26,8 @@ export interface Blobs {
   getText(key: string): Promise<string | null>;
   getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
   put(key: string, body: string | Uint8Array<ArrayBuffer>, contentType: string): Promise<void>;
+  /** A store on the server that can copy a file in without holding it whole. */
+  putFile?(key: string, path: string, contentType: string): Promise<void>;
 }
 
 export class DataStore {
@@ -133,6 +135,12 @@ export class DataStore {
 
   async writeMapText(text: string) {
     await this.blobs.put(MAP_KEY, text, JSON_TYPE);
+  }
+
+  /** `read` reads the file whole, for a store that cannot copy one in. */
+  async writeMapFile(path: string, read: () => Promise<string>) {
+    if (this.blobs.putFile) await this.blobs.putFile(MAP_KEY, path, JSON_TYPE);
+    else await this.blobs.put(MAP_KEY, await read(), JSON_TYPE);
   }
 
   async readTilesetPng(fileName: string): Promise<Uint8Array<ArrayBuffer> | null> {

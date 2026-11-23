@@ -22,12 +22,7 @@ import {
 import { audienceOf, cellInScope, type ScopedCell } from "../app/net/scope";
 import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
 import { NearIndex } from "./nearIndex";
-import {
-  boardKeeping,
-  chunksAround,
-  loadedChunkKeys,
-  type ResidencyIndex,
-} from "../app/game/residency";
+import { chunksAround, loadedChunkKeys, type ResidencyIndex } from "../app/game/residency";
 import { TextByLists } from "./textByLists";
 import { cellKey } from "../app/game/pressurePlates";
 import {
@@ -40,7 +35,6 @@ import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/death
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
-import { spawnPoint } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -64,12 +58,9 @@ import {
   UNLOADED_CHUNK,
 } from "../app/lib/mapData";
 import { StackPool } from "../app/lib/stackPool";
+import { startingWorldOf, type StartingWorld } from "./startingWorld";
 import type { DataStore } from "../app/lib/dataStore";
-import {
-  removeUnfitPlacements,
-  tilesByIdFromList,
-  type RemovedPlacement,
-} from "../app/lib/validation";
+import { tilesByIdFromList, type RemovedPlacement } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
 import { brainExpansionIssues, traitsById, type TraitCatalogue } from "../app/lib/traits";
 import type { StatusInstance } from "../app/game/statuses";
@@ -220,6 +211,9 @@ const CHECKPOINT_KEY = "world";
 const CHUNK_KEY_PREFIX = "chunk:";
 
 const CHUNKS_STREAMED_PER_TICK = 2;
+
+/** About 3 MB of the showcase island's rows, which average 11 kB each. */
+const STARTING_ROWS_PER_FLUSH = 256;
 
 function boardKey(levelKey: string, chunkKey: string): string {
   return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
@@ -1002,13 +996,12 @@ export class GameServer {
         ? await this.keptBoard(residency, pool)
         : await this.checkpointedBoard(checkpoint, pool)
       : null;
-    const start = board
-      ? { map: board, spawnAt: checkpoint!.spawn, residency, seed: checkpoint!.seed }
-      : {
-          ...GameServer.startingWorld(await store.readMap(pool), this.tiles, this.traits),
-          seed: this.env.seed,
-        };
-    if ("whole" in start) this.putStartingBoard(start.whole, start.residency);
+    const first = board
+      ? null
+      : startingWorldOf(await store.readMap(pool), this.tiles, this.traits);
+    const start = first
+      ? { map: await this.writeStartingRows(first), ...first, seed: this.env.seed }
+      : { map: board!, spawnAt: checkpoint!.spawn, residency, seed: checkpoint!.seed };
     this.session = new GameSession(start.map, this.tiles, {
       actorIds: [],
       spawnAt: start.spawnAt,
@@ -1029,34 +1022,44 @@ export class GameServer {
     this.checkpointedMap = null;
     await this.restoreActors();
     await this.pruneRemembered();
-    await this.loadRespawnState(board != null, "points" in start ? start.points : undefined);
+    await this.loadRespawnState(board != null, first?.points);
   }
 
   /**
-   * A board nobody has played, made ready for a session that holds only the
-   * chunks it starts with. The respawn points are found here because the
-   * session never sees the rest; `putStartingBoard` writes the whole of it.
+   * Writes every chunk row of a board nobody has played, with its index, and
+   * returns the board a session starts with: the kept chunks, and
+   * `UNLOADED_CHUNK` for every other. The store is flushed every
+   * `STARTING_ROWS_PER_FLUSH` rows, so the rows are never all held at once.
    */
-  private static startingWorld(map: MapFile, tiles: TileDef[], traits: TraitCatalogue) {
-    const start = GameSession.startingBoard(map, tiles, traits);
-    return {
-      whole: start.map,
-      map: boardKeeping(start.map, new Set(start.residency.kept)),
-      spawnAt: start.spawnAt,
-      residency: start.residency,
-      points: findSpawnPoints(start.map, tilesByIdFromList(tiles)),
-    };
-  }
-
-  private putStartingBoard(whole: MapFile, residency: ResidencyIndex) {
-    const entries: Record<string, unknown> = { [RESIDENCY_KEY]: residency };
-    for (const zk in whole.levels) {
-      const level = whole.levels[zk]!;
-      for (const chk in level) entries[boardKey(zk, chk)] = level[chk];
+  private async writeStartingRows(start: StartingWorld): Promise<MapFile> {
+    const kept = new Set(start.residency.kept);
+    const keptRows: ChangedChunk[] = [];
+    const away = new Set<string>();
+    const levelKeys = new Set<string>();
+    let entries: Record<string, unknown> = {};
+    let pending = 0;
+    for await (const row of start.rows()) {
+      levelKeys.add(row.levelKey);
+      entries[boardKey(row.levelKey, row.chunkKey)] = row.cells;
+      if (kept.has(row.chunkKey)) {
+        keptRows.push({ ...row, cells: shareCells(row.cells, this.reloadPool, true) });
+      } else {
+        away.add(row.chunkKey);
+      }
+      if (++pending < STARTING_ROWS_PER_FLUSH) continue;
+      await this.ctx.storage.put(entries, { allowUnconfirmed: true });
+      await this.ctx.storage.flush();
+      entries = {};
+      pending = 0;
     }
-    this.ctx.storage
-      .put(entries, { allowUnconfirmed: true })
-      .catch(GameServer.reportWriteFailure("starting board write"));
+    entries[RESIDENCY_KEY] = start.residency;
+    await this.ctx.storage.put(entries, { allowUnconfirmed: true });
+    const board = mapFromChunks(keptRows);
+    for (const zk of levelKeys) {
+      const level = (board.levels[zk] ??= {});
+      for (const chk of away) level[chk] = UNLOADED_CHUNK;
+    }
+    return board;
   }
 
   /**
@@ -2649,8 +2652,13 @@ export class GameServer {
     return ids;
   }
 
+  /**
+   * `source` is a parsed map, or a `StartingWorld` prepared beside a prebuilt
+   * one, whose map text the caller stores; the second never has the whole
+   * board in memory.
+   */
   async replaceWorld(
-    authored: MapFile,
+    source: MapFile | StartingWorld,
     options: { keepPositions?: boolean; text?: string } = {},
   ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
@@ -2664,12 +2672,10 @@ export class GameServer {
      */
     this.weatherAreas = await store.readWeatherAreas();
 
-    const { map, removed } = removeUnfitPlacements(authored, tilesById);
-    /**
-     * The check `GameSession` would fail on, run while the running world is
-     * still standing, so refusing a map without its `player` marker costs nothing.
-     */
-    spawnPoint(map);
+    /** `startingWorldOf` fails on a map without its `player` marker while the running world still stands. */
+    const start: StartingWorld & { authored?: MapFile } =
+      "levels" in source ? startingWorldOf(source, tiles, traits) : source;
+    const { removed } = start;
 
     const forgetPositions =
       options.keepPositions === true &&
@@ -2705,19 +2711,31 @@ export class GameServer {
     /**
      * The running world is let go before the new one is built, so a save never
      * holds two sessions at once; with the whole map in each, that is what
-     * took a 512 MB container over its limit. Nothing has been written yet, so
-     * a session that fails to build is replaced by the stored world again.
+     * took a 512 MB container over its limit. The old board's rows go before
+     * the new ones are written, and a session that then fails to build is
+     * replaced by whatever the store holds.
      */
     this.stopTicking();
     this.session = null;
     this.broadcastMap = null;
     this.checkpointedMap = null;
     this.forgetResidency();
+    if (start.authored) {
+      /**
+       * `text` is what `source` was parsed from. Storing it as it is skips
+       * serializing a whole island again, which costs several times the map.
+       */
+      if (options.text !== undefined && removed.length === 0) {
+        await store.writeMapText(options.text);
+      } else {
+        await store.writeMap(start.authored);
+      }
+    }
+    await this.ctx.storage.delete(CHECKPOINT_KEY);
+    await this.deleteCheckpointedBoard();
     let session: GameSession;
-    let start: ReturnType<typeof GameServer.startingWorld>;
     try {
-      start = GameServer.startingWorld(map, tiles, traits);
-      session = new GameSession(start.map, tiles, {
+      session = new GameSession(await this.writeStartingRows(start), tiles, {
         actorIds: [],
         spawnAt: start.spawnAt,
         residency: start.residency,
@@ -2736,16 +2754,6 @@ export class GameServer {
     this.traits = traits;
     this.session = session;
     this.broadcastMap = this.session.getMap();
-
-    /**
-     * `text` is what `authored` was parsed from. Storing it as it is skips
-     * serializing a whole island again, which costs several times the map.
-     */
-    if (options.text !== undefined && removed.length === 0) await store.writeMapText(options.text);
-    else await store.writeMap(map);
-    await this.ctx.storage.delete(CHECKPOINT_KEY);
-    await this.deleteCheckpointedBoard();
-    this.putStartingBoard(start.whole, start.residency);
     if (forgetPositions) {
       const positions = await this.ctx.storage.list({ prefix: POSITION_KEY_PREFIX });
       await this.ctx.storage.delete([...positions.keys(), FORGET_POSITIONS_KEY]);

@@ -20196,10 +20196,33 @@ the index, and hand the session only the kept chunks
   | restart peak RSS | 340 MB | 180 MB | 1,085 MB | 354 MB |
   | restart load | 3.8 s | 1.0 s | 20 s | 2.4 s |
   | chunks in memory | 969 | 74 | 3,860 | 254 |
-  | first start peak RSS | 643 MB | 641 MB | 2,139 MB | 1,815 MB |
+  | first start peak RSS, parsed | 643 MB | 641 MB | 2,139 MB | 1,815 MB |
 
-  A first start still parses the whole map and writes all of it in the first
-  flush, so its peak barely moves; parsing and writing chunk by chunk is the
-  next step for that. Reading and putting back the 121 chunks round a player
-  joining far from the kept chunks took 0.6 s on the 2×2 map with nothing
-  ticking.
+  Reading and putting back the 121 chunks round a player joining far from the
+  kept chunks took 0.6 s on the 2×2 map with nothing ticking.
+
+### A first start reads rows the image prepared
+
+A first start, and a deploy whose map changed, would parse the whole map,
+prepare it and write every row: on the 4× showcase island that peaked at
+1.2 GB, and a 512 MB preview was killed. So `worldMap.ts --prebuild` also runs
+`startingWorldOf` in the image and writes `<tree>.rows.ndjson` (one chunk row
+per line), `<tree>.start.json` (spawn, `ResidencyIndex`, respawn points,
+removed placements) and `<tree>.hash` beside the map. At start,
+`readPrebuiltStart` hands those to `replaceWorld`, which streams the rows into
+the store `STARTING_ROWS_PER_FLUSH` at a time, flushing each batch, and keeps
+only the kept chunks. The map text goes into the blob store by
+`SqliteBlobs.putFile`, 1 MB parts read from the file, so it is never one
+string either.
+
+- **The rows are valid only for the image's inputs and traits.** The inputs
+  hash covers the tree, tiles and builder source; residents are found through
+  traits, which it does not cover, so `start.json` carries a hash of the
+  parsed trait catalogue. Either differing falls back to building or reading
+  the map whole.
+- **What it costs**, on the 4× island (101 MB of map, 7,715 rows), measured
+  with `World.open` on a fresh store: first start peak 1,243 MB → 443–503 MB,
+  18 s → 7 s, settled 840 → 363 MB; a restart peaks at 126 MB. In a 512 MB
+  memory cgroup the old start was OOM-killed and this one finished. Most of
+  what is left is native memory the allocator keeps after the blob copy and
+  the row writes; the JS heap after start is about 54 MB.

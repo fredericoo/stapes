@@ -8,6 +8,7 @@ import { serializeMap } from "../app/lib/mapData";
 import { StackPool } from "../app/lib/stackPool";
 import { normalizeTiles } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
+import type { StartingWorld } from "./startingWorld";
 
 /** What the world's board was last built from, in the world's own store. */
 export const AUTHORED_MAP_KEY = "authoredMap";
@@ -73,7 +74,12 @@ export const PREBUILT_DIR = "built";
 
 function prebuiltPaths(dataDir: string, treeFile: string) {
   const stem = join(dataDir, PREBUILT_DIR, treeFile.replace(/\.json$/, ""));
-  return { map: `${stem}.map.json`, inputs: `${stem}.inputs` };
+  return { stem, map: `${stem}.map.json`, inputs: `${stem}.inputs`, hash: `${stem}.hash` };
+}
+
+/** Hashed as parsed, so the image's file and the store's copy of it compare equal. */
+export function traitsHash(traits: readonly unknown[]): string {
+  return hashOf(JSON.stringify(traits));
 }
 
 export async function prebuildWorldMap(dataDir: string, treeFile: string): Promise<BuiltWorldMap> {
@@ -83,8 +89,27 @@ export async function prebuildWorldMap(dataDir: string, treeFile: string): Promi
   const paths = prebuiltPaths(dataDir, treeFile);
   await mkdir(join(dataDir, PREBUILT_DIR), { recursive: true });
   await writeFile(paths.map, built.text);
+  await writeFile(paths.hash, hashOf(built.text));
+  await prepareStartingWorld(dataDir, paths.stem, built.text);
   await writeFile(paths.inputs, hashOf(tree, tiles, await builderSourceHash()));
   return built;
+}
+
+/**
+ * Prepares the store's rows for a first start from this map, so a world
+ * starting on it never parses the whole board. Imported here only, so the
+ * build child does not load the game.
+ */
+export async function prepareStartingWorld(dataDir: string, stem: string, text: string) {
+  const { startingWorldOf, writeStartingWorld } = await import("./startingWorld");
+  const { DataStore } = await import("../app/lib/dataStore");
+  const { DiskBlobs } = await import("./blobs");
+  const { parseSharedMap } = await import("../app/lib/mapData");
+  const { traitsById } = await import("../app/lib/traits");
+  const store = new DataStore(new DiskBlobs(dataDir));
+  const traits = await store.readTraits();
+  const start = startingWorldOf(parseSharedMap(text), await store.readTiles(), traitsById(traits));
+  await writeStartingWorld(stem, start, traitsHash(traits));
 }
 
 /** The map an image built for `treeFile`, when it was built from exactly these inputs. */
@@ -97,6 +122,33 @@ export async function readPrebuiltMap(
   try {
     if ((await readFile(paths.inputs, "utf8")) !== inputs) return null;
     return await readFile(paths.map, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The starting world an image prepared for `treeFile`, when it was built from
+ * exactly these inputs and with these traits.
+ */
+export async function readPrebuiltStart(
+  dataDir: string,
+  treeFile: string,
+  inputs: string,
+  traits: readonly unknown[],
+): Promise<{
+  hash: string;
+  start: StartingWorld;
+  mapPath: string;
+} | null> {
+  const paths = prebuiltPaths(dataDir, treeFile);
+  try {
+    if ((await readFile(paths.inputs, "utf8")) !== inputs) return null;
+    const hash = await readFile(paths.hash, "utf8");
+    const { readStartingWorld } = await import("./startingWorld");
+    const start = await readStartingWorld(paths.stem, traitsHash(traits));
+    if (!start) return null;
+    return { hash, start, mapPath: paths.map };
   } catch {
     return null;
   }
