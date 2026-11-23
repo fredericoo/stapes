@@ -4,7 +4,7 @@ import type { FlatMapFile, MapFile, PlacedTile } from "./types";
 
 /**
  * Sized so the town lands within a few percent of the shipped map's cell and
- * quad counts. The lighting bake budget in `app/editor/perf.ts` is measured
+ * quad counts. The lighting bake budget in `app/lib/lightingBudgets.ts` is measured
  * against a map of roughly this size, so shrinking this makes that budget
  * pass for the wrong reason.
  */
@@ -222,10 +222,6 @@ function layCave(levels: Map<number, Cells>) {
   }
 }
 
-/**
- * Gives the fixture town animated terrain, so the renderer budgets in
- * `app/editor/perf.ts` have something to measure.
- */
 function layPond(levels: Map<number, Cells>) {
   const cx = (POND.x0 + POND.x1) / 2;
   const cy = (POND.y0 + POND.y1) / 2;

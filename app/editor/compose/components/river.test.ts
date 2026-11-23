@@ -128,3 +128,26 @@ describe("a river off raised ground", () => {
     ).toEqual([14, 15, 16]);
   });
 });
+
+describe("a river over the top of a cliff", () => {
+  it("lays no bed on the brink, since a brink stands in for every cover on it", () => {
+    const area = { w: 30, h: 20 };
+    const built = buildTree(
+      land(area, [
+        node("hill", { levels: 1, terrace: 0, roughness: 0 }, { frame: frame(0, 0, 30, 14) }),
+        node("river", { from: { x: 15, y: 0 }, to: { x: 15, y: 19 }, width: 2, wander: 0 }),
+      ]),
+    );
+    const wet = [];
+    const bedOnBrink = [];
+    for (let y = 0; y < area.h; y++) {
+      for (let x = 0; x < area.w; x++) {
+        const at = getStack(built.map, x, y, 1).map((p) => p.tileId);
+        if (at.includes("water")) wet.push({ x, y });
+        if (at[0]?.endsWith("-brink") && at.includes("dirt")) bedOnBrink.push({ x, y });
+      }
+    }
+    expect(wet.length, sketch(built)).toBeGreaterThan(0);
+    expect(bedOnBrink, sketch(built)).toEqual([]);
+  });
+});

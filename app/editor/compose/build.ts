@@ -24,6 +24,7 @@ import {
 import { isWet } from "./components/line";
 import { TILES, wrongTile } from "./field";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
+import type { StackPool } from "../../lib/stackPool";
 
 export type BuildContext = {
   readonly map: MapFile;
@@ -423,6 +424,10 @@ function validProps(
  * changed: every node before that one would build the same thing on the same
  * map, so its step is reused. Dragging a house re-runs the house and what
  * comes after it, never the island under it.
+ *
+ * With a pool, every stack a node writes is the pool's frozen copy, which is
+ * what keeps a whole island's build inside a server's memory. A pooled map
+ * cannot be edited in place, so only a build nobody edits afterwards passes one.
  */
 export function buildMap(
   doc: MapDoc,
@@ -430,6 +435,7 @@ export function buildMap(
   components: ComponentRegistry,
   base: MapFile = EMPTY,
   previous?: BuildResult | null,
+  pool?: StackPool,
 ): BuildResult {
   const layout = layOut(doc);
   const usable =
@@ -534,7 +540,8 @@ export function buildMap(
             stackAt,
             tilesById,
           ).map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
-          map = settleSpans(current, setStacks(map, kept), tilesById);
+          const shared = pool ? kept.map((e) => ({ ...e, stack: pool.share(e.stack) })) : kept;
+          map = settleSpans(current, setStacks(map, shared), tilesById);
           const within = <T extends { x: number; y: number }>(cells: readonly T[]) =>
             cells.filter((c) => inside(placement.clip, c.x, c.y));
           if ("raised" in plan && plan.raised) {

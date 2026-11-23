@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { isBrink } from "../brinks";
 import { stackHeight, type StackEdit } from "../../../lib/mapData";
 import type { Direction, PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
@@ -425,7 +426,13 @@ export const road: Component<RoadProps> = {
         if (!c.bridge && (written.has(at(x, y)) || isWet(stack) || slopes.has(at(x, y)))) continue;
         const cleared = isWet(stack) ? stack : stack.filter((p) => !clears.has(p.tileId));
         if (stackHeight(cleared, ctx.tilesById) > 0) continue;
-        const surface = c.bridge ? deckOf(c).deck : props.tile ? tile(props.tile) : null;
+        /** A brink stands in for every cover at the top of a cliff (`brinks.ts`), so a road over one keeps it bare. */
+        const onBrink = !c.bridge && isBrink(stack[0]?.tileId);
+        const surface = c.bridge
+          ? deckOf(c).deck
+          : props.tile && !onBrink
+            ? tile(props.tile)
+            : null;
         if (!surface) {
           if (cleared.length !== stack.length) written.set(at(x, y), cleared);
           continue;

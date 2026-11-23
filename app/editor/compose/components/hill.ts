@@ -62,6 +62,13 @@ const N8 = [
  */
 const TERRACE_SWAY = 0.45;
 const TERRACE_SWAY_SCALE = 3;
+/**
+ * How far, in cells at full roughness, a finer noise than the foot's and the
+ * sway's pushes the foot and each terrace's edge in or out, and how many cells
+ * across one of its bends is, so neither runs straight for long on a large hill.
+ */
+const EDGE_JAG = 5;
+const EDGE_JAG_SCALE = 3;
 
 /** Lowers every cell to at most one level above its lowest eight-neighbour, which the sway alone does not promise. */
 function capSteps(g: CellGrid, level: Uint8Array): Uint8Array {
@@ -84,6 +91,116 @@ function capSteps(g: CellGrid, level: Uint8Array): Uint8Array {
   return level;
 }
 
+const N4 = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+] as const;
+
+/** The most cells the bottom of a dip inside a hill may cover and still be filled; a larger one was cut on purpose. */
+const MAX_PIT_CELLS = 64;
+
+/**
+ * Raises every cell that could not walk down to the foot of the hill, or off
+ * the frame, without climbing, to the level it would spill out at. A dip the
+ * foot's noise, a terrace's sway or a mask's ragged edge leaves inside the
+ * hill is otherwise a pit a player drops into and cannot leave. Only cells
+ * the hill may raise are filled, and only in dips of up to `MAX_PIT_CELLS`;
+ * the rest are where the flood starts.
+ */
+function fillPits(g: CellGrid, level: Uint8Array, mayRaise: Uint8Array): Uint8Array {
+  const filled = new Uint8Array(level.length).fill(255);
+  const buckets: number[][] = [];
+  const add = (i: number, l: number) => {
+    filled[i] = l;
+    (buckets[l] ??= []).push(i);
+  };
+  for (let i = 0; i < level.length; i++) {
+    const x = gridX(g, i);
+    const y = gridY(g, i);
+    const rim =
+      x === g.minX || y === g.minY || x === g.minX + g.width - 1 || y === g.minY + g.height - 1;
+    if (rim || !mayRaise[i]) add(i, level[i]!);
+  }
+  for (let l = 0; l < buckets.length; l++) {
+    const bucket = buckets[l] ?? [];
+    for (let k = 0; k < bucket.length; k++) {
+      const i = bucket[k]!;
+      if (filled[i] !== l) continue;
+      for (const [dx, dy] of N4) {
+        const x = gridX(g, i) + dx;
+        const y = gridY(g, i) + dy;
+        if (!inGrid(g, x, y)) continue;
+        const j = gridIndex(g, x, y);
+        const spill = Math.max(level[j]!, l);
+        if (spill < filled[j]!) add(j, spill);
+      }
+    }
+  }
+  const seen = new Uint8Array(level.length);
+  for (let start = 0; start < level.length; start++) {
+    if (seen[start] || filled[start] === level[start]) continue;
+    const dip = [start];
+    seen[start] = 1;
+    for (let k = 0; k < dip.length; k++) {
+      for (const [dx, dy] of N4) {
+        const x = gridX(g, dip[k]!) + dx;
+        const y = gridY(g, dip[k]!) + dy;
+        if (!inGrid(g, x, y)) continue;
+        const j = gridIndex(g, x, y);
+        if (seen[j] || filled[j] === level[j]) continue;
+        seen[j] = 1;
+        dip.push(j);
+      }
+    }
+    const floor = Math.min(...dip.map((i) => level[i]!));
+    const bottom = dip.filter((i) => level[i] === floor).length;
+    if (bottom > MAX_PIT_CELLS) for (const i of dip) filled[i] = level[i]!;
+  }
+  return filled;
+}
+
+/** The fewest cells a piece of one level of a hill may have apart from the rest of that level; `MIN_PATCH_CELLS` in `app/verify/landscape.ts` is the same bar. */
+const MIN_KNOB_CELLS = 16;
+
+/**
+ * Lowers each piece of a level that is smaller than `MIN_KNOB_CELLS` and is
+ * not that level's largest piece to the level below, from the top down. The
+ * foot's noise leaves knobs a cell or two across beside a hill's edge, which
+ * read as specks of its ground in the ground below.
+ */
+function lowerKnobs(g: CellGrid, level: Uint8Array): Uint8Array {
+  const top = Math.max(...level);
+  for (let l = top; l >= 1; l--) {
+    const piece = new Int32Array(level.length).fill(-1);
+    const pieces: number[][] = [];
+    for (let start = 0; start < level.length; start++) {
+      if (level[start]! < l || piece[start] !== -1) continue;
+      const cells = [start];
+      piece[start] = pieces.length;
+      for (let k = 0; k < cells.length; k++) {
+        for (const [dx, dy] of N4) {
+          const x = gridX(g, cells[k]!) + dx;
+          const y = gridY(g, cells[k]!) + dy;
+          if (!inGrid(g, x, y)) continue;
+          const j = gridIndex(g, x, y);
+          if (level[j]! < l || piece[j] !== -1) continue;
+          piece[j] = pieces.length;
+          cells.push(j);
+        }
+      }
+      pieces.push(cells);
+    }
+    const largest = Math.max(0, ...pieces.map((p) => p.length));
+    for (const cells of pieces) {
+      if (cells.length >= MIN_KNOB_CELLS || cells.length === largest) continue;
+      for (const i of cells) level[i] = l - 1;
+    }
+  }
+  return level;
+}
+
 /**
  * How many levels each cell is raised. The foot of the hill is a noisy
  * ellipse cut down to dry ground its masks leave in, and a cell's level is how
@@ -100,8 +217,11 @@ function levelsOf(
   props: HillProps,
   seed: number,
   raisable: (x: number, y: number) => boolean,
+  covered: (x: number, y: number) => boolean,
 ): Uint8Array {
   const wobble = (props.roughness / 100) * MAX_WOBBLE;
+  /** A steep hill keeps a smooth foot: a jagged one leaves shelves wide enough for a ramp up its cliffs. */
+  const jag = props.terrace >= 2 ? (props.roughness / 100) * EDGE_JAG : 0;
   const rx = (g.width / 2 - MARGIN) / (1 + wobble * HEADROOM);
   const ry = (g.height / 2 - MARGIN) / (1 + wobble * HEADROOM);
   const cx = g.minX + (g.width - 1) / 2;
@@ -109,6 +229,7 @@ function levelsOf(
   const scale = Math.max(MIN_EDGE_SCALE, Math.min(g.width, g.height) * EDGE_SCALE_SHARE);
   const n = g.width * g.height;
   const distance = new Int32Array(n).fill(-1);
+  const mayRaise = new Uint8Array(n);
   const queue: number[] = [];
   for (let i = 0; i < n; i++) {
     const x = gridX(g, i);
@@ -120,7 +241,9 @@ function levelsOf(
       g.minY + g.height - 1 - y,
     );
     const d = rx < 1 || ry < 1 ? Infinity : Math.hypot((x - cx) / rx, (y - cy) / ry);
-    const noise = (fbm(x, y, seed, scale, EDGE_OCTAVES) - 0.5) * 2 * wobble;
+    const jagged = (fbm(x, y, seed ^ 0x1a66, EDGE_JAG_SCALE, 2) - 0.5) * 2 * jag;
+    const noise =
+      (fbm(x, y, seed, scale, EDGE_OCTAVES) - 0.5) * 2 * wobble + jagged / Math.min(rx, ry);
     /**
      * The noise pushes the foot out only as far as the frame's margin leaves
      * room for, squeezed smoothly towards that limit. Cut off by the frame
@@ -132,7 +255,10 @@ function levelsOf(
     );
     const room = Math.max(0, d * toFrame - 1);
     const bulge = noise <= 0 ? noise : room * Math.tanh(noise / Math.max(room, ROOM_EPSILON));
-    if (fromEdge >= MARGIN && d - bulge <= 1 && raisable(x, y)) continue;
+    if (fromEdge >= MARGIN && raisable(x, y)) {
+      mayRaise[i] = 1;
+      if (d - bulge <= 1 && covered(x, y)) continue;
+    }
     distance[i] = 0;
     queue.push(i);
   }
@@ -142,10 +268,14 @@ function levelsOf(
     const swayScale = Math.max(MIN_EDGE_SCALE, props.terrace * TERRACE_SWAY_SCALE);
     const level = Uint8Array.from(round, (d, i) => {
       if (d === 0) return 0;
-      const push = (fbm(gridX(g, i), gridY(g, i), seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway;
+      const x = gridX(g, i);
+      const y = gridY(g, i);
+      const push =
+        (fbm(x, y, seed ^ 0x7e55, swayScale, 2) - 0.5) * 2 * sway +
+        (fbm(x, y, seed ^ 0x1a66, EDGE_JAG_SCALE, 2) - 0.5) * 2 * jag;
       return Math.max(1, Math.min(props.levels, Math.ceil((d + push) / props.terrace)));
     });
-    return capSteps(g, level);
+    return lowerKnobs(g, fillPits(g, capSteps(g, level), mayRaise));
   }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head]!;
@@ -159,9 +289,10 @@ function levelsOf(
       queue.push(j);
     }
   }
-  return Uint8Array.from(distance, (d) =>
+  const level = Uint8Array.from(distance, (d) =>
     d === 0 ? 0 : props.terrace === 0 ? props.levels : Math.min(props.levels, d),
   );
+  return lowerKnobs(g, fillPits(g, level, mayRaise));
 }
 
 /**
@@ -180,7 +311,9 @@ function levelsOf(
  * with none is raised to the tier's edge, and its wall there takes the place
  * of the brink it stands on. Water, empty cells and
  * anything built stay as they are, with the cells round a building, and masks
- * cut the foot of the hill, not the finished one.
+ * cut the foot of the hill, not the finished one. A hole of a few cells that
+ * a mask's ragged edge cuts inside the hill is raised with it, since nobody
+ * could climb out of it.
  *
  * It lays no way up by itself. Each of `ramps` is a point, and the ramp goes
  * on the nearest stretch of straight cliff to it; a road that crosses the
@@ -210,18 +343,24 @@ export const hill: Component<HillProps> = {
           const def = ctx.tilesById[p.tileId];
           return !def || (def.height > 0 && !TILES.standing.test(def));
         });
-    const level = levelsOf(g, props, ctx.seed, (x, y) => {
-      const stack = stackOn(x, y);
-      if (stack.length === 0 || isWet(stack) || !ctx.covered(x, y)) return false;
-      if (ctx.raisedAt(x, y) !== base) return false;
-      const ledge = props.terrace > 0;
-      return (
-        !N8.some(([dx, dy]) => {
-          const beside = ctx.raisedAt(x + dx, y + dy);
-          return beside > base || (ledge && beside < base) || built(x + dx, y + dy);
-        }) && !built(x, y)
-      );
-    });
+    const level = levelsOf(
+      g,
+      props,
+      ctx.seed,
+      (x, y) => {
+        const stack = stackOn(x, y);
+        if (stack.length === 0 || isWet(stack)) return false;
+        if (ctx.raisedAt(x, y) !== base) return false;
+        const ledge = props.terrace > 0;
+        return (
+          !N8.some(([dx, dy]) => {
+            const beside = ctx.raisedAt(x + dx, y + dy);
+            return beside > base || (ledge && beside < base) || built(x + dx, y + dy);
+          }) && !built(x, y)
+        );
+      },
+      ctx.covered,
+    );
     if (!level.some((l) => l > 0)) {
       return {
         ok: false,

@@ -5,6 +5,7 @@ import { emptyMap, parseFlatMap, parseMap, parseSharedMap, serializeMap } from "
 import type { StackPool } from "./stackPool";
 
 const MAP_KEY = "map.json";
+const TREE_KEY = "world.json";
 const TILES_KEY = "tiles.json";
 const TILESETS_KEY = "tilesets.json";
 const STATUSES_KEY = "statuses.json";
@@ -100,6 +101,19 @@ export class DataStore {
     await this.blobs.put(TILESETS_KEY, `${JSON.stringify(unversioned, null, 2)}\n`, JSON_TYPE);
   }
 
+  /** The compose tree the world's map is built from: see `server/worldMap.ts`. */
+  async readTreeText(): Promise<string | null> {
+    return this.blobs.getText(TREE_KEY);
+  }
+
+  async writeTreeText(text: string) {
+    await this.blobs.put(TREE_KEY, text, JSON_TYPE);
+  }
+
+  async readTilesText(): Promise<string | null> {
+    return this.blobs.getText(TILES_KEY);
+  }
+
   /** With a pool, the map is read for play: see `parseSharedMap`. */
   async readMap(pool?: StackPool): Promise<MapFile> {
     const raw = await this.blobs.getText(MAP_KEY);
@@ -114,7 +128,11 @@ export class DataStore {
   }
 
   async writeMap(map: MapFile) {
-    await this.blobs.put(MAP_KEY, serializeMap(map), JSON_TYPE);
+    await this.writeMapText(serializeMap(map));
+  }
+
+  async writeMapText(text: string) {
+    await this.blobs.put(MAP_KEY, text, JSON_TYPE);
   }
 
   async readTilesetPng(fileName: string): Promise<Uint8Array<ArrayBuffer> | null> {

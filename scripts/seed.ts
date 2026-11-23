@@ -7,10 +7,10 @@ const config = readConfig();
 const db = await openDatabase(config.databasePath);
 const blobs = new SqliteBlobs(db);
 
-await seedFromDirectory(blobs, config.SEED_DIR, config.SEED_MAP);
+await seedFromDirectory(blobs, config.SEED_DIR, config.SEED_TREE);
 await db.close?.();
 
 console.log(
   `Seeded ${config.SEED_DIR} into ${config.databasePath}.\n` +
-    `The running world keeps its checkpoint — POST /api/reset to start it over.`,
+    `The server builds the map from the tree when it next starts, keeping players.`,
 );

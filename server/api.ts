@@ -1,7 +1,8 @@
 import * as v from "valibot";
 import { weatherAreasSchema } from "../app/lib/weatherAreas";
 import { Elysia, t } from "elysia";
-import { parseFlatMap, serializeMap } from "../app/lib/mapData";
+import { serializeMap } from "../app/lib/mapData";
+import { parseMapDoc } from "../app/editor/compose/doc";
 import { readPngSize } from "../app/lib/png";
 import { TILESET_VERSION_PARAM } from "../app/lib/dataStore";
 import { readAppearance, type HumanAppearance } from "../app/lib/humanSprite";
@@ -220,6 +221,10 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
     .get("/traits", async () => ({ traits: await store.readTraits() }))
     .get("/tilesets", async () => ({ tilesets: await store.readVersionedTilesets() }))
     .get("/weather-areas", async () => ({ areas: await store.readWeatherAreas() }))
+    .get("/tree", async ({ request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      return { tree: await store.readTreeText(), editable: !config.deployed };
+    })
     .get("/map", async ({ request, status }) => {
       if (!(await admin(request))) return status(404, "Not found");
       return { map: serializeMap(await store.readMap()) };
@@ -302,13 +307,32 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       { body: t.Object({ areas: t.Array(t.Unknown()) }) },
     )
     .post(
-      "/map",
+      "/tree",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
-        const { removed } = await world.server.replaceWorld(parseFlatMap(body.map));
-        return { ok: true as const, removed };
+        if (config.deployed) {
+          return status(
+            403,
+            "A deployed world plays the tree its image was built with. Edit data/world.json in a checkout and deploy it.",
+          );
+        }
+        let raw: unknown;
+        try {
+          raw = JSON.parse(body.tree);
+        } catch {
+          return status(400, "The tree is not JSON");
+        }
+        const parsed = parseMapDoc(raw);
+        if (!parsed.ok) return status(400, parsed.reason);
+        const tree = `${JSON.stringify(parsed.doc, null, 2)}\n`;
+        try {
+          const replaced = await world.buildAuthoredMap(tree);
+          return { ok: true as const, replaced, tree };
+        } catch (error) {
+          return status(400, error instanceof Error ? error.message : String(error));
+        }
       },
-      { body: t.Object({ map: t.String() }) },
+      { body: t.Object({ tree: t.String() }) },
     )
     .post(
       "/tilesets/:file",

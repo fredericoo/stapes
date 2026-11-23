@@ -61,24 +61,69 @@ storage model the Durable Object had, since `ctx.storage` was SQLite underneath.
 `DataStore` is unchanged, and `Blobs` still has two implementations:
 
 - **Dev — `DiskBlobs`, over `data/` on disk.** Still the single source of truth
-  while developing: an edited PNG is live on the next request, and the editor's
-  Save lands in `data/map.json` as a reviewable diff. It is a file read now. The
+  while developing: an edited PNG is live on the next request, and the map
+  editor's Save lands in `data/world.json` as a reviewable diff. It is a file read now. The
   Worker had no filesystem, so this used to be an HTTP call to a Vite middleware
   at an origin threaded through the socket handshake — all of that is gone.
 - **Deployed — `SqliteBlobs`**, in the `blob` table. A fresh deployment seeds
   itself from the `data/` in its image on first boot, and after that the deploy
   pipeline keeps the store tracking the repo: its last step is
   `POST /api/seed`, which copies the image's `data/` over the store and
-  restarts the world on it (`World.reseed`). Merging a map or tile change to
-  main is therefore all it takes for it to be live.
+  restarts the world on it (`World.reseed`). A new image now seeds itself at
+  start instead (`seedIfChanged`), and the call finds nothing left to do.
+  Merging a map or tile change to main is therefore all it takes for it to be
+  live.
 
 **There is still a third copy, and it is still not `DataStore`'s.** The world
 being played prefers its own checkpoint to the authored content and carries each
 player's kit, tags and masteries across a save on purpose — so writing blobs
 alone changes nothing anybody can see; the world has to be replaced with them.
-`/api/seed` does that on the editor-save path with positions kept
-(`replaceWorld` with `keepPositions`), so a deploy resets the map around the
-players without resetting the players. `POST /api/reset` remains the
+building the map does that with positions kept (`replaceWorld` with
+`keepPositions`), so a new map is laid around the players without resetting the
+players.
+
+### The map is built from a tree, at start
+
+Nobody edits `map.json` any more. The world's content holds `world.json`, a
+compose tree (`app/editor/compose/`, edited at `/admin/compose`), and
+`World.buildAuthoredMap` builds the map from it when the server starts and when
+the editor saves on a dev server. The decisions:
+
+- **Two hashes, stored under `authoredMap` in `kv`.** The inputs hash covers the
+  tree, `tiles.json` and every non-test file under `app/editor`, `app/game` and
+  `app/lib`, and decides whether to build: a restart with none of them changed
+  builds nothing. The map hash covers what came out and decides whether to
+  replace the board: a code change that builds the same map leaves creatures,
+  dropped items and decay where they were. Hashing the source rather than a
+  version constant is what makes a fix to a component reach the world without
+  anybody remembering to bump anything.
+- **The build is deterministic.** The same tree, catalogue and code build the
+  same bytes every time (checked on the 4× island, pooled and not), which is
+  what lets the map hash stand for "nothing changed".
+- **It runs in a child process** (`buildWorldMapApart`, `bun --smol`). The 4×
+  island's build peaks at about 1.8 GB on its own, with ~330 MB of map left at
+  the end; the rest is garbage from the largest layers (sea, island, the three
+  dungeons). Forcing a collection after every node still peaked at 1.5 GB, so
+  the peak is inside single nodes. A pooled build (`buildMap`'s `pool`) cut
+  the peak from 2.2 to 1.8 GB and builds the same bytes.
+- **The Docker image builds the map, so a deployed start only reads it.** The
+  Dockerfile runs `server/worldMap.ts --prebuild` for `world.json` and
+  `world-staging.json`, writing each map and its inputs hash under
+  `data/built/`. At start, `buildMap` plays that file when its inputs hash is
+  the one the world computed, and builds in the child otherwise (a tile edited
+  in the admin since, say). This keeps the 1.8 GB peak out of the container,
+  whose limit is 1536 MB, and puts it on the machine building the image.
+- **A deployed world takes no tree saves.** `POST /api/tree` answers 403 when
+  `NODE_ENV=production` and `/admin/compose` opens view only. A tree saved into
+  a deployed store would exist nowhere in version control and be replaced by
+  the image's on the next deploy that changes content, so the tree is edited in
+  a checkout and reaches a world only by deploying it.
+- **A tree that cannot start a world is never stored.** `POST /api/tree` hands
+  the tree to `buildAuthoredMap`, which writes it only after `replaceWorld` has
+  built a session from its map, so a spawnless save is refused and the next
+  start does not crash on it.
+- **A world with no tree plays `map.json` as stored.** The server tests seed a
+  `map.json` directly and rely on that. `POST /api/reset` remains the
 destructive way out — every position, kit, tag and mastery goes with it.
 
 ## `bun dev` runs both halves
@@ -109,7 +154,7 @@ where the files sit. `/` is the landing page, prerendered at build time, and
 `/online` is the shared world. Everything a person editing the
 game needs — the map editor, the tile and status catalogues, the voxel editor,
 the arena and the play route — is under `/admin`, and `/admin` itself redirects
-to `/admin/map`.
+to `/admin/compose`, the map editor.
 
 **`/admin` is a role now, not just a place.** Every route under it asks for an
 `ADMIN` account in its own `clientLoader` — `requireAdmin` in `app/lib/auth.ts`
@@ -2098,8 +2143,10 @@ that already has a `pos:` row or a checkpoint. `replaceWorld` with
 `keepPositions` that finds the row ignores `keepPositions`, deletes every `pos:`
 row and the marker, and seats everybody present on the new spawn. Kit, tags,
 masteries, statuses and HP are kept as on any reseed. A migration runs once per
-database, so the move happens once per world; an editor save (`POST /api/map`,
-no `keepPositions`) leaves the marker for the reseed.
+database, so the move happens once per world. The migration was appended a
+second time when the 4× showcase island replaced Rune Isle; there the move
+happens at the first start that builds the new tree, since the build replaces
+the world with `keepPositions`.
 
 The store is capped (`MAX_SAVED_POSITIONS`, least-recently-saved evicted, pruned
 on load) for the same reason the chat log is: it grows with *visitors* rather
@@ -16489,10 +16536,13 @@ copies it out or pastes one in.
   focusable `role="button"`, which takes the Tree's single tab stop and its
   Enter and Space. dnd-kit's drag events carry no modifier keys, so Alt for
   "drop a copy" is followed from the window's key events.
-- **"Play this map" is `POST /api/map`**, the map editor's Save, so it
-  replaces the running world's map for everyone on it and, under `bun dev`,
-  writes `data/map.json` on disk. It refuses a map without exactly one `player`
-  tile, because `requireSinglePlayer` would refuse to load it.
+- **"Save to the world" is `POST /api/tree`.** The server builds the map from
+  the tree itself, replaces the running world's board for everyone on it and,
+  under `bun dev`, writes `data/world.json`. The page refuses a tree without
+  exactly one `player` tile, because `requireSinglePlayer` would refuse to load
+  it, and the server refuses one whose map cannot start a world. An unsaved
+  tree is kept in the browser with the saved tree it was edited from, and is
+  dropped once that tree is no longer the world's.
 - **An inspector row is a `role="group"`, not a `<label>`.** A label names and
   clicks the first control inside it, and a row can hold several.
 

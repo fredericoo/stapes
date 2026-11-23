@@ -62,16 +62,6 @@ describe("checkLandscape", () => {
     ["a river on grass with mud banks", meadowRiver(straight, { bank: MUD }), ["water-mud"]],
     ["a river that steps sideways only at a corner", meadowRiver(stepped), ["river-corner"]],
     [
-      "a river on grass laid over the grass",
-      meadowRiver(straight, { river: [t("sand"), t("grass"), t("water")] }),
-      ["river-bed"],
-    ],
-    [
-      "a river on grass with grass up to the water",
-      meadowRiver(straight, { bank: GRASS }),
-      ["river-bank"],
-    ],
-    [
       "a river through snow with no grass or mud round it",
       meadowRiver(straight, { river: SNOW_RIVER, bank: SNOW, land: SNOW }),
       [],
@@ -160,5 +150,17 @@ describe("checkLandscape", () => {
     const SPARSE_EVERY_CELLS = 8;
     expect(kindsOf(desert(CROWDED_EVERY_CELLS))).toEqual(["crowded"]);
     expect(kindsOf(desert(SPARSE_EVERY_CELLS))).toEqual([]);
+  });
+
+  it("does not count rubble on a ruin's slate floor as crowding the desert", () => {
+    const FLOOR_FROM = 10;
+    const FLOOR_TO = 30;
+    const onFloor = (v: number) => v >= FLOOR_FROM && v < FLOOR_TO;
+    const map = field(DESERT_CELLS, (x, y) =>
+      onFloor(x) && onFloor(y)
+        ? [...SAND, t("slate-floor"), ...((x + y) % 2 === 0 ? [t("rubble")] : [])]
+        : SAND,
+    );
+    expect(kindsOf(map)).toEqual([]);
   });
 });

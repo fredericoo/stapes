@@ -6,8 +6,8 @@ import { TILE_ID_RENAMES, renameTileIdsSql } from "../app/lib/tileRenames";
 export type Database = Awaited<ReturnType<typeof connect>>;
 
 /**
- * Rune Isle replaced the old map, and every saved position names a cell on the
- * old one. This marks the world so the next `GameServer.replaceWorld` with
+ * A new island replaces the old map, and every saved position names a cell on
+ * the old one. This marks the world so the next `GameServer.replaceWorld` with
  * `keepPositions` sends everybody to the new spawn instead; a world with
  * nothing saved yet is not marked. The key is `FORGET_POSITIONS_KEY`.
  */
@@ -162,6 +162,13 @@ const MIGRATIONS: readonly string[] = [
   renameTileIdsSql(TILE_ID_RENAMES[1]!, "kv", "value"),
   renameTileIdsSql(TILE_ID_RENAMES[2]!, "kv", "value"),
   renameTileIdsSql(TILE_ID_RENAMES[3]!, "kv", "value"),
+  FORGET_POSITIONS_SQL,
+  `CREATE TABLE IF NOT EXISTS blob_part (
+     key   TEXT NOT NULL,
+     n     INTEGER NOT NULL,
+     bytes BLOB NOT NULL,
+     PRIMARY KEY (key, n)
+   )`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

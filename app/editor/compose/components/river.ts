@@ -2,6 +2,7 @@ import * as v from "valibot";
 import type { StackEdit } from "../../../lib/mapData";
 import type { PlacedTile } from "../../../lib/types";
 import { placed } from "../../generator";
+import { isBrink } from "../brinks";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import { DEFAULT_BRIDGE, MAX_ARC, ROUTE_PROPS, bandOffsets, isWet, routeOf } from "./line";
@@ -81,8 +82,9 @@ export const river: Component<RiverProps> = {
         if (!ground) continue;
         wet.push({ x, y });
         if (isWet(stack)) continue;
-        const bed =
-          ground.tileId === props.bed ? [ground] : [ground, placed(props.bed, ctx.tilesById)];
+        /** A brink draws a cliff's edge in place of every cover on it, so a bed laid on one shows as a gap. */
+        const bare = ground.tileId === props.bed || isBrink(ground.tileId);
+        const bed = bare ? [ground] : [ground, placed(props.bed, ctx.tilesById)];
         pools.set(`${x},${y}`, {
           x,
           y,

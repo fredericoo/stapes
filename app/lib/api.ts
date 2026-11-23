@@ -9,7 +9,6 @@ import type { RealmState } from "../../server/realm";
 import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import { TILESET_VERSION_PARAM } from "./dataStore";
-import type { RemovedPlacement } from "./validation";
 
 /**
  * Uses `window.location.origin`, not the bare host: Eden prefixes a bare
@@ -80,8 +79,14 @@ export async function saveTraits(traits: unknown[]): Promise<void> {
   unwrap(await client.api.traits.post({ traits }));
 }
 
-export async function saveMapText(map: string): Promise<RemovedPlacement[]> {
-  return unwrap(await client.api.map.post({ map })).removed;
+/** `editable` is false on a deployed world, whose tree comes only from its image. */
+export async function fetchTree(): Promise<{ tree: string | null; editable: boolean }> {
+  return unwrap(await client.api.tree.get());
+}
+
+/** Resolves once the world plays the map the tree builds, which on a whole island takes a while. */
+export async function saveTree(tree: string): Promise<{ replaced: boolean; tree: string }> {
+  return unwrap(await client.api.tree.post({ tree }));
 }
 
 export async function saveTilesets(tilesets: TilesetDef[]): Promise<void> {

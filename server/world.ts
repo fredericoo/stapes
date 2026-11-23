@@ -4,7 +4,17 @@ import { SqliteBlobs, DiskBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
 import { openWorldDatabaseExclusively } from "./lock";
-import { seedFromDirectory } from "./seed";
+import { seedIfChanged } from "./seed";
+import {
+  AUTHORED_MAP_KEY,
+  buildWorldMapApart,
+  readPrebuiltMap,
+  builderSourceHash,
+  hashOf,
+  type AuthoredMap,
+} from "./worldMap";
+import { StackPool } from "../app/lib/stackPool";
+import { parseSharedMap } from "../app/lib/mapData";
 import { createAuth, seedAdmin, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
 import { Characters, type RosterEntry } from "./characters";
@@ -39,6 +49,8 @@ export class World {
   private realm: RealmState = { leaders: [] };
   private readonly adminSockets = new WeakSet<GameSocket>();
   private readonly characterOf = new WeakMap<GameSocket, string>();
+  /** Builds run one at a time, so two saves cannot write the map out of order. */
+  private building: Promise<unknown> = Promise.resolve();
 
   private constructor(
     readonly server: GameServer,
@@ -58,10 +70,10 @@ export class World {
   static async open(config: Config): Promise<World> {
     const db = await openWorldDatabaseExclusively(config.databasePath);
 
-    const blobs = config.deployed ? new SqliteBlobs(db) : new DiskBlobs(config.SEED_DIR);
-    if (blobs instanceof SqliteBlobs && (await blobs.isEmpty())) {
-      await seedFromDirectory(blobs, config.SEED_DIR, config.SEED_MAP);
-    }
+    const blobs = config.deployed
+      ? new SqliteBlobs(db)
+      : new DiskBlobs(config.SEED_DIR, { "world.json": config.SEED_TREE });
+    if (blobs instanceof SqliteBlobs) await seedIfChanged(blobs, config.SEED_DIR, config.SEED_TREE);
 
     const store = new WorldStore(db);
     const hub = new SocketHub();
@@ -97,6 +109,7 @@ export class World {
       config,
     );
 
+    await world.buildAuthoredMap();
     await store.loadAlarm();
     world.rearmAlarm(store.alarmAt());
     store.onAlarmChange = (atMs) => world.rearmAlarm(atMs);
@@ -267,9 +280,79 @@ export class World {
     return path;
   }
 
+  /**
+   * A new image seeds itself at start, so on a deploy this finds nothing left
+   * to do. On disk the store is the directory, so there is nothing to copy.
+   */
   async reseed(): Promise<void> {
-    await seedFromDirectory(this.rawBlobs, this.config.SEED_DIR, this.config.SEED_MAP);
-    await this.server.replaceWorld(await this.blobs.readFlatMap(), { keepPositions: true });
+    const seeded =
+      !(this.rawBlobs instanceof SqliteBlobs) ||
+      (await seedIfChanged(this.rawBlobs, this.config.SEED_DIR, this.config.SEED_TREE));
+    const replaced = await this.buildAuthoredMap();
+    if (seeded && !replaced) await this.server.reloadContent();
+  }
+
+  /**
+   * Builds the map from the world's tree when the tree, the tile catalogue or
+   * the builder's source changed since the board was last built, and replaces
+   * the board with it when the map came out different. Players keep their
+   * kit, and their positions unless the world is marked to forget them.
+   *
+   * `proposed` is a tree to save: it is stored only once its map has started a
+   * world, so a tree that cannot start one never becomes the tree the next
+   * start builds. Returns whether the board was replaced.
+   */
+  buildAuthoredMap(proposed?: string): Promise<boolean> {
+    const next = this.building.then(() => this.buildAuthoredMapNow(proposed));
+    this.building = next.catch(() => false);
+    return next;
+  }
+
+  private async buildAuthoredMapNow(proposed?: string): Promise<boolean> {
+    const tree = proposed ?? (await this.blobs.readTreeText());
+    if (tree === null) return false;
+    const tiles = (await this.blobs.readTilesText()) ?? "[]";
+    const inputs = hashOf(tree, tiles, await builderSourceHash());
+    const recorded = await this.store.get<AuthoredMap>(AUTHORED_MAP_KEY);
+    let replaced = false;
+    if (recorded?.inputs !== inputs) {
+      const built = await this.buildMap(tree, tiles, inputs);
+      if (recorded?.map !== built.hash) {
+        await this.server.replaceWorld(parseSharedMap(built.text, new StackPool()), {
+          keepPositions: true,
+          text: built.text,
+        });
+        replaced = true;
+      }
+      await this.store.put(AUTHORED_MAP_KEY, { inputs, map: built.hash } satisfies AuthoredMap);
+    }
+    if (proposed !== undefined) await this.blobs.writeTreeText(proposed);
+    await this.store.flush();
+    return replaced;
+  }
+
+  /** A map the image built from the same inputs is used instead of building it here. */
+  private async buildMap(
+    tree: string,
+    tiles: string,
+    inputs: string,
+  ): Promise<{ hash: string; text: string }> {
+    const started = performance.now();
+    const prebuilt = await readPrebuiltMap(this.config.SEED_DIR, this.config.SEED_TREE, inputs);
+    let text: string;
+    if (prebuilt === null) {
+      const built = await buildWorldMapApart(tree, tiles, join(this.config.DATA_DIR, "builds"));
+      for (const problem of built.problems) {
+        console.warn(`[world] ${problem.key} was left out of the map: ${problem.reason}`);
+      }
+      text = built.text;
+    } else {
+      text = prebuilt;
+    }
+    console.log(
+      `[world] ${prebuilt === null ? "built the map from its tree" : "read the map the image built"} in ${Math.round(performance.now() - started)} ms`,
+    );
+    return { hash: hashOf(text), text };
   }
 
   get accepting(): boolean {
