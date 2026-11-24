@@ -1747,7 +1747,25 @@
                 "y": 823
               },
               "placement": {
-                "direction": "w"
+                "direction": "w",
+                "spots": {
+                  "bed": {
+                    "x": 500,
+                    "y": 864,
+                    "z": 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-tove-bedroll",
+            "props": {
+              "tile": "bedroll",
+              "at": {
+                "x": 460,
+                "y": 824
               }
             }
           },
@@ -3247,7 +3265,7 @@
               },
               {
                 "type": "house",
-                "key": "camp-trader",
+                "key": "camp-pub",
                 "frame": {
                   "x": 1,
                   "y": 2,
@@ -3260,9 +3278,9 @@
                 "children": [
                   {
                     "type": "floor",
-                    "key": "camp-trader-f0",
+                    "key": "camp-pub-f0",
                     "props": {
-                      "use": "shop",
+                      "use": "pub",
                       "doors": [
                         {
                           "x": 0,
@@ -3272,12 +3290,12 @@
                         }
                       ],
                       "foodOnly": true,
-                      "stockPercent": 10
+                      "stockPercent": 20
                     }
                   },
                   {
                     "type": "porch",
-                    "key": "camp-trader-p0",
+                    "key": "camp-pub-p0",
                     "props": {
                       "side": "s",
                       "use": "seating",
@@ -3286,44 +3304,7 @@
                   },
                   {
                     "type": "roof",
-                    "key": "camp-trader-roof",
-                    "props": {
-                      "colour": "yellow",
-                      "pitch": "low"
-                    }
-                  }
-                ]
-              },
-              {
-                "type": "house",
-                "key": "camp-bunkhouse",
-                "frame": {
-                  "x": 18,
-                  "y": 2,
-                  "w": 8,
-                  "h": 8
-                },
-                "children": [
-                  {
-                    "type": "floor",
-                    "key": "camp-bunkhouse-f0",
-                    "props": {
-                      "use": "barracks",
-                      "doors": [
-                        {
-                          "x": 0,
-                          "y": 0,
-                          "pinX": "left",
-                          "pinY": "center"
-                        }
-                      ],
-                      "foodOnly": true,
-                      "stockPercent": 10
-                    }
-                  },
-                  {
-                    "type": "roof",
-                    "key": "camp-bunkhouse-roof",
+                    "key": "camp-pub-roof",
                     "props": {
                       "colour": "yellow",
                       "pitch": "low"
@@ -3377,12 +3358,34 @@
               },
               {
                 "type": "tile",
+                "key": "camp-ifeoma-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 13,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-ifeoma-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 13,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-barrel",
                 "props": {
                   "tile": "barrel",
                   "at": {
                     "x": 11,
-                    "y": 14
+                    "y": 6
                   },
                   "placement": {
                     "contents": [
@@ -3400,8 +3403,8 @@
                 "props": {
                   "tile": "wooden-box",
                   "at": {
-                    "x": 12,
-                    "y": 14
+                    "x": 11,
+                    "y": 7
                   },
                   "placement": {
                     "contents": [
@@ -3415,6 +3418,193 @@
               },
               {
                 "type": "tile",
+                "key": "camp-peregrine-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 19,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 19,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-sack",
+                "props": {
+                  "tile": "sack",
+                  "at": {
+                    "x": 17,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 20,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 24,
+                    "y": 11
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 24,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 22,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 24,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 24,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-sack",
+                "props": {
+                  "tile": "sack",
+                  "at": {
+                    "x": 22,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-barrel",
+                "props": {
+                  "tile": "barrel",
+                  "at": {
+                    "x": 22,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 4,
+                    "y": 15
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 4,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-wooden-box",
+                "props": {
+                  "tile": "wooden-box",
+                  "at": {
+                    "x": 5,
+                    "y": 15
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 11,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 11,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 12,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-ifeoma",
                 "props": {
                   "tile": "ifeoma-nwachukwu",
@@ -3423,7 +3613,14 @@
                     "y": 8
                   },
                   "placement": {
-                    "direction": "s"
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 479,
+                        "y": 759,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               },
@@ -3451,7 +3648,14 @@
                     "y": 11
                   },
                   "placement": {
-                    "direction": "e"
+                    "direction": "e",
+                    "spots": {
+                      "bed": {
+                        "x": 485,
+                        "y": 759,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               },
@@ -3465,7 +3669,14 @@
                     "y": 12
                   },
                   "placement": {
-                    "direction": "w"
+                    "direction": "w",
+                    "spots": {
+                      "bed": {
+                        "x": 490,
+                        "y": 764,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               },
@@ -3479,7 +3690,14 @@
                     "y": 11
                   },
                   "placement": {
-                    "direction": "s"
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 470,
+                        "y": 768,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               },
@@ -3489,11 +3707,39 @@
                 "props": {
                   "tile": "wenna-pascoe",
                   "at": {
-                    "x": 10,
-                    "y": 16
+                    "x": 20,
+                    "y": 15
                   },
                   "placement": {
-                    "direction": "s"
+                    "direction": "w",
+                    "spots": {
+                      "bed": {
+                        "x": 490,
+                        "y": 769,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa",
+                "props": {
+                  "tile": "runa-hask",
+                  "at": {
+                    "x": 14,
+                    "y": 15
+                  },
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 477,
+                        "y": 769,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               }
@@ -3728,14 +3974,18 @@
                           "pinX": "center",
                           "pinY": "bottom"
                         }
-                      ]
+                      ],
+                      "foodOnly": true,
+                      "stockPercent": 15
                     }
                   },
                   {
                     "type": "cellar",
                     "key": "harbour-warehouse-c0",
                     "props": {
-                      "use": "storage"
+                      "use": "storage",
+                      "foodOnly": true,
+                      "stockPercent": 15
                     }
                   },
                   {
@@ -3851,6 +4101,66 @@
                 }
               }
             ]
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-0",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 489,
+                "y": 728,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-1",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 494,
+                "y": 727,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-2",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 490,
+                "y": 731,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-3",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 495,
+                "y": 730,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-slime",
+            "props": {
+              "tile": "nature-slime",
+              "at": {
+                "x": 492,
+                "y": 729,
+                "z": -1
+              }
+            }
           },
           {
             "type": "lighthouse",
@@ -6873,7 +7183,7 @@
                 "wooden-floor"
               ],
               "edge": [],
-              "mode": "whole stack"
+              "mode": "on top"
             }
           },
           {

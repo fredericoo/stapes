@@ -35,9 +35,20 @@ In `data/world.json`:
   either. The east side ends at the bay. The valley opens only at its north
   end, beside the camp.
 - **The camp** (`camp`) is at the head of the valley, about 100 cells of road from the
-  wreck. Its houses stock their containers with a tenth of the usual food
-  and nothing else (`foodOnly`, `stockPercent: 10`), and the loose barrel and
-  box hold a bite each: gear is found or bought further on.
+  wreck. It is one house, `camp-pub`, and six decorative tents round the
+  fire, each with a few things in front of it and a `bedroll`. Every
+  townsfolk there, and Tove at the wreck, has a `bed` spot on its own
+  bedroll, so nobody walks indoors to sleep; the spot is in map
+  coordinates and goes stale if the camp moves, after which `keeps-hours`
+  falls back to the nearest bedroll. The pub stocks a fifth of the usual
+  food and nothing else (`foodOnly`, `stockPercent: 20`), and the loose
+  barrel and box hold a bite each: gear is found or bought further on.
+- **A safe haven.** Runa Hask stands at the camp's south edge, where the
+  road comes up, and shoots any hostile creature that comes within nine
+  cells of her post. Rabbits and deer are left for players.
+- **The old harbour** (`old-harbour`) is a short walk east of the camp. Its
+  warehouse cellar is the first small dungeon: four rats and a nature slime,
+  and a sixth of a storage cellar's food (`stockPercent: 15`).
 - **Creatures on the way** are sized for about ten players levelling at once
   without clearing the valley: `wreck-valley-game` scatters rats, small
   nature slimes, rabbits and deer with `spacing` and no `clumping`, two snakes
