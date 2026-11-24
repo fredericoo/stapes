@@ -407,6 +407,63 @@ describe("cave", () => {
         expect(floor.filter((c) => !walked.has(`${z}:${c.x},${c.y}`))).toEqual([]);
       }
     });
+
+    describe("dug up through a sheer hill with a spire on top", () => {
+      const TOP = { x: 12, y: 20, z: 3 };
+      const climb = (top: Record<string, unknown>, bottom: Record<string, unknown>) =>
+        buildTree(
+          land(SIZE, [
+            node("hill", { levels: 3, terrace: 0, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+            node("hill", { levels: 2, terrace: 0, roughness: 0 }, { frame: frame(18, 10, 20, 16) }),
+            node(
+              "dungeon",
+              {},
+              {
+                frame: { ...frame(6, 4, 44, 32), z: 2 },
+                children: [
+                  node("level", top),
+                  node("level", { shape: "tunnels" }),
+                  node("level", bottom),
+                ],
+              },
+            ),
+          ]),
+        );
+
+      it("is climbed from a mouth at its foot onto a hilltop nothing else reaches", () => {
+        const sealed = climb(
+          { ontoTop: true, up: { x: 0, y: 0, pinX: "center", pinY: "center" } },
+          { mouths: [] },
+        );
+        expect(walks(sealed, OUTSIDE, TOP), sketch(sealed)).toBe(false);
+
+        const built = climb(
+          { ontoTop: true, up: { x: 0, y: 0, pinX: "center", pinY: "center" } },
+          { mouths: [MOUTH] },
+        );
+        expect(walks(built, OUTSIDE, TOP), sketch(built)).toBe(true);
+        expect(walks(built, TOP, OUTSIDE), sketch(built)).toBe(true);
+      });
+
+      it("opens a mouth on each side its lowest level's points name", () => {
+        const built = climb(
+          { ontoTop: true, up: { x: 0, y: 0, pinX: "center", pinY: "center" } },
+          {
+            mouths: [MOUTH, { x: 0, y: 0, pinX: "center", pinY: "top" }],
+          },
+        );
+        const facings: string[] = [];
+        for (let y = 0; y < SIZE.h; y++) {
+          for (let x = 0; x < SIZE.w; x++) {
+            const mouth = getStack(built.map, x, y, 0).find((p) => p.tileId === "hill-cave-mouth");
+            if (mouth) facings.push(mouth.direction!);
+          }
+        }
+        expect(facings.sort()).toEqual(["n", "s"]);
+        const north = { x: 28, y: 1 };
+        expect(walks(built, north, OUTSIDE), sketch(built)).toBe(true);
+      });
+    });
   });
 });
 
