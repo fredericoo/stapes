@@ -11,6 +11,7 @@ import {
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AdminShell } from "../../components/AppShell";
+import { BoardViewer } from "../../editor/compose/BoardViewer";
 import { buildMap, type BuildResult } from "../../editor/compose/build";
 import { COMPONENTS } from "../../editor/compose/components";
 import { DUNGEON_TYPE } from "../../editor/compose/components/dungeon";
@@ -60,7 +61,7 @@ import { JsonDialog } from "../../editor/compose/JsonDialog";
 import { LayersPanel, branchKeys } from "../../editor/compose/LayersPanel";
 import { useDocHistory } from "../../editor/compose/useDocHistory";
 import { findPlayers } from "../../game/player";
-import { fetchBootstrap, fetchTree, saveTree } from "../../lib/api";
+import { fetchBoardOutline, fetchBootstrap, fetchTree, saveTree } from "../../lib/api";
 import { changedChunks } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import type { Bounds } from "../../editor/generator";
@@ -71,7 +72,8 @@ import { Button, Dialog, ScrollArea, Select, Tooltip, useToast } from "../../ui"
 export async function clientLoader() {
   await requireAdmin();
   const [bootstrap, { tree, editable }] = await Promise.all([fetchBootstrap(), fetchTree()]);
-  return { ...bootstrap, tree, editable };
+  const outline = editable ? null : await fetchBoardOutline();
+  return { ...bootstrap, tree, editable, outline };
 }
 
 function demoDoc(): MapDoc {
@@ -217,7 +219,19 @@ function pointsOf(layout: Layout, placement: Placement): PointHandleSpec[] {
   });
 }
 
+/**
+ * A world that takes no saves gets the viewer, which reads the board the
+ * server already built; composing a whole island in the tab took about 25 s
+ * and 2 GB, and froze the page while it did.
+ */
 export default function ComposePage() {
+  const { tiles, tilesets, outline } = useLoaderData<typeof clientLoader>();
+  const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+  if (outline) return <BoardViewer outline={outline} tilesById={tilesById} tilesets={tilesets} />;
+  return <ComposeEditor />;
+}
+
+function ComposeEditor() {
   const { tiles, tilesets, tree, editable } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const [savedTree, setSavedTree] = useState(tree);

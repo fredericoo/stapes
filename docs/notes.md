@@ -114,7 +114,8 @@ the editor saves on a dev server. The decisions:
   in the admin since, say). This keeps the 1.8 GB peak out of the container,
   whose limit is 1536 MB, and puts it on the machine building the image.
 - **A deployed world takes no tree saves.** `POST /api/tree` answers 403 when
-  `NODE_ENV=production` and `/admin/compose` opens view only. A tree saved into
+  `NODE_ENV=production` and `/admin/compose` opens a viewer of the board
+  (see "A deployed `/admin/compose` reads the board instead of building it"). A tree saved into
   a deployed store would exist nowhere in version control and be replaced by
   the image's on the next deploy that changes content, so the tree is edited in
   a checkout and reaches a world only by deploying it.
@@ -16558,6 +16559,36 @@ copies it out or pastes one in.
   dropped once that tree is no longer the world's.
 - **An inspector row is a `role="group"`, not a `<label>`.** A label names and
   clicks the first control inside it, and a row can hold several.
+
+### A deployed `/admin/compose` reads the board instead of building it
+
+Staging, previews and production take no tree saves, so `/admin/compose`
+there is `BoardViewer`: no layers and no form, only the map, read from the
+server a chunk at a time. Building the 4× island's tree in the tab took about
+25 s and 2 GB, on the main thread, and froze the page while it ran.
+
+- **It reads the board's chunk rows, not the tree and not the live session.**
+  `GET /api/board` lists the chunk keys and levels from the `chunk:` keys alone
+  (plus the spawn the view opens on), and `GET /api/board/chunks?chunks=a;b`
+  hands back every level's row of the chunks named, at most 128 a read. The
+  rows are the last checkpoint, so the viewer shows the world as played,
+  creatures and dropped things included, and never makes the server load a
+  chunk it had unloaded. 64 chunks of the 4× island are about 1.4 MB and
+  45 ms to read on the server.
+- **`chunksInView` asks for what the renderer will draw.** `WorldRenderer`
+  draws `VIEW_LEVEL_REACH` levels either side of the viewer, and level `z` is
+  shifted `z` cells up and left, so the chunks asked for are the union of the
+  camera's rectangle on each level the board has in that range, nearest the
+  middle first, with a chunk of margin. The page keeps one read in flight and
+  always reads the missing chunks nearest the middle of the view as it is
+  then, so a pan that outruns the reads does not wait for what it left.
+- **`BoardChunks` holds at most `MAX_HELD_CHUNKS`** and forgets the ones read
+  longest ago that are not in view.
+- **Isolating a level leaves every level above it out of the map handed to
+  the renderer**, and out of what is read. A link can open the viewer on a
+  place with `?x=…&y=…&level=…`.
+- A dev server, which takes saves, still gets the editor, which builds the
+  whole tree in the tab.
 
 ## A cave is rock you take away from
 

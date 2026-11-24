@@ -747,3 +747,36 @@ describe("health", () => {
     expect(asAnybody.memory).toBeUndefined();
   });
 });
+
+describe("the board, read a chunk at a time", () => {
+  async function read(path: string, headers: Record<string, string>): Promise<Response> {
+    return api.handle(new Request(`http://localhost/api${path}`, { headers }));
+  }
+
+  it("lists the chunks and levels the world holds, and where players start", async () => {
+    const response = await read("/board", { cookie });
+
+    expect(await response.json()).toEqual({
+      chunks: ["0,0"],
+      levels: [0],
+      spawn: { x: 0, y: 0, z: 0 },
+    });
+  });
+
+  it("hands back every level of the chunks asked for, and nothing of the others", async () => {
+    const response = await read(`/board/chunks?chunks=${encodeURIComponent("0,0;9,9")}`, {
+      cookie,
+    });
+    const { chunks } = (await response.json()) as {
+      chunks: { levelKey: string; chunkKey: string; cells: Record<string, unknown[]> }[];
+    };
+
+    expect(chunks.map((c) => [c.levelKey, c.chunkKey])).toEqual([["0", "0,0"]]);
+    expect(chunks[0]!.cells["1,0"]).toEqual([{ tileId: "grass" }]);
+  });
+
+  it("is read by administrators only", async () => {
+    expect((await read("/board", {})).status).toBe(404);
+    expect((await read("/board/chunks?chunks=0,0", {})).status).toBe(404);
+  });
+});

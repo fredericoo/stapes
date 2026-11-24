@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { baseCellWorldOrigin } from "../../lib/geometry";
+import type { CameraRect } from "../../lib/boardView";
 import type { MapFile, TileDef, TilesetDef } from "../../lib/types";
 import { WorldRenderer } from "../../render/WorldRenderer";
 
@@ -127,6 +128,9 @@ export function ComposeCanvas({
   view,
   onViewChange,
   lighting,
+  minutesOfDay = NOON,
+  level,
+  onCamera,
   tool,
   focus,
   raisedAt,
@@ -141,6 +145,11 @@ export function ComposeCanvas({
   view: ComposeView;
   onViewChange: (view: ComposeView) => void;
   lighting: boolean;
+  minutesOfDay?: number;
+  /** The level the view is centred on and draws round, ground level when absent. */
+  level?: number;
+  /** The world pixels the canvas shows, each time the view or the canvas changes. */
+  onCamera?: (camera: CameraRect) => void;
   tool: CanvasTool;
   focus?: CanvasFocus | null;
   /** How many levels the ground at a cell is raised, so a press on a hilltop finds the cell drawn there. */
@@ -187,17 +196,21 @@ export function ComposeCanvas({
   }, []);
 
   useEffect(() => {
+    const { left, top } = cameraOf(view, size.width, size.height);
     rendererRef.current?.setView({
       map,
       tilesById,
-      camera: (() => {
-        const { left, top } = cameraOf(view, size.width, size.height);
-        return { x: left, y: top };
-      })(),
+      camera: { x: left, y: top },
       zoom: view.zoom,
-      minutesOfDay: NOON,
+      minutesOfDay,
+      ...(level === undefined ? {} : { viewerZ: level }),
     });
-  }, [map, tilesById, view, size]);
+  }, [map, tilesById, view, size, minutesOfDay, level]);
+
+  useEffect(() => {
+    const { left, top } = cameraOf(view, size.width, size.height);
+    onCamera?.({ left, top, width: size.width / view.zoom, height: size.height / view.zoom });
+  }, [view, size, onCamera]);
 
   const viewRef = useRef(view);
   viewRef.current = view;
