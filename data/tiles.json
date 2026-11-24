@@ -13186,6 +13186,123 @@
     }
   },
   {
+    "id": "wooden-stairs",
+    "name": "Wooden Stairs",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 6
+    },
+    "climbFrom": {
+      "n": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      },
+      "s": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "brick-slab",
     "name": "Brick Slab",
     "height": 2,
@@ -216488,7 +216605,39 @@
     "anchor": {
       "tilesetId": "ramps",
       "x": 0,
-      "y": 6
+      "y": 8
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "timber-block",
+    "name": "Timber Block",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 2,
+      "y": 8
     },
     "sprite": {
       "frames": [
@@ -218965,6 +219114,1104 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-top",
+    "name": "Lavafall (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-middle",
+    "name": "Lavafall (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 2
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-base",
+    "name": "Lavafall (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 4
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-top",
+    "name": "Lavafall east (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 6
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-middle",
+    "name": "Lavafall east (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 8
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-base",
+    "name": "Lavafall east (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 10
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
         }
       ]
     }

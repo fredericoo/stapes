@@ -103,6 +103,7 @@ const DEFAULT_STAIR_BLOCK_TILE_ID = "half-stone";
  */
 const STAIR_BLOCK: Record<string, string> = {
   "stone-stairs": "brick-slab",
+  "wooden-stairs": "timber-block",
   ramp: "half-stone",
   "snowy-ramp": "frosted-half-stone",
 };

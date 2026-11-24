@@ -16398,6 +16398,46 @@ instead. `dungeonLevels` is what both the dungeon and `/admin/compose` read,
 so selecting a Level cuts the view to the level it is dug on, counted from
 the frame's level rather than from the ground a hill raised.
 
+### A chasm is cut through a dungeon before its levels are dug
+
+`chasm` (`components/chasm.ts`) is a part of `dungeon`, beside its Levels. It
+cuts a ragged oval out of the ground and then one opening per level, each the
+one above with its north and west sides pulled in by `ledge` and its south and
+east sides by one cell. Lower levels are drawn a cell down and right of the
+level above, so the north and west ledges are the ones seen from the rim, with
+their cliff faces; the south and east walls show only their tops. The last
+level's opening is the pool `bottom` fills, lava unless set otherwise.
+
+- **It is cut first.** A cave keeps two cells of rock round any cell that is
+  not rock, so every Level dug afterwards stays off the chasm's wall, and no
+  flight of stairs is placed where the chasm would cut it. That also means no
+  cave opens onto a ledge by itself: `openOntoLedges` cuts `openings` tunnels,
+  each the shortest run of rock from the ledge to the cave's floor, into every
+  part of each ledge. Two cascades crossing a ledge cut it into parts a body
+  cannot walk between with dry feet, so the tunnels are cut after the
+  cascades are poured; with one tunnel per level, `verify stranded` found the
+  part it missed.
+- **Each level is hollowed out behind its cliff.** `openCaverns` cuts the
+  rock behind the cliff round each ledge back `cavern` cells, so the level is
+  a cave with the chasm in it. The cliff itself is kept and only opened every
+  few cells: it is the face drawn under the ledge above, and with it cut away
+  that ledge was drawn hanging in the air with no face under its brink. The
+  openings on south and east faces are cave mouths, since only those faces are
+  drawn. The hollow keeps two cells from any flight of stairs: floor beside a
+  flight's top step is a lower floor stepped onto in place of its landing, and
+  walling an empty cell next to the hollow closed the shaft over a flight.
+- **A ledge is the only way down and the stairs the only way up.** Walking off
+  a ledge drops a body to the next one (no fall damage). A fall that would land
+  in lava is refused like one into water, so the pool is seen from every ledge
+  and reached by nobody keeping their feet dry.
+- **Cascades flow only south and east**, because a fall can only be drawn on
+  those faces. Each runs two cells wide from the rim nearest its point, across
+  each ledge and down a `lavafall` as tall as the drop. The lavafall tiles are
+  drawn by `scripts/generate-waterfall-tileset.ts` in the lava palette.
+- **Depth is bounded by the view.** Nothing more than eight levels from the
+  viewer is drawn, so a chasm whose pool is to be seen from its rim has its
+  last level at most eight below the rim.
+
 ### A component's behaviour is tested by walking a small tree
 
 Each component has a `<name>.test.ts` beside it in
@@ -16887,6 +16927,57 @@ into from any side.
   ferns and flowers grow with `ruin`. Every roll is per cell against the
   node's seed, so raising `ruin` only ever takes more away, and two ruins with
   different keys fall differently.
+
+## Wooden stairs are the stone flight's shape in the floor's timber
+
+`bun run generate:ramps` draws `wooden-stairs` with the same four-step
+surface as `stone-stairs`, coloured from `wooden-floor` (`#cd683d` boards,
+`#9e4539` stringers, `#e6904e` for the lit edges), and `timber-block`, the
+half block the upper stair of a flight stands on (`STAIR_BLOCK` in
+`app/editor/building.ts`). Each tread is one board the full width of the
+flight, between a stringer on either side; the floor's staggered planks read
+as a floor, not as steps. Any stairs field (house floors, lighthouse, wall,
+cave, deck)
+offers it, because those fields list every directional tile with `climbFrom`.
+
+## A deck is boards one level up on posts, not a floor laid on the water
+
+The `deck` component (`app/editor/compose/components/deck.ts`) builds a pier or
+a jetty: `wooden-floor` one level above its frame's ground, posts round its
+edge, and a way up at `way` (by default the second cell of the south side,
+where the side of the deck is in view). `reachedBy: "ladder"` stands a ladder
+there; `"stairs"` runs a flight of `stairs` off the deck's edge beside it, the
+upper stair on its half block as a house's flight is, trying the south side
+first. The flight is `wooden-stairs` by default, on `timber-block`.
+
+- **A post is `fence` pieces that touch no other fence.** `fence` is an
+  autotile, so two pieces side by side draw a run of railing. Posts stand on
+  the corners and every `poleEvery` cells along each side, and one that would
+  touch another, or stand on the ladder, is left out. Under the deck a post is
+  two pieces, which is a whole level of height, so it reaches the boards; on
+  the deck it is one more piece.
+- **Every edge board also gets `wooden-floor-inner`.** The floor autotile
+  draws only part of a cell towards a cell with no floor, and the `-inner`
+  tile is the rest of it (see *The stone floors use the wooden floor's
+  masks*). Without it the deck stops half a cell short of its frame.
+- **`decay` uses the same two tiles for broken boards.** Holes start on about
+  a fifth of `decay` of the cells and spread to the cells beside them. A board
+  beside a hole often goes without its `-inner` tile, so it is drawn cut short
+  and the hole looks larger and splintered; an outer edge board goes without
+  it less often. Posts are snapped at the deck or gone altogether, `moss-top`
+  grows in patches, and some holes over water have `wreck-planks` floating
+  under them.
+- **A decayed deck need not be walkable end to end.** Holes may cut off a
+  stretch of boards; only the cells round the way up are kept whole. A tile
+  placed on a hole is refused (`There is no ground`), so a barrel never floats
+  over a gap.
+  A hole over deep water is not a way down at all, because the game refuses
+  a drop into deep water. So `wreck-planks` float only in holes over
+  shallows: on deep water they would be somewhere to land that can't be
+  walked away from, and `bun run verify stranded` finds that.
+- **Nothing on the deck knows it is there.** The deck does not declare raised
+  ground, so a `tile` placed on it needs `z: 1` in its `at`, as the harbour
+  pier's barrel and rope have.
 
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 

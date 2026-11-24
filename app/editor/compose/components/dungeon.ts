@@ -1,9 +1,21 @@
 import * as v from "valibot";
 import { getStack, setStacks, type StackEdit } from "../../../lib/mapData";
+import type { PlacedTile, TileDef } from "../../../lib/types";
+import { isWet } from "./line";
 import type { Component } from "../build";
 import type { MapNode } from "../doc";
 import { field } from "../field";
 import { CaveSchema, cave } from "./cave";
+import {
+  CHASM_TYPE,
+  cutChasm,
+  openCaverns,
+  openOntoLedges,
+  planChasm,
+  pourCascades,
+  type ChasmPlan,
+  type ChasmProps,
+} from "./chasm";
 
 export const DUNGEON_TYPE = "dungeon";
 export const LEVEL_TYPE = "level";
@@ -38,6 +50,7 @@ export function dungeonLevels(dungeon: MapNode): Map<string, number> {
   (dungeon.children ?? [])
     .filter((c) => !c.hidden && c.type === LEVEL_TYPE)
     .forEach((c, i) => levels.set(c.key, -i));
+  for (const c of dungeon.children ?? []) if (c.type === CHASM_TYPE) levels.set(c.key, 1);
   return levels;
 }
 
@@ -47,6 +60,11 @@ export function dungeonLevels(dungeon: MapNode): Map<string, number> {
  * The first climbs to whatever is over the dungeon's level, the surface for
  * a dungeon below ground, and on level 0 or above, inside a hill, its way up
  * is a mouth in the nearest cliff instead.
+ *
+ * A Chasm part is cut before any level is dug, so every cave keeps its rock
+ * shell off the chasm and no flight of stairs is placed where the chasm
+ * would take it away. Once the levels are dug, each is joined to its ledge
+ * by a tunnel, and the cascades are poured.
  */
 export const dungeon: Component<DungeonProps> = {
   type: DUNGEON_TYPE,
@@ -61,7 +79,7 @@ export const dungeon: Component<DungeonProps> = {
   schema: DungeonSchema,
   shapesItself: true,
   ownLevels: true,
-  parts: [LEVEL_TYPE],
+  parts: [LEVEL_TYPE, CHASM_TYPE],
   partLevels: dungeonLevels,
   build(ctx) {
     const levels = ctx.parts.filter((p) => p.type === LEVEL_TYPE);
@@ -73,6 +91,17 @@ export const dungeon: Component<DungeonProps> = {
     }
     let map = ctx.map;
     const edits: StackEdit[] = [];
+    const lay = () => ({ map, tilesById: ctx.tilesById, z: ctx.z, raisedAt: ctx.raisedAt });
+    const chasms: Array<{ plan: ChasmPlan; part: (typeof ctx.parts)[number] }> = [];
+    for (const part of ctx.parts.filter((p) => p.type === CHASM_TYPE)) {
+      const plan = planChasm(part.bounds, part.seed, part.props as ChasmProps, levels.length);
+      if ("reason" in plan) return { ok: false, reason: plan.reason };
+      chasms.push({ plan, part });
+      const cut = cutChasm(lay(), plan);
+      map = setStacks(map, cut);
+      edits.push(...cut);
+    }
+    const floors: Array<Set<string>> = [];
     for (const [i, part] of levels.entries()) {
       const { up, upBy, ...own } = part.props as LevelProps;
       const z = ctx.z - i;
@@ -95,10 +124,35 @@ export const dungeon: Component<DungeonProps> = {
       if (!plan.ok) return { ok: false, reason: `Level ${i + 1}: ${plan.reason}` };
       map = setStacks(map, plan.edits);
       edits.push(...plan.edits);
+      floors.push(
+        new Set(
+          plan.edits
+            .filter((e) => e.z === z && e.stack.length > 0 && isFloor(e.stack, ctx.tilesById))
+            .map((e) => `${e.x},${e.y}`),
+        ),
+      );
+    }
+    for (const { plan, part } of chasms) {
+      const poured = pourCascades(lay(), plan, plan.props.cascades, part.point);
+      map = setStacks(map, poured);
+      edits.push(...poured);
+      const hollowed = openCaverns(lay(), plan);
+      map = setStacks(map, hollowed.edits);
+      edits.push(...hollowed.edits);
+      const opened = openOntoLedges(lay(), plan, floors, hollowed.caverns);
+      map = setStacks(map, opened);
+      edits.push(...opened);
     }
     return { ok: true, edits };
   },
 };
+
+function isFloor(stack: readonly PlacedTile[], tilesById: Record<string, TileDef>): boolean {
+  return stack.every((p) => {
+    const def = tilesById[p.tileId];
+    return def?.height === 0 && def.walkable !== false && !isWet([p]);
+  });
+}
 
 export const level: Component<LevelProps> = {
   type: LEVEL_TYPE,

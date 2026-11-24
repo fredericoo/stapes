@@ -1,6 +1,8 @@
 import type { Component, ComponentRegistry } from "../build";
 import { cave } from "./cave";
+import { chasm } from "./chasm";
 import { clear } from "./clear";
+import { deck } from "./deck";
 import { dungeon, level } from "./dungeon";
 import { fill } from "./fill";
 import { forest } from "./forest";
@@ -28,6 +30,7 @@ const all: ReadonlyArray<Component<never>> = [
   cave,
   dungeon,
   level,
+  chasm,
   grass,
   forest,
   house,
@@ -38,6 +41,7 @@ const all: ReadonlyArray<Component<never>> = [
   lighthouse,
   tier,
   temple,
+  deck,
   road,
   wall,
   river,
