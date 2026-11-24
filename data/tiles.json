@@ -14494,129 +14494,246 @@
                 ]
               },
               {
-                "label": "Buy {item:cooked-meat}",
+                "label": "Trade",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Three gold a piece. Cooked this morning."
+                    "text": "I sell cooked meat. I buy what you take off the animals here."
                   },
                   {
-                    "kind": "request_trade",
-                    "take": [],
-                    "give": [
-                      {
-                        "tileId": "cooked-meat",
-                        "count": 1
-                      }
-                    ],
-                    "takeCash": 3,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "There you are. Anything else?"
-                      },
-                      {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
-                      },
-                      {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "Sell {item:raw-meat}",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "One gold a cut. I'll cook it."
+                    "kind": "anchor",
+                    "name": "trade"
                   },
                   {
-                    "kind": "request_trade",
-                    "take": [
+                    "kind": "choices",
+                    "options": [
                       {
-                        "tileId": "raw-meat",
-                        "count": 1
-                      }
-                    ],
-                    "give": [],
-                    "giveCash": 1,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "Done. Anything else?"
+                        "label": "Buy {item:cooked-meat}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Three gold a piece. Cooked this morning."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [],
+                            "give": [
+                              {
+                                "tileId": "cooked-meat",
+                                "count": 1
+                              }
+                            ],
+                            "takeCash": 3,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "There you are. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
+                        "label": "Sell {item:raw-meat}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a cut. I'll cook it."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "raw-meat",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "Sell {item:skin}",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Two gold a skin. Idris at the camp pays the same."
-                  },
-                  {
-                    "kind": "request_trade",
-                    "take": [
-                      {
-                        "tileId": "skin",
-                        "count": 1
-                      }
-                    ],
-                    "give": [],
-                    "giveCash": 2,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "Done. Anything else?"
+                        "label": "Sell {item:skin}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Two gold a skin. Idris at the camp pays the same."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 2,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
+                        "label": "Sell {item:rat-tail}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a tail. The camp likes to know the rats are thinning."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "rat-tail",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
+                        "label": "Sell {item:nature-slime-jelly}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a jelly. Noor in the druids' town makes something of them."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "nature-slime-jelly",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "That's all",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Anything else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
                       }
                     ]
                   }
