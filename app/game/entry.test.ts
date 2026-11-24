@@ -121,3 +121,20 @@ describe("findEntryCell", () => {
     expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(SPAWN);
   });
 });
+
+describe("findEntryCell on a map that changed under somebody", () => {
+  it("does not leave them in the air where the ground was taken away", () => {
+    const map = floorWith({});
+    const offTheEdge = { x: 40, y: 0, z: 0 };
+    expect(findEntryCell(map, tilesById, offTheEdge, SPAWN)).toEqual(SPAWN);
+  });
+
+  it("moves them to the nearest ground when it is within reach", () => {
+    const map = floorWith({});
+    expect(findEntryCell(map, tilesById, { x: 23, y: 0, z: 0 }, SPAWN)).toEqual({
+      x: 22,
+      y: 0,
+      z: 0,
+    });
+  });
+});
