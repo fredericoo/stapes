@@ -6557,6 +6557,100 @@
             }
           }
         ]
+      },
+      {
+        "type": "deck",
+        "key": "hamlet-jetty",
+        "frame": {
+          "x": 144,
+          "y": 503,
+          "w": 12,
+          "h": 3
+        },
+        "props": {
+          "decay": 10,
+          "way": {
+            "x": 1,
+            "y": 0,
+            "pinX": "right",
+            "pinY": "bottom"
+          }
+        }
+      },
+      {
+        "type": "deck",
+        "key": "bog-boardwalk",
+        "frame": {
+          "x": 164,
+          "y": 645,
+          "w": 12,
+          "h": 3
+        },
+        "props": {
+          "decay": 75,
+          "reachedBy": "stairs",
+          "way": {
+            "x": 1,
+            "y": 0,
+            "pinX": "right",
+            "pinY": "bottom"
+          }
+        }
+      },
+      {
+        "type": "deck",
+        "key": "lighthouse-landing",
+        "frame": {
+          "x": 731,
+          "y": 773,
+          "w": 12,
+          "h": 3
+        },
+        "props": {
+          "decay": 45,
+          "reachedBy": "stairs",
+          "way": {
+            "x": 1,
+            "y": 0,
+            "pinX": "right",
+            "pinY": "bottom"
+          }
+        }
+      },
+      {
+        "type": "deck",
+        "key": "lake-jetty",
+        "frame": {
+          "x": 720,
+          "y": 486,
+          "w": 3,
+          "h": 10
+        },
+        "props": {
+          "decay": 20,
+          "way": {
+            "x": 1,
+            "y": 0,
+            "pinY": "bottom"
+          }
+        }
+      },
+      {
+        "type": "deck",
+        "key": "stones-pier",
+        "frame": {
+          "x": 301,
+          "y": 782,
+          "w": 3,
+          "h": 12
+        },
+        "props": {
+          "decay": 90,
+          "way": {
+            "x": 1,
+            "y": 1
+          }
+        }
       }
     ]
   }
