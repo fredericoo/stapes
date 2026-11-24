@@ -716,13 +716,20 @@ export const cave: Component<CaveProps> = {
     }
     for (const mouth of mouths) {
       const out = STEP[mouth.facing];
-      const outside = ctx.stackAt(mouth.at.x + out.x, mouth.at.y + out.y, z)[0]!;
+      /**
+       * The mouth's sprite is narrower than the cell, so the cell's own ground
+       * shows beside it: it is the ground at the cliff's foot, cover and all,
+       * rather than the cave's floor, which would stick out of the hill.
+       */
+      const outside = ctx
+        .stackAt(mouth.at.x + out.x, mouth.at.y + out.y, z)
+        .filter((p) => isFlat(p, ctx.tilesById) && !isWet([p]));
       const wall = ctx.stackAt(mouth.at.x, mouth.at.y, z).at(-1)?.tileId;
       edits.push({
         x: mouth.at.x,
         y: mouth.at.y,
         z,
-        stack: [{ ...outside }, tile(props.floor), tile(mouthIn(wall), mouth.facing)],
+        stack: [...outside.map((p) => ({ ...p })), tile(mouthIn(wall), mouth.facing)],
       });
     }
     /**

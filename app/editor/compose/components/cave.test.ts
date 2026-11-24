@@ -116,6 +116,28 @@ describe("cave", () => {
     expect(walks(built, { ...floor[0]!, z: 0 }, OUTSIDE), sketch(built)).toBe(true);
   });
 
+  it("lays the ground at the cliff's foot under its mouth, not the cave's floor", () => {
+    const built = buildTree(
+      land(
+        SIZE,
+        [
+          node("grass", {}),
+          node("hill", { levels: 3, terrace: 2, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+          node("cave", { mouths: [MOUTH] }, { frame: frame(6, 4, 44, 32) }),
+        ],
+        "sand",
+      ),
+    );
+    const mouths: string[][] = [];
+    for (let y = 0; y < SIZE.h; y++) {
+      for (let x = 0; x < SIZE.w; x++) {
+        const ids = getStack(built.map, x, y, 0).map((p) => p.tileId);
+        if (ids.includes("hill-cave-mouth")) mouths.push(ids);
+      }
+    }
+    expect(mouths, sketch(built)).toEqual([["sand", "grass", "hill-cave-mouth"]]);
+  });
+
   it("is refused under a hill one level high, whose top would be its roof", () => {
     const built = buildTree(hillWith({ mouths: [MOUTH] }, { levels: 1 }), { problems: "returned" });
     expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
