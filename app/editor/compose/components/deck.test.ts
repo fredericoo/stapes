@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
 import type { MapNode } from "../doc";
-import { buildTree, frame, node, reach, sketch, stands, walks } from "../testTree";
+import { buildTree, frame, node, sketch, stands, walks } from "../testTree";
 
 const PIER = frame(12, 8, 15, 3);
 const SHORE = { x: 6, y: 9 };
 const PIER_END = { x: 25, y: 9, z: 1 };
 const DECK_LEVEL = 1;
+const LADDER_TOP_SPOT = { x: PIER.x + 1, y: PIER.y + PIER.h - 1, z: DECK_LEVEL };
 
 const harbour = (props: Record<string, unknown> = {}, after: MapNode[] = []): MapNode =>
   node(
@@ -82,18 +83,20 @@ describe("deck", () => {
     }
   });
 
-  it.each([1, 2, 3, 4, 5, 6])(
-    "keeps every board walkable from the ladder at full decay, seed %i",
-    (seed) => {
-      const built = buildTree(harbour({ decay: 100 }), { seed });
-      const walked = reach(built, SHORE, { wading: true });
-      for (const { x, y } of cellsOf(PIER)) {
-        const stack = deckStack(built, x, y);
-        if (!stack.includes("wooden-floor") || stack.includes("fence")) continue;
-        expect(walked.has(`${DECK_LEVEL}:${x},${y}`), `${x},${y}\n${sketch(built)}`).toBe(true);
-      }
-    },
-  );
+  it.each([1, 2, 3, 4])("can still be climbed onto at full decay, seed %i", (seed) => {
+    const built = buildTree(harbour({ decay: 100 }), { seed });
+    expect(walks(built, SHORE, LADDER_TOP_SPOT), sketch(built)).toBe(true);
+  });
+
+  it("refuses a barrel on a hole, so nothing floats over a gap in the boards", () => {
+    const rotten = buildTree(harbour({ decay: 100 }), { seed: 1 });
+    const hole = cellsOf(PIER).find(({ x, y }) => deckStack(rotten, x, y).length === 0)!;
+    const barrel = node("tile", { tile: "barrel", at: { ...hole, z: DECK_LEVEL } });
+    const built = buildTree(harbour({ decay: 100 }, [barrel]), { seed: 1, problems: "returned" });
+    expect(built.problems.map((p) => p.reason)).toEqual([
+      `There is no ground at ${hole.x},${hole.y}`,
+    ]);
+  });
 
   it("floats no planks on deep water, where a body would land and be stuck", () => {
     for (const seed of [1, 2, 3, 4, 5, 6]) {

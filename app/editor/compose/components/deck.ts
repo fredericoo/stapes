@@ -69,8 +69,8 @@ const at = (x: number, y: number) => `${x},${y}`;
  * stand side by side, so each reads as a post rather than a fence. Every board
  * on the edge also gets the floor's `-inner` tile, so the deck covers whole
  * cells. `decay` breaks holes through it, snaps and takes out poles, leaves
- * some boards round a hole cut short and greens the rest with moss; the boards
- * left always join up, so the whole deck is walked from the way up.
+ * some boards round a hole cut short and greens the rest with moss. A decayed
+ * deck need not be walkable end to end.
  */
 export const deck: Component<DeckProps> = {
   type: "deck",
@@ -174,43 +174,18 @@ export const deck: Component<DeckProps> = {
       if (r < decay * 0.6) return "snapped";
       return "whole";
     };
-    const upright = new Set(
-      [...poles].filter((key) => {
-        const [x, y] = key.split(",").map(Number) as [number, number];
-        return poleFate(x, y) === "whole";
-      }),
-    );
 
     /**
      * A hole starts on a few boards and spreads to the boards beside them, so
-     * holes come in ragged patches rather than single cells. Each is only
-     * kept while every board left can still be walked to from the way up,
-     * walking round the poles that stand on the deck.
+     * holes come in ragged patches rather than single cells. Nothing keeps
+     * the boards joined: a decayed deck may have stretches cut off.
      */
     const holes = new Set<string>();
-    const joined = () => {
-      const open = (key: string) => cells.has(key) && !holes.has(key) && !upright.has(key);
-      const start = at(way.x, way.y);
-      const seen = new Set([start]);
-      const queue = [way];
-      for (let head = 0; head < queue.length; head++) {
-        const { x, y } = queue[head]!;
-        for (const [dx, dy] of SIDES) {
-          const key = at(x + dx, y + dy);
-          if (seen.has(key) || !open(key)) continue;
-          seen.add(key);
-          queue.push({ x: x + dx, y: y + dy });
-        }
-      }
-      return [...cells].every((key) => !open(key) || seen.has(key));
-    };
     const tryHole = (x: number, y: number) => {
       const key = at(x, y);
       if (!cells.has(key) || holes.has(key) || poles.has(key) || byWay(x, y)) return false;
       holes.add(key);
-      if (joined()) return true;
-      holes.delete(key);
-      return false;
+      return true;
     };
     if (decay > 0) {
       const seeds: Array<{ x: number; y: number }> = [];

@@ -16927,9 +16927,10 @@ first. The flight is `wooden-stairs` by default, on `timber-block`.
   it less often. Posts are snapped at the deck or gone altogether, `moss-top`
   grows in patches, and some holes over water have `wreck-planks` floating
   under them.
-- **A hole is kept only while the boards still join up.** Each one is checked
-  with a walk from the way up that goes round the posts left standing on the
-  deck, so no part of a decayed deck is cut off from it.
+- **A decayed deck need not be walkable end to end.** Holes may cut off a
+  stretch of boards; only the cells round the way up are kept whole. A tile
+  placed on a hole is refused (`There is no ground`), so a barrel never floats
+  over a gap.
   A hole over deep water is not a way down at all, because the game refuses
   a drop into deep water. So `wreck-planks` float only in holes over
   shallows: on deep water they would be somewhere to land that can't be
