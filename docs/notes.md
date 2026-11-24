@@ -16888,6 +16888,18 @@ into from any side.
   node's seed, so raising `ruin` only ever takes more away, and two ruins with
   different keys fall differently.
 
+## Wooden stairs are the stone flight's shape in the floor's timber
+
+`bun run generate:ramps` draws `wooden-stairs` with the same four-step
+surface as `stone-stairs`, coloured from `wooden-floor` (`#cd683d` boards,
+`#9e4539` stringers, `#e6904e` for the lit edges), and `timber-block`, the
+half block the upper stair of a flight stands on (`STAIR_BLOCK` in
+`app/editor/building.ts`). Each tread is one board the full width of the
+flight, between a stringer on either side; the floor's staggered planks read
+as a floor, not as steps. Any stairs field (house floors, lighthouse, wall,
+cave, deck)
+offers it, because those fields list every directional tile with `climbFrom`.
+
 ## A deck is boards one level up on posts, not a floor laid on the water
 
 The `deck` component (`app/editor/compose/components/deck.ts`) builds a pier or
@@ -16896,7 +16908,7 @@ edge, and a way up at `way` (by default the second cell of the south side,
 where the side of the deck is in view). `reachedBy: "ladder"` stands a ladder
 there; `"stairs"` runs a flight of `stairs` off the deck's edge beside it, the
 upper stair on its half block as a house's flight is, trying the south side
-first. There is no wooden stair tile, so the flight is stone.
+first. The flight is `wooden-stairs` by default, on `timber-block`.
 
 - **A post is `fence` pieces that touch no other fence.** `fence` is an
   autotile, so two pieces side by side draw a run of railing. Posts stand on

@@ -43,11 +43,13 @@ describe("deck", () => {
   it("is climbed onto by a flight of stairs off its edge instead of a ladder", () => {
     const built = buildTree(harbour({ reachedBy: "stairs" }));
     expect(stands(built, "ladder-up")).toEqual([]);
-    expect(stands(built, "stone-stairs")).toHaveLength(2);
+    expect(stands(built, "wooden-stairs")).toHaveLength(2);
     expect(walks(built, SHORE, PIER_END), sketch(built)).toBe(true);
 
     const unstepped = buildTree(
-      harbour({ reachedBy: "stairs" }, [node("clear", { remove: ["stone-stairs", "brick-slab"] })]),
+      harbour({ reachedBy: "stairs" }, [
+        node("clear", { remove: ["wooden-stairs", "timber-block"] }),
+      ]),
     );
     expect(walks(unstepped, SHORE, PIER_END, { wading: true })).toBe(false);
   });

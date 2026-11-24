@@ -2,7 +2,7 @@ import * as v from "valibot";
 import type { StackEdit } from "../../../lib/mapData";
 import { HEIGHT_PER_LEVEL, physicalHeight, type PlacedTile } from "../../../lib/types";
 import type { Direction } from "../../../lib/types";
-import { ACCESS, DEFAULT_STAIRS_TILE_ID, stairBlock } from "../../building";
+import { ACCESS, stairBlock } from "../../building";
 import { placed, randomAt, valueNoise } from "../../generator";
 import type { Component } from "../build";
 import { TILES, field } from "../field";
@@ -13,7 +13,7 @@ const DeckSchema = v.object({
   pole: v.optional(v.nullable(field.tile(TILES.any)), "fence"),
   poleEvery: v.optional(v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(8)), 3),
   reachedBy: v.optional(v.picklist(ACCESS), "ladder"),
-  stairs: v.optional(field.tile(TILES.stairs), DEFAULT_STAIRS_TILE_ID),
+  stairs: v.optional(field.tile(TILES.stairs), "wooden-stairs"),
   way: v.optional(field.point(), { x: 1, y: 0, pinY: "bottom" }),
   decay: v.optional(field.percent(), 0),
 });
