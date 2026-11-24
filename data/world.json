@@ -5213,6 +5213,198 @@
           },
           {
             "type": "tile",
+            "key": "secret-cave-seep-0",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 481,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-1",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 482,
+                "y": 777,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-2",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 482,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-3",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 482,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-4",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 483,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-5",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 483,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-6",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 484,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-seep-7",
+            "props": {
+              "tile": "water",
+              "at": {
+                "x": 484,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-0",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 474,
+                "y": 780,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-1",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 478,
+                "y": 775,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-2",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 479,
+                "y": 780,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-3",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 477,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-4",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 475,
+                "y": 784,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-5",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 478,
+                "y": 776,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-6",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 471,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-7",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 480,
+                "y": 781,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
             "key": "secret-cave-chest",
             "props": {
               "tile": "quest-chest",
@@ -5230,6 +5422,23 @@
                   "gold": 20
                 }
               }
+            }
+          },
+          {
+            "type": "fill",
+            "key": "secret-cove-flood",
+            "frame": {
+              "x": 486,
+              "y": 776,
+              "w": 3,
+              "h": 7
+            },
+            "props": {
+              "tiles": [
+                "water"
+              ],
+              "edge": [],
+              "mode": "on top"
             }
           },
           {
