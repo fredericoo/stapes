@@ -607,6 +607,21 @@ export const cave: Component<CaveProps> = {
       underground
         ? [tile(props.floor)]
         : [tile(commonest ?? ctx.rampAt(x, y)?.ground ?? "grass-2"), tile(props.floor)];
+    /**
+     * A wall on the hill's face shows the ground at its foot past its edge, so
+     * it keeps the ground it stood on, cover and all, as the cliff beside it
+     * does; only walls the cave closes round on every side stand on its floor.
+     */
+    const groundUnder = (x: number, y: number): PlacedTile[] => {
+      const onFace =
+        !underground &&
+        N8.some(([dx, dy]) => !isRock(x + dx, y + dy) && !reached.has(key(x + dx, y + dy)));
+      if (!onFace) return floorAt(x, y);
+      return ctx
+        .stackAt(x, y, z)
+        .slice(0, -1)
+        .map((p) => ({ ...p }));
+    };
     const edits: StackEdit[] = [];
     const walls = new Set<string>();
     /** The eight cells round a cell in order round it, so open cells that touch are neighbours in the list. */
@@ -660,7 +675,7 @@ export const cave: Component<CaveProps> = {
           underground || props.shape === CRYPT
             ? tile(props.wall)
             : ctx.stackAt(x + dx, y + dy, z).at(-1)!;
-        edits.push({ x: x + dx, y: y + dy, z, stack: [...floorAt(x + dx, y + dy), wall] });
+        edits.push({ x: x + dx, y: y + dy, z, stack: [...groundUnder(x + dx, y + dy), wall] });
       }
     }
     /**
