@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SqliteBlobs } from "./blobs";
@@ -42,5 +42,47 @@ describe("a blob too big for one row", () => {
     await blobs.put("map.json", "{}", "application/json");
 
     expect(await blobs.getText("map.json")).toBe("{}");
+  });
+});
+
+describe("a file copied in by parts", () => {
+  it("reads back exactly as the file is, over an older blob that had more parts", async () => {
+    await blobs.put("map.json", `${bigText()}${bigText()}`, "application/json");
+    const text = bigText();
+    const path = join(directory, "map.json");
+    await writeFile(path, text);
+
+    await blobs.putFile("map.json", path, "application/json");
+
+    expect(await blobs.getText("map.json")).toBe(text);
+  });
+});
+
+describe("a file copied in again", () => {
+  async function partRows(): Promise<number> {
+    const statement = await db.prepare("SELECT COUNT(*) AS n FROM blob_part");
+    return ((await statement.get()) as { n: number }).n;
+  }
+
+  it("leaves only its own parts behind", async () => {
+    const path = join(directory, "map.json");
+    await writeFile(path, bigText());
+    await blobs.putFile("map.json", path, "application/json");
+    const once = await partRows();
+
+    await blobs.putFile("map.json", path, "application/json");
+
+    expect(await partRows()).toBe(once);
+  });
+
+  it("gives way to a smaller text put over it", async () => {
+    const path = join(directory, "map.json");
+    await writeFile(path, bigText());
+    await blobs.putFile("map.json", path, "application/json");
+
+    await blobs.put("map.json", "{}", "application/json");
+
+    expect(await blobs.getText("map.json")).toBe("{}");
+    expect(await partRows()).toBe(0);
   });
 });

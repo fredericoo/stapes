@@ -169,6 +169,7 @@ const MIGRATIONS: readonly string[] = [
      bytes BLOB NOT NULL,
      PRIMARY KEY (key, n)
    )`,
+  `ALTER TABLE blob ADD COLUMN parts_key TEXT`,
 ];
 
 export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {

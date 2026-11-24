@@ -22,6 +22,7 @@ import {
 import { audienceOf, cellInScope, type ScopedCell } from "../app/net/scope";
 import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
 import { NearIndex } from "./nearIndex";
+import { chunksAround, loadedChunkKeys, type ResidencyIndex } from "../app/game/residency";
 import { TextByLists } from "./textByLists";
 import { cellKey } from "../app/game/pressurePlates";
 import {
@@ -34,7 +35,6 @@ import { type DeathCost, deathCostSchema, NOTHING_LOST } from "../app/game/death
 import { INSERT_DEATH_SQL } from "./deaths";
 import { type Equipment, emptyEquipment, restoredEquipment } from "../app/game/equipment";
 import { DepotLedger, restoredDepots, type Depots } from "../app/game/depot";
-import { spawnPoint } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import type { CommandReply } from "../app/game/commands";
@@ -48,20 +48,20 @@ import {
   changedCellsOnLevel,
   chunkIndexOf,
   chunkKeyFor,
+  type ChangedChunk,
   changedChunks,
   chunkifyMap,
   getStack,
+  boardWithAway,
   mapFromChunks,
   presentInEither,
   shareCells,
+  UNLOADED_CHUNK,
 } from "../app/lib/mapData";
 import { StackPool } from "../app/lib/stackPool";
+import { startingWorldOf, type StartingWorld } from "./startingWorld";
 import type { DataStore } from "../app/lib/dataStore";
-import {
-  removeUnfitPlacements,
-  tilesByIdFromList,
-  type RemovedPlacement,
-} from "../app/lib/validation";
+import { tilesByIdFromList, type RemovedPlacement } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
 import { brainExpansionIssues, traitsById, type TraitCatalogue } from "../app/lib/traits";
 import type { StatusInstance } from "../app/game/statuses";
@@ -213,6 +213,9 @@ const CHUNK_KEY_PREFIX = "chunk:";
 
 const CHUNKS_STREAMED_PER_TICK = 2;
 
+/** About 3 MB of the showcase island's rows, which average 11 kB each. */
+const STARTING_ROWS_PER_FLUSH = 256;
+
 function boardKey(levelKey: string, chunkKey: string): string {
   return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
 }
@@ -224,6 +227,12 @@ function parseBoardKey(key: string): { levelKey: string; chunkKey: string } | nu
   if (at < 0) return null;
   return { levelKey: rest.slice(0, at), chunkKey: rest.slice(at + 1) };
 }
+
+/**
+ * Written with every board checkpoint, so a restart can read the chunks it
+ * keeps and leave the rest of the board in the store.
+ */
+const RESIDENCY_KEY = "residency";
 
 const RESPAWN_POINTS_KEY = "respawnPoints";
 
@@ -238,6 +247,28 @@ const RESPAWN_ITEMS_KEY_PREFIX = "respawnItems:";
 const RESPAWN_PENDING_KEY = "respawnPending";
 
 const RESPAWN_RETRY_MS = 5_000;
+
+/**
+ * Two chunks past what a client is sent, so a chunk is back in memory before
+ * anybody can see it, and a creature at the edge of the view still has room to
+ * be chased into.
+ */
+const LOADED_REACH_CHUNKS = INTEREST_REACH_CHUNKS + 2;
+
+const UNLOAD_IDLE_MS = 120_000;
+
+const RESIDENCY_EVERY_MS = 10_000;
+
+/**
+ * Putting chunks back costs about 2ms each on a board of two million cells,
+ * most of it copying the level records, so a tick takes a few and a player
+ * crossing into new chunks is not a stall. The reach's two spare chunks are
+ * what this can lag by.
+ */
+const CHUNKS_LOADED_PER_TICK = 4;
+
+/** About 10ms of unloading on the same board. */
+const CHUNKS_UNLOADED_PER_PASS = 32;
 
 function currentNames(actors: ActorSnapshot[]): NamePatch[] {
   const out: NamePatch[] = [];
@@ -813,6 +844,18 @@ function isEmptyCut(cut: Cut): boolean {
   );
 }
 
+function isUnloadedChunk(map: MapFile, chk: string): boolean {
+  for (const zk in map.levels) if (map.levels[zk]![chk] === UNLOADED_CHUNK) return true;
+  return false;
+}
+
+function sameChunkIn(a: MapFile, b: MapFile, chk: string): boolean {
+  for (const zk of new Set([...Object.keys(a.levels), ...Object.keys(b.levels)])) {
+    if (a.levels[zk]?.[chk] !== b.levels[zk]?.[chk]) return false;
+  }
+  return true;
+}
+
 export class GameServer {
   constructor(
     protected readonly ctx: WorldContext,
@@ -825,6 +868,7 @@ export class GameServer {
       seed?: number;
       /** The weather the world has when no command has set one; `weatherAt` decides when absent. */
       weather?: WeatherKind;
+      residency?: { reachChunks?: number; idleMs?: number };
     },
   ) {}
 
@@ -878,6 +922,19 @@ export class GameServer {
   private lastSaidAt = new Map<string, number>();
   private actorsSavedAt = 0;
   private checkpointedMap: MapFile | null = null;
+  /** When each chunk was last near a player or otherwise kept. */
+  private readonly chunkWantedAt = new Map<string, number>();
+  private readonly chunksLoading = new Map<string, Promise<void>>();
+  /** Chunks read from the store and waiting for a tick to put them on the board. */
+  private readonly chunksRead = new Map<string, Map<string, ChunkCells>>();
+  private wakefulChunks = "";
+  private residencyAt = 0;
+  /** A separate pool from the one a first start parses with, which holds every line of the map file. */
+  private readonly reloadPool = new StackPool();
+  /** Due respawns whose cell is in a chunk out of memory; they run when it is back. */
+  private readonly respawnsAwaitingLoad = new Set<string>();
+  /** Joins waiting for ticks to put their chunks on the board. */
+  private chunkWaiters: { keys: string[]; done: () => void }[] = [];
   private writtenActors = new Map<string, WrittenActor>();
   /**
    * What storage holds for each seated player's `hp:` and `statuses:`,
@@ -931,36 +988,106 @@ export class GameServer {
 
     const pool = new StackPool();
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
-    const board = checkpoint ? await this.checkpointedBoard(checkpoint, pool) : null;
-    this.session = board
-      ? new GameSession(board, this.tiles, {
-          actorIds: [],
-          spawnAt: checkpoint!.spawn,
-          seed: checkpoint!.seed,
-          statuses: this.statusDefs,
-          traits: this.traits,
-          clock: () => this.minutesOfDay(),
-          depots: this.depots,
-        })
-      : new GameSession(await store.readMap(pool), this.tiles, {
-          actorIds: [],
-          seed: this.env.seed,
-          statuses: this.statusDefs,
-          traits: this.traits,
-          clock: () => this.minutesOfDay(),
-          depots: this.depots,
-        });
+    const residency =
+      checkpoint && !checkpoint.map
+        ? await this.ctx.storage.get<ResidencyIndex>(RESIDENCY_KEY)
+        : undefined;
+    const board = checkpoint
+      ? residency
+        ? await this.keptBoard(residency, pool)
+        : await this.checkpointedBoard(checkpoint, pool)
+      : null;
+    const first = board
+      ? null
+      : startingWorldOf(await store.readMap(pool), this.tiles, this.traits);
+    const start = first
+      ? { map: await this.writeStartingRows(first), ...first, seed: this.env.seed }
+      : { map: board!, spawnAt: checkpoint!.spawn, residency, seed: checkpoint!.seed };
+    this.session = new GameSession(start.map, this.tiles, {
+      actorIds: [],
+      spawnAt: start.spawnAt,
+      residency: start.residency,
+      seed: start.seed,
+      statuses: this.statusDefs,
+      traits: this.traits,
+      clock: () => this.minutesOfDay(),
+      depots: this.depots,
+    });
     this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
     /**
      * Not `this.session.getMap()`: constructing the session changes the board it
-     * was given (adopting bodies, consuming the spawn marker, settling plates), so
-     * the first flush has to write the whole board.
+     * was given (adopting bodies, settling plates), so the first flush has to
+     * write every chunk it holds.
      */
     this.checkpointedMap = null;
     await this.restoreActors();
     await this.pruneRemembered();
-    await this.loadRespawnState(board != null);
+    await this.loadRespawnState(board != null, first?.points);
+  }
+
+  /**
+   * Writes every chunk row of a board nobody has played, with its index, and
+   * returns the board a session starts with: the kept chunks, and
+   * `UNLOADED_CHUNK` for every other. The store is flushed every
+   * `STARTING_ROWS_PER_FLUSH` rows, so the rows are never all held at once.
+   */
+  private async writeStartingRows(start: StartingWorld): Promise<MapFile> {
+    const kept = new Set(start.residency.kept);
+    const keptRows: ChangedChunk[] = [];
+    const away = new Set<string>();
+    const levelKeys = new Set<string>();
+    let entries: Record<string, unknown> = {};
+    let pending = 0;
+    for await (const row of start.rows()) {
+      levelKeys.add(row.levelKey);
+      entries[boardKey(row.levelKey, row.chunkKey)] = row.cells;
+      if (kept.has(row.chunkKey)) {
+        keptRows.push({ ...row, cells: shareCells(row.cells, this.reloadPool, true) });
+      } else {
+        away.add(row.chunkKey);
+      }
+      if (++pending < STARTING_ROWS_PER_FLUSH) continue;
+      await this.ctx.storage.put(entries, { allowUnconfirmed: true });
+      await this.ctx.storage.flush();
+      entries = {};
+      pending = 0;
+    }
+    entries[RESIDENCY_KEY] = start.residency;
+    await this.ctx.storage.put(entries, { allowUnconfirmed: true });
+    const { levels } = mapFromChunks(keptRows);
+    for (const zk of levelKeys) levels[zk] ??= {};
+    return boardWithAway(levels, away);
+  }
+
+  /**
+   * The stored board with only the chunks `index` keeps read in; every other
+   * stored chunk is `UNLOADED_CHUNK` on every level, read when somebody comes near.
+   */
+  private async keptBoard(index: ResidencyIndex, pool: StackPool): Promise<MapFile | null> {
+    const kept = new Set(index.kept);
+    const keys = await this.ctx.storage.listKeys(CHUNK_KEY_PREFIX);
+    const away = new Set<string>();
+    const levelKeys = new Set<string>();
+    const reads: Promise<ChangedChunk | null>[] = [];
+    for (const key of keys) {
+      const parsed = parseBoardKey(key);
+      if (!parsed) continue;
+      levelKeys.add(parsed.levelKey);
+      if (!kept.has(parsed.chunkKey)) {
+        away.add(parsed.chunkKey);
+        continue;
+      }
+      reads.push(
+        this.ctx.storage
+          .get<ChunkCells>(key)
+          .then((cells) => (cells ? { ...parsed, cells: shareCells(cells, pool) } : null)),
+      );
+    }
+    if (levelKeys.size === 0) return null;
+    const { levels } = mapFromChunks((await Promise.all(reads)).filter((chunk) => chunk !== null));
+    for (const zk of levelKeys) levels[zk] ??= {};
+    return boardWithAway(levels, away);
   }
 
   private async checkpointedBoard(
@@ -982,13 +1109,13 @@ export class GameServer {
     return mapFromChunks(chunks);
   }
 
-  private async loadRespawnState(resumed: boolean) {
+  private async loadRespawnState(resumed: boolean, found?: SpawnPoint[]) {
     const session = this.session;
     if (!session) return;
     const tilesById = tilesByIdFromList(this.tiles);
 
     const stored = resumed ? await this.storedRespawnPoints() : undefined;
-    const points = (stored ?? findSpawnPoints(session.getMap(), tilesById))
+    const points = (stored ?? found ?? findSpawnPoints(session.getMap(), tilesById))
       .filter((point) => {
         const def = tilesById[point.placed.tileId];
         return def != null && resolveRespawn(def) != null;
@@ -1008,6 +1135,7 @@ export class GameServer {
     const nowMs = this.now();
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
+      if (!point.ownerId && session.isUnloaded(point.cell)) continue;
       if (session.isSpawnFilled(point)) continue;
       this.respawnPending.set(point.key, nowMs + session.respawnDelayMs(point.respawn));
     }
@@ -1094,12 +1222,16 @@ export class GameServer {
 
   private scheduleRespawnAlarm() {
     if (this.env.manualTicks) return;
-    if (this.respawnPending.size === 0) {
+    const due: number[] = [];
+    for (const [key, atMs] of this.respawnPending) {
+      if (!this.respawnsAwaitingLoad.has(key)) due.push(atMs);
+    }
+    if (due.length === 0) {
       this.ctx.storage.deleteAlarm().catch(GameServer.reportWriteFailure("respawn alarm clear"));
       return;
     }
     this.ctx.storage
-      .setAlarm(Math.min(...this.respawnPending.values()))
+      .setAlarm(Math.min(...due))
       .catch(GameServer.reportWriteFailure("respawn alarm set"));
   }
 
@@ -1117,7 +1249,7 @@ export class GameServer {
 
     let dirty = false;
     for (const [key, dueAtMs] of this.respawnPending) {
-      if (dueAtMs > nowMs) continue;
+      if (dueAtMs > nowMs || this.respawnsAwaitingLoad.has(key)) continue;
       dirty = true;
       const point = this.respawnPoints.get(key);
       if (!point) {
@@ -1131,6 +1263,10 @@ export class GameServer {
         continue;
       }
       this.waitingForHours.delete(key);
+      if (session.isUnloaded(point.cell)) {
+        this.respawnsAwaitingLoad.add(key);
+        continue;
+      }
       const outcome = session.respawnAt(point);
       if (outcome.kind === "blocked") {
         this.respawnPending.set(key, nowMs + RESPAWN_RETRY_MS);
@@ -1172,7 +1308,7 @@ export class GameServer {
 
   private forgetDepartedItems(point: SpawnPoint): boolean {
     const map = this.session?.getMap();
-    if (!map || !point.itemIds) return false;
+    if (!map || !point.itemIds || this.session!.isUnloaded(point.cell)) return false;
     const present = presentItemIds(map, point);
     /** `present` is a subset of `itemIds`, so equal lengths mean equal sets. */
     if (present.length === point.itemIds.length) return false;
@@ -1214,9 +1350,8 @@ export class GameServer {
   }
 
   private async deleteCheckpointedBoard() {
-    const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
-    if (stored.size === 0) return;
-    await this.ctx.storage.delete([...stored.keys()]);
+    const keys = await this.ctx.storage.listKeys(CHUNK_KEY_PREFIX);
+    await this.ctx.storage.delete([...keys, RESIDENCY_KEY]);
   }
 
   private positionKey(actorId: string): string {
@@ -1237,6 +1372,7 @@ export class GameServer {
     const known = this.spawns.get(actorId);
     const mark = known ?? (await this.storedSpawnOf(actorId));
     if (!mark) return null;
+    await this.loadChunks([chunkKeyFor(mark.x, mark.y)], { now: true });
     if (setSpawnTileAt(this.session!.getMap(), tilesByIdFromList(this.tiles), mark)) {
       this.spawns.set(actorId, mark);
       return mark;
@@ -1505,6 +1641,7 @@ export class GameServer {
       | SavedDiedAway
       | SavedDepots
       | Checkpoint
+      | ResidencyIndex
       | ChunkCells
     > = {};
     const saving = new Set(actorIds);
@@ -1605,6 +1742,7 @@ export class GameServer {
       for (const chunk of changedChunks(this.checkpointedMap, map)) {
         entries[boardKey(chunk.levelKey, chunk.chunkKey)] = chunk.cells;
       }
+      entries[RESIDENCY_KEY] = session.residencyIndex();
       this.checkpointedMap = map;
     }
 
@@ -2509,8 +2647,13 @@ export class GameServer {
     return ids;
   }
 
+  /**
+   * `source` is a parsed map, or a `StartingWorld` prepared beside a prebuilt
+   * one, whose map text the caller stores; the second never has the whole
+   * board in memory.
+   */
   async replaceWorld(
-    authored: MapFile,
+    source: MapFile | StartingWorld,
     options: { keepPositions?: boolean; text?: string } = {},
   ): Promise<{ removed: RemovedPlacement[] }> {
     const store = this.store();
@@ -2524,12 +2667,10 @@ export class GameServer {
      */
     this.weatherAreas = await store.readWeatherAreas();
 
-    const { map, removed } = removeUnfitPlacements(authored, tilesById);
-    /**
-     * The check `GameSession` would fail on, run while the running world is
-     * still standing, so refusing a map without its `player` marker costs nothing.
-     */
-    spawnPoint(map);
+    /** `startingWorldOf` fails on a map without its `player` marker while the running world still stands. */
+    const start: StartingWorld & { authored?: MapFile } =
+      "levels" in source ? startingWorldOf(source, tiles, traits) : source;
+    const { removed } = start;
 
     const forgetPositions =
       options.keepPositions === true &&
@@ -2565,17 +2706,34 @@ export class GameServer {
     /**
      * The running world is let go before the new one is built, so a save never
      * holds two sessions at once; with the whole map in each, that is what
-     * took a 512 MB container over its limit. Nothing has been written yet, so
-     * a session that fails to build is replaced by the stored world again.
+     * took a 512 MB container over its limit. The old board's rows go before
+     * the new ones are written, and a session that then fails to build is
+     * replaced by whatever the store holds.
      */
     this.stopTicking();
     this.session = null;
     this.broadcastMap = null;
     this.checkpointedMap = null;
+    this.forgetResidency();
+    if (start.authored) {
+      /**
+       * `text` is what `source` was parsed from. Storing it as it is skips
+       * serializing a whole island again, which costs several times the map.
+       */
+      if (options.text !== undefined && removed.length === 0) {
+        await store.writeMapText(options.text);
+      } else {
+        await store.writeMap(start.authored);
+      }
+    }
+    await this.ctx.storage.delete(CHECKPOINT_KEY);
+    await this.deleteCheckpointedBoard();
     let session: GameSession;
     try {
-      session = new GameSession(map, tiles, {
+      session = new GameSession(await this.writeStartingRows(start), tiles, {
         actorIds: [],
+        spawnAt: start.spawnAt,
+        residency: start.residency,
         seed: this.env.seed,
         statuses: statusDefs,
         traits,
@@ -2591,21 +2749,12 @@ export class GameServer {
     this.traits = traits;
     this.session = session;
     this.broadcastMap = this.session.getMap();
-
-    /**
-     * `text` is what `authored` was parsed from. Storing it as it is skips
-     * serializing a whole island again, which costs several times the map.
-     */
-    if (options.text !== undefined && removed.length === 0) await store.writeMapText(options.text);
-    else await store.writeMap(map);
-    await this.ctx.storage.delete(CHECKPOINT_KEY);
-    await this.deleteCheckpointedBoard();
     if (forgetPositions) {
       const positions = await this.ctx.storage.list({ prefix: POSITION_KEY_PREFIX });
       await this.ctx.storage.delete([...positions.keys(), FORGET_POSITIONS_KEY]);
     }
 
-    this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesById));
+    this.setRespawnPoints(start.points);
     this.respawnPending.clear();
     this.waitingForHours.clear();
     this.persistRespawnPoints();
@@ -2627,6 +2776,7 @@ export class GameServer {
     for (const actorId of present) {
       const kit = carried.get(actorId);
       const spawnAt = await this.spawnMarkOf(actorId);
+      await this.loadViewAround(standing.get(actorId) ?? spawnAt ?? session.getSpawnPoint());
       this.session.spawn(
         actorId,
         {
@@ -2666,6 +2816,7 @@ export class GameServer {
 
     this.session = null;
     this.loading = null;
+    this.forgetResidency();
     await this.reloadStoredWorld();
   }
 
@@ -2677,6 +2828,7 @@ export class GameServer {
     this.stopTicking();
     this.session = null;
     this.loading = null;
+    this.forgetResidency();
 
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
     this.ctx.storage.sql.exec("DELETE FROM death");
@@ -2801,9 +2953,176 @@ export class GameServer {
   private stopTicking() {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
+    if (this.session && this.chunkWaiters.length > 0) {
+      this.putBackChunks(this.session, Number.POSITIVE_INFINITY);
+    }
     if (this.decayWake !== null) clearTimeout(this.decayWake);
     this.decayWake = null;
     this.asleepAtMs = null;
+  }
+
+  private forgetResidency() {
+    this.chunksRead.clear();
+    this.chunkWantedAt.clear();
+    this.chunksLoading.clear();
+    this.respawnsAwaitingLoad.clear();
+    this.wakefulChunks = "";
+    for (const { done } of this.chunkWaiters) done();
+    this.chunkWaiters = [];
+  }
+
+  private loadedReach(): number {
+    return this.env.residency?.reachChunks ?? LOADED_REACH_CHUNKS;
+  }
+
+  /**
+   * Loads the chunks a player has come near as soon as their chunk changes,
+   * and unloads the rest every `RESIDENCY_EVERY_MS`.
+   */
+  private followWakeful(session: GameSession) {
+    const positions = session.wakefulPositions();
+    const centres = positions.map((at) => chunkKeyFor(at.x, at.y)).join(" ");
+    if (centres !== this.wakefulChunks) {
+      this.wakefulChunks = centres;
+      void this.loadChunks(chunksAround(positions, this.loadedReach()));
+    }
+    this.putBackChunks(session, CHUNKS_LOADED_PER_TICK);
+    if (this.now() - this.residencyAt >= RESIDENCY_EVERY_MS) this.settleResidency();
+  }
+
+  /**
+   * Takes out of memory every chunk that has been away from players and from
+   * `GameSession.chunksToKeep` for `UNLOAD_IDLE_MS`, and brings back any
+   * kept chunk that is out. Only a chunk the last checkpoint wrote as it is
+   * now goes, because that write is all the store will have of it.
+   */
+  settleResidency() {
+    const session = this.session;
+    const checkpointed = this.checkpointedMap;
+    if (!session || !checkpointed) return;
+    const now = this.now();
+    this.residencyAt = now;
+
+    const keep = session.chunksToKeep();
+    for (const chk of chunksAround(session.wakefulPositions(), this.loadedReach())) {
+      keep.add(chk);
+    }
+    for (const chk of keep) this.chunkWantedAt.set(chk, now);
+    void this.loadChunks(keep);
+
+    const before = session.getMap();
+    const idleMs = this.env.residency?.idleMs ?? UNLOAD_IDLE_MS;
+    const going: string[] = [];
+    for (const chk of loadedChunkKeys(before)) {
+      if (keep.has(chk) || this.chunksLoading.has(chk)) continue;
+      const wantedAt = this.chunkWantedAt.get(chk);
+      if (wantedAt === undefined) {
+        this.chunkWantedAt.set(chk, now);
+        continue;
+      }
+      if (now - wantedAt < idleMs) continue;
+      if (!sameChunkIn(before, checkpointed, chk)) continue;
+      going.push(chk);
+    }
+    if (going.length === 0) return;
+    /** A backlog is worked off a pass a tick rather than one every `RESIDENCY_EVERY_MS`. */
+    if (going.length > CHUNKS_UNLOADED_PER_PASS) this.residencyAt = now - RESIDENCY_EVERY_MS;
+    const unloaded = session.unloadChunks(going.slice(0, CHUNKS_UNLOADED_PER_PASS));
+    for (const chk of unloaded) this.chunkWantedAt.delete(chk);
+    const after = session.getMap();
+    /**
+     * Unloading is not a change either baseline has to send or write, so a
+     * baseline that was current stays current and stops holding the records.
+     */
+    if (this.checkpointedMap === before) this.checkpointedMap = after;
+    if (this.broadcastMap === before) this.broadcastMap = after;
+  }
+
+  /**
+   * Reads every chunk asked for that is out. A tick puts them on the board
+   * `CHUNKS_LOADED_PER_TICK` at a time. With `now`, the promise holds until
+   * they are all on: put on the moment they are read while nothing ticks,
+   * and left to the ticks otherwise, so a join far away does not stall
+   * everybody else's tick while its chunks go in.
+   */
+  private async loadChunks(chunkKeys: Iterable<string>, { now = false } = {}): Promise<void> {
+    const session = this.session;
+    if (!session) return;
+    const keys = [...chunkKeys];
+    const reads: Promise<void>[] = [];
+    for (const chk of keys) {
+      const reading = this.chunksLoading.get(chk);
+      if (reading) {
+        reads.push(reading);
+        continue;
+      }
+      if (!isUnloadedChunk(session.getMap(), chk)) continue;
+      const read = this.readChunk(session, chk);
+      this.chunksLoading.set(chk, read);
+      reads.push(read);
+    }
+    await Promise.all(reads);
+    if (!now || this.session !== session) return;
+    if (this.timer === null) {
+      this.putBackChunks(session, Number.POSITIVE_INFINITY);
+      return;
+    }
+    if (keys.every((chk) => !isUnloadedChunk(session.getMap(), chk))) return;
+    await new Promise<void>((done) => this.chunkWaiters.push({ keys, done }));
+  }
+
+  private async readChunk(session: GameSession, chk: string): Promise<void> {
+    const records = new Map<string, ChunkCells>();
+    try {
+      await Promise.all(
+        Object.keys(session.getMap().levels).map(async (zk) => {
+          const cells = await this.ctx.storage.get<ChunkCells>(boardKey(zk, chk));
+          if (cells) records.set(zk, shareCells(cells, this.reloadPool, true));
+        }),
+      );
+    } catch (error) {
+      this.chunksLoading.delete(chk);
+      throw error;
+    }
+    if (this.session === session) this.chunksRead.set(chk, records);
+  }
+
+  private putBackChunks(session: GameSession, most: number) {
+    if (this.chunksRead.size === 0) return;
+    const map = session.getMap();
+    const batch = new Map<string, Map<string, ChunkCells>>();
+    for (const [chk, records] of this.chunksRead) {
+      if (batch.size >= most) break;
+      this.chunksRead.delete(chk);
+      this.chunksLoading.delete(chk);
+      if (isUnloadedChunk(map, chk)) batch.set(chk, records);
+    }
+    if (batch.size === 0) return;
+    session.loadChunks(batch);
+    const now = this.now();
+    for (const chk of batch.keys()) this.chunkWantedAt.set(chk, now);
+    this.runRespawnsAwaiting(session);
+    if (this.chunkWaiters.length === 0) return;
+    const after = session.getMap();
+    this.chunkWaiters = this.chunkWaiters.filter(({ keys, done }) => {
+      if (keys.some((chk) => isUnloadedChunk(after, chk))) return true;
+      done();
+      return false;
+    });
+  }
+
+  private runRespawnsAwaiting(session: GameSession) {
+    if (this.respawnsAwaitingLoad.size === 0) return;
+    let freed = false;
+    for (const key of this.respawnsAwaitingLoad) {
+      const point = this.respawnPoints.get(key);
+      if (point && session.isUnloaded(point.cell)) continue;
+      this.respawnsAwaitingLoad.delete(key);
+      freed = true;
+    }
+    if (!freed) return;
+    this.processDueRespawns(this.now());
+    this.scheduleRespawnAlarm();
   }
 
   private tick() {
@@ -2813,6 +3132,7 @@ export class GameServer {
     session.tick(TICK_MS);
     this.applyQueuedSteps();
     this.processDueRespawns(this.now());
+    this.followWakeful(session);
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
@@ -3008,6 +3328,7 @@ export class GameServer {
       statuses: restored.statuses ?? null,
     });
     await this.seatDepots(actorId);
+    await this.loadViewAround(restored.at ?? spawnAt ?? this.session!.getSpawnPoint());
     this.session!.spawn(actorId, {
       name: (await this.env.nameOf?.(actorId)) ?? null,
       appearance: (await this.env.appearanceOf?.(actorId)) ?? null,
@@ -3016,6 +3337,12 @@ export class GameServer {
       ...(spawnAt ? { spawnAt } : {}),
     });
     this.collectTransitionEvents(this.session!);
+  }
+
+  /** The rest of `loadedReach` follows on ticks, once `followWakeful` sees the body there. */
+  private async loadViewAround(cell: Coord) {
+    const seen = Math.min(INTEREST_REACH_CHUNKS, this.loadedReach());
+    await this.loadChunks(chunksAround([cell], seen), { now: true });
   }
 
   private async seatDepots(actorId: string) {

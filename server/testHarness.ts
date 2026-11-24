@@ -227,6 +227,7 @@ type ServerOptions = {
   seed?: number;
   weather?: WeatherKind;
   appearances?: Readonly<Record<string, HumanAppearance>>;
+  residency?: { reachChunks?: number; idleMs?: number };
 };
 
 function buildServer(

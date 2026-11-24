@@ -168,6 +168,34 @@ export class DecayIndex {
     return decay.fromMs + this.rng.int(decay.toMs - decay.fromMs + 1);
   }
 
+  /**
+   * Takes out every entry `belongs` claims and returns them with their due
+   * times, for a chunk going out of memory. `restore` files them again as
+   * they were, so a clock keeps running while its chunk is away and one that
+   * ran out meanwhile is due on the next tick.
+   */
+  park(belongs: (entry: DecayEntry) => boolean): DecayEntry[] {
+    const parked: DecayEntry[] = [];
+    for (const [key, entry] of this.entries) {
+      if (!belongs(entry)) continue;
+      parked.push(entry);
+      this.entries.delete(key);
+    }
+    return parked;
+  }
+
+  restore(entries: Iterable<DecayEntry>) {
+    for (const entry of entries) {
+      const key =
+        entry.kind === "placement"
+          ? entryKey(entry.cell, entry.tileId)
+          : entry.kind === "item"
+            ? itemEntryKey(entry.itemId)
+            : lootEntryKey(entry.itemId);
+      if (!this.entries.has(key)) this.file(key, entry);
+    }
+  }
+
   takeDue(): DecayEntry[] {
     if (this.elapsedMs < this.nextDueMs) return [];
 

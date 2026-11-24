@@ -732,3 +732,18 @@ describe("tileset sheets", () => {
     expect((await world.blobs.readTilesets()).some((tileset) => "version" in tileset)).toBe(false);
   });
 });
+
+describe("health", () => {
+  async function health(headers: Record<string, string>): Promise<Record<string, unknown>> {
+    const response = await api.handle(new Request("http://localhost/api/health", { headers }));
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  it("tells an admin how much memory the server holds, and nobody else", async () => {
+    const asAdmin = await health({ cookie });
+    const asAnybody = await health({});
+
+    expect(asAdmin.memory).toMatchObject({ rssMb: expect.any(Number) });
+    expect(asAnybody.memory).toBeUndefined();
+  });
+});

@@ -9,6 +9,7 @@ import {
   AUTHORED_MAP_KEY,
   buildWorldMapApart,
   readPrebuiltMap,
+  readPrebuiltStart,
   builderSourceHash,
   hashOf,
   type AuthoredMap,
@@ -25,7 +26,7 @@ import type { Database } from "./db";
 import { Feedback } from "./feedback";
 import { Deaths, type DeathRecord } from "./deaths";
 import { leadersOf, type Contender, type RealmState } from "./realm";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const DEATH_LIST_LIMIT = 500;
@@ -122,6 +123,7 @@ export class World {
 
   private startCheckpointing() {
     this.checkpointTimer = setInterval(() => {
+      this.server.settleResidency();
       if (!this.store.dirty) return;
       void this.store.flush().catch((error: unknown) => {
         console.error("[world] checkpoint failed", error);
@@ -315,7 +317,25 @@ export class World {
     const inputs = hashOf(tree, tiles, await builderSourceHash());
     const recorded = await this.store.get<AuthoredMap>(AUTHORED_MAP_KEY);
     let replaced = false;
-    if (recorded?.inputs !== inputs) {
+    const prepared =
+      recorded?.inputs !== inputs && proposed === undefined
+        ? await readPrebuiltStart(
+            this.config.SEED_DIR,
+            this.config.SEED_TREE,
+            inputs,
+            await this.blobs.readTraits(),
+          )
+        : null;
+    if (prepared) {
+      console.log("[world] read the map and the starting rows the image built");
+      if (recorded?.map !== prepared.hash) {
+        /** Stored first and let go of, so the map text and the new board are never held together. */
+        await this.blobs.writeMapFile(prepared.mapPath, () => readFile(prepared.mapPath, "utf8"));
+        await this.server.replaceWorld(prepared.start, { keepPositions: true });
+        replaced = true;
+      }
+      await this.store.put(AUTHORED_MAP_KEY, { inputs, map: prepared.hash } satisfies AuthoredMap);
+    } else if (recorded?.inputs !== inputs) {
       const built = await this.buildMap(tree, tiles, inputs);
       if (recorded?.map !== built.hash) {
         await this.server.replaceWorld(parseSharedMap(built.text, new StackPool()), {
