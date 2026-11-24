@@ -99,6 +99,23 @@ describe("cave", () => {
     expect(mouthsIn("hill-wall-frost")).toEqual(["hill-cave-mouth-frost"]);
   });
 
+  it("opens a hill raised from sand under a cover of grass", () => {
+    const built = buildTree(
+      land(
+        SIZE,
+        [
+          node("grass", {}),
+          node("hill", { levels: 3, terrace: 2, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+          node("cave", { mouths: [MOUTH] }, { frame: frame(6, 4, 44, 32) }),
+        ],
+        "sand",
+      ),
+    );
+    const floor = floorCells(built);
+    expect(floor.length, sketch(built)).toBeGreaterThan(40);
+    expect(walks(built, { ...floor[0]!, z: 0 }, OUTSIDE), sketch(built)).toBe(true);
+  });
+
   it("is refused under a hill one level high, whose top would be its roof", () => {
     const built = buildTree(hillWith({ mouths: [MOUTH] }, { levels: 1 }), { problems: "returned" });
     expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);

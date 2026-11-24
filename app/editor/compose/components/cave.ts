@@ -148,7 +148,8 @@ export const cave: Component<CaveProps> = {
     };
     const rock = new Map<string, boolean>();
     /**
-     * In a hill, rock is the fill of a raised column. Underground it is any
+     * In a hill, rock is the fill of a raised column: a wall standing on flat
+     * ground, and on whatever cover such as grass the ground had. Underground it is any
      * empty cell that some level of its column, up to the ground, closes
      * off from the sky.
      */
@@ -170,7 +171,7 @@ export const cave: Component<CaveProps> = {
           const def = top && ctx.tilesById[top.tileId];
           known =
             ctx.raisedAt(x, y) > z &&
-            stack.length <= 2 &&
+            stack.slice(0, -1).every((p) => ctx.tilesById[p.tileId]?.height === 0) &&
             !!def &&
             !top.direction &&
             def.walkable === false &&
