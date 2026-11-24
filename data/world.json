@@ -5101,6 +5101,138 @@
             }
           },
           {
+            "type": "fill",
+            "key": "secret-cove",
+            "frame": {
+              "x": 486,
+              "y": 776,
+              "w": 3,
+              "h": 7
+            },
+            "props": {
+              "tiles": [
+                "sand"
+              ],
+              "edge": [],
+              "mode": "whole stack"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "secret-cove-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 3,
+                  "h": 7
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "cave",
+            "key": "secret-cave",
+            "frame": {
+              "x": 466,
+              "y": 771,
+              "w": 20,
+              "h": 18,
+              "z": 0
+            },
+            "props": {
+              "shape": "tunnels",
+              "density": 35,
+              "floor": "dirt",
+              "prop": "stalagmite",
+              "propEvery": 18,
+              "mouths": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "right",
+                  "pinY": "center"
+                }
+              ]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-0",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 470,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-1",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 479,
+                "y": 783,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-2",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 476,
+                "y": 777,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-skeleton",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 473,
+                "y": 783,
+                "z": -2
+              },
+              "placement": {
+                "direction": "n"
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-chest",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 472,
+                "y": 785,
+                "z": -2
+              },
+              "placement": {
+                "rewardTag": "secret-cave-gold",
+                "rewardTileIds": [
+                  "gold"
+                ],
+                "rewardCounts": {
+                  "gold": 20
+                }
+              }
+            }
+          },
+          {
             "type": "cave",
             "key": "bear-den",
             "frame": {
@@ -6337,9 +6469,9 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 386,
+                "x": 388,
                 "y": 765,
-                "z": 0
+                "z": -3
               }
             }
           },
@@ -6349,9 +6481,9 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 406,
-                "y": 789,
-                "z": 0
+                "x": 395,
+                "y": 776,
+                "z": -3
               }
             }
           },
@@ -6361,9 +6493,9 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 408,
-                "y": 761,
-                "z": 0
+                "x": 401,
+                "y": 788,
+                "z": -3
               }
             }
           },
@@ -6373,9 +6505,9 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 387,
-                "y": 787,
-                "z": 0
+                "x": 406,
+                "y": 769,
+                "z": -3
               }
             }
           },
@@ -6385,9 +6517,9 @@
             "props": {
               "tile": "bat",
               "at": {
-                "x": 399,
-                "y": 774,
-                "z": 0
+                "x": 392,
+                "y": 785,
+                "z": -3
               }
             }
           },

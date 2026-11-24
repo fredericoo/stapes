@@ -58,6 +58,17 @@ In `data/world.json`:
 - **Something to look at.** `wreck-valley-ruin`, a small ruined temple, stands
   beside the road halfway up.
 
+- **A secret.** `secret-cave` is dug into the east hill's sea cliff. Its
+  only way in is a mouth onto `secret-cove`, a strip of sand reached by
+  wading north from the wreck beach along the foot of the cliff. Inside are
+  three bats, a skeleton in the neck before the back chamber, and a
+  `quest-chest` of 20 gold that each player can open once
+  (`rewardTag: secret-cave-gold`).
+
+A `tile` node's `at.z` counts levels above the raised ground under it, so a
+creature placed on a hill cave's floor at level 0 needs `z` of minus the
+hill's height there; with `z: 0` it lands on the hilltop.
+
 Moving the camp, the road or either hill changes all of this at once; check
 from the castaway's cell that the only dry way out of the valley is past the
 camp.
