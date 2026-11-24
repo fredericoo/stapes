@@ -3,10 +3,13 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildMap, type BuildProblem } from "../app/editor/compose/build";
 import { COMPONENTS } from "../app/editor/compose/components";
+import { weatherAreasOf } from "../app/editor/compose/components/weather";
+import { layOut } from "../app/editor/compose/layout";
 import { parseMapDoc } from "../app/editor/compose/doc";
 import { serializeMap } from "../app/lib/mapData";
 import { StackPool } from "../app/lib/stackPool";
 import { normalizeTiles } from "../app/lib/types";
+import type { WeatherArea } from "../app/lib/weatherAreas";
 import { tilesByIdFromList } from "../app/lib/validation";
 import type { StartingWorld } from "./startingWorld";
 
@@ -44,6 +47,12 @@ export function buildWorldMap(treeText: string, tilesText: string): BuiltWorldMa
     new StackPool(),
   );
   return { text: serializeMap(map), problems };
+}
+
+/** Laid out without building, so a restart that builds nothing still reads its areas from the tree. */
+export function weatherAreasOfTree(treeText: string): WeatherArea[] {
+  const parsed = parseMapDoc(JSON.parse(treeText) as unknown);
+  return parsed.ok ? weatherAreasOf(layOut(parsed.doc)) : [];
 }
 
 export async function builderSourceHash(appDir = APP_DIR): Promise<string> {

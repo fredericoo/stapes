@@ -21,6 +21,7 @@ import { sea } from "./sea";
 import { temple } from "./temple";
 import { tile } from "./tile";
 import { wall } from "./wall";
+import { weather } from "./weather";
 
 const all: ReadonlyArray<Component<never>> = [
   group,
@@ -51,6 +52,7 @@ const all: ReadonlyArray<Component<never>> = [
   shipwreck,
   mask,
   clear,
+  weather,
 ] as never;
 
 export const COMPONENTS: ComponentRegistry = Object.fromEntries(all.map((c) => [c.type, c]));

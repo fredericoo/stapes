@@ -19,5 +19,6 @@
 
 # Built from data/world.json (or SEED_TREE) by the server at start.
 /data/map.json
+/data/weather.json
 # Maps the Docker image builds ahead of a start.
 /data/built/
