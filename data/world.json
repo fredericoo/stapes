@@ -6526,14 +6526,10 @@
         },
         "children": [
           {
-            "type": "fill",
+            "type": "deck",
             "key": "pier-deck",
             "props": {
-              "tiles": [
-                "wooden-floor"
-              ],
-              "edge": [],
-              "mode": "whole stack"
+              "decay": 30
             }
           },
           {
@@ -6542,8 +6538,9 @@
             "props": {
               "tile": "barrel",
               "at": {
-                "x": 14,
-                "y": 0
+                "x": 13,
+                "y": 0,
+                "z": 1
               }
             }
           },
@@ -6554,7 +6551,8 @@
               "tile": "rope-coil",
               "at": {
                 "x": 13,
-                "y": 2
+                "y": 2,
+                "z": 1
               }
             }
           }
