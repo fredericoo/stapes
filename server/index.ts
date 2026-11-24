@@ -14,6 +14,7 @@ import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
 import { serveClient } from "./serveClient";
+import { memoryReading } from "./memory";
 import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
 import { World } from "./world";
 
@@ -100,7 +101,7 @@ const app = new Elysia({
 
 const server = app.listen(config.PORT);
 const port = server.server?.port ?? config.PORT;
-console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION})`);
+console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION}), ${memoryText()}`);
 
 const bots = startBots(config, port);
 
@@ -119,3 +120,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 }
 
 export type { Api } from "./api";
+
+function memoryText(): string {
+  const { rssMb, peakMb } = memoryReading();
+  return `rss ${rssMb} MB${peakMb === null ? "" : `, peak ${peakMb} MB`}`;
+}

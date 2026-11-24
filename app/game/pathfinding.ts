@@ -11,7 +11,7 @@ import {
 } from "./movement";
 import { FAILED_ROUTE_MEMORY_MS } from "./constants";
 import { cellKey } from "./pressurePlates";
-import { getStack, removeTileAt } from "../lib/mapData";
+import { getStack, viewWithoutTileAt } from "../lib/mapData";
 import { clampWalkSpeedPercent } from "../lib/walkSpeed";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
 import { sparesStander } from "./conjured";
@@ -387,7 +387,13 @@ export function findRefuge(
   statusDefs: Record<string, StatusDef>,
   opts: RefugeOptions = {},
 ): PathOutcome {
-  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
+  const board = viewWithoutTileAt(
+    map,
+    start.self.x,
+    start.self.y,
+    start.self.z,
+    start.self.stackIndex,
+  );
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   const mayDropTo = (opts.drops ?? DEFAULT_DROPS) === "never" ? null : () => true;
   const avoid = avoidRule(
@@ -456,7 +462,13 @@ export function reachableCells(
   statusDefs: Record<string, StatusDef>,
   opts: FloodOptions,
 ): Map<string, ReachedCell> {
-  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
+  const board = viewWithoutTileAt(
+    map,
+    start.self.x,
+    start.self.y,
+    start.self.z,
+    start.self.stackIndex,
+  );
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   const avoid = avoidRule(
     board,
@@ -502,7 +514,13 @@ export function findPath(
   statusDefs: Record<string, StatusDef>,
   opts: PathOptions = {},
 ): PathOutcome {
-  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
+  const board = viewWithoutTileAt(
+    map,
+    start.self.x,
+    start.self.y,
+    start.self.z,
+    start.self.stackIndex,
+  );
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   const arrive = opts.arrive ?? DEFAULT_ARRIVAL;
   if (arrived(from, goal, arrive)) return { ok: true, route: [] };

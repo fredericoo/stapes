@@ -17,8 +17,17 @@ on:
         required: true
 
 jobs:
+  image:
+    uses: ./.github/workflows/image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      sha: ${{ github.sha }}
+
   deploy:
     name: deploy to ${{ inputs.environment || 'staging' }}
+    needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Every variable and secret below comes from this GitHub environment, so one workflow serves both
@@ -76,6 +85,18 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
             -F "buildId=${{ github.sha }}" \
             -F "archive=@client.tar"
+
+      # Coolify builds Dockerfile.pull, whose only line pulls the image of the commit it deploys, so
+      # the application is pinned to this commit rather than its branch's head, which may be a newer
+      # commit whose image is still building.
+      - name: Point the application at this commit's image
+        env:
+          BODY: '{"git_commit_sha":"${{ github.sha }}","dockerfile_location":"/Dockerfile.pull","include_source_commit_in_build":true}'
+        run: |
+          curl --fail-with-body -sS -X PATCH "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_APP_UUID }}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY"
 
       - name: Deploy the server
         id: deploy

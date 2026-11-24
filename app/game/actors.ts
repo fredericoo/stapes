@@ -163,6 +163,22 @@ export class ResidentIds {
 
   constructor(private readonly taken: (id: string) => boolean) {}
 
+  /** Where minting picks up: one past every id this has minted or been shown. */
+  get count(): number {
+    return this.next;
+  }
+
+  /** Mints nothing at or below `id`, which some resident already holds, maybe in a chunk out of memory. */
+  skipPast(id: string) {
+    if (!id.startsWith(RESIDENT_ID_PREFIX)) return;
+    const n = parseInt(id.slice(RESIDENT_ID_PREFIX.length), RESIDENT_ID_RADIX);
+    if (Number.isInteger(n) && n >= this.next) this.next = n + 1;
+  }
+
+  startAt(count: number) {
+    if (count > this.next) this.next = count;
+  }
+
   mint(alsoTaken: ReadonlySet<string> = NO_IDS): string {
     let id = this.candidate();
     while (this.taken(id) || alsoTaken.has(id)) id = this.candidate();

@@ -54,6 +54,10 @@ export class LocalStore {
     return Promise.resolve(out);
   }
 
+  listKeys(prefix: string): Promise<string[]> {
+    return Promise.resolve([...this.values.keys()].filter((key) => key.startsWith(prefix)));
+  }
+
   put(key: string, value: unknown, options?: unknown): Promise<void>;
   put(entries: Record<string, unknown>, options?: unknown): Promise<void>;
   put(

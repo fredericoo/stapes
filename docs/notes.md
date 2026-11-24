@@ -20144,3 +20144,151 @@ Production's container is capped at 1536 MB.
 Each cell is peak / steady. What is left of a first start's peak on the
 largest map is mostly the first checkpoint, which encodes every chunk at
 once.
+
+## A chunk far from every player is out of memory
+
+The store already holds the board as one row per level and chunk, so a chunk
+nobody is near does not need to be in memory. `GameServer.settleResidency`
+takes out every chunk that has been further than `LOADED_REACH_CHUNKS` from
+every player for `UNLOAD_IDLE_MS`, and a tick puts one back when a player
+comes within that reach. The reach is two chunks past what a client is sent,
+so a chunk is back before anybody can see it.
+
+- **An unloaded chunk is `UNLOADED_CHUNK` in every level** (`app/lib/mapData.ts`),
+  one shared frozen record with no keys. A sweep of the board skips it,
+  `getStack` answers every cell in it with `~unloaded`, a four-high wall that
+  `GameSession` adds to its tiles, and `setStacks` drops any edit into it. So
+  nothing walks, lands, spreads, routes or looks into a chunk that is not
+  there, and nothing can write a cell the store would then overwrite. It is
+  put in every present level, not only those the chunk had cells on, so a
+  flying creature cannot rise over the wall into air.
+- **The unloaded chunks are a level's prototype, not its own keys.** Every
+  level of a board has the same frozen record of unloaded chunks as its
+  prototype (`boardWithAway`), so a read or a `for...in` finds them and
+  `Object.keys` and a spread do not. With each level holding all of them as
+  keys, the full island's ground level had 5,040 keys, every edit after a seal
+  copied it, and copying levels was a third of the server's CPU with one
+  player on. A level is copied with `copyLevel`, never a spread, and
+  `loadChunks` and `unloadChunks` make a new prototype for every level at once.
+- **Going out or coming back is not a change.** `changedCellsOnLevel` and
+  `changedChunkKeysOnLevel` skip a chunk on either side of that swap, so
+  clients are sent nothing and `sweepRespawnCells` does not see every spawn
+  point in it go empty. `changedChunks` never writes an unloaded chunk, and
+  only a chunk that the last checkpoint wrote exactly as it is now is taken
+  out, because that row is all the store will have. A chunk that comes back is
+  written again on the next checkpoint, since it may have changed since.
+- **Clocks catch up; nothing is replayed.** Unloading parks the chunk's decay
+  entries with their due times (`DecayIndex.park`), and loading files them
+  again, so a picked patch whose clock ran out while it was away has grown back
+  on the first tick after. A respawn that falls due while its cell is out
+  waits in `respawnsAwaitingLoad`, outside the alarm, and runs when the chunk
+  is back. Replaying ticks was rejected: the world draws from one `Rng`, so a
+  chunk replayed alone would not reproduce anything, and the cost would grow
+  with the time it was away and fall due as a player walked towards it.
+- **What is not a clock is frozen.** A resident in the chunk stops being an
+  actor (`GameSession.freeze`) and is adopted again from its body when the
+  chunk is back, the same way a restart adopts it; `isSpawnFilled` counts it
+  as there meanwhile. Weathering and shedding forget the chunk's cells and
+  draw new waits when they come back.
+- **Some chunks never go** (`GameSession.chunksToKeep`): the spawn, anything
+  wired to a channel, anything afflicted (burning), and every cell a teleport
+  placement or a dialog `teleport` can send a body to, each with the chunks
+  around it. `moveThrough` does not ask whether its destination is there, so
+  this is what keeps a body from being moved into a chunk that is not. `/goto`
+  into an unloaded chunk is refused as `noRoom`. A joining player waits for the
+  chunks round where they enter (`loadViewAround`).
+- **What it costs.** On `data/map.json` tiled 2×2 (1.93M cells), unloading 32
+  chunks takes about 10ms and putting 13 back up to 25ms, most of it copying
+  level records, which every edit copies too. So a tick puts back
+  `CHUNKS_LOADED_PER_TICK` and a pass unloads `CHUNKS_UNLOADED_PER_PASS`, a
+  backlog a pass a tick. With every chunk but one out, the heap went from 212
+  to 137 MB and the settled RSS from about 560 to 455 MB. It is less than the
+  board's share because JSC keeps the structures and partly used blocks the
+  chunk records left.
+
+### A world starts with only the chunks it keeps
+
+A restart reads `residency`, the `ResidencyIndex` written with every board
+checkpoint, lists the stored chunk keys without their values, and reads in
+only the chunks in `index.kept`; every other one is `UNLOADED_CHUNK` from the
+start (`GameServer.keptBoard`). A first start, and `replaceWorld`, run
+`GameSession.startingBoard` on the whole parsed map, write every chunk row and
+the index, and hand the session only the kept chunks
+(`GameServer.startingWorld`).
+
+- **What the index holds is what cannot be read off a partial board.** The
+  kept chunks (`chunksToKeep` at that checkpoint), the teleport targets by the
+  chunk the teleport stands in, the chunk each resident body was last in, and
+  the resident id to mint from. Without the residents, a resident whose body
+  was left in the store, away from its home cell, would be respawned at home
+  and come back twice when its chunk loads. A respawn point in a chunk that is
+  out is neither armed nor has its item ids forgotten at load.
+- **Decay clocks of a chunk that was never loaded start on load**, as every
+  clock did on a restart before. Only a chunk unloaded by this process has
+  parked clocks to catch up.
+- **A join waits for its view, not its whole reach.** `loadViewAround` reads
+  the `INTEREST_REACH_CHUNKS` square round the arrival; the rest of
+  `LOADED_REACH_CHUNKS` follows on ticks once `followWakeful` sees the body.
+  While the world ticks, the join waits for ticks to put its chunks back
+  (`chunkWaiters`), so other players' ticks do not stall while 121 chunks go
+  in; on an idle world they go in at once.
+- **`shareMap` keeps the unloaded chunks as they are.** It copies every other
+  chunk and keeps the prototype, because a copy of the sentinel is an empty
+  real chunk, which the first checkpoint would write over the stored row.
+- **What it costs.** Measured with `server.step()` on a fresh store and then
+  on a restart, `data/map.json` as it is (969 chunks) and tiled 2×2
+  (3,860 chunks):
+
+  | | before, 1× | lazy, 1× | before, 2×2 | lazy, 2×2 |
+  |---|---|---|---|---|
+  | restart peak RSS | 340 MB | 180 MB | 1,085 MB | 354 MB |
+  | restart load | 3.8 s | 1.0 s | 20 s | 2.4 s |
+  | chunks in memory | 969 | 74 | 3,860 | 254 |
+  | first start peak RSS, parsed | 643 MB | 641 MB | 2,139 MB | 1,815 MB |
+
+  Reading and putting back the 121 chunks round a player joining far from the
+  kept chunks took 0.6 s on the 2×2 map with nothing ticking.
+
+### A first start reads rows the image prepared
+
+A first start, and a deploy whose map changed, would parse the whole map,
+prepare it and write every row: on the 4× showcase island that peaked at
+1.2 GB, and a 512 MB preview was killed. So `worldMap.ts --prebuild` also runs
+`startingWorldOf` in the image and writes `<tree>.rows.ndjson` (one chunk row
+per line), `<tree>.start.json` (spawn, `ResidencyIndex`, respawn points,
+removed placements) and `<tree>.hash` beside the map. At start,
+`readPrebuiltStart` hands those to `replaceWorld`, which streams the rows into
+the store `STARTING_ROWS_PER_FLUSH` at a time, flushing each batch, and keeps
+only the kept chunks. The map text goes into the blob store by
+`SqliteBlobs.putFile`, 1 MB parts read from the file, so it is never one
+string either.
+
+- **A big blob's parts are never moved.** `putFile` writes them under a key
+  of their own and points the `blob` row at it (`parts_key`), then deletes the
+  old parts a few at a time. It used to write them under `<key>~writing` and
+  rename them onto the key in one transaction, which rewrote all 101 MB at
+  once; the database kept about 180 MB of that resident until the process
+  ended, and the first start peaked at 460–525 MB, at the 512 MB limit.
+
+- **The rows are valid only for the image's inputs and traits.** The inputs
+  hash covers the tree, tiles and builder source; residents are found through
+  traits, which it does not cover, so `start.json` carries a hash of the
+  parsed trait catalogue. Either differing falls back to building or reading
+  the map whole.
+- **What it costs**, on the 4× island (101 MB of map, 7,715 rows), measured
+  with `World.open` on a fresh store: first start peak 1,243 MB → 443–503 MB,
+  18 s → 7 s, settled 840 → 363 MB; a restart peaks at 126 MB. With the
+  parts pointed at rather than moved, and `NODE_ENV=production`, the first
+  start peaks at 290 MB and settles at about 220 MB. In a 512 MB
+  memory cgroup the old start was OOM-killed and this one finished. Most of
+  what is left is native memory the allocator keeps after the blob copy and
+  the row writes; the JS heap after start is about 54 MB.
+- **On a 512 MB preview** (Coolify, `MEM_LIMIT` 512m, full island), read
+  from the admin `/api/health`: a deploy started at a 158 MB peak, and with
+  one guest walking the server held 300–390 MB and peaked at 402 MB. Before
+  the level and blob fixes the same walk held 330–480 MB, and the first start
+  did not fit.
+- **The image's map prebuild needs the server to itself.** It peaks at about
+  1.8 GB. On the 4 GB box that runs staging and every preview, with worlds on
+  older code ticking every creature of the island, it ran out of RAM and
+  stalled for over 40 minutes; with staging stopped it took 4 minutes.
