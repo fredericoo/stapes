@@ -303,6 +303,8 @@ an agent drives", lists every call.
   `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`. The
   Docker image builds both trees ahead of time into `data/built/`
   (`bun server/worldMap.ts --prebuild data world.json world-staging.json`).
+  That image is built on a GitHub runner by `.github/workflows/image.yml`;
+  Coolify deploys `Dockerfile.pull`, which only pulls it.
 - `bun run build:world` — build `data/map.json` from `data/world.json` the way
   the server does at start, for the `verify` checks and benches that read
   `data/map.json` without a server running. CI runs it before them
