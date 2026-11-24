@@ -217,8 +217,10 @@ way to get rich. No town buys a human skull: it belonged to someone they know.
    is a camp nearby, and teaches you that **eating heals**: being fed is what
    brings health back. She is the first person to tell you that you will not
    die here, and what it costs.
-3. **The path.** A clear path leads from the beach to the camp. Nothing on it
-   is dangerous.
+3. **The path.** A road leads up from the beach to the camp through a valley
+   walled by steep hills, so the way is short and cannot be missed. Only small
+   creatures live on it: rats, rabbits, deer, a couple of snakes and a cave of
+   bats in the valley side.
 4. **The camp.** The first place to trade, and the first people to explain the
    island. From here the player learns about the two towns.
 

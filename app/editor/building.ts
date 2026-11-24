@@ -62,6 +62,10 @@ export type FloorSpec = {
   roomDoors: boolean;
   /** Whether the containers among the furniture are stocked with items. */
   stocked: boolean;
+  /** Whether they are stocked only with the food in their use's list, or the pantry's when it has none. */
+  foodOnly?: boolean;
+  /** How much of the usual stock is put in, in percent. */
+  stockPercent?: number;
   access: Access;
   /** The stair tile of the flight this storey is reached by, when `access` is stairs. */
   stairsTileId: string;
@@ -837,6 +841,23 @@ const STOCK: Record<FloorUse, ReadonlyArray<readonly [string, number]>> = {
 
 const STOCK_SHARE = { min: 0.25, spread: 0.35 };
 
+const FED_STATUS_ID = "fed";
+
+/** Food is something eaten or drunk that feeds, and nothing that also poisons whoever eats it. */
+function isFood(def: TileDef | undefined): boolean {
+  const item = def?.interactions?.item;
+  if (item?.type !== "consumable") return false;
+  const statuses = item.statuses ?? [];
+  return statuses.length === 1 && statuses[0]!.id === FED_STATUS_ID;
+}
+
+function stockList(spec: FloorSpec, tilesById: Record<string, TileDef>) {
+  const list = STOCK[spec.use].filter(([id]) => tilesById[id]);
+  if (!spec.foodOnly) return list;
+  const food = list.filter(([id]) => isFood(tilesById[id]));
+  return food.length > 0 ? food : STOCK.storage.filter(([id]) => isFood(tilesById[id]));
+}
+
 /**
  * Stocks a storey's containers from its use's list: a share of all their
  * slots is filled, each item going to a container picked at random among
@@ -845,7 +866,7 @@ const STOCK_SHARE = { min: 0.25, spread: 0.35 };
  * for every item placed without one.
  */
 function stock(storey: Storey, tilesById: Record<string, TileDef>, random: () => number) {
-  const list = STOCK[storey.spec.use].filter(([id]) => tilesById[id]);
+  const list = stockList(storey.spec, tilesById);
   if (!storey.spec.stocked || list.length === 0) return;
   const holders: Array<{ at: number; index: number; free: number; contents: ItemInstance[] }> = [];
   for (const at of [...storey.furniture.keys()].sort((a, b) => a - b)) {
@@ -856,7 +877,8 @@ function stock(storey: Storey, tilesById: Record<string, TileDef>, random: () =>
     });
   }
   const slots = holders.reduce((sum, holder) => sum + holder.free, 0);
-  const share = STOCK_SHARE.min + random() * STOCK_SHARE.spread;
+  const share =
+    (STOCK_SHARE.min + random() * STOCK_SHARE.spread) * ((storey.spec.stockPercent ?? 100) / 100);
   for (let n = Math.round(slots * share); n > 0; n--) {
     const open = holders.filter((holder) => holder.free > 0);
     if (open.length === 0) break;

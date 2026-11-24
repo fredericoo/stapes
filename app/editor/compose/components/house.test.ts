@@ -56,3 +56,70 @@ describe("a house with floors, a cellar and a roof", () => {
     expect(levelsWalked(built, STREET), sketch(built)).toEqual([0]);
   });
 });
+
+describe("a floor's stock", () => {
+  const stocked = (foodOnly: boolean, stockPercent = 100) => {
+    const built = buildTree(
+      land(SIZE, [
+        house([
+          node("floor", { use: "barracks", rooms: 2, foodOnly, stockPercent, doors: [FRONT_DOOR] }),
+          node("cellar", { use: "smithy", foodOnly, stockPercent }),
+        ]),
+      ]),
+    );
+    const items: string[] = [];
+    for (const level of Object.values(built.map.levels)) {
+      for (const chunk of Object.values(level)) {
+        for (const stack of Object.values(chunk)) {
+          for (const placed of stack) {
+            for (const item of placed.contents ?? []) {
+              items.push(...Array<string>(item.count ?? 1).fill(item.tileId));
+            }
+          }
+        }
+      }
+    }
+    return { built, items };
+  };
+
+  it("keeps the weapons, gear and gold of a barracks and a smithy out of their chests", () => {
+    const usual = stocked(false);
+    expect(usual.items, sketch(usual.built)).toContain("gold");
+    const { built, items } = stocked(true);
+    expect(items.length, sketch(built)).toBeGreaterThan(0);
+    const food = new Set(["bread", "ale", "apple", "berry", "cheese", "cooked-meat"]);
+    expect(
+      items.filter((id) => !food.has(id)),
+      sketch(built),
+    ).toEqual([]);
+  });
+
+  it("is a tenth of the usual at ten percent, and none at zero", () => {
+    const count = (stockPercent: number) => {
+      const built = buildTree(
+        land(SIZE, [
+          house([
+            node("floor", { use: "storage", stockPercent, doors: [FRONT_DOOR] }),
+            node("cellar", { use: "storage", stockPercent }),
+          ]),
+        ]),
+      );
+      let n = 0;
+      for (const level of Object.values(built.map.levels)) {
+        for (const chunk of Object.values(level)) {
+          for (const stack of Object.values(chunk)) {
+            for (const placed of stack) {
+              for (const item of placed.contents ?? []) n += item.count ?? 1;
+            }
+          }
+        }
+      }
+      return n;
+    };
+    const usual = count(100);
+    expect(usual).toBeGreaterThan(30);
+    expect(count(10)).toBeGreaterThan(0);
+    expect(count(10)).toBeLessThan(usual / 5);
+    expect(count(0)).toBe(0);
+  });
+});

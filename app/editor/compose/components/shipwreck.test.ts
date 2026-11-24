@@ -64,4 +64,71 @@ describe("shipwreck", () => {
     ]);
     expect(stands(built, "wreck-planks")).toEqual([]);
   });
+
+  describe("with a castaway", () => {
+    const awake = (seed: number) =>
+      wrecked(seed, { pieces: 20, castaway: "player", fire: "flame" });
+    const wetAt = (built: ReturnType<typeof wrecked>, x: number, y: number) =>
+      getStack(built.map, x, y, 0).some((p) => p.tileId === "water");
+
+    it.each([1, 2, 3, 4])("wakes them on the sand at the water's edge, seed %i", (seed) => {
+      const built = awake(seed);
+      const [castaway] = stands(built, "player");
+      expect(castaway, sketch(built)).toBeDefined();
+      const { x, y } = castaway!;
+      expect(getStack(built.map, x, y, 0)[0]?.tileId, sketch(built)).toBe("sand");
+      expect(wetAt(built, x, y), sketch(built)).toBe(false);
+      const sea = [
+        wetAt(built, x, y - 1),
+        wetAt(built, x + 1, y),
+        wetAt(built, x, y + 1),
+        wetAt(built, x - 1, y),
+      ];
+      expect(sea, sketch(built)).toContain(true);
+      expect(x >= BEACH.x && x < BEACH.x + BEACH.w && y >= BEACH.y && y < BEACH.y + BEACH.h).toBe(
+        true,
+      );
+    });
+
+    it.each([1, 2, 3, 4])(
+      "lights the fire on dry sand two cells off and leaves a way inland, seed %i",
+      (seed) => {
+        const built = awake(seed);
+        const castaway = stands(built, "player")[0]!;
+        const fires = stands(built, "flame");
+        expect(fires, sketch(built)).toHaveLength(1);
+        const fire = fires[0]!;
+        expect(Math.max(Math.abs(fire.x - castaway.x), Math.abs(fire.y - castaway.y))).toBe(2);
+        expect(wetAt(built, fire.x, fire.y), sketch(built)).toBe(false);
+        const stepOff = [
+          { x: castaway.x, y: castaway.y - 1 },
+          { x: castaway.x + 1, y: castaway.y },
+          { x: castaway.x - 1, y: castaway.y },
+          { x: castaway.x, y: castaway.y + 1 },
+        ].filter(
+          (c) =>
+            getStack(built.map, c.x, c.y, 0)
+              .map((p) => p.tileId)
+              .join() === "sand",
+        );
+        expect(stepOff.length, sketch(built)).toBeGreaterThan(0);
+        expect(walks(built, stepOff[0]!, INLAND), sketch(built)).toBe(true);
+      },
+    );
+
+    it("is refused when the frame reaches no sea", () => {
+      const built = buildTree(
+        land(
+          { w: 20, h: 14 },
+          [node("shipwreck", { castaway: "player" }, { frame: frame(2, 2, 16, 10) })],
+          "sand",
+        ),
+        { problems: "returned" },
+      );
+      expect(built.problems.map((p) => p.reason)).toEqual([
+        "There is no sand beside the sea in this frame for a castaway to wake on. Move the frame onto the shore.",
+      ]);
+      expect(stands(built, "player")).toEqual([]);
+    });
+  });
 });

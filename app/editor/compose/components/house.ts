@@ -61,6 +61,8 @@ const FloorSchema = v.object({
   stairs: v.optional(field.tile(TILES.stairs), DEFAULT_STAIRS_TILE_ID),
   roomDoors: v.optional(v.boolean(), true),
   stocked: v.optional(v.boolean(), true),
+  foodOnly: v.optional(v.boolean(), false),
+  stockPercent: v.optional(field.percent(), 100),
   doors: v.optional(field.points(), []),
   windows: v.optional(v.boolean(), true),
   wall: v.optional(v.nullable(field.tile(TILES.wall)), null),
@@ -76,6 +78,8 @@ const CellarSchema = v.object({
   stairs: v.optional(field.tile(TILES.stairs), DEFAULT_STAIRS_TILE_ID),
   roomDoors: v.optional(v.boolean(), true),
   stocked: v.optional(v.boolean(), true),
+  foodOnly: v.optional(v.boolean(), false),
+  stockPercent: v.optional(field.percent(), 100),
   wall: v.optional(v.nullable(field.tile(TILES.wall)), "brick-wall"),
   floor: v.optional(v.nullable(field.tile(TILES.ground)), "flagstone-floor"),
 });
@@ -172,6 +176,8 @@ export const house: Component<HouseProps> = {
       rooms: own.rooms,
       roomDoors: own.roomDoors,
       stocked: own.stocked,
+      foodOnly: own.foodOnly,
+      stockPercent: own.stockPercent,
       access: own.reachedBy,
       stairsTileId: own.stairs,
       doors:

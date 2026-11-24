@@ -3920,24 +3920,7 @@ describe("the vermin we ship", () => {
     expect(attackIntervalMs(stats(rat).spd)).toBeLessThan(attackIntervalMs(stats(snake).spd));
   });
 
-  it("gathers with the nearest rat while nothing else is going on", () => {
-    const spread = 5;
-    const session = yard([
-      ["rat", 0, 0],
-      ["rat", spread, 0],
-    ]);
-
-    let closest = Infinity;
-    for (let beat = 0; beat < 20; beat++) {
-      advance(session, BRAIN_TICK_MS);
-      const [a, b] = bodies(session, "rat");
-      closest = Math.min(closest, Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y));
-    }
-
-    expect(closest).toBeLessThan(spread);
-  });
-
-  it("gathers without piling up", () => {
+  it("wanders on its own rather than gathering with the rats it sees", () => {
     const session = yard(
       [
         ["rat", 0, 0],
@@ -3949,29 +3932,21 @@ describe("the vermin we ship", () => {
       undefined,
       HERD_SEED,
     );
-    advance(session, BRAIN_TICK_MS * 30);
-
-    let crowdedBeats = 0;
-    let lockedBeats = 0;
-    const beats = 60;
     const stepsApart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
       Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
+    let huddledBeats = 0;
+    const beats = 90;
     for (let beat = 0; beat < beats; beat++) {
       advance(session, BRAIN_TICK_MS);
       const rats = bodies(session, "rat");
-      if (rats.some((a) => rats.some((b) => a !== b && stepsApart(a, b) <= 1))) {
-        crowdedBeats++;
-      }
-      if (rats.every((a) => rats.some((b) => a !== b && stepsApart(a, b) === 2))) {
-        lockedBeats++;
-      }
+      const nearestGaps = rats.map((a) =>
+        Math.min(...rats.filter((b) => b !== a).map((b) => stepsApart(a, b))),
+      );
+      if (nearestGaps.every((gap) => gap <= 2)) huddledBeats++;
     }
 
-    const xs = bodies(session, "rat").map((rat) => rat.x);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(9);
-    expect(crowdedBeats / beats).toBeLessThan(0.62);
-    expect(lockedBeats / beats).toBeLessThan(0.4);
+    expect(huddledBeats / beats).toBeLessThan(0.1);
   });
 
   it("walks back to the cell it was authored on, not the one it woke in", () => {

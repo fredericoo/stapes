@@ -637,6 +637,70 @@
           },
           {
             "type": "hill",
+            "key": "wreck-west-hill",
+            "frame": {
+              "x": 230,
+              "y": 660,
+              "w": 260,
+              "h": 260
+            },
+            "props": {
+              "levels": 3,
+              "terrace": 0,
+              "roughness": 20
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wreck-west-hill-shape",
+                "frame": {
+                  "x": 60,
+                  "y": 76,
+                  "w": 142,
+                  "h": 180
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 25
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "wreck-east-hill",
+            "frame": {
+              "x": 400,
+              "y": 680,
+              "w": 200,
+              "h": 200
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 0,
+              "roughness": 20
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wreck-east-hill-shape",
+                "frame": {
+                  "x": 64,
+                  "y": 64,
+                  "w": 70,
+                  "h": 96
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 25
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
             "key": "bat-crag",
             "frame": {
               "x": 468,
@@ -1591,7 +1655,52 @@
               "h": 22
             },
             "props": {
-              "pieces": 10
+              "pieces": 10,
+              "castaway": "player",
+              "fire": "flame"
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-tove",
+            "props": {
+              "tile": "tove-arnesdatter",
+              "at": {
+                "x": 457,
+                "y": 823
+              },
+              "placement": {
+                "direction": "w",
+                "spots": {
+                  "bed": {
+                    "x": 500,
+                    "y": 864,
+                    "z": 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-tove-bedroll",
+            "props": {
+              "tile": "bedroll",
+              "at": {
+                "x": 460,
+                "y": 824
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-shallows-ribs",
+            "props": {
+              "tile": "wreck-ribs",
+              "at": {
+                "x": 394,
+                "y": 817
+              }
             }
           },
           {
@@ -3011,8 +3120,8 @@
             "type": "group",
             "key": "camp",
             "frame": {
-              "x": 304,
-              "y": 600,
+              "x": 426,
+              "y": 712,
               "w": 26,
               "h": 18
             },
@@ -3079,7 +3188,7 @@
               },
               {
                 "type": "house",
-                "key": "camp-trader",
+                "key": "camp-pub",
                 "frame": {
                   "x": 1,
                   "y": 2,
@@ -3092,9 +3201,9 @@
                 "children": [
                   {
                     "type": "floor",
-                    "key": "camp-trader-f0",
+                    "key": "camp-pub-f0",
                     "props": {
-                      "use": "shop",
+                      "use": "pub",
                       "doors": [
                         {
                           "x": 0,
@@ -3102,12 +3211,14 @@
                           "pinX": "right",
                           "pinY": "center"
                         }
-                      ]
+                      ],
+                      "foodOnly": true,
+                      "stockPercent": 20
                     }
                   },
                   {
                     "type": "porch",
-                    "key": "camp-trader-p0",
+                    "key": "camp-pub-p0",
                     "props": {
                       "side": "s",
                       "use": "seating",
@@ -3116,42 +3227,7 @@
                   },
                   {
                     "type": "roof",
-                    "key": "camp-trader-roof",
-                    "props": {
-                      "colour": "yellow",
-                      "pitch": "low"
-                    }
-                  }
-                ]
-              },
-              {
-                "type": "house",
-                "key": "camp-bunkhouse",
-                "frame": {
-                  "x": 18,
-                  "y": 2,
-                  "w": 8,
-                  "h": 8
-                },
-                "children": [
-                  {
-                    "type": "floor",
-                    "key": "camp-bunkhouse-f0",
-                    "props": {
-                      "use": "barracks",
-                      "doors": [
-                        {
-                          "x": 0,
-                          "y": 0,
-                          "pinX": "left",
-                          "pinY": "center"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "type": "roof",
-                    "key": "camp-bunkhouse-roof",
+                    "key": "camp-pub-roof",
                     "props": {
                       "colour": "yellow",
                       "pitch": "low"
@@ -3163,7 +3239,7 @@
                 "type": "tile",
                 "key": "camp-fire",
                 "props": {
-                  "tile": "campfire",
+                  "tile": "flame",
                   "at": {
                     "x": 15,
                     "y": 10
@@ -3205,12 +3281,42 @@
               },
               {
                 "type": "tile",
+                "key": "camp-ifeoma-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 13,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-ifeoma-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 13,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-barrel",
                 "props": {
                   "tile": "barrel",
                   "at": {
                     "x": 11,
-                    "y": 14
+                    "y": 6
+                  },
+                  "placement": {
+                    "contents": [
+                      {
+                        "id": "",
+                        "tileId": "bread"
+                      }
+                    ]
                   }
                 }
               },
@@ -3220,8 +3326,343 @@
                 "props": {
                   "tile": "wooden-box",
                   "at": {
+                    "x": 11,
+                    "y": 7
+                  },
+                  "placement": {
+                    "contents": [
+                      {
+                        "id": "",
+                        "tileId": "apple"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 19,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 19,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-sack",
+                "props": {
+                  "tile": "sack",
+                  "at": {
+                    "x": 17,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 20,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 24,
+                    "y": 11
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 24,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 22,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 24,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 24,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-sack",
+                "props": {
+                  "tile": "sack",
+                  "at": {
+                    "x": 22,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna-barrel",
+                "props": {
+                  "tile": "barrel",
+                  "at": {
+                    "x": 22,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-tent",
+                "props": {
+                  "tile": "tent",
+                  "at": {
+                    "x": 4,
+                    "y": 15
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 4,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris-wooden-box",
+                "props": {
+                  "tile": "wooden-box",
+                  "at": {
+                    "x": 5,
+                    "y": 15
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-tent",
+                "props": {
+                  "tile": "tent-2",
+                  "at": {
+                    "x": 11,
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-bedroll",
+                "props": {
+                  "tile": "bedroll",
+                  "at": {
+                    "x": 11,
+                    "y": 17
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
                     "x": 12,
-                    "y": 14
+                    "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-ifeoma",
+                "props": {
+                  "tile": "ifeoma-nwachukwu",
+                  "at": {
+                    "x": 15,
+                    "y": 8
+                  },
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 479,
+                        "y": 759,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-biscuit",
+                "props": {
+                  "tile": "cat-biscuit",
+                  "at": {
+                    "x": 17,
+                    "y": 8
+                  },
+                  "placement": {
+                    "direction": "s"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-peregrine",
+                "props": {
+                  "tile": "peregrine-voss",
+                  "at": {
+                    "x": 13,
+                    "y": 11
+                  },
+                  "placement": {
+                    "direction": "e",
+                    "spots": {
+                      "bed": {
+                        "x": 485,
+                        "y": 759,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-jory",
+                "props": {
+                  "tile": "jory-thistlewood",
+                  "at": {
+                    "x": 17,
+                    "y": 12
+                  },
+                  "placement": {
+                    "direction": "w",
+                    "spots": {
+                      "bed": {
+                        "x": 490,
+                        "y": 764,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-idris",
+                "props": {
+                  "tile": "idris-kaya",
+                  "at": {
+                    "x": 4,
+                    "y": 11
+                  },
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 470,
+                        "y": 768,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-wenna",
+                "props": {
+                  "tile": "wenna-pascoe",
+                  "at": {
+                    "x": 20,
+                    "y": 15
+                  },
+                  "placement": {
+                    "direction": "w",
+                    "spots": {
+                      "bed": {
+                        "x": 490,
+                        "y": 769,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-runa",
+                "props": {
+                  "tile": "runa-hask",
+                  "at": {
+                    "x": 14,
+                    "y": 15
+                  },
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 477,
+                        "y": 769,
+                        "z": 0
+                      }
+                    }
                   }
                 }
               }
@@ -3456,14 +3897,18 @@
                           "pinX": "center",
                           "pinY": "bottom"
                         }
-                      ]
+                      ],
+                      "foodOnly": true,
+                      "stockPercent": 15
                     }
                   },
                   {
                     "type": "cellar",
                     "key": "harbour-warehouse-c0",
                     "props": {
-                      "use": "storage"
+                      "use": "storage",
+                      "foodOnly": true,
+                      "stockPercent": 15
                     }
                   },
                   {
@@ -3579,6 +4024,66 @@
                 }
               }
             ]
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-0",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 489,
+                "y": 728,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-1",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 494,
+                "y": 727,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-2",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 490,
+                "y": 731,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-rat-3",
+            "props": {
+              "tile": "rat",
+              "at": {
+                "x": 495,
+                "y": 730,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "harbour-cellar-slime",
+            "props": {
+              "tile": "nature-slime",
+              "at": {
+                "x": 492,
+                "y": 729,
+                "z": -1
+              }
+            }
           },
           {
             "type": "lighthouse",
@@ -4477,6 +4982,272 @@
           },
           {
             "type": "cave",
+            "key": "wreck-cave",
+            "frame": {
+              "x": 384,
+              "y": 754,
+              "w": 50,
+              "h": 38,
+              "z": 0
+            },
+            "props": {
+              "shape": "caverns",
+              "density": 35,
+              "floor": "dirt",
+              "prop": "stalagmite",
+              "propEvery": 18,
+              "mouths": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "right",
+                  "pinY": "center"
+                }
+              ]
+            }
+          },
+          {
+            "type": "temple",
+            "key": "wreck-valley-ruin",
+            "frame": {
+              "x": 457,
+              "y": 755,
+              "w": 7,
+              "h": 7
+            },
+            "props": {
+              "height": 2,
+              "gap": 2,
+              "base": "step",
+              "roof": "open",
+              "ruin": 65
+            }
+          },
+          {
+            "type": "cave",
+            "key": "secret-cave",
+            "frame": {
+              "x": 466,
+              "y": 771,
+              "w": 20,
+              "h": 18,
+              "z": 0
+            },
+            "props": {
+              "shape": "tunnels",
+              "density": 35,
+              "floor": "dirt",
+              "prop": "stalagmite",
+              "propEvery": 18,
+              "mouths": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "pinX": "right",
+                  "pinY": "center"
+                }
+              ],
+              "flooded": true,
+              "seep": 3
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-0",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 470,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-1",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 479,
+                "y": 783,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bat-2",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 476,
+                "y": 777,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-skeleton",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 473,
+                "y": 783,
+                "z": -2
+              },
+              "placement": {
+                "direction": "n"
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-sailor-skull",
+            "props": {
+              "tile": "skull-player",
+              "at": {
+                "x": 471,
+                "y": 778,
+                "z": -2
+              },
+              "placement": {
+                "engraved": "A drowned sailor"
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-0",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 474,
+                "y": 780,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-1",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 478,
+                "y": 775,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-2",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 479,
+                "y": 780,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-3",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 477,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-4",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 475,
+                "y": 784,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-5",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 478,
+                "y": 776,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-6",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 472,
+                "y": 778,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-bleached-bones-7",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 478,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-8",
+            "props": {
+              "tile": "wreck-planks",
+              "at": {
+                "x": 480,
+                "y": 781,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-chest",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 472,
+                "y": 785,
+                "z": -2
+              },
+              "placement": {
+                "rewardTag": "secret-cave-gold",
+                "rewardTileIds": [
+                  "gold"
+                ],
+                "rewardCounts": {
+                  "gold": 20
+                }
+              }
+            }
+          },
+          {
+            "type": "cave",
             "key": "bear-den",
             "frame": {
               "x": 152,
@@ -5126,7 +5897,7 @@
               },
               "tile": "dirt",
               "width": 1,
-              "wander": 40,
+              "wander": 12,
               "bendLength": 48
             }
           },
@@ -5698,24 +6469,120 @@
           },
           {
             "type": "scatter",
-            "key": "camp-rats",
+            "key": "wreck-valley-game",
             "frame": {
-              "x": 280,
-              "y": 640,
-              "w": 200,
-              "h": 120
+              "x": 428,
+              "y": 736,
+              "w": 40,
+              "h": 72
             },
             "props": {
               "tiles": [
                 {
                   "tile": "rat",
-                  "weight": 1
+                  "weight": 5
+                },
+                {
+                  "tile": "small-nature-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "rabbit",
+                  "weight": 5
+                },
+                {
+                  "tile": "deer",
+                  "weight": 2
                 }
               ],
-              "density": 1,
+              "density": 1.1,
+              "clumping": 0,
+              "spacing": 5,
               "onlyOn": [
                 "grass"
               ]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-valley-snake-0",
+            "props": {
+              "tile": "snake",
+              "at": {
+                "x": 480,
+                "y": 751
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-valley-snake-1",
+            "props": {
+              "tile": "snake",
+              "at": {
+                "x": 406,
+                "y": 755
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-0",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 388,
+                "y": 765,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-1",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 395,
+                "y": 776,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-2",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 401,
+                "y": 788,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-3",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 406,
+                "y": 769,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-4",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 392,
+                "y": 785,
+                "z": -3
+              }
             }
           },
           {
@@ -5932,18 +6799,24 @@
               "onlyOn": [
                 "sand"
               ]
-            }
-          },
-          {
-            "type": "tile",
-            "key": "castaway",
-            "props": {
-              "tile": "player",
-              "at": {
-                "x": 448,
-                "y": 812
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "slimes-off-wreck-valley",
+                "frame": {
+                  "x": 180,
+                  "y": -40,
+                  "w": 80,
+                  "h": 110
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
               }
-            }
+            ]
           },
           {
             "type": "road",
@@ -6009,8 +6882,8 @@
             "type": "clear",
             "key": "camp-weeding",
             "frame": {
-              "x": 304,
-              "y": 600,
+              "x": 426,
+              "y": 712,
               "w": 26,
               "h": 18
             },

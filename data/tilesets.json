@@ -368,5 +368,12 @@
     "file": "lavafall.png",
     "width": 128,
     "height": 96
+  },
+  {
+    "id": "camp",
+    "name": "Camp",
+    "file": "camp.png",
+    "width": 48,
+    "height": 32
   }
 ]

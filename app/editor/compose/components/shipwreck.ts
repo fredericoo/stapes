@@ -20,6 +20,8 @@ const ShipwreckSchema = v.object({
   adrift: v.optional(field.percent(), 20),
   clearing: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(4)), 2),
   onlyOn: v.optional(field.tiles(TILES.ground, 1), ["sand"]),
+  castaway: v.optional(v.nullable(field.tile(TILES.any)), null),
+  fire: v.optional(v.nullable(field.tile(TILES.any)), null),
 });
 
 export type ShipwreckProps = v.InferOutput<typeof ShipwreckSchema>;
@@ -31,6 +33,14 @@ const DEBRIS_DRIFT_CELLS = 6;
 const ADRIFT_SALT = 0xad21f7;
 const PICK_SALT = 0x3c1e;
 const UINT32 = 4294967296;
+/** How far from the castaway its fire is lit: near enough to see, far enough not to wake standing in it. */
+const FIRE_CELLS = 2;
+const N4 = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+] as const;
 
 function pick(entries: ReadonlyArray<{ tile: string; weight: number }>, hash: number) {
   const total = entries.reduce((sum, e) => sum + e.weight, 0);
@@ -49,8 +59,10 @@ function pick(entries: ReadonlyArray<{ tile: string; weight: number }>, hash: nu
  * the beach, `adrift` percent of them left in the shallows. Each lands on the
  * free spot nearest the middle, give or take a few cells by the seed. Nothing
  * lands within `clearing` cells of the middle or touches another piece, so
- * whoever wakes there can walk off between them. Without sand for the hull
- * the node is refused; a piece with nowhere to go is left out.
+ * whoever wakes there can walk off between them. A `castaway` wakes on the
+ * beach cell beside the sea nearest the middle, before any timber lands, with
+ * its `fire` a couple of cells inland. Without sand for the hull the node is
+ * refused; a piece with nowhere to go is left out.
  */
 export const shipwreck: Component<ShipwreckProps> = {
   type: "shipwreck",
@@ -66,6 +78,11 @@ export const shipwreck: Component<ShipwreckProps> = {
       isWet(stack) && !stack.some((p) => p.tileId === DEEP_WATER_TILE_ID);
     const placing = placer(ctx);
     const beside = new Set<string>();
+    const reserve = (c: { x: number; y: number }) => {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) beside.add(`${c.x + dx},${c.y + dy}`);
+      }
+    };
     let landed = 0;
 
     const land = (
@@ -97,16 +114,61 @@ export const shipwreck: Component<ShipwreckProps> = {
             Math.max(Math.abs(c.x - middle.x), Math.abs(c.y - middle.y)) > props.clearing,
         );
         if (!free || !placing.put(tileId, anchor, { on: ground }).ok) continue;
-        for (const c of cells) {
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) beside.add(`${c.x + dx},${c.y + dy}`);
-          }
-        }
+        for (const c of cells) reserve(c);
         return true;
       }
       return false;
     };
 
+    const dryBeach = (x: number, y: number) => {
+      const stack = ctx.stackAt(x, y);
+      return ctx.covered(x, y) && stack.length > 0 && beach(stack) && !isWet(stack);
+    };
+    const bySea = (x: number, y: number) =>
+      N4.some(([dx, dy]) => {
+        const stack = ctx.stackAt(x + dx, y + dy);
+        return stack.length > 0 && isWet(stack);
+      });
+    const nearest = (cells: Array<{ x: number; y: number }>, to: { x: number; y: number }) =>
+      cells
+        .map((c) => ({ ...c, far: Math.hypot(c.x - to.x, c.y - to.y) }))
+        .sort((a, b) => a.far - b.far || a.y - b.y || a.x - b.x);
+    if (props.castaway) {
+      const shore: Array<{ x: number; y: number }> = [];
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) if (dryBeach(x, y) && bySea(x, y)) shore.push({ x, y });
+      }
+      const wakes = nearest(shore, middle).find(
+        (c) => placing.put(props.castaway!, c, { on: beach }).ok,
+      );
+      if (!wakes) {
+        return {
+          ok: false,
+          reason:
+            "There is no sand beside the sea in this frame for a castaway to wake on. Move the frame onto the shore.",
+        };
+      }
+      reserve(wakes);
+      if (props.fire) {
+        const ring: Array<{ x: number; y: number }> = [];
+        for (let dy = -FIRE_CELLS; dy <= FIRE_CELLS; dy++) {
+          for (let dx = -FIRE_CELLS; dx <= FIRE_CELLS; dx++) {
+            const c = { x: wakes.x + dx, y: wakes.y + dy };
+            if (
+              Math.max(Math.abs(dx), Math.abs(dy)) === FIRE_CELLS &&
+              dryBeach(c.x, c.y) &&
+              !bySea(c.x, c.y)
+            ) {
+              ring.push(c);
+            }
+          }
+        }
+        const lit = nearest(ring, middle).find(
+          (c) => placing.put(props.fire!, c, { on: beach }).ok,
+        );
+        if (lit) reserve(lit);
+      }
+    }
     if (!land(props.hull, beach, TIMBER_DRIFT_CELLS)) {
       const hull = ctx.tilesById[props.hull]!;
       const ground = props.onlyOn.map((id) => ctx.tilesById[id]?.name ?? id).join(" or ");
