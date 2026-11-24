@@ -353,7 +353,7 @@
             ]
           },
           {
-            "type": "hill",
+            "type": "fill",
             "key": "gorge-rim",
             "frame": {
               "x": 936,
@@ -362,11 +362,12 @@
               "h": 168
             },
             "props": {
-              "levels": 2,
-              "terrace": 0,
-              "roughness": 30,
-              "ground": "basalt",
-              "wall": "hill-wall-basalt"
+              "tiles": [
+                "basalt"
+              ],
+              "mode": "ground",
+              "edgeWidth": 0,
+              "edge": []
             },
             "children": [
               {
@@ -382,88 +383,6 @@
                   "shape": "oval",
                   "op": "intersect",
                   "ragged": 45
-                }
-              }
-            ]
-          },
-          {
-            "type": "fill",
-            "key": "lava-gorge",
-            "frame": {
-              "x": 976,
-              "y": 320,
-              "w": 48,
-              "h": 72
-            },
-            "props": {
-              "tiles": [
-                "lava",
-                "lava-crust"
-              ],
-              "edge": [
-                "lava-crust"
-              ],
-              "edgeWidth": 1,
-              "mode": "replace",
-              "onlyOn": [
-                "basalt"
-              ]
-            },
-            "children": [
-              {
-                "type": "mask",
-                "key": "lava-gorge-shape",
-                "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 48,
-                  "h": 72
-                },
-                "props": {
-                  "shape": "oval",
-                  "op": "intersect",
-                  "ragged": 55
-                }
-              }
-            ]
-          },
-          {
-            "type": "fill",
-            "key": "lava-gorge-south",
-            "frame": {
-              "x": 996,
-              "y": 376,
-              "w": 40,
-              "h": 72
-            },
-            "props": {
-              "tiles": [
-                "lava",
-                "lava-crust"
-              ],
-              "edge": [
-                "lava-crust"
-              ],
-              "edgeWidth": 1,
-              "mode": "replace",
-              "onlyOn": [
-                "basalt"
-              ]
-            },
-            "children": [
-              {
-                "type": "mask",
-                "key": "lava-gorge-south-shape",
-                "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 40,
-                  "h": 72
-                },
-                "props": {
-                  "shape": "oval",
-                  "op": "intersect",
-                  "ragged": 55
                 }
               }
             ]
@@ -622,8 +541,12 @@
             "props": {
               "tiles": [
                 {
-                  "tile": "obsidian",
-                  "weight": 1
+                  "tile": "lava-crust",
+                  "weight": 3
+                },
+                {
+                  "tile": "obsidian-vein-2",
+                  "weight": 2
                 }
               ],
               "density": 3,
@@ -4678,13 +4601,36 @@
             "type": "dungeon",
             "key": "obsidian-deeps",
             "frame": {
-              "x": 944,
+              "x": 952,
               "y": 320,
-              "w": 128,
+              "w": 120,
               "h": 152,
-              "z": 0
+              "z": -1
             },
             "children": [
+              {
+                "type": "chasm",
+                "key": "deeps-chasm",
+                "frame": {
+                  "x": 24,
+                  "y": 28,
+                  "w": 56,
+                  "h": 64
+                },
+                "props": {
+                  "ledge": 4,
+                  "cascades": [
+                    {
+                      "x": 30,
+                      "y": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": 36
+                    }
+                  ]
+                }
+              },
               {
                 "type": "level",
                 "key": "deeps-mouth",
@@ -4724,6 +4670,31 @@
                   "wall": "hill-wall-basalt",
                   "prop": "obsidian-vein-2",
                   "propEvery": 8
+                }
+              },
+              {
+                "type": "level",
+                "key": "deeps-hollows",
+                "props": {
+                  "shape": "tunnels",
+                  "density": 30,
+                  "floor": "basalt",
+                  "wall": "hill-wall-basalt",
+                  "prop": "obsidian-vein-1",
+                  "propEvery": 10
+                }
+              },
+              {
+                "type": "level",
+                "key": "deeps-lake",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "basalt",
+                  "wall": "hill-wall-basalt",
+                  "prop": "obsidian-vein-2",
+                  "propEvery": 8,
+                  "upBy": "ramp"
                 }
               }
             ]
@@ -6372,9 +6343,9 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 991,
-                "y": 429,
-                "z": -2
+                "x": 988,
+                "y": 426,
+                "z": -1
               }
             }
           },
@@ -6384,9 +6355,9 @@
             "props": {
               "tile": "small-fire-slime",
               "at": {
-                "x": 1003,
-                "y": 396,
-                "z": -2
+                "x": 982,
+                "y": 407,
+                "z": -1
               }
             }
           },
@@ -6396,9 +6367,9 @@
             "props": {
               "tile": "ember-wisp",
               "at": {
-                "x": 1024,
-                "y": 432,
-                "z": -3
+                "x": 1022,
+                "y": 429,
+                "z": -2
               }
             }
           },
@@ -6408,9 +6379,9 @@
             "props": {
               "tile": "ember-wisp",
               "at": {
-                "x": 970,
-                "y": 398,
-                "z": -3
+                "x": 966,
+                "y": 394,
+                "z": -2
               }
             }
           },
@@ -6420,9 +6391,9 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 1006,
-                "y": 359,
-                "z": -3
+                "x": 997,
+                "y": 348,
+                "z": -2
               }
             }
           },
@@ -6433,8 +6404,8 @@
               "tile": "cave-troll",
               "at": {
                 "x": 1021,
-                "y": 344,
-                "z": -4
+                "y": 347,
+                "z": -3
               }
             }
           },
@@ -6444,9 +6415,9 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 1023,
-                "y": 446,
-                "z": -2
+                "x": 1016,
+                "y": 439,
+                "z": -1
               }
             }
           },
@@ -6456,9 +6427,9 @@
             "props": {
               "tile": "fire-slime",
               "at": {
-                "x": 972,
-                "y": 365,
-                "z": -4
+                "x": 973,
+                "y": 366,
+                "z": -3
               }
             }
           },
@@ -6468,9 +6439,57 @@
             "props": {
               "tile": "quest-chest",
               "at": {
-                "x": 1058,
-                "y": 406,
-                "z": -2
+                "x": 1046,
+                "y": 402,
+                "z": -1
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-hollows-fire-slime-0",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 985,
+                "y": 398,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-hollows-ember-wisp-1",
+            "props": {
+              "tile": "ember-wisp",
+              "at": {
+                "x": 1040,
+                "y": 398,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-lake-cave-troll-0",
+            "props": {
+              "tile": "cave-troll",
+              "at": {
+                "x": 999,
+                "y": 408,
+                "z": -5
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "deeps-lake-fire-slime-1",
+            "props": {
+              "tile": "fire-slime",
+              "at": {
+                "x": 1038,
+                "y": 418,
+                "z": -5
               }
             }
           }

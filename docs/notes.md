@@ -16398,6 +16398,46 @@ instead. `dungeonLevels` is what both the dungeon and `/admin/compose` read,
 so selecting a Level cuts the view to the level it is dug on, counted from
 the frame's level rather than from the ground a hill raised.
 
+### A chasm is cut through a dungeon before its levels are dug
+
+`chasm` (`components/chasm.ts`) is a part of `dungeon`, beside its Levels. It
+cuts a ragged oval out of the ground and then one opening per level, each the
+one above with its north and west sides pulled in by `ledge` and its south and
+east sides by one cell. Lower levels are drawn a cell down and right of the
+level above, so the north and west ledges are the ones seen from the rim, with
+their cliff faces; the south and east walls show only their tops. The last
+level's opening is the pool `bottom` fills, lava unless set otherwise.
+
+- **It is cut first.** A cave keeps two cells of rock round any cell that is
+  not rock, so every Level dug afterwards stays off the chasm's wall, and no
+  flight of stairs is placed where the chasm would cut it. That also means no
+  cave opens onto a ledge by itself: `openOntoLedges` cuts `openings` tunnels,
+  each the shortest run of rock from the ledge to the cave's floor, into every
+  part of each ledge. Two cascades crossing a ledge cut it into parts a body
+  cannot walk between with dry feet, so the tunnels are cut after the
+  cascades are poured; with one tunnel per level, `verify stranded` found the
+  part it missed.
+- **Each level is hollowed out behind its cliff.** `openCaverns` cuts the
+  rock behind the cliff round each ledge back `cavern` cells, so the level is
+  a cave with the chasm in it. The cliff itself is kept and only opened every
+  few cells: it is the face drawn under the ledge above, and with it cut away
+  that ledge was drawn hanging in the air with no face under its brink. The
+  openings on south and east faces are cave mouths, since only those faces are
+  drawn. The hollow keeps two cells from any flight of stairs: floor beside a
+  flight's top step is a lower floor stepped onto in place of its landing, and
+  walling an empty cell next to the hollow closed the shaft over a flight.
+- **A ledge is the only way down and the stairs the only way up.** Walking off
+  a ledge drops a body to the next one (no fall damage). A fall that would land
+  in lava is refused like one into water, so the pool is seen from every ledge
+  and reached by nobody keeping their feet dry.
+- **Cascades flow only south and east**, because a fall can only be drawn on
+  those faces. Each runs two cells wide from the rim nearest its point, across
+  each ledge and down a `lavafall` as tall as the drop. The lavafall tiles are
+  drawn by `scripts/generate-waterfall-tileset.ts` in the lava palette.
+- **Depth is bounded by the view.** Nothing more than eight levels from the
+  viewer is drawn, so a chasm whose pool is to be seen from its rim has its
+  last level at most eight below the rim.
+
 ### A component's behaviour is tested by walking a small tree
 
 Each component has a `<name>.test.ts` beside it in
