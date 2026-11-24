@@ -254,7 +254,13 @@ export const deck: Component<DeckProps> = {
       const fate = poles.has(key) ? poleFate(x, y) : null;
 
       if (holes.has(key)) {
-        if (standsOn && isWet(below) && roll(x, y, ROLL.fallen) < 0.5) {
+        /**
+         * Planks float only where a body could land without them. The game
+         * refuses a drop into deep water, and planks on it would give a body
+         * falling through somewhere to land that it cannot walk away from.
+         */
+        const landable = standsOn && !below.some((p) => p.tileId === DEEP_WATER);
+        if (landable && isWet(below) && roll(x, y, ROLL.fallen) < 0.5) {
           edits.push({ x, y, z: ground, stack: [...below, { tileId: FALLEN }] });
         }
         continue;

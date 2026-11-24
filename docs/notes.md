@@ -16930,6 +16930,10 @@ first. The flight is `wooden-stairs` by default, on `timber-block`.
 - **A hole is kept only while the boards still join up.** Each one is checked
   with a walk from the way up that goes round the posts left standing on the
   deck, so no part of a decayed deck is cut off from it.
+  A hole over deep water is not a way down at all, because the game refuses
+  a drop into deep water. So `wreck-planks` float only in holes over
+  shallows: on deep water they would be somewhere to land that can't be
+  walked away from, and `bun run verify stranded` finds that.
 - **Nothing on the deck knows it is there.** The deck does not declare raised
   ground, so a `tile` placed on it needs `z: 1` in its `at`, as the harbour
   pier's barrel and rope have.

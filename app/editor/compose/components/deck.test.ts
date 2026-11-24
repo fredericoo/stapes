@@ -95,6 +95,25 @@ describe("deck", () => {
     },
   );
 
+  it("floats no planks on deep water, where a body would land and be stuck", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const built = buildTree(harbour({ decay: 100 }), { seed });
+      for (const at of stands(built, "wreck-planks")) {
+        expect(getStack(built.map, at.x, at.y, 0).map((p) => p.tileId)).not.toContain("deep-water");
+      }
+    }
+  });
+
+  it("opens holes over deep water too, since the game never drops a body into it", () => {
+    const over = [1, 2, 3, 4].flatMap((seed) => {
+      const built = buildTree(harbour({ decay: 100 }), { seed });
+      return cellsOf(PIER)
+        .filter(({ x, y }) => deckStack(built, x, y).length === 0)
+        .filter(({ x, y }) => getStack(built.map, x, y, 0).some((p) => p.tileId === "deep-water"));
+    });
+    expect(over.length).toBeGreaterThan(0);
+  });
+
   it("breaks holes, takes out poles, cuts boards short and grows moss as it decays", () => {
     const count = (decay: number) => {
       let holes = 0;
