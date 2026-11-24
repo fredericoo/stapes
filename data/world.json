@@ -5213,6 +5213,21 @@
           },
           {
             "type": "tile",
+            "key": "secret-cave-sailor-skull",
+            "props": {
+              "tile": "skull-player",
+              "at": {
+                "x": 471,
+                "y": 778,
+                "z": -2
+              },
+              "placement": {
+                "engraved": "A drowned sailor"
+              }
+            }
+          },
+          {
+            "type": "tile",
             "key": "secret-cave-seep-0",
             "props": {
               "tile": "water",
@@ -5385,7 +5400,7 @@
             "props": {
               "tile": "bleached-bones",
               "at": {
-                "x": 471,
+                "x": 472,
                 "y": 778,
                 "z": -2
               }
@@ -5393,7 +5408,19 @@
           },
           {
             "type": "tile",
-            "key": "secret-cave-wreck-planks-7",
+            "key": "secret-cave-bleached-bones-7",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 478,
+                "y": 779,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "secret-cave-wreck-planks-8",
             "props": {
               "tile": "wreck-planks",
               "at": {
