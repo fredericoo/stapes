@@ -39,6 +39,10 @@ export const CaveSchema = v.object({
   rock: v.optional(v.nullable(field.tile(TILES.any))),
   mouth: v.optional(field.tile(TILES.any), DEFAULT_MOUTH),
   mouths: v.optional(field.points(), []),
+  /** Lets a mouth open onto shallow water a body wades in, as well as dry ground. */
+  flooded: v.optional(v.boolean(), false),
+  /** How many cells of tunnel behind a mouth that opens onto water the water runs into. */
+  seep: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(8)), 3),
   steps: v.optional(field.tile(TILES.stairs), "stone-stairs"),
   stairs: v.optional(field.points(), []),
   ladders: v.optional(field.points(), []),
@@ -196,12 +200,16 @@ export const cave: Component<CaveProps> = {
       }
       return true;
     };
+    /** Water a body wades through: a tile that wades and nothing in the stack, such as deep water, that cannot be walked. */
+    const wadeable = (stack: readonly PlacedTile[]) =>
+      stack.some((p) => ctx.tilesById[p.tileId]?.wade) &&
+      stack.every((p) => ctx.tilesById[p.tileId]?.walkable !== false);
     const plain = (x: number, y: number) => {
       const stack = ctx.stackAt(x, y, z);
       return (
         ctx.raisedAt(x, y) === z &&
         stack.length > 0 &&
-        !isWet(stack) &&
+        (!isWet(stack) || (props.flooded && wadeable(stack))) &&
         stack.every((p) => ctx.tilesById[p.tileId]?.height === 0)
       );
     };
@@ -651,12 +659,42 @@ export const cave: Component<CaveProps> = {
       for (let i = 0; i < floor.length; i++) if (floor[i] && !floor[(i + 7) % 8]) runs++;
       return !!behind && runs === 1 && floor.filter((f) => !f).length >= 2;
     };
+    /**
+     * The water outside a mouth that opens onto it runs `seep` cells into the
+     * tunnel, counted along the floor from the cell behind the mouth, so it
+     * follows the passage rather than filling a square.
+     */
+    const seeping = new Map<string, string>();
+    for (const mouth of mouths) {
+      const out = STEP[mouth.facing];
+      const water = ctx
+        .stackAt(mouth.at.x + out.x, mouth.at.y + out.y, z)
+        .find((p) => ctx.tilesById[p.tileId]?.wade)?.tileId;
+      const first = key(mouth.at.x - out.x, mouth.at.y - out.y);
+      if (!water || props.seep === 0 || !reached.has(first)) continue;
+      const far = new Map([[first, 0]]);
+      const queue = [first];
+      for (let head = 0; head < queue.length; head++) {
+        const here = queue[head]!;
+        seeping.set(here, water);
+        if (far.get(here)! + 1 >= props.seep) continue;
+        const { x, y } = cellOf(here);
+        for (const [dx, dy] of N4) {
+          const next = key(x + dx, y + dy);
+          if (!reached.has(next) || far.has(next)) continue;
+          far.set(next, far.get(here)! + 1);
+          queue.push(next);
+        }
+      }
+    }
     const propped = new Set<string>();
     for (const k of reached) {
       const { x, y } = cellOf(k);
       const stack = floorAt(x, y);
+      const water = seeping.get(k);
+      if (water) stack.push(tile(water));
       const beside = N8.some(([dx, dy]) => propped.has(key(x + dx, y + dy)));
-      if (!beside && takesProp(x, y)) {
+      if (!water && !beside && takesProp(x, y)) {
         const facing = randomAt(x, y, ctx.seed) < 0.5 ? undefined : ("e" as const);
         stack.push(
           tile(
@@ -734,11 +772,17 @@ export const cave: Component<CaveProps> = {
       /**
        * The mouth's sprite is narrower than the cell, so the cell's own ground
        * shows beside it: it is the ground at the cliff's foot, cover and all,
-       * rather than the cave's floor, which would stick out of the hill.
+       * rather than the cave's floor, which would stick out of the hill. A
+       * mouth in water keeps the water, so the sea runs in under it.
        */
       const outside = ctx
         .stackAt(mouth.at.x + out.x, mouth.at.y + out.y, z)
-        .filter((p) => isFlat(p, ctx.tilesById) && !isWet([p]));
+        .filter(
+          (p) =>
+            isFlat(p, ctx.tilesById) &&
+            !ctx.tilesById[p.tileId]?.intangible &&
+            (!isWet([p]) || ctx.tilesById[p.tileId]?.wade),
+        );
       const wall = ctx.stackAt(mouth.at.x, mouth.at.y, z).at(-1)?.tileId;
       edits.push({
         x: mouth.at.x,

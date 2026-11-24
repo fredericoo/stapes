@@ -163,6 +163,62 @@ describe("cave", () => {
     expect(showing, sketch(built)).toEqual([]);
   });
 
+  describe("opening onto water", () => {
+    function floodedHill(cave: Record<string, unknown>, water = "water") {
+      return land(SIZE, [
+        node("hill", { levels: 3, terrace: 2, roughness: 0 }, { frame: frame(4, 2, 48, 36) }),
+        node("fill", { tiles: [water], edge: [], mode: "on top", onlyOn: ["grass"] }),
+        node("cave", { mouths: [MOUTH], ...cave }, { frame: frame(6, 4, 44, 32) }),
+      ]);
+    }
+
+    it("is refused at the foot of a cliff in water unless it is flooded", () => {
+      const built = buildTree(floodedHill({}), { problems: "returned" });
+      expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
+    });
+
+    it("is refused in deep water even when flooded", () => {
+      const built = buildTree(floodedHill({ flooded: true }, "deep-water"), {
+        problems: "returned",
+      });
+      expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
+    });
+
+    it("is waded into from the water when flooded, with the water running in under its mouth", () => {
+      const built = buildTree(floodedHill({ flooded: true, seep: 3 }));
+      const floor = floorCells(built);
+      expect(floor.length, sketch(built)).toBeGreaterThan(40);
+      expect(walks(built, OUTSIDE, { ...floor[0]!, z: 0 }, { wading: true }), sketch(built)).toBe(
+        true,
+      );
+      const mouths: Array<{ x: number; y: number; ids: string[] }> = [];
+      const seeped: Array<{ x: number; y: number }> = [];
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = 0; x < SIZE.w; x++) {
+          const ids = getStack(built.map, x, y, 0).map((p) => p.tileId);
+          if (ids.includes("hill-cave-mouth")) mouths.push({ x, y, ids });
+          if (ids.includes("dirt") && ids.includes("water")) seeped.push({ x, y });
+        }
+      }
+      expect(mouths.length, sketch(built)).toBe(1);
+      const [mouth] = mouths;
+      expect(mouth!.ids, sketch(built)).toContain("water");
+      expect(seeped.length, sketch(built)).toBeGreaterThan(0);
+      const far = seeped.filter((c) => Math.abs(c.x - mouth!.x) + Math.abs(c.y - mouth!.y) > 3);
+      expect(far, sketch(built)).toEqual([]);
+    });
+
+    it("keeps its tunnel dry when the seep is nothing", () => {
+      const built = buildTree(floodedHill({ flooded: true, seep: 0 }));
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = 0; x < SIZE.w; x++) {
+          const ids = getStack(built.map, x, y, 0).map((p) => p.tileId);
+          expect(ids.includes("dirt") && ids.includes("water"), `${x},${y}`).toBe(false);
+        }
+      }
+    });
+  });
+
   it("is refused under a hill one level high, whose top would be its roof", () => {
     const built = buildTree(hillWith({ mouths: [MOUTH] }, { levels: 1 }), { problems: "returned" });
     expect(built.problems.map((p) => p.key)).toEqual(["cave-1"]);
