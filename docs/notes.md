@@ -16888,6 +16888,57 @@ into from any side.
   node's seed, so raising `ruin` only ever takes more away, and two ruins with
   different keys fall differently.
 
+## Wooden stairs are the stone flight's shape in the floor's timber
+
+`bun run generate:ramps` draws `wooden-stairs` with the same four-step
+surface as `stone-stairs`, coloured from `wooden-floor` (`#cd683d` boards,
+`#9e4539` stringers, `#e6904e` for the lit edges), and `timber-block`, the
+half block the upper stair of a flight stands on (`STAIR_BLOCK` in
+`app/editor/building.ts`). Each tread is one board the full width of the
+flight, between a stringer on either side; the floor's staggered planks read
+as a floor, not as steps. Any stairs field (house floors, lighthouse, wall,
+cave, deck)
+offers it, because those fields list every directional tile with `climbFrom`.
+
+## A deck is boards one level up on posts, not a floor laid on the water
+
+The `deck` component (`app/editor/compose/components/deck.ts`) builds a pier or
+a jetty: `wooden-floor` one level above its frame's ground, posts round its
+edge, and a way up at `way` (by default the second cell of the south side,
+where the side of the deck is in view). `reachedBy: "ladder"` stands a ladder
+there; `"stairs"` runs a flight of `stairs` off the deck's edge beside it, the
+upper stair on its half block as a house's flight is, trying the south side
+first. The flight is `wooden-stairs` by default, on `timber-block`.
+
+- **A post is `fence` pieces that touch no other fence.** `fence` is an
+  autotile, so two pieces side by side draw a run of railing. Posts stand on
+  the corners and every `poleEvery` cells along each side, and one that would
+  touch another, or stand on the ladder, is left out. Under the deck a post is
+  two pieces, which is a whole level of height, so it reaches the boards; on
+  the deck it is one more piece.
+- **Every edge board also gets `wooden-floor-inner`.** The floor autotile
+  draws only part of a cell towards a cell with no floor, and the `-inner`
+  tile is the rest of it (see *The stone floors use the wooden floor's
+  masks*). Without it the deck stops half a cell short of its frame.
+- **`decay` uses the same two tiles for broken boards.** Holes start on about
+  a fifth of `decay` of the cells and spread to the cells beside them. A board
+  beside a hole often goes without its `-inner` tile, so it is drawn cut short
+  and the hole looks larger and splintered; an outer edge board goes without
+  it less often. Posts are snapped at the deck or gone altogether, `moss-top`
+  grows in patches, and some holes over water have `wreck-planks` floating
+  under them.
+- **A decayed deck need not be walkable end to end.** Holes may cut off a
+  stretch of boards; only the cells round the way up are kept whole. A tile
+  placed on a hole is refused (`There is no ground`), so a barrel never floats
+  over a gap.
+  A hole over deep water is not a way down at all, because the game refuses
+  a drop into deep water. So `wreck-planks` float only in holes over
+  shallows: on deep water they would be somewhere to land that can't be
+  walked away from, and `bun run verify stranded` finds that.
+- **Nothing on the deck knows it is there.** The deck does not declare raised
+  ground, so a `tile` placed on it needs `z: 1` in its `at`, as the harbour
+  pier's barrel and rope have.
+
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 
 `bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk

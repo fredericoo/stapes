@@ -151,7 +151,7 @@
     "name": "Ramps",
     "file": "ramps.png",
     "width": 64,
-    "height": 64
+    "height": 80
   },
   {
     "id": "wisps",

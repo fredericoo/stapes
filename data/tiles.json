@@ -13186,6 +13186,123 @@
     }
   },
   {
+    "id": "wooden-stairs",
+    "name": "Wooden Stairs",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 6
+    },
+    "climbFrom": {
+      "n": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      },
+      "s": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "brick-slab",
     "name": "Brick Slab",
     "height": 2,
@@ -216405,7 +216522,39 @@
     "anchor": {
       "tilesetId": "ramps",
       "x": 0,
-      "y": 6
+      "y": 8
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "timber-block",
+    "name": "Timber Block",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 2,
+      "y": 8
     },
     "sprite": {
       "frames": [
