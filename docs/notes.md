@@ -16888,6 +16888,37 @@ into from any side.
   node's seed, so raising `ruin` only ever takes more away, and two ruins with
   different keys fall differently.
 
+## A deck is boards one level up on posts, not a floor laid on the water
+
+The `deck` component (`app/editor/compose/components/deck.ts`) builds a pier or
+a jetty: `wooden-floor` one level above its frame's ground, posts round its
+edge, and a ladder at `ladder` (by default the second cell of the south side,
+where the side of the deck is in view).
+
+- **A post is `fence` pieces that touch no other fence.** `fence` is an
+  autotile, so two pieces side by side draw a run of railing. Posts stand on
+  the corners and every `poleEvery` cells along each side, and one that would
+  touch another, or stand on the ladder, is left out. Under the deck a post is
+  two pieces, which is a whole level of height, so it reaches the boards; on
+  the deck it is one more piece.
+- **Every edge board also gets `wooden-floor-inner`.** The floor autotile
+  draws only part of a cell towards a cell with no floor, and the `-inner`
+  tile is the rest of it (see *The stone floors use the wooden floor's
+  masks*). Without it the deck stops half a cell short of its frame.
+- **`decay` uses the same two tiles for broken boards.** Holes start on about
+  a fifth of `decay` of the cells and spread to the cells beside them. A board
+  beside a hole often goes without its `-inner` tile, so it is drawn cut short
+  and the hole looks larger and splintered; an outer edge board goes without
+  it less often. Posts are snapped at the deck or gone altogether, `moss-top`
+  grows in patches, and some holes over water have `wreck-planks` floating
+  under them.
+- **A hole is kept only while the boards still join up.** Each one is checked
+  with a walk from the ladder that goes round the posts left standing on the
+  deck, so no part of a decayed deck is cut off from the ladder.
+- **Nothing on the deck knows it is there.** The deck does not declare raised
+  ground, so a `tile` placed on it needs `z: 1` in its `at`, as the harbour
+  pier's barrel and rope have.
+
 ## Swamp trees are grown, and a waterfall leans on the cliff behind it
 
 `bun run generate:swamp-trees` grows each leafless tree from a seed: a trunk
