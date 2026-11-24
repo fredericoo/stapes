@@ -71134,23 +71134,6 @@
               }
             ]
           },
-          "following": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "pack"
-                  }
-                }
-              },
-              {
-                "action": "walk_n_steps",
-                "steps": 2
-              }
-            ]
-          },
           "gnawing": {
             "onEnter": [
               {
@@ -71183,108 +71166,11 @@
                 "action": "hold"
               }
             ]
-          },
-          "loitering": {
-            "onEnter": [
-              {
-                "effect": "noise",
-                "text": "squeak squeak",
-                "style": "whisper"
-              }
-            ],
-            "do": [
-              {
-                "action": "walk_n_steps",
-                "steps": 3
-              }
-            ]
           }
         },
         "transitions": [
           {
             "from": "scurry",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "rat"
-                  ]
-                }
-              },
-              "cells": 6
-            },
-            "bind": {
-              "pack": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "rat"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "out_of_los",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 8
-            },
-            "to": "scurry"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 2
-            },
-            "to": "loitering"
-          },
-          {
-            "from": "loitering",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 5
-            },
-            "to": "following"
-          },
-          {
-            "from": "loitering",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "sniffing"
-          },
-          {
-            "from": "scurry",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "sniffing"
-          },
-          {
-            "from": "following",
             "if": {
               "cond": "stuck"
             },
