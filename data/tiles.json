@@ -14380,7 +14380,7 @@
           {
             "trait": "calls-out",
             "with": {
-              "line": "Hungry? Eating is what mends you here."
+              "line": "Eat something, then follow the road up to the camp."
             }
           },
           {
@@ -14424,7 +14424,7 @@
                   },
                   {
                     "kind": "say",
-                    "text": "Follow the path up from the beach. There's a camp. Nothing on the path will hurt you."
+                    "text": "Follow the road up between the hills. The camp is at the top. Rats and a snake or two on the way, nothing worse."
                   },
                   {
                     "kind": "goto",
