@@ -54,6 +54,7 @@ export default function ScenePage() {
           weather: built.weather,
           weatherAreas: built.weatherAreas,
           viewerCell: built.look,
+          viewerZ: built.look.z,
         };
         world.setView(view);
         world.snapWeather();
