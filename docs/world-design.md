@@ -59,8 +59,9 @@ In `data/world.json`:
   beside the road halfway up.
 
 - **A secret.** `secret-cave` is dug into the east hill's sea cliff. Its
-  only way in is a mouth onto `secret-cove`, a strip of sand reached by
-  wading north from the wreck beach along the foot of the cliff. Inside are
+  only way in is a `flooded` mouth that opens onto the shallows at the foot
+  of the cliff, reached by wading north from the wreck beach; the sea runs a
+  few cells into the tunnel (`seep`). Inside are
   three bats, a skeleton in the neck before the back chamber, and a
   `quest-chest` of 20 gold that each player can open once
   (`rewardTag: secret-cave-gold`).
