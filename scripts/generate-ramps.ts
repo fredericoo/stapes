@@ -70,6 +70,15 @@ const STAIRS = {
   side: hex("#694f62"),
 };
 
+/** The colours of `wooden-floor`, so a flight up to a deck or a storey reads as the same timber. */
+const WOOD = {
+  tread: hex("#cd683d"),
+  nose: hex("#e6904e"),
+  grain: hex("#9e4539"),
+  south: hex("#9e4539"),
+  east: hex("#6e2727"),
+};
+
 type Surface = (x: number, y: number) => number;
 
 /**
@@ -159,6 +168,33 @@ function stairColour(facing: Direction, surface: Surface, hit: Hit): Rgba {
   return step % 2 === 0 ? STAIRS.tread : STAIRS.side;
 }
 
+/**
+ * Each tread is one board the full width of the flight, held between a
+ * stringer on either side, with its front edge catching the light. The
+ * treads alternate light and dark the way the stone flight's do.
+ */
+function woodenStairColour(facing: Direction, surface: Surface, hit: Hit): Rgba {
+  if (hit.face !== "top") return hit.outer ? WOOD.south : WOOD.east;
+  const uphill = UPHILL[facing];
+  const across = uphill === "n" || uphill === "s" ? hit.x : hit.y;
+  if (across < 1 || across >= CELL_SIZE - 1) return WOOD.grain;
+  if (uphill === "n" || uphill === "w") {
+    const into = (climbed(facing, hit.x, hit.y) * STEPS) % 1;
+    return into > 0.5 ? WOOD.nose : WOOD.tread;
+  }
+  const step = Math.round(surface(hit.x, hit.y) / (RISE / STEPS));
+  return step % 2 === 0 ? WOOD.tread : WOOD.nose;
+}
+
+/** Planks running east to west, three pixels wide with a joint between, the joints staggered like the floor's. */
+function timberColour(hit: Hit): Rgba {
+  if (hit.face === "south") return WOOD.south;
+  if (hit.face === "east") return WOOD.east;
+  const row = Math.floor(hit.y);
+  if (row % 3 === 2) return WOOD.grain;
+  return (Math.floor(hit.x) + Math.floor(row / 3) * 4) % 8 === 0 ? WOOD.grain : WOOD.tread;
+}
+
 function drawSprite(
   sheet: PNG,
   left: number,
@@ -225,10 +261,11 @@ async function assertClimbsUphill(ids: string[]) {
   if (wrong.length) throw new Error(`climbFrom does not match the sprites:\n${wrong.join("\n")}`);
 }
 
-const TILE_IDS = ["ramp", "stone-stairs", "snowy-ramp"];
+const TILE_IDS = ["ramp", "stone-stairs", "snowy-ramp", "wooden-stairs"];
 await assertClimbsUphill(TILE_IDS);
 
 const BLOCK_ID = "frosted-half-stone";
+const TIMBER_ID = "timber-block";
 const BLOCK_ROW = TILE_IDS.length;
 const blockSurface: Surface = () => RISE;
 
@@ -249,8 +286,17 @@ DIRECTIONS.forEach((facing, column) => {
   drawSprite(sheet, left, SPRITE_PX, stairs, (hit) => stairColour(facing, stairs, hit), null);
   const snowy = { colour: FROST.outline, along } as const;
   drawSprite(sheet, left, 2 * SPRITE_PX, ramp, rampColour(snowyRamp(facing)), snowy);
+  drawSprite(
+    sheet,
+    left,
+    3 * SPRITE_PX,
+    stairs,
+    (hit) => woodenStairColour(facing, stairs, hit),
+    null,
+  );
 });
 drawSprite(sheet, 0, BLOCK_ROW * SPRITE_PX, blockSurface, rampColour(FROSTED_BLOCK), null);
+drawSprite(sheet, SPRITE_PX, BLOCK_ROW * SPRITE_PX, blockSurface, timberColour, null);
 
 const block = {
   id: BLOCK_ID,
@@ -259,7 +305,15 @@ const block = {
   sprite: frames(0, 0),
 } as unknown as TileDef;
 
+const timber = {
+  id: TIMBER_ID,
+  type: "simple",
+  anchor: { tilesetId: TILESET_ID, x: SPRITE_CELLS, y: BLOCK_ROW * SPRITE_CELLS },
+  sprite: frames(0, 0),
+} as unknown as TileDef;
+
 await writeTileset(TILESET_ID, "Ramps", sheet, [
   ...TILE_IDS.map((id, row) => tileDef(id, row)),
   block,
+  timber,
 ]);

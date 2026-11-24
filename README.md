@@ -132,6 +132,9 @@ an agent drives", lists every call.
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:camp` — copy the two canvas tents out of the tiny-ranch
+  sheet onto the cell grid of `data/tilesets/camp.png` and draw the bedroll
+  beside them; writes the `tent`, `tent-2` and `bedroll` tiles.
 - `bun run generate:low-roofs` — draw the low-pitch roof into the free right-hand
   side of `data/tilesets/roofs.png` and write its six tiles: `low-roof-<colour>`,
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
@@ -303,6 +306,8 @@ an agent drives", lists every call.
   `server/worldMap.ts`, and writes it as `data/map.json` under `bun dev`. The
   Docker image builds both trees ahead of time into `data/built/`
   (`bun server/worldMap.ts --prebuild data world.json world-staging.json`).
+  That image is built on a GitHub runner by `.github/workflows/image.yml`;
+  Coolify deploys `Dockerfile.pull`, which only pulls it.
 - `bun run build:world` — build `data/map.json` from `data/world.json` the way
   the server does at start, for the `verify` checks and benches that read
   `data/map.json` without a server running. CI runs it before them

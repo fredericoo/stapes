@@ -13186,6 +13186,123 @@
     }
   },
   {
+    "id": "wooden-stairs",
+    "name": "Wooden Stairs",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 0,
+      "y": 6
+    },
+    "climbFrom": {
+      "n": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      },
+      "s": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "brick-slab",
     "name": "Brick Slab",
     "height": 2,
@@ -14365,7 +14482,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -14380,7 +14498,7 @@
           {
             "trait": "calls-out",
             "with": {
-              "line": "Hungry? Eating is what mends you here."
+              "line": "Eat something, then follow the road up to the camp."
             }
           },
           {
@@ -14424,7 +14542,7 @@
                   },
                   {
                     "kind": "say",
-                    "text": "Follow the path up from the beach. There's a camp. Nothing on the path will hurt you."
+                    "text": "Follow the road up between the hills. The camp is at the top. Rats and a snake or two on the way, nothing worse."
                   },
                   {
                     "kind": "goto",
@@ -14494,129 +14612,246 @@
                 ]
               },
               {
-                "label": "Buy {item:cooked-meat}",
+                "label": "Trade",
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Three gold a piece. Cooked this morning."
+                    "text": "I sell cooked meat. I buy what you take off the animals here."
                   },
                   {
-                    "kind": "request_trade",
-                    "take": [],
-                    "give": [
-                      {
-                        "tileId": "cooked-meat",
-                        "count": 1
-                      }
-                    ],
-                    "takeCash": 3,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "There you are. Anything else?"
-                      },
-                      {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
-                      },
-                      {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "Sell {item:raw-meat}",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "One gold a cut. I'll cook it."
+                    "kind": "anchor",
+                    "name": "trade"
                   },
                   {
-                    "kind": "request_trade",
-                    "take": [
+                    "kind": "choices",
+                    "options": [
                       {
-                        "tileId": "raw-meat",
-                        "count": 1
-                      }
-                    ],
-                    "give": [],
-                    "giveCash": 1,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "Done. Anything else?"
+                        "label": "Buy {item:cooked-meat}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Three gold a piece. Cooked this morning."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [],
+                            "give": [
+                              {
+                                "tileId": "cooked-meat",
+                                "count": 1
+                              }
+                            ],
+                            "takeCash": 3,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "There you are. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
+                        "label": "Sell {item:raw-meat}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a cut. I'll cook it."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "raw-meat",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "Sell {item:skin}",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Two gold a skin. Idris at the camp pays the same."
-                  },
-                  {
-                    "kind": "request_trade",
-                    "take": [
-                      {
-                        "tileId": "skin",
-                        "count": 1
-                      }
-                    ],
-                    "give": [],
-                    "giveCash": 2,
-                    "min": 1,
-                    "max": 99,
-                    "default": 1,
-                    "traded": [
-                      {
-                        "kind": "say",
-                        "text": "Done. Anything else?"
+                        "label": "Sell {item:skin}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Two gold a skin. Idris at the camp pays the same."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "skin",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 2,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
-                      }
-                    ],
-                    "cancel": [
-                      {
-                        "kind": "say",
-                        "text": "Suit yourself. Anything else?"
+                        "label": "Sell {item:rat-tail}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a tail. The camp likes to know the rats are thinning."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "rat-tail",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
                       },
                       {
-                        "kind": "goto",
-                        "name": "main"
+                        "label": "Sell {item:nature-slime-jelly}",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "One gold a jelly. Noor in the druids' town makes something of them."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "nature-slime-jelly",
+                                "count": 1
+                              }
+                            ],
+                            "give": [],
+                            "giveCash": 1,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Done. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Suit yourself. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "trade"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "That's all",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Anything else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
                       }
                     ]
                   }
@@ -15355,14 +15590,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -17197,14 +17434,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -18230,14 +18469,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -18959,14 +19200,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -19836,14 +20079,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -21994,14 +22239,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -23201,14 +23448,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -24155,14 +24404,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -25165,14 +25416,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -26256,14 +26509,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -27161,14 +27416,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -28199,14 +28456,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -29036,14 +29295,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -30286,14 +30547,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -30702,14 +30965,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -31448,14 +31713,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -32751,7 +33018,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -33986,7 +34254,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -34831,7 +35100,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -35661,7 +35931,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -36459,7 +36730,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -37913,7 +38185,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -38859,7 +39132,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -40018,7 +40292,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -41147,7 +41422,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -42053,14 +42329,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -43290,14 +43568,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -44123,14 +44403,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -45438,7 +45720,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -46240,14 +46523,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -46978,7 +47263,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -48142,7 +48428,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -50058,7 +50345,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           }
@@ -50776,7 +51064,8 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ]
             }
           },
@@ -51677,14 +51966,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -52654,14 +52945,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -53379,14 +53672,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -54281,14 +54576,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -55494,14 +55791,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           }
@@ -56250,14 +56549,16 @@
                 "morwen-teague",
                 "anselm-quaye",
                 "hamid-sarraf",
-                "yeva-kostenko"
+                "yeva-kostenko",
+                "runa-hask"
               ],
               "guards": [
                 "edda-kell",
                 "gideon-okafor",
                 "liv-sandvik",
                 "taavi-kask",
-                "nadia-ferreira"
+                "nadia-ferreira",
+                "runa-hask"
               ]
             }
           },
@@ -71134,23 +71435,6 @@
               }
             ]
           },
-          "following": {
-            "do": [
-              {
-                "action": "step_toward",
-                "of": {
-                  "type": "slot",
-                  "data": {
-                    "name": "pack"
-                  }
-                }
-              },
-              {
-                "action": "walk_n_steps",
-                "steps": 2
-              }
-            ]
-          },
           "gnawing": {
             "onEnter": [
               {
@@ -71183,108 +71467,11 @@
                 "action": "hold"
               }
             ]
-          },
-          "loitering": {
-            "onEnter": [
-              {
-                "effect": "noise",
-                "text": "squeak squeak",
-                "style": "whisper"
-              }
-            ],
-            "do": [
-              {
-                "action": "walk_n_steps",
-                "steps": 3
-              }
-            ]
           }
         },
         "transitions": [
           {
             "from": "scurry",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "rat"
-                  ]
-                }
-              },
-              "cells": 6
-            },
-            "bind": {
-              "pack": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "rat"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "out_of_los",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 8
-            },
-            "to": "scurry"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 2
-            },
-            "to": "loitering"
-          },
-          {
-            "from": "loitering",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "slot",
-                "data": {
-                  "name": "pack"
-                }
-              },
-              "cells": 5
-            },
-            "to": "following"
-          },
-          {
-            "from": "loitering",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "sniffing"
-          },
-          {
-            "from": "scurry",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "sniffing"
-          },
-          {
-            "from": "following",
             "if": {
               "cond": "stuck"
             },
@@ -90966,6 +91153,19 @@
         ],
         "elements": [
           "nature"
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "nature-slime-jelly",
+                "chance": 50
+              }
+            ]
+          }
         ]
       }
     },
@@ -216405,7 +216605,39 @@
     "anchor": {
       "tilesetId": "ramps",
       "x": 0,
-      "y": 6
+      "y": 8
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "timber-block",
+    "name": "Timber Block",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 2,
+      "y": 8
     },
     "sprite": {
       "frames": [
@@ -218884,6 +219116,2356 @@
           "durationMs": 200
         }
       ]
+    }
+  },
+  {
+    "id": "lavafall-top",
+    "name": "Lavafall (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-middle",
+    "name": "Lavafall (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 2
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-base",
+    "name": "Lavafall (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 4
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 3,
+        "y": 0
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-top",
+    "name": "Lavafall east (top)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 6
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-middle",
+    "name": "Lavafall east (middle)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 8
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lavafall-east-base",
+    "name": "Lavafall east (base)",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "lavafall",
+      "x": 0,
+      "y": 10
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "sprite": {
+      "phase": {
+        "x": 0,
+        "y": 3
+      },
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 3,
+            "intensity": 0.7,
+            "color": "#fb6b1d"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "tent",
+    "name": "Tent",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "camp",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "footprint": {
+      "w": 2,
+      "d": 2
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "tent-2",
+    "name": "Tent",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "camp",
+      "x": 3,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "footprint": {
+      "w": 2,
+      "d": 2
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bedroll",
+    "name": "Bedroll",
+    "height": 0,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "camp",
+      "x": 0,
+      "y": 3
+    },
+    "lightPassing": true,
+    "footprint": {
+      "w": 2,
+      "d": 1
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 1
+            },
+            "base": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "runa-hask",
+    "name": "Runa Hask",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "people",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "watching",
+        "states": {
+          "watching": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "listening": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "fight"
+          },
+          "recovering": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "healing": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "fight"
+          },
+          "snacking": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Not in my camp, {threat}."
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "threat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "healing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "after",
+                  "ms": 2500
+                }
+              ]
+            },
+            "to": "healing"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "threat"
+                }
+              },
+              "cells": 10
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "healing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 40
+            },
+            "to": "healing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "attacker"
+              }
+            }
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 12
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "threat"
+                    }
+                  },
+                  "cells": 12
+                }
+              ]
+            },
+            "to": "fighting"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "home"
+                      },
+                      "cells": 12
+                    },
+                    {
+                      "cond": "out_of_range",
+                      "of": {
+                        "type": "slot",
+                        "data": {
+                          "name": "threat"
+                        }
+                      },
+                      "cells": 12
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "attacked",
+                      "withinMs": 8000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "recovering"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 1
+            },
+            "to": "watching"
+          },
+          {
+            "from": "recovering",
+            "if": {
+              "cond": "after",
+              "ms": 20000
+            },
+            "to": "watching"
+          },
+          {
+            "from": "watching",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed"
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "talking"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "snacking"
+          },
+          {
+            "from": "snacking",
+            "if": {
+              "cond": "status",
+              "id": "fed"
+            },
+            "to": "watching"
+          },
+          {
+            "from": "watching",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "listening",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "watching"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "keeps-the-peace",
+            "with": {
+              "hunt": "hunting",
+              "target": "threat",
+              "back": "recovering",
+              "town": [
+                "tove-arnesdatter",
+                "idris-kaya",
+                "ifeoma-nwachukwu",
+                "peregrine-voss",
+                "wenna-pascoe",
+                "jory-thistlewood",
+                "iolanthe-sarno",
+                "hesper-vaun",
+                "dagny-rook",
+                "amaru-quispe",
+                "noor-halabi",
+                "pell-marrow",
+                "suvi-kallio",
+                "casimir-wren",
+                "mina-dross",
+                "rosalind-peake",
+                "orrin-fask",
+                "fen-achterberg",
+                "taavi-kask",
+                "nadia-ferreira",
+                "ragna-holt",
+                "absalom-grieve",
+                "brannoc-hale",
+                "selin-arslan",
+                "mateo-ferran",
+                "halina-brzeska",
+                "bertha-oyelaran",
+                "magda-fenwick",
+                "tobiah-marsh",
+                "rukmini-desai",
+                "edda-kell",
+                "aurelio-benedetti",
+                "sigrun-halde",
+                "gideon-okafor",
+                "liv-sandvik",
+                "margit-oslund",
+                "kofi-asante",
+                "rodrigo-vela",
+                "morwen-teague",
+                "anselm-quaye",
+                "hamid-sarraf",
+                "yeva-kostenko",
+                "runa-hask"
+              ]
+            }
+          },
+          {
+            "trait": "keeps-hours",
+            "with": {
+              "from": 23,
+              "to": 6,
+              "spell": 3
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Stay near the fire, {partner}. Anything with teeth that comes this close gets an arrow."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Who are you?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Runa. I walked off a wreck like you, three winters back. Tove put a bow in my hands."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "How do I get better with a bow?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Shoot rats. Then shoot more rats. Keep two cells between you and whatever you shoot."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Keep the fire in sight."
+                  },
+                  {
+                    "kind": "exit"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 60,
+        "masteries": {
+          "fist": 5,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 45,
+          "arcane": 5,
+          "toughness": 40,
+          "agility": 45,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "hunting-bow",
+            "chance": 100
+          },
+          {
+            "slot": "armor",
+            "tileId": "leather-jerkin",
+            "chance": 100
+          },
+          {
+            "slot": "head",
+            "tileId": "leather-cap",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Second wind",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -60
+            },
+            "cooldownMs": 300000,
+            "castTimeMs": 1500,
+            "casterEffect": {
+              "durationMs": 1200,
+              "particles": {
+                "ratePerSecond": 8,
+                "ttlFromMs": 1600,
+                "ttlToMs": 1600,
+                "spawnRadiusCells": 0,
+                "spawnElevFrom": 0.5,
+                "spawnElevTo": 0.5,
+                "riseFrom": 2,
+                "riseTo": 2,
+                "driftCellsPerSecond": 0,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "-0.8 * cos(7 * AGE_SEC)",
+                "offsetY": "-0.8 * sin(7 * AGE_SEC)",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 2,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0.5,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#91db69"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#1ebc73"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "dark brown",
+      "head": "short-hair",
+      "outfit": {
+        "hat": "leather-cap",
+        "clothes": "tan-top-green-trousers",
+        "shoes": "brown-boots",
+        "weaponHand": "bow"
+      }
     }
   }
 ]

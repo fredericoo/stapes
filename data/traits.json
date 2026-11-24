@@ -3113,7 +3113,7 @@
       },
       "bed": {
         "kind": "things",
-        "default": ["bed", "bed-2"],
+        "default": ["bed", "bed-2", "bedroll"],
         "label": "beds"
       },
       "ownWithin": {

@@ -32,9 +32,144 @@ export function emptyMap(): MapFile {
   return { version: MAP_FILE_VERSION, levels: {} };
 }
 
+/** The tile every cell of an unloaded chunk reads as; `GameSession` adds its definition. */
+export const UNLOADED_TILE_ID = "~unloaded";
+
+/**
+ * The record that stands in a level for a chunk whose cells are in the store
+ * and not in memory. It has no keys, so a sweep of the board skips it, and
+ * `getStack` answers every cell in it with a wall, so nothing walks, lands,
+ * spreads or looks into it.
+ */
+export const UNLOADED_CHUNK: ChunkCells = Object.freeze({}) as ChunkCells;
+
+const UNLOADED_STACK: PlacedTile[] = Object.freeze([
+  Object.freeze({ tileId: UNLOADED_TILE_ID }),
+]) as PlacedTile[];
+
+export function isUnloadedAt(map: MapFile, x: number, y: number, z: number): boolean {
+  return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)] === UNLOADED_CHUNK;
+}
+
+/**
+ * The unloaded chunks of a board sit on one frozen record that every level has
+ * as its prototype, so a level's own keys are its loaded chunks and copying a
+ * level for an edit costs only those. A read or a `for...in` still finds every
+ * unloaded chunk; `Object.keys` and a spread do not, so a level is copied with
+ * `copyLevel`.
+ */
+function awayOf(level: LevelChunks | undefined): LevelChunks | null {
+  if (!level) return null;
+  const proto = Object.getPrototypeOf(level) as LevelChunks | null;
+  return proto === Object.prototype || proto === null ? null : proto;
+}
+
+function awayRecord(keys: Iterable<string>): LevelChunks | null {
+  const record: LevelChunks = {};
+  let any = false;
+  for (const chk of keys) {
+    record[chk] = UNLOADED_CHUNK;
+    any = true;
+  }
+  return any ? Object.freeze(record) : null;
+}
+
+function levelOver(away: LevelChunks | null, own: LevelChunks): LevelChunks {
+  return away ? Object.assign(Object.create(away) as LevelChunks, own) : { ...own };
+}
+
+export function copyLevel(level: LevelChunks): LevelChunks {
+  return levelOver(awayOf(level), level);
+}
+
+/** `levels` holds only loaded chunks; every level is given `away` as unloaded. */
+export function boardWithAway(levels: MapFile["levels"], away: Iterable<string>): MapFile {
+  const record = awayRecord(away);
+  const out: MapFile["levels"] = {};
+  for (const zk in levels) out[zk] = levelOver(record, levels[zk]!);
+  return { version: MAP_FILE_VERSION, levels: out };
+}
+
+/** Every chunk key that some level holds as `UNLOADED_CHUNK`. */
+export function unloadedChunkKeys(map: MapFile): Set<string> {
+  const out = new Set<string>();
+  const seen = new Set<LevelChunks>();
+  for (const zk in map.levels) {
+    const level = map.levels[zk]!;
+    const away = awayOf(level);
+    if (away && !seen.has(away)) {
+      seen.add(away);
+      for (const chk of Object.keys(away)) out.add(chk);
+    }
+    for (const chk of Object.keys(level)) if (level[chk] === UNLOADED_CHUNK) out.add(chk);
+  }
+  return out;
+}
+
+/**
+ * Puts `UNLOADED_CHUNK` in every present level for each key, including levels
+ * where the chunk held nothing, so a creature that flies cannot rise over the
+ * wall into air the chunk does not hold.
+ */
+export function unloadChunks(map: MapFile, chunkKeys: Iterable<string>): MapFile {
+  const keys = new Set(chunkKeys);
+  if (keys.size === 0) return map;
+  const away = awayRecord([...unloadedChunkKeys(map), ...keys]);
+  const levels: MapFile["levels"] = {};
+  for (const zk in map.levels) {
+    const source = map.levels[zk]!;
+    const own: LevelChunks = {};
+    for (const chk of Object.keys(source)) {
+      if (!keys.has(chk) && source[chk] !== UNLOADED_CHUNK) own[chk] = source[chk]!;
+    }
+    const level = levelOver(away, own);
+    lineage.set(level, { parent: new WeakRef(source), keys: [...keys] });
+    levels[zk] = level;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
+/**
+ * Replaces `UNLOADED_CHUNK` with the stored records, each chunk's by level
+ * key. A level with no stored record for a chunk holds nothing there. A level
+ * that holds a real record for it already keeps that one.
+ */
+export function loadChunks(
+  map: MapFile,
+  stored: ReadonlyMap<string, ReadonlyMap<string, ChunkCells>>,
+): MapFile {
+  const before = unloadedChunkKeys(map);
+  const coming = [...stored.keys()].filter((chk) => before.has(chk));
+  const away = coming.length > 0 ? awayRecord([...before].filter((chk) => !stored.has(chk))) : null;
+  const levels = { ...map.levels };
+  const levelKeys = new Set(Object.keys(levels));
+  for (const records of stored.values()) for (const zk of records.keys()) levelKeys.add(zk);
+  for (const zk of levelKeys) {
+    const source = levels[zk];
+    const written: string[] = [];
+    const own: LevelChunks = {};
+    if (source) for (const chk of Object.keys(source)) own[chk] = source[chk]!;
+    for (const [chk, records] of stored) {
+      const cells = records.get(zk);
+      const unloaded = source?.[chk] === UNLOADED_CHUNK;
+      if (!unloaded && (!cells || source?.[chk])) continue;
+      if (cells && !isEmptyRecord(cells)) own[chk] = cells;
+      else delete own[chk];
+      written.push(chk);
+    }
+    if (written.length === 0 && coming.length === 0) continue;
+    const level = levelOver(coming.length > 0 ? away : awayOf(source), own);
+    if (source) lineage.set(level, { parent: new WeakRef(source), keys: written });
+    if (isEmptyRecord(level)) delete levels[zk];
+    else levels[zk] = level;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
 export function getStack(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
   const chunk = map.levels[levelKey(z)]?.[chunkKeyFor(x, y)];
   if (!chunk) return [];
+  if (chunk === UNLOADED_CHUNK) return UNLOADED_STACK;
   if (!isWholeCell(x, y)) return chunk[coordKey(x, y)] ?? [];
   return cellIndexOf(chunk)[cellSlot(x, y)] ?? [];
 }
@@ -83,7 +218,8 @@ export function stackOnLevel(
   chunkKey: string,
   cellKey: string,
 ): PlacedTile[] | undefined {
-  return map.levels[levelKey(z)]?.[chunkKey]?.[cellKey];
+  const chunk = map.levels[levelKey(z)]?.[chunkKey];
+  return chunk === UNLOADED_CHUNK ? UNLOADED_STACK : chunk?.[cellKey];
 }
 
 const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
@@ -205,8 +341,12 @@ export function chunkCopiedFrom(
   return from === undefined ? null : { from, keys: link.keys };
 }
 
+/**
+ * A chunk going out of memory or coming back is not a change to what it
+ * holds: the store has the same cells either way.
+ */
 function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCells | undefined) {
-  if (a === b) return;
+  if (a === b || a === UNLOADED_CHUNK || b === UNLOADED_CHUNK) return;
   const written = a && b ? keysWrittenBetween(a, b) : null;
   if (written) {
     for (const key of written) if (a![key] !== b![key]) out.add(key);
@@ -254,7 +394,11 @@ export function changedChunkKeysOnLevel(prev: MapFile, next: MapFile, z: number)
   const written = before && after ? keysWrittenBetween(before, after) : null;
   const keys = written ?? [...Object.keys(before ?? {}), ...Object.keys(after ?? {})];
   const out: string[] = [];
-  for (const chk of new Set(keys)) if (before?.[chk] !== after?.[chk]) out.push(chk);
+  for (const chk of new Set(keys)) {
+    const a = before?.[chk];
+    const b = after?.[chk];
+    if (a !== b && a !== UNLOADED_CHUNK && b !== UNLOADED_CHUNK) out.push(chk);
+  }
   return out;
 }
 
@@ -291,7 +435,12 @@ export function changedChunks(prev: MapFile | null, next: MapFile): ChangedChunk
     for (const chk of chunkKeys) {
       const a = before?.[chk];
       const b = after?.[chk];
-      if (a === b) continue;
+      /**
+       * A chunk only goes out of memory once the store holds it, so it is not
+       * written as empty. One coming back is written again, because it may
+       * have been changed since and this cannot tell.
+       */
+      if (a === b || b === UNLOADED_CHUNK) continue;
       out.push({ levelKey: zk, chunkKey: chk, cells: b ?? {} });
     }
   }
@@ -690,7 +839,7 @@ function levelToWrite(
 ): LevelChunks {
   const sourceLevel = levels[zk];
   if (sourceLevel && draft?.owns(sourceLevel)) return sourceLevel;
-  const level = { ...sourceLevel };
+  const level = sourceLevel ? copyLevel(sourceLevel) : {};
   levels[zk] = level;
   if (sourceLevel) lineage.set(level, { parent: new WeakRef(sourceLevel), keys: [] });
   draft?.adopt(level);
@@ -738,6 +887,7 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[], draft?: Map
   for (const edit of edits) {
     const zk = levelKey(edit.z);
     const chk = chunkKeyFor(edit.x, edit.y);
+    if (map.levels[zk]?.[chk] === UNLOADED_CHUNK) continue;
     const path = `${zk}/${chk}`;
 
     let chunk = copied.get(path);
@@ -845,6 +995,36 @@ export function removeTileAt(
   if (stackIndex < 0 || stackIndex >= stack.length) return map;
   stack.splice(stackIndex, 1);
   return setStack(map, x, y, z, stack);
+}
+
+/**
+ * The map with one tile gone from a stack, for reading only. The level is a
+ * prototype view over the original, so a level of thousands of chunks is not
+ * copied for one cell; anything that lists a level's own keys or stores the
+ * result must use `removeTileAt` instead.
+ */
+export function viewWithoutTileAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+): MapFile {
+  const zk = levelKey(z);
+  const chk = chunkKeyFor(x, y);
+  const level = map.levels[zk];
+  const source = level?.[chk];
+  if (!level || !source || source === UNLOADED_CHUNK) return map;
+  const ck = coordKey(x, y);
+  const stack = source[ck];
+  if (!stack || stackIndex < 0 || stackIndex >= stack.length) return map;
+  const chunk: ChunkCells = { ...source };
+  const left = stack.filter((_, i) => i !== stackIndex);
+  if (left.length === 0) delete chunk[ck];
+  else chunk[ck] = left;
+  const view = Object.create(level) as LevelChunks;
+  view[chk] = chunk;
+  return { version: MAP_FILE_VERSION, levels: { ...map.levels, [zk]: view } };
 }
 
 export function reorderStack(
@@ -1342,10 +1522,13 @@ export function parseMap(json: string): MapFile {
 export function shareMap(map: MapFile, pool = new StackPool()): MapFile {
   const levels: Record<string, LevelChunks> = {};
   for (const zk in map.levels) {
-    const level: LevelChunks = {};
+    const own: LevelChunks = {};
     const from = map.levels[zk]!;
-    for (const chk in from) level[chk] = shareCells(from[chk]!, pool, true);
-    levels[zk] = level;
+    for (const chk of Object.keys(from)) {
+      const cells = from[chk]!;
+      own[chk] = cells === UNLOADED_CHUNK ? UNLOADED_CHUNK : shareCells(cells, pool, true);
+    }
+    levels[zk] = levelOver(awayOf(from), own);
   }
   return { version: MAP_FILE_VERSION, levels };
 }

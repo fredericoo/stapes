@@ -56,6 +56,7 @@ export type Part = {
   readonly type: string;
   readonly seed: number;
   readonly props: unknown;
+  readonly bounds: Bounds;
   point(point: Point): { x: number; y: number } | null;
 };
 
@@ -513,6 +514,7 @@ export function buildMap(
                   type: part.type,
                   seed: at.seed,
                   props: checked.props,
+                  bounds: at.bounds,
                   point: (point) => {
                     const frame = pointFrame(layout, at, point);
                     return frame ? pointIn(point, frame) : null;

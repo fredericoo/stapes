@@ -61,6 +61,10 @@ an oblique cabinet projection with Three.js.
 - **`docs/<subject>.md`** — `combat`, `terrain`, `ui`, `server`, `deploy`,
   `testing`, `tooling`: the constraints in the code that the obvious
   change would break.
+- **`docs/world-design.md`** — how the world leads a player: freedom to
+  wander, with terrain steering them through a designed path, and the guided
+  start from the wreck to the first camp that follows from it. Read it before
+  moving a camp, a road or a hill near the start.
 - **`docs/lighthouse.md`** — the lighthouse dungeon's intended design: its
   tiers, the tiles it is built from, how its pedestals open doors and the
   limits that shape its layout. Read it before building any of it.

@@ -44,6 +44,9 @@ jobs:
     needs: release
     if: needs.release.outputs.published == 'true'
     uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      packages: write
     with:
       environment: production
     secrets: inherit

@@ -25,9 +25,9 @@ in 2026 and the dedicated-vCPU lines went up hardest, so the shared-vCPU CX line
 is now the cheap one; it is also currently *below* the ARM CAX11 at €5.99. Check
 the console for today's number before you commit — this moved twice this year.
 
-Either architecture works. `@tursodatabase/database` publishes
-`linux-arm64-gnu`, and Coolify builds the image on the server it deploys to, so
-ARM needs nothing special if the pricing flips back.
+`@tursodatabase/database` publishes `linux-arm64-gnu` too, but the image is
+built in GitHub Actions for the runner's `linux/amd64` (`.github/workflows/image.yml`),
+so an ARM box needs `platforms` added to that build first.
 
 Pick a location near your players. This is the single-region latency cost the
 migration accepted deliberately — one box means one place.
@@ -165,7 +165,14 @@ container comes back up on the same page. Covered by `server/clientBundle.test.t
 Coolify → **New Resource → Public Repository** (or connect GitHub), pointing at
 this repository.
 
-- **Build pack**: Dockerfile
+- **Build pack**: Dockerfile. `deploy.yml` sets the Dockerfile to
+  `/Dockerfile.pull`, turns on *Include Source Commit in Build* and pins the
+  commit on every deploy, so the "build" on the box only pulls
+  `ghcr.io/<owner>/stapes:<commit>`, which GitHub Actions built. The map
+  prebuild in the real `Dockerfile` peaks at about 1.8 GB, which a 4 GB box
+  cannot spare next to a running world. Coolify's API cannot change an existing
+  application to the Docker Image build pack, and a new application would get
+  new volumes and so a new world.
 - **Branch**: `main`
 - **Domain**: `https://stapes.example.com`
 - **Port**: `3000`
@@ -333,9 +340,9 @@ over SSH:
    box.
 2. Coolify → **Servers → Add**: the preview box's IP, user `root`, port 22, that
    key. **Validate & configure** installs Docker and starts a Traefik proxy on it.
-3. On the new server's page, **Advanced → Concurrent builds: 1.** A Docker build
-   of this repository is the largest thing that runs on the box, and two at once
-   next to five running previews is what does not fit in 4 GB.
+3. On the new server's page, **Advanced → Concurrent builds: 1.** Images are
+   built in GitHub Actions and a deploy here only pulls one, so this only keeps
+   two pulls from starting at once.
 4. Point `*.preview.example.com` at the preview box. Traefik on that box issues
    each `pr-N` certificate, so the record stays grey.
 
@@ -354,18 +361,21 @@ and validate the server with "install" on, which installs `jq` and Docker.
 
 ### The preview application
 
-**Previews need Coolify connected to GitHub as a source** — a GitHub App under
-Coolify → Sources, installed on this repository — and this is not optional the
-way it looks. Coolify's deploy API cannot start a preview: `POST /api/v1/deploy`
-with `pr=N` only *looks up* a preview record and answers `Pull request N not
-found for this resource` when there is none, and the only things that create one
-are the pull-request webhook and the button in the UI (which itself calls the
-GitHub API through the source). A deploy-key application has no source, so it
-has no way to get its first preview.
+**The preview application deploys `/Dockerfile.pull`** with *Include Source
+Commit in Build* on, like production, and with preview deployments **off**.
+`preview.yml` builds the pull request's image in GitHub Actions and then calls
+`POST /api/v1/applications/{uuid}/previews` with the pull request's number, URL
+and head commit, which creates the preview when there is none and deploys that
+commit. `POST /api/v1/deploy` with `pr=N` cannot do it: it only *looks up* a
+preview and answers `Pull request N not found for this resource`. With preview
+deployments on, the GitHub App's webhook would also deploy each push, before its
+image exists.
 
-That is why the workflow does not deploy previews. The webhook creates and
-deploys them on `opened` and `synchronize`, destroys them on `closed`, and
-`preview.yml` only builds and posts the client.
+The GitHub App source below is still worth having: its `closed` webhook is
+processed even with preview deployments off, and removes the preview.
+`preview.yml`'s `remove` job does the same through `DELETE
+/applications/{uuid}/previews/{pr}` and accepts the 404 when the webhook got
+there first.
 
 The one thing to turn off afterwards: the production application must **not** be
 bound to that source, or a push to its branch deploys it behind CI's back and
@@ -425,9 +435,9 @@ afterwards. Move each open one with `PATCH /applications/{uuid}/previews/{pr}`
 and `{"domains": "https://pr-N.preview.example.com"}`, then redeploy it with
 `POST /deploy?uuid={uuid}&pr=N` so its container carries the new routing labels.
 
-An application created through the API has preview deployments off, and the
-create call does not accept the setting. Turn it on afterwards with `PATCH
-/applications/{uuid}` and `{"is_preview_deployments_enabled": true}`.
+Then point it at the pull-only Dockerfile with `PATCH /applications/{uuid}` and
+`{"dockerfile_location": "/Dockerfile.pull", "include_source_commit_in_build":
+true, "is_preview_deployments_enabled": false}`.
 
 Copy the app UUID into `COOLIFY_PREVIEW_APP_UUID`.
 
@@ -438,20 +448,18 @@ does: it waits for the world to answer `/api/health`, posts the build to
 `/api/client/upload`, and activates it. That is what `PREVIEW_ADMIN_SECRET` is
 for, and it is why the workflow is slower than a deploy call.
 
-Before any of that it waits on Coolify, which is what `COOLIFY_PREVIEW_APP_UUID`
-and `COOLIFY_TOKEN` are for here. The webhook that starts the workflow also
-starts the redeploy, so until that deployment finishes the hostname is served by
-the *previous* commit's container — and `/api/health` cannot say so, because the
-`build` it reports is the client bundle on the volume, which outlives the swap.
-The workflow polls `GET /api/v1/deployments/applications/{uuid}` for the
-deployment whose `pull_request_id` and `commit` are this push's, and only seeds
-and uploads once it reads `finished`.
+Before any of that it deploys the image and waits on the deployment Coolify
+returns, which is what `COOLIFY_PREVIEW_APP_UUID` and `COOLIFY_TOKEN` are for
+here. Until that deployment finishes the hostname is served by the *previous*
+commit's container, and `/api/health` cannot say so, because the `build` it
+reports is the client bundle on the volume, which outlives the swap. The token
+needs the deploy and write permissions to open a preview, and delete to remove
+one.
 
 ### At most five previews run at once
 
-The webhook starts a preview, so by the time any job could object the container
-is already coming up, and `preview.yml` cannot refuse one. The preview box
-enforces the number instead: `scripts/cap-previews.sh` runs every minute, keeps
+`preview.yml` deploys every push without counting the previews already
+running. The preview box enforces the number instead: `scripts/cap-previews.sh` runs every minute, keeps
 the five preview containers most recently created, and stops the rest. Coolify
 recreates a preview's container on every push, so the five kept are the five
 most recently pushed pull requests. A stopped preview keeps its volume and comes

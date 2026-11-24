@@ -1,0 +1,4 @@
+# Coolify builds this file; ./Dockerfile is built by .github/workflows/image.yml.
+ARG IMAGE=ghcr.io/fredericoo/stapes
+ARG SOURCE_COMMIT
+FROM ${IMAGE}:${SOURCE_COMMIT}

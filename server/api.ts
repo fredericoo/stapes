@@ -14,6 +14,7 @@ import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
+import { memoryReading } from "./memory";
 import {
   FEEDBACK_PER_WINDOW,
   FEEDBACK_WINDOW_MS,
@@ -357,7 +358,10 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
 
     .get("/health", async ({ request }) => ({
       status: world.accepting ? ("ok" as const) : ("draining" as const),
-      ...((await admin(request)) ? { players: world.playerCount } : {}),
+      ...((await admin(request)) ||
+      (await authorized(request.headers.get("authorization") ?? undefined, config))
+        ? { players: world.playerCount, memory: memoryReading() }
+        : {}),
       build: bundle.active,
       protocolVersion: PROTOCOL_VERSION,
       maintenance: world.maintenance.state !== null,

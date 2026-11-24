@@ -1,11 +1,9 @@
 import { PNG } from "pngjs";
 import { PX_PER_HEIGHT } from "../app/lib/geometry";
-import { CELL_SIZE, type TileDef } from "../app/lib/types";
+import { CELL_SIZE, type LightDef, type TileDef } from "../app/lib/types";
 import { paintRgba, paletteRgba, type Rgba, writeTileset } from "./tileset-output";
 
-const TILESET_ID = "waterfall";
 const FRAME_COUNT = 8;
-const FRAME_MS = 90;
 
 const CELL = CELL_SIZE;
 const SPRITE_CELLS = 2;
@@ -22,14 +20,52 @@ const SHEET_DEPTH_PX = 1;
  */
 const LIP_REACH_PX = 1;
 
-/** The `water` tile's own three blues, so a river runs into the fall without a seam in colour. */
-const SHADOW: Rgba = [0x24, 0x43, 0x6b, 255];
-const BASE: Rgba = [0x33, 0x5c, 0x8c, 255];
-const HIGHLIGHT: Rgba = [0x5b, 0x8f, 0xbf, 255];
-const SPRAY = paletteRgba(27);
-const FOAM = paletteRgba(28);
+type Ink = { s: Rgba; b: Rgba; h: Rgba; p: Rgba; f: Rgba };
 
-const INK: Record<string, Rgba> = { s: SHADOW, b: BASE, h: HIGHLIGHT, p: SPRAY, f: FOAM };
+/**
+ * One generator draws every liquid's fall. `ink` is the liquid's own colours,
+ * shadow, base, highlight, spray and foam, so a fall meets its pool without a
+ * seam; `light` is held on every frame, because a frame-varying light turns
+ * the sprite's phase off.
+ */
+type Liquid = {
+  tileset: string;
+  name: string;
+  prefix: string;
+  ink: Ink;
+  frameMs: number;
+  light?: LightDef;
+};
+
+const LIQUIDS: Liquid[] = [
+  {
+    tileset: "waterfall",
+    name: "Waterfall",
+    prefix: "waterfall",
+    ink: {
+      s: [0x24, 0x43, 0x6b, 255],
+      b: [0x33, 0x5c, 0x8c, 255],
+      h: [0x5b, 0x8f, 0xbf, 255],
+      p: paletteRgba(27),
+      f: paletteRgba(28),
+    },
+    frameMs: 90,
+  },
+  {
+    tileset: "lavafall",
+    name: "Lavafall",
+    prefix: "lavafall",
+    ink: {
+      s: paletteRgba(9),
+      b: paletteRgba(10),
+      h: paletteRgba(12),
+      p: paletteRgba(17),
+      f: paletteRgba(19),
+    },
+    frameMs: 180,
+    light: { radius: 3, intensity: 0.7, color: "#fb6b1d" },
+  },
+];
 
 /**
  * One streak per column of the sheet, read bottom to top and repeating every
@@ -53,7 +89,14 @@ const STREAKS: { pattern: string; speed: number }[] = [
  * drawn, so those are the only two a fall can be seen on.
  */
 type Facing = "s" | "e";
-type Segment = { tileId: string; name: string; lip: boolean; pool: boolean; facing: Facing };
+type Segment = {
+  tileId: string;
+  name: string;
+  lip: boolean;
+  pool: boolean;
+  facing: Facing;
+  ink: Ink;
+};
 
 const PARTS = [
   { part: "top", lip: true, pool: false },
@@ -61,22 +104,27 @@ const PARTS = [
   { part: "base", lip: false, pool: true },
 ] as const;
 
-const SEGMENTS: Segment[] = [
-  ...PARTS.map(({ part, lip, pool }) => ({
-    tileId: `waterfall-${part}`,
-    name: `Waterfall (${part})`,
-    lip,
-    pool,
-    facing: "s" as const,
-  })),
-  ...PARTS.map(({ part, lip, pool }) => ({
-    tileId: `waterfall-east-${part}`,
-    name: `Waterfall east (${part})`,
-    lip,
-    pool,
-    facing: "e" as const,
-  })),
-];
+function segmentsOf(liquid: Liquid): Segment[] {
+  const { prefix, name, ink } = liquid;
+  return [
+    ...PARTS.map(({ part, lip, pool }) => ({
+      tileId: `${prefix}-${part}`,
+      name: `${name} (${part})`,
+      lip,
+      pool,
+      facing: "s" as const,
+      ink,
+    })),
+    ...PARTS.map(({ part, lip, pool }) => ({
+      tileId: `${prefix}-east-${part}`,
+      name: `${name} east (${part})`,
+      lip,
+      pool,
+      facing: "e" as const,
+      ink,
+    })),
+  ];
+}
 
 /** How far apart in frames neighbouring cells along the fall's width are, so a wide fall is not one column stamped side by side. */
 const PHASE_FRAMES = 3;
@@ -88,10 +136,10 @@ function hash(x: number, y: number, salt: number): number {
   return (h >>> 0) / 4294967296;
 }
 
-function streakAt(x: number, z: number, frame: number): Rgba {
+function streakAt(ink: Ink, x: number, z: number, frame: number): Rgba {
   const { pattern, speed } = STREAKS[x]!;
   const at = (((z + speed * frame) % pattern.length) + pattern.length) % pattern.length;
-  return INK[pattern[at]!]!;
+  return ink[pattern[at] as keyof Ink];
 }
 
 const LIP_CURL_PX = 1;
@@ -106,9 +154,10 @@ function sheetPixel(segment: Segment, u: number, v: number, frame: number): Rgba
   const z = CELL + SHEET_DEPTH_PX - v - 0.5;
   const x = Math.floor(u - CELL + z + 0.5);
   if (z < 0 || z >= RISE_PX || x < 0 || x >= CELL) return null;
-  if (segment.lip && z >= RISE_PX - LIP_CURL_PX) return hash(x, frame, 1) < 0.4 ? FOAM : SPRAY;
-  if (segment.pool && z < SPLASH_PX) return hash(x, frame, 2) < 0.5 ? FOAM : SPRAY;
-  return streakAt(x, Math.floor(z), frame);
+  const { f, p } = segment.ink;
+  if (segment.lip && z >= RISE_PX - LIP_CURL_PX) return hash(x, frame, 1) < 0.4 ? f : p;
+  if (segment.pool && z < SPLASH_PX) return hash(x, frame, 2) < 0.5 ? f : p;
+  return streakAt(segment.ink, x, Math.floor(z), frame);
 }
 
 type Vec3 = [number, number, number];
@@ -161,14 +210,14 @@ function foamNormal(u: number, v: number, frame: number): Vec3 | null {
 }
 
 /** White where the heap faces up or toward the light, spray on its flanks, water in its shade. */
-function foamTone([nx, ny, nz]: Vec3, facing: Facing): Rgba {
+function foamTone([nx, ny, nz]: Vec3, facing: Facing, ink: Ink): Rgba {
   const normal: Vec3 = facing === "e" ? [ny, nx, nz] : [nx, ny, nz];
   const across = (normal[0] - normal[1]) / Math.SQRT2 - normal[2];
-  if (across < -0.6) return FOAM;
-  return across < 0.4 ? SPRAY : HIGHLIGHT;
+  if (across < -0.6) return ink.f;
+  return across < 0.4 ? ink.p : ink.h;
 }
 
-function foamPixel(u: number, v: number, frame: number, facing: Facing): Rgba | null {
+function foamPixel(u: number, v: number, frame: number, facing: Facing, ink: Ink): Rgba | null {
   const votes = new Map<Rgba, number>();
   let hits = 0;
   for (let j = 0; j < FOAM_SUPERSAMPLE; j++) {
@@ -180,7 +229,7 @@ function foamPixel(u: number, v: number, frame: number, facing: Facing): Rgba | 
       );
       if (!normal) continue;
       hits++;
-      const tone = foamTone(normal, facing);
+      const tone = foamTone(normal, facing, ink);
       votes.set(tone, (votes.get(tone) ?? 0) + 1);
     }
   }
@@ -195,25 +244,25 @@ const POOL_DEPTH_PX = 4;
  * the fall half a pixel a frame, which is four pixels over the cycle: the
  * period the foam repeats with, so the last frame runs into the first.
  */
-function poolPixel(u: number, v: number, frame: number): Rgba | null {
+function poolPixel(u: number, v: number, frame: number, ink: Ink): Rgba | null {
   const y = v - CELL + 0.5;
   const x = u - CELL;
   if (y < SHEET_DEPTH_PX || y >= SHEET_DEPTH_PX + POOL_DEPTH_PX || x < 0 || x >= CELL) return null;
   const out = (y - SHEET_DEPTH_PX) / POOL_DEPTH_PX;
   const drifted = Math.floor(y - frame / 2);
   const chance = hash(x, ((drifted % 4) + 4) % 4, 4);
-  if (chance < 0.55 * (1 - out)) return FOAM;
-  if (chance < 0.85 * (1 - out)) return SPRAY;
+  if (chance < 0.55 * (1 - out)) return ink.f;
+  if (chance < 0.85 * (1 - out)) return ink.p;
   return null;
 }
 
 /** Flecks drift south toward the edge a pixel every two frames, as the river's surface does. */
-function lipPixel(u: number, v: number, frame: number): Rgba | null {
+function lipPixel(u: number, v: number, frame: number, ink: Ink): Rgba | null {
   const y = v - CELL + RISE_PX + 0.5;
   const x = Math.floor(u - CELL + RISE_PX + 0.5);
   if (y < -LIP_REACH_PX || y >= SHEET_DEPTH_PX || x < 0 || x >= CELL) return null;
   const drifted = Math.floor(y) - Math.floor(frame / 2);
-  return hash(x, ((drifted % 4) + 4) % 4, 3) < 0.2 ? HIGHLIGHT : SHADOW;
+  return hash(x, ((drifted % 4) + 4) % 4, 3) < 0.2 ? ink.h : ink.s;
 }
 
 /**
@@ -224,15 +273,15 @@ function lipPixel(u: number, v: number, frame: number): Rgba | null {
  */
 function framePixel(segment: Segment, column: number, row: number, frame: number): Rgba | null {
   const [u, v] = segment.facing === "e" ? [row, column] : [column, row];
-  const splash = segment.pool ? foamPixel(u, v, frame, segment.facing) : null;
+  const splash = segment.pool ? foamPixel(u, v, frame, segment.facing, segment.ink) : null;
   if (splash) return splash;
   const fall = sheetPixel(segment, u, v, frame);
   if (fall) return fall;
-  if (segment.lip) return lipPixel(u, v, frame);
-  return segment.pool ? poolPixel(u, v, frame) : null;
+  if (segment.lip) return lipPixel(u, v, frame, segment.ink);
+  return segment.pool ? poolPixel(u, v, frame, segment.ink) : null;
 }
 
-function segmentTile(segment: Segment, row: number): TileDef {
+function segmentTile(liquid: Liquid, segment: Segment, row: number): TileDef {
   return {
     id: segment.tileId,
     name: segment.name,
@@ -240,7 +289,7 @@ function segmentTile(segment: Segment, row: number): TileDef {
     type: "simple",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: TILESET_ID, x: 0, y: row * SPRITE_CELLS },
+    anchor: { tilesetId: liquid.tileset, x: 0, y: row * SPRITE_CELLS },
     walkable: false,
     lightPassing: true,
     sprite: {
@@ -250,7 +299,8 @@ function segmentTile(segment: Segment, row: number): TileDef {
           rect: { x: frame * SPRITE_CELLS, y: 0, w: SPRITE_CELLS, h: SPRITE_CELLS },
           base: { x: 1, y: 1 },
         },
-        durationMs: FRAME_MS,
+        durationMs: liquid.frameMs,
+        ...(liquid.light ? { light: liquid.light } : {}),
       })),
     },
   };
@@ -266,13 +316,16 @@ function drawFrame(sheet: PNG, segment: Segment, row: number, frame: number) {
 }
 
 async function main() {
-  const sheet = new PNG({ width: FRAME_COUNT * SPRITE_PX, height: SEGMENTS.length * SPRITE_PX });
-  sheet.data.fill(0);
-  const tiles = SEGMENTS.map((segment, row) => {
-    for (let frame = 0; frame < FRAME_COUNT; frame++) drawFrame(sheet, segment, row, frame);
-    return segmentTile(segment, row);
-  });
-  await writeTileset(TILESET_ID, "Waterfall", sheet, tiles);
+  for (const liquid of LIQUIDS) {
+    const segments = segmentsOf(liquid);
+    const sheet = new PNG({ width: FRAME_COUNT * SPRITE_PX, height: segments.length * SPRITE_PX });
+    sheet.data.fill(0);
+    const tiles = segments.map((segment, row) => {
+      for (let frame = 0; frame < FRAME_COUNT; frame++) drawFrame(sheet, segment, row, frame);
+      return segmentTile(liquid, segment, row);
+    });
+    await writeTileset(liquid.tileset, liquid.name, sheet, tiles);
+  }
 }
 
 main().catch((err) => {
