@@ -122,7 +122,81 @@
             "props": {
               "levels": 3,
               "terrace": 6,
-              "roughness": 45
+              "roughness": 45,
+              "ramps": [
+                {
+                  "x": 58,
+                  "y": 120
+                },
+                {
+                  "x": 64,
+                  "y": 120
+                },
+                {
+                  "x": 70,
+                  "y": 120
+                },
+                {
+                  "x": 62,
+                  "y": 196
+                },
+                {
+                  "x": 68,
+                  "y": 196
+                },
+                {
+                  "x": 74,
+                  "y": 196
+                },
+                {
+                  "x": 416,
+                  "y": 120
+                },
+                {
+                  "x": 410,
+                  "y": 120
+                },
+                {
+                  "x": 404,
+                  "y": 120
+                },
+                {
+                  "x": 402,
+                  "y": 210
+                },
+                {
+                  "x": 396,
+                  "y": 210
+                },
+                {
+                  "x": 390,
+                  "y": 210
+                },
+                {
+                  "x": 192,
+                  "y": 34
+                },
+                {
+                  "x": 192,
+                  "y": 40
+                },
+                {
+                  "x": 192,
+                  "y": 46
+                },
+                {
+                  "x": 322,
+                  "y": 36
+                },
+                {
+                  "x": 322,
+                  "y": 42
+                },
+                {
+                  "x": 322,
+                  "y": 48
+                }
+              ]
             },
             "children": [
               {
@@ -153,7 +227,7 @@
             },
             "props": {
               "levels": 2,
-              "terrace": 3,
+              "terrace": 2,
               "roughness": 40,
               "ground": "snow",
               "brink": "snow-brink",
@@ -166,8 +240,32 @@
                   "y": 200
                 },
                 {
+                  "x": 184,
+                  "y": 196
+                },
+                {
+                  "x": 28,
+                  "y": 114
+                },
+                {
+                  "x": 32,
+                  "y": 114
+                },
+                {
+                  "x": 274,
+                  "y": 104
+                },
+                {
+                  "x": 270,
+                  "y": 104
+                },
+                {
                   "x": 152,
-                  "y": 168
+                  "y": 30
+                },
+                {
+                  "x": 152,
+                  "y": 34
                 }
               ]
             },
@@ -210,7 +308,19 @@
               "ramps": [
                 {
                   "x": 124,
-                  "y": 120
+                  "y": 142
+                },
+                {
+                  "x": 2,
+                  "y": 78
+                },
+                {
+                  "x": 198,
+                  "y": 78
+                },
+                {
+                  "x": 100,
+                  "y": 2
                 }
               ]
             },
@@ -234,35 +344,353 @@
           },
           {
             "type": "hill",
-            "key": "peak-crown",
+            "key": "mtn-crown-base",
             "frame": {
-              "x": 552,
-              "y": 108,
-              "w": 88,
-              "h": 72
+              "x": 540,
+              "y": 100,
+              "w": 124,
+              "h": 92
             },
             "props": {
-              "levels": 4,
-              "terrace": 1,
+              "levels": 2,
+              "terrace": 0,
               "roughness": 30,
               "ground": "snow",
               "brink": "snow-brink",
-              "wall": "hill-wall-frost"
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
             },
             "children": [
               {
                 "type": "mask",
-                "key": "peak-crown-shape",
+                "key": "mtn-crown-base-shape",
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 88,
-                  "h": 72
+                  "w": 124,
+                  "h": 92
                 },
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 35
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "mtn-crown-top",
+            "frame": {
+              "x": 546,
+              "y": 106,
+              "w": 108,
+              "h": 80
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 0,
+              "roughness": 30,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-crown-top-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 108,
+                  "h": 80
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              },
+              {
+                "type": "mask",
+                "key": "mtn-shelf-bite",
+                "frame": {
+                  "x": 90,
+                  "y": 26,
+                  "w": 30,
+                  "h": 34
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
+            "key": "mtn-spire",
+            "frame": {
+              "x": 566,
+              "y": 128,
+              "w": 28,
+              "h": 22
+            },
+            "props": {
+              "levels": 2,
+              "terrace": 0,
+              "roughness": 25,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-spire-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 28,
+                  "h": 22
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 25
+                }
+              }
+            ]
+          },
+          {
+            "type": "dungeon",
+            "key": "mtn-crevasse",
+            "frame": {
+              "x": 598,
+              "y": 112,
+              "w": 48,
+              "h": 66,
+              "z": 8
+            },
+            "children": [
+              {
+                "type": "chasm",
+                "key": "mtn-crevasse-chasm",
+                "frame": {
+                  "x": 10,
+                  "y": 22,
+                  "w": 22,
+                  "h": 18
+                },
+                "props": {
+                  "ledge": 2,
+                  "ragged": 40,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "bottom": "floor",
+                  "cavern": 4,
+                  "openings": 2
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-crevasse-grotto",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 14,
+                  "up": {
+                    "x": 0,
+                    "y": 0,
+                    "pinX": "right",
+                    "pinY": "center"
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-crevasse-deep",
+                "props": {
+                  "shape": "caverns",
+                  "density": 40,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 12,
+                  "up": {
+                    "x": 0,
+                    "y": 0,
+                    "pinX": "center",
+                    "pinY": "center"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "dungeon",
+            "key": "mtn-climb",
+            "frame": {
+              "x": 456,
+              "y": 64,
+              "w": 288,
+              "h": 200,
+              "z": 9
+            },
+            "children": [
+              {
+                "type": "level",
+                "key": "mtn-spire-stair",
+                "props": {
+                  "shape": "caverns",
+                  "density": 55,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 10,
+                  "ontoTop": true,
+                  "upBy": "stairs",
+                  "up": {
+                    "x": 132,
+                    "y": 76
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-rime-gallery",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 14,
+                  "up": {
+                    "x": 124,
+                    "y": 74
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-icefall-hall",
+                "props": {
+                  "shape": "caverns",
+                  "density": 35,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 16,
+                  "up": {
+                    "x": 114,
+                    "y": 86
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-crown-gate",
+                "props": {
+                  "shape": "caverns",
+                  "density": 30,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "ice-spike",
+                  "propEvery": 18,
+                  "up": {
+                    "x": 130,
+                    "y": 96
+                  },
+                  "mouths": [
+                    {
+                      "x": 144,
+                      "y": 38
+                    },
+                    {
+                      "x": 86,
+                      "y": 82
+                    },
+                    {
+                      "x": 144,
+                      "y": 126
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-snowline-halls",
+                "props": {
+                  "shape": "caverns",
+                  "density": 30,
+                  "floor": "ice",
+                  "wall": "hill-wall-frost",
+                  "prop": "stalagmite-grey",
+                  "propEvery": 18,
+                  "up": {
+                    "x": 124,
+                    "y": 106
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-frost-halls",
+                "props": {
+                  "shape": "caverns",
+                  "density": 22,
+                  "floor": "dirt",
+                  "wall": "hill-wall-frost",
+                  "prop": "stalagmite-grey",
+                  "propEvery": 20,
+                  "up": {
+                    "x": 104,
+                    "y": 136
+                  }
+                }
+              },
+              {
+                "type": "level",
+                "key": "mtn-meltwater-caves",
+                "props": {
+                  "shape": "caverns",
+                  "density": 18,
+                  "floor": "dirt",
+                  "wall": "hill-wall",
+                  "prop": "stalagmite",
+                  "propEvery": 22,
+                  "up": {
+                    "x": 144,
+                    "y": 156
+                  },
+                  "mouths": [
+                    {
+                      "x": 144,
+                      "y": 192
+                    },
+                    {
+                      "x": 22,
+                      "y": 86
+                    },
+                    {
+                      "x": 266,
+                      "y": 86
+                    },
+                    {
+                      "x": 144,
+                      "y": 22
+                    }
+                  ]
                 }
               }
             ]
@@ -271,8 +699,8 @@
             "type": "temple",
             "key": "shoulder-ruin",
             "frame": {
-              "x": 710,
-              "y": 208,
+              "x": 736,
+              "y": 216,
               "w": 9,
               "h": 9
             },
@@ -1069,8 +1497,8 @@
             "key": "snowmelt",
             "props": {
               "from": {
-                "x": 600,
-                "y": 152
+                "x": 632,
+                "y": 200
               },
               "via": [
                 {
@@ -5327,49 +5755,6 @@
           },
           {
             "type": "dungeon",
-            "key": "ice-caves",
-            "frame": {
-              "x": 480,
-              "y": 88,
-              "w": 240,
-              "h": 160,
-              "z": 3
-            },
-            "children": [
-              {
-                "type": "level",
-                "key": "ice-hall",
-                "props": {
-                  "shape": "caverns",
-                  "density": 40,
-                  "floor": "ice",
-                  "wall": "hill-wall-frost",
-                  "prop": "ice-spike",
-                  "propEvery": 16,
-                  "up": {
-                    "x": 0,
-                    "y": 0,
-                    "pinX": "center",
-                    "pinY": "bottom"
-                  }
-                }
-              },
-              {
-                "type": "level",
-                "key": "ice-deep",
-                "props": {
-                  "shape": "caverns",
-                  "density": 35,
-                  "floor": "ice",
-                  "wall": "hill-wall-frost",
-                  "prop": "ice-spike",
-                  "propEvery": 14
-                }
-              }
-            ]
-          },
-          {
-            "type": "dungeon",
             "key": "obsidian-deeps",
             "frame": {
               "x": 952,
@@ -6054,11 +6439,8 @@
                 "pinY": "top"
               },
               "to": {
-                "in": "ice-caves",
-                "x": 0.5,
-                "y": 1.15,
-                "pinX": "scale",
-                "pinY": "scale"
+                "x": 600,
+                "y": 262
               },
               "tile": "dirt",
               "width": 1,
@@ -6402,6 +6784,347 @@
             ]
           },
           {
+            "type": "fill",
+            "key": "mtn-tarn-west",
+            "frame": {
+              "x": 448,
+              "y": 170,
+              "w": 14,
+              "h": 12
+            },
+            "props": {
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
+              "edgeWidth": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-tarn-west-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 14,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-tarn-west-slimes",
+            "frame": {
+              "x": 440,
+              "y": 162,
+              "w": 30,
+              "h": 28
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 1.2,
+              "clumping": 0,
+              "spacing": 3,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": []
+          },
+          {
+            "type": "fill",
+            "key": "mtn-tarn-east",
+            "frame": {
+              "x": 734,
+              "y": 190,
+              "w": 16,
+              "h": 12
+            },
+            "props": {
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
+              "edgeWidth": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-tarn-east-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-tarn-east-slimes",
+            "frame": {
+              "x": 726,
+              "y": 182,
+              "w": 32,
+              "h": 28
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 1.2,
+              "clumping": 0,
+              "spacing": 3,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": []
+          },
+          {
+            "type": "fill",
+            "key": "mtn-tarn-south",
+            "frame": {
+              "x": 556,
+              "y": 276,
+              "w": 18,
+              "h": 12
+            },
+            "props": {
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
+              "edgeWidth": 1
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-tarn-south-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 18,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 30
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-tarn-south-slimes",
+            "frame": {
+              "x": 548,
+              "y": 268,
+              "w": 34,
+              "h": 28
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 1.2,
+              "clumping": 0,
+              "spacing": 3,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": []
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-foothill-game",
+            "frame": {
+              "x": 368,
+              "y": 40,
+              "w": 464,
+              "h": 320
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "deer",
+                  "weight": 3
+                },
+                {
+                  "tile": "rabbit",
+                  "weight": 2
+                }
+              ],
+              "density": 0.12,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": []
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-snowline-beasts",
+            "frame": {
+              "x": 448,
+              "y": 56,
+              "w": 304,
+              "h": 216
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "water-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "small-water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 1
+                },
+                {
+                  "tile": "deer",
+                  "weight": 1
+                },
+                {
+                  "tile": "snow-wolf",
+                  "weight": 1
+                }
+              ],
+              "density": 0.07,
+              "clumping": 0,
+              "spacing": 5,
+              "onlyOn": [
+                "snow"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-snowline-off-snowfield",
+                "frame": {
+                  "x": 48,
+                  "y": 16,
+                  "w": 200,
+                  "h": 144
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "mtn-snowfield-wolves",
+            "frame": {
+              "x": 496,
+              "y": 72,
+              "w": 200,
+              "h": 144
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "snow-wolf",
+                  "weight": 1
+                }
+              ],
+              "density": 0.05,
+              "clumping": 0,
+              "spacing": 6,
+              "onlyOn": [
+                "snow"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-snowfield-off-crown",
+                "frame": {
+                  "x": 44,
+                  "y": 28,
+                  "w": 124,
+                  "h": 92
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              }
+            ]
+          },
+          {
             "type": "scatter",
             "key": "meadow-flowers",
             "frame": {
@@ -6657,11 +7380,12 @@
                   "weight": 1
                 }
               ],
-              "density": 1,
+              "density": 0.1,
               "onlyOn": [
                 "grass",
                 "grass-2"
-              ]
+              ],
+              "spacing": 4
             },
             "children": [
               {
@@ -6752,28 +7476,6 @@
                 }
               }
             ]
-          },
-          {
-            "type": "scatter",
-            "key": "peak-beasts",
-            "frame": {
-              "x": 496,
-              "y": 72,
-              "w": 200,
-              "h": 144
-            },
-            "props": {
-              "tiles": [
-                {
-                  "tile": "snow-wolf",
-                  "weight": 1
-                }
-              ],
-              "density": 2,
-              "onlyOn": [
-                "snow"
-              ]
-            }
           },
           {
             "type": "scatter",
@@ -6952,17 +7654,6 @@
           },
           {
             "type": "tile",
-            "key": "peak-yeti",
-            "props": {
-              "tile": "yeti",
-              "at": {
-                "x": 608,
-                "y": 136
-              }
-            }
-          },
-          {
-            "type": "tile",
             "key": "bat-cave-bat-0",
             "props": {
               "tile": "bat",
@@ -7137,81 +7828,6 @@
           },
           {
             "type": "tile",
-            "key": "ice-hall-icicle-0",
-            "props": {
-              "tile": "icicle",
-              "at": {
-                "x": 612,
-                "y": 105,
-                "z": -3
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-hall-icicle-1",
-            "props": {
-              "tile": "icicle",
-              "at": {
-                "x": 645,
-                "y": 128,
-                "z": -3
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-deep-snow-wolf-0",
-            "props": {
-              "tile": "snow-wolf",
-              "at": {
-                "x": 622,
-                "y": 125,
-                "z": -8
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-deep-snow-wolf-1",
-            "props": {
-              "tile": "snow-wolf",
-              "at": {
-                "x": 580,
-                "y": 103,
-                "z": -4
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-deep-icicle-2",
-            "props": {
-              "tile": "icicle",
-              "at": {
-                "x": 570,
-                "y": 113,
-                "z": -4
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-deep-silver-chest-3",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 560,
-                "y": 123,
-                "z": -4
-              },
-              "placement": {
-                "depotTag": "ice-caves"
-              }
-            }
-          },
-          {
-            "type": "tile",
             "key": "deeps-mouth-fire-slime-0",
             "props": {
               "tile": "fire-slime",
@@ -7363,6 +7979,851 @@
                 "x": 1038,
                 "y": 418,
                 "z": -5
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-tent",
+            "props": {
+              "tile": "tent",
+              "at": {
+                "x": 565,
+                "y": 199
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-tent-2",
+            "props": {
+              "tile": "tent-2",
+              "at": {
+                "x": 574,
+                "y": 202
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-bedroll-0",
+            "props": {
+              "tile": "bedroll",
+              "at": {
+                "x": 567,
+                "y": 201
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-bedroll-1",
+            "props": {
+              "tile": "bedroll",
+              "at": {
+                "x": 572,
+                "y": 203
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-box",
+            "props": {
+              "tile": "wooden-box",
+              "at": {
+                "x": 562,
+                "y": 197
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-barrel",
+            "props": {
+              "tile": "barrel",
+              "at": {
+                "x": 578,
+                "y": 200
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-rope",
+            "props": {
+              "tile": "rope-coil",
+              "at": {
+                "x": 569,
+                "y": 202
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-diary",
+            "props": {
+              "tile": "book",
+              "at": {
+                "x": 571,
+                "y": 201
+              },
+              "placement": {
+                "engraved": "Edvard Lind",
+                "inscription": "Edvard's diary, half buried in snow",
+                "description": "Day 1. Camp under the crown. Sigrid says its cliffs are sheer all round; no rope bites this ice.\nDay 3. Caves under the foothills, wet with meltwater. Slimes and nothing worse. Torvald thinks they climb right up inside the mountain.\nDay 5. Wolves in the upper halls. Torvald went ahead with the lantern and has not come back.\nDay 6. Something walks on the summit at night. It is taller than the tent.\nDay 8. Sigrid has gone up after him. I wait one more day. Whoever reads this: the way to the top is through the mountain, not over it. Leave the white beast be."
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-camp-supplies",
+            "props": {
+              "tile": "quest-crate",
+              "at": {
+                "x": 567,
+                "y": 199
+              },
+              "placement": {
+                "rewardTag": "white-peak-camp",
+                "rewardTileIds": [
+                  "hand-lantern",
+                  "cooked-meat"
+                ],
+                "rewardCounts": {
+                  "cooked-meat": 3
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowfield-bear-0",
+            "props": {
+              "tile": "bear",
+              "at": {
+                "x": 539,
+                "y": 100
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowfield-bear-1",
+            "props": {
+              "tile": "bear",
+              "at": {
+                "x": 665,
+                "y": 110
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-water-slime-0",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 598,
+                "y": 86,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-water-slime-1",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 547,
+                "y": 94,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-water-slime-2",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 641,
+                "y": 95,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-water-slime-3",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 513,
+                "y": 103,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-water-slime-4",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 678,
+                "y": 103,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-small-water-slime-0",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 577,
+                "y": 110,
+                "z": -5
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-small-water-slime-1",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 617,
+                "y": 113,
+                "z": -5
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-small-water-slime-2",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 708,
+                "y": 119,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-small-water-slime-3",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 650,
+                "y": 124,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-bat-0",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 535,
+                "y": 125,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-meltwater-bat-1",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 492,
+                "y": 127,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-water-slime-0",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 588,
+                "y": 88,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-water-slime-1",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 618,
+                "y": 93,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-water-slime-2",
+            "props": {
+              "tile": "water-slime",
+              "at": {
+                "x": 559,
+                "y": 96,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-small-water-slime-0",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 656,
+                "y": 103,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-small-water-slime-1",
+            "props": {
+              "tile": "small-water-slime",
+              "at": {
+                "x": 529,
+                "y": 113,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-tide-wisp-0",
+            "props": {
+              "tile": "tide-wisp",
+              "at": {
+                "x": 581,
+                "y": 118,
+                "z": -6
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-frost-tide-wisp-1",
+            "props": {
+              "tile": "tide-wisp",
+              "at": {
+                "x": 622,
+                "y": 123,
+                "z": -6
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowline-tide-wisp-0",
+            "props": {
+              "tile": "tide-wisp",
+              "at": {
+                "x": 587,
+                "y": 108,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowline-tide-wisp-1",
+            "props": {
+              "tile": "tide-wisp",
+              "at": {
+                "x": 620,
+                "y": 108,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowline-snow-wolf-0",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 557,
+                "y": 125,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-snowline-snow-wolf-1",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 645,
+                "y": 125,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gate-snow-wolf-0",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 604,
+                "y": 109,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gate-snow-wolf-1",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 574,
+                "y": 115,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gate-snow-wolf-2",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 632,
+                "y": 121,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gate-climber",
+            "props": {
+              "tile": "skeleton",
+              "at": {
+                "x": 597,
+                "y": 139,
+                "z": -4
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-bear",
+            "props": {
+              "tile": "bear",
+              "at": {
+                "x": 590,
+                "y": 114,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-snow-wolf-0",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 561,
+                "y": 133,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-snow-wolf-1",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 590,
+                "y": 147,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-icicle-0",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 598,
+                "y": 174,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-icicle-1",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 569,
+                "y": 165,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-icefall-icicle-2",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 604,
+                "y": 131,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-snow-wolf-0",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 581,
+                "y": 118,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-snow-wolf-1",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 595,
+                "y": 146,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-snow-wolf-2",
+            "props": {
+              "tile": "snow-wolf",
+              "at": {
+                "x": 563,
+                "y": 148,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-icicle-0",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 589,
+                "y": 171,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-icicle-1",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 565,
+                "y": 129,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-icicle-2",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 575,
+                "y": 161,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-gallery-chest",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 596,
+                "y": 126,
+                "z": -2
+              },
+              "placement": {
+                "rewardTag": "white-peak-gallery",
+                "rewardTileIds": [
+                  "gold",
+                  "wolfskin-hood"
+                ],
+                "rewardCounts": {
+                  "gold": 30
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-spire-icicle-0",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 582,
+                "y": 142,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-spire-icicle-1",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 572,
+                "y": 140,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-yeti",
+            "props": {
+              "tile": "yeti",
+              "at": {
+                "x": 580,
+                "y": 147
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-hoard",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 572,
+                "y": 131
+              },
+              "placement": {
+                "rewardTag": "white-peak-summit",
+                "rewardTileIds": [
+                  "gold",
+                  "wolfskin-coat",
+                  "rune-rime"
+                ],
+                "rewardCounts": {
+                  "gold": 80
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-bones-0",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 566,
+                "y": 136
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-bones-1",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 576,
+                "y": 126
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-bones-2",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 586,
+                "y": 146
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-bones-3",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 564,
+                "y": 146
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-summit-sigrid",
+            "props": {
+              "tile": "skull-player",
+              "at": {
+                "x": 592,
+                "y": 132
+              },
+              "placement": {
+                "description": "Sigrid Holm. Climbed the White Peak, and stayed."
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-torvald",
+            "props": {
+              "tile": "bleached-bones",
+              "at": {
+                "x": 632,
+                "y": 143,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-book",
+            "props": {
+              "tile": "book",
+              "at": {
+                "x": 619,
+                "y": 170,
+                "z": -2
+              },
+              "placement": {
+                "engraved": "Torvald Berg",
+                "inscription": "Torvald's last page",
+                "description": "The summit split under my feet and I fell into the ice. Broke my leg on the ledge. There is a way out east onto the crown's shelf, but no way back up, only down. I left what we carried in the chest on the shelf. Tell Edvard I found the top."
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-wisp",
+            "props": {
+              "tile": "tide-wisp",
+              "at": {
+                "x": 620,
+                "y": 123,
+                "z": -2
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-icicle-0",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 635,
+                "y": 138,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-icicle-1",
+            "props": {
+              "tile": "icicle",
+              "at": {
+                "x": 629,
+                "y": 170,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-crevasse-chest",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 611,
+                "y": 156,
+                "z": -3
+              },
+              "placement": {
+                "rewardTag": "white-peak-crevasse",
+                "rewardTileIds": [
+                  "amulet-of-tides"
+                ]
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-shelf-cache",
+            "props": {
+              "tile": "quest-chest",
+              "at": {
+                "x": 655,
+                "y": 139
+              },
+              "placement": {
+                "rewardTag": "white-peak-shelf",
+                "rewardTileIds": [
+                  "gold",
+                  "essence-water"
+                ],
+                "rewardCounts": {
+                  "gold": 40,
+                  "essence-water": 2
+                }
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-shelf-rope",
+            "props": {
+              "tile": "rope-coil",
+              "at": {
+                "x": 654,
+                "y": 141
               }
             }
           }
