@@ -2,16 +2,25 @@ name: PR preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: preview-${{ github.event.number }}
   cancel-in-progress: true
 
 jobs:
+  image:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action != 'closed'
+    uses: ./.github/workflows/image.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      sha: ${{ github.event.pull_request.head.sha }}
+
   client:
     name: client for preview
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,59 +51,56 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      - name: Wait for Coolify to finish deploying this commit
+      # Preview deployments are off on the application, so its GitHub webhook does not deploy a push
+      # before its image exists; it only removes the preview when the pull request closes. This call
+      # creates the preview on the first push and deploys the commit on every one.
+      - name: Deploy this commit's image as the preview
         env:
-          PR: ${{ github.event.number }}
-          SHA: ${{ github.event.pull_request.head.sha }}
-          BODY: ${{ runner.temp }}/coolify-deployments.json
+          BODY: ${{ runner.temp }}/coolify-deploy.json
+          REQUEST: '{"pull_request_id":${{ github.event.number }},"pull_request_html_url":"${{ github.event.pull_request.html_url }}","commit":"${{ github.event.pull_request.head.sha }}","git_type":"github"}'
         run: |
-          give_up() {
-            MESSAGE="Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}."
-            if [ "$STATUS" = absent ]; then
-              MESSAGE="${MESSAGE} An absent one was never queued: check that the pull request is based on the default branch, then the preview application's watch paths, and whether the title or the head commit carries a skip marker."
-            fi
-            echo "::error::${MESSAGE}"
+          CODE=$(curl -sS --max-time 30 -o "$BODY" -w '%{http_code}' -X POST \
+            "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}/previews" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$REQUEST") || CODE=none
+          case "$CODE" in
+            2??) ;;
+            401|403)
+              echo "::error::Coolify rejected COOLIFY_TOKEN with HTTP ${CODE}. Opening a preview needs a token with the deploy and write permissions."
+              exit 1
+              ;;
+            *)
+              echo "::error::Coolify answered HTTP ${CODE} to the preview deploy: $(cat "$BODY" 2>/dev/null)"
+              exit 1
+              ;;
+          esac
+          ID=$(jq -r '.deployment_uuid // empty' "$BODY")
+          if [ -z "$ID" ]; then
+            echo "::error::Coolify queued no deployment: $(cat "$BODY")"
             exit 1
-          }
+          fi
+          echo "DEPLOYMENT=$ID" >> "$GITHUB_ENV"
 
+      - name: Wait for Coolify to finish deploying it
+        run: |
           for i in $(seq 1 90); do
-            # Without -f, curl exits 0 on any HTTP answer, so a non-zero exit means no
-            # answer at all. The fallback keeps `bash -e` from ending the step on it.
-            CODE=$(curl -sS --max-time 10 -o "$BODY" -w '%{http_code}' \
-              "${{ vars.COOLIFY_URL }}/api/v1/deployments/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}?take=20" \
-              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}") || CODE=none
-            case "$CODE" in
-              2??)
-                STATUS=$(jq -r --argjson pr "$PR" --arg sha "$SHA" \
-                  '[.deployments[] | select(.pull_request_id == $pr and .commit == $sha)][0].status // "absent"' "$BODY")
-                ;;
-              401|403)
-                echo "::error::Coolify rejected COOLIFY_TOKEN with HTTP ${CODE}. Regenerate the token in Coolify and update the COOLIFY_TOKEN repository secret — waiting will not fix this."
-                exit 1
-                ;;
-              404)
-                echo "::error::Coolify answered HTTP 404 for the preview application's deployments. Check vars.COOLIFY_PREVIEW_APP_UUID against the application in Coolify, and vars.COOLIFY_URL against the panel's address."
-                exit 1
-                ;;
-              none)
-                STATUS="unreachable (no answer)"
-                ;;
-              *)
-                STATUS="unreachable (HTTP ${CODE})"
-                ;;
-            esac
+            STATUS=$(curl -fsS --max-time 10 \
+              "${{ vars.COOLIFY_URL }}/api/v1/deployments/${DEPLOYMENT}" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" | jq -r '.status') || STATUS=unreachable
             case "$STATUS" in
               finished)
-                echo "deployment finished after $((i * 10))s"; break
+                echo "deployment finished after $((i * 10))s"; exit 0
                 ;;
               failed|cancelled-by-user)
                 echo "::error::Coolify deployment $STATUS — see its log in the panel"
                 exit 1
                 ;;
             esac
-            if [ "$i" = 90 ]; then give_up; fi
             sleep 10
           done
+          echo "::error::Coolify has not finished deploying ${DEPLOYMENT} in fifteen minutes — the last it said was ${STATUS}."
+          exit 1
 
       - name: Wait for the world to answer
         run: |
@@ -153,3 +159,21 @@ jobs:
 
       - name: Say what is live
         run: curl -sS "${PREVIEW_ORIGIN}/api/health"
+
+  remove:
+    name: remove the preview
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # The webhook usually removes it first, which leaves this a 404.
+      - name: Remove the preview from Coolify
+        run: |
+          CODE=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' -X DELETE \
+            "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}/previews/${{ github.event.number }}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
+          case "$CODE" in
+            2??|404) echo "preview ${{ github.event.number }}: HTTP ${CODE}" ;;
+            *) echo "::error::Coolify answered HTTP ${CODE} to removing the preview"; exit 1 ;;
+          esac

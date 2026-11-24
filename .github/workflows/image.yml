@@ -1,0 +1,93 @@
+name: Server image
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: The commit to build, which is also the image's tag
+        type: string
+        required: true
+    outputs:
+      image:
+        description: The image's name, without the tag
+        value: ${{ jobs.image.outputs.image }}
+
+jobs:
+  image:
+    name: server image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - name: Name the image
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # Coolify pulls without credentials, so "can be pulled" is asked the way Coolify would ask it.
+      # A release deploys a commit staging already built, and this finds that image instead of
+      # building it again.
+      - name: Write the anonymous pull check
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+        run: |
+          cat > "$RUNNER_TEMP/pullable.sh" <<'EOF'
+          REPOSITORY=${IMAGE#ghcr.io/}
+          TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:${REPOSITORY}:pull" | jq -r '.token // empty') || exit 1
+          [ -n "$TOKEN" ] || exit 1
+          curl -fsS -o /dev/null -H "Authorization: Bearer ${TOKEN}" \
+            -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
+            "https://ghcr.io/v2/${REPOSITORY}/manifests/$1"
+          EOF
+
+      - name: Look for an image of this commit
+        id: existing
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+        run: |
+          if bash "$RUNNER_TEMP/pullable.sh" "${{ inputs.sha }}"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${{ inputs.sha }} is already built"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.existing.outputs.found != 'true'
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.existing.outputs.found != 'true'
+
+      - uses: docker/login-action@v3
+        if: steps.existing.outputs.found != 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Built here rather than by Coolify because the map prebuild in the Dockerfile peaks at about
+      # 1.8 GB, which the 4 GB boxes cannot spare next to the worlds they run.
+      - uses: docker/build-push-action@v6
+        if: steps.existing.outputs.found != 'true'
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: ${{ steps.name.outputs.image }}:${{ inputs.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check Coolify can pull it
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+        run: |
+          for i in $(seq 1 6); do
+            if bash "$RUNNER_TEMP/pullable.sh" "${{ inputs.sha }}"; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::${IMAGE}:${{ inputs.sha }} cannot be pulled without credentials, and Coolify pulls without them. A package GitHub created on its first push is private: make it public under the repository's Packages → Package settings → Change visibility."
+          exit 1
