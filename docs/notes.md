@@ -20243,3 +20243,12 @@ string either.
   memory cgroup the old start was OOM-killed and this one finished. Most of
   what is left is native memory the allocator keeps after the blob copy and
   the row writes; the JS heap after start is about 54 MB.
+- **On a 512 MB preview** (Coolify, `MEM_LIMIT` 512m, full island), read
+  from the admin `/api/health`: a deploy started at a 158 MB peak, and with
+  one guest walking the server held 300–390 MB and peaked at 402 MB. Before
+  the level and blob fixes the same walk held 330–480 MB, and the first start
+  did not fit.
+- **The image's map prebuild needs the server to itself.** It peaks at about
+  1.8 GB. On the 4 GB box that runs staging and every preview, with worlds on
+  older code ticking every creature of the island, it ran out of RAM and
+  stalled for over 40 minutes; with staging stopped it took 4 minutes.
