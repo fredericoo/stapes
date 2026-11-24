@@ -6,14 +6,7 @@ import type { Blobs } from "../app/lib/dataStore";
 /** The hash of the directory a store was last seeded from, kept beside what it seeded. */
 const SEEDED_FROM_KEY = "seeded-from";
 
-const JSON_FILES = [
-  "world.json",
-  "tiles.json",
-  "tilesets.json",
-  "statuses.json",
-  "traits.json",
-  "weather.json",
-];
+const JSON_FILES = ["world.json", "tiles.json", "tilesets.json", "statuses.json", "traits.json"];
 const TILESET_DIRECTORY = "tilesets";
 
 /**

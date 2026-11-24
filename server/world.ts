@@ -12,6 +12,7 @@ import {
   readPrebuiltStart,
   builderSourceHash,
   hashOf,
+  weatherAreasOfTree,
   type AuthoredMap,
 } from "./worldMap";
 import { StackPool } from "../app/lib/stackPool";
@@ -314,6 +315,11 @@ export class World {
     const tree = proposed ?? (await this.blobs.readTreeText());
     if (tree === null) return false;
     const tiles = (await this.blobs.readTilesText()) ?? "[]";
+    /** Written before the board is replaced, because `replaceWorld` reads them from the store. */
+    const areas = weatherAreasOfTree(tree);
+    const areasChanged =
+      JSON.stringify(await this.blobs.readWeatherAreas()) !== JSON.stringify(areas);
+    if (areasChanged) await this.blobs.writeWeatherAreas(areas);
     const inputs = hashOf(tree, tiles, await builderSourceHash());
     const recorded = await this.store.get<AuthoredMap>(AUTHORED_MAP_KEY);
     let replaced = false;
@@ -346,6 +352,7 @@ export class World {
       }
       await this.store.put(AUTHORED_MAP_KEY, { inputs, map: built.hash } satisfies AuthoredMap);
     }
+    if (areasChanged && !replaced) await this.server.reloadWeatherAreas();
     if (proposed !== undefined) await this.blobs.writeTreeText(proposed);
     await this.store.flush();
     return replaced;

@@ -1,5 +1,3 @@
-import * as v from "valibot";
-import { weatherAreasSchema } from "../app/lib/weatherAreas";
 import { Elysia, t } from "elysia";
 import { serializeMap } from "../app/lib/mapData";
 import { BOARD_CHUNK_SEPARATOR } from "../app/lib/boardView";
@@ -313,18 +311,6 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         return { ok: true as const };
       },
       { body: t.Object({ traits: t.Array(t.Unknown()) }) },
-    )
-    .post(
-      "/weather-areas",
-      async ({ body, request, status }) => {
-        if (!(await admin(request))) return status(404, "Not found");
-        const parsed = v.safeParse(weatherAreasSchema, body.areas);
-        if (!parsed.success) return status(400, parsed.issues[0].message);
-        await store.writeWeatherAreas(parsed.output);
-        await world.server.reloadWeatherAreas();
-        return { ok: true as const };
-      },
-      { body: t.Object({ areas: t.Array(t.Unknown()) }) },
     )
     .post(
       "/tree",

@@ -55,6 +55,23 @@ describe("building the world's map at start", () => {
     await again.drain();
   });
 
+  it("hands out the weather areas its tree lays, and the new ones once the tree changes", async () => {
+    const tree = JSON.parse(rowTree(5, 2)) as { root: { children: unknown[] } };
+    const dry = { type: "weather", key: "dry", frame: { x: 3, y: 0, w: 2, h: 1 } };
+    tree.root.children.push({ ...dry, props: { rain: false } });
+    await writeFile(join(seed, "world.json"), JSON.stringify(tree));
+    await (await World.open(config)).drain();
+
+    tree.root.children[2] = { ...dry, props: { rain: true, fog: true } };
+    await writeFile(join(seed, "world.json"), JSON.stringify(tree));
+    const again = await World.open(config);
+
+    expect(await again.blobs.readWeatherAreas()).toEqual([
+      { x0: 3, y0: 0, x1: 4, y1: 0, rain: true, fog: true },
+    ]);
+    await again.drain();
+  });
+
   it("plays the file it was started with, as staging names a smaller tree", async () => {
     await writeFile(join(seed, "world-staging.json"), rowTree(3, 0));
 

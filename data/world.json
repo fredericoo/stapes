@@ -7543,6 +7543,56 @@
             "y": 1
           }
         }
+      },
+      {
+        "type": "weather",
+        "key": "fogless-world",
+        "props": {
+          "rain": true,
+          "fog": false
+        }
+      },
+      {
+        "type": "weather",
+        "key": "dry-desert",
+        "frame": {
+          "x": 864,
+          "y": 224,
+          "w": 440,
+          "h": 560
+        },
+        "props": {
+          "rain": false,
+          "fog": false
+        }
+      },
+      {
+        "type": "weather",
+        "key": "dry-snowfields",
+        "frame": {
+          "x": 488,
+          "y": 96,
+          "w": 304,
+          "h": 216
+        },
+        "props": {
+          "rain": false,
+          "fog": false
+        }
+      },
+      {
+        "type": "weather",
+        "key": "summit-fog",
+        "frame": {
+          "x": 536,
+          "y": 112,
+          "w": 200,
+          "h": 144
+        },
+        "props": {
+          "rain": false,
+          "fog": true
+        }
       }
     ]
   }
