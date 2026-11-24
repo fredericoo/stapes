@@ -64,6 +64,8 @@ export type FloorSpec = {
   stocked: boolean;
   /** Whether they are stocked only with the food in their use's list, or the pantry's when it has none. */
   foodOnly?: boolean;
+  /** How much of the usual stock is put in, in percent. */
+  stockPercent?: number;
   access: Access;
   /** The stair tile of the flight this storey is reached by, when `access` is stairs. */
   stairsTileId: string;
@@ -874,7 +876,8 @@ function stock(storey: Storey, tilesById: Record<string, TileDef>, random: () =>
     });
   }
   const slots = holders.reduce((sum, holder) => sum + holder.free, 0);
-  const share = STOCK_SHARE.min + random() * STOCK_SHARE.spread;
+  const share =
+    (STOCK_SHARE.min + random() * STOCK_SHARE.spread) * ((storey.spec.stockPercent ?? 100) / 100);
   for (let n = Math.round(slots * share); n > 0; n--) {
     const open = holders.filter((holder) => holder.free > 0);
     if (open.length === 0) break;

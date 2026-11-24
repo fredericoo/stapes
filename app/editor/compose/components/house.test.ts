@@ -57,13 +57,13 @@ describe("a house with floors, a cellar and a roof", () => {
   });
 });
 
-describe("a floor stocked with food only", () => {
-  const stocked = (foodOnly: boolean) => {
+describe("a floor's stock", () => {
+  const stocked = (foodOnly: boolean, stockPercent = 100) => {
     const built = buildTree(
       land(SIZE, [
         house([
-          node("floor", { use: "barracks", rooms: 2, foodOnly, doors: [FRONT_DOOR] }),
-          node("cellar", { use: "smithy", foodOnly }),
+          node("floor", { use: "barracks", rooms: 2, foodOnly, stockPercent, doors: [FRONT_DOOR] }),
+          node("cellar", { use: "smithy", foodOnly, stockPercent }),
         ]),
       ]),
     );
@@ -71,7 +71,11 @@ describe("a floor stocked with food only", () => {
     for (const level of Object.values(built.map.levels)) {
       for (const chunk of Object.values(level)) {
         for (const stack of Object.values(chunk)) {
-          for (const placed of stack) items.push(...(placed.contents ?? []).map((i) => i.tileId));
+          for (const placed of stack) {
+            for (const item of placed.contents ?? []) {
+              items.push(...Array<string>(item.count ?? 1).fill(item.tileId));
+            }
+          }
         }
       }
     }
@@ -88,5 +92,34 @@ describe("a floor stocked with food only", () => {
       items.filter((id) => !food.has(id)),
       sketch(built),
     ).toEqual([]);
+  });
+
+  it("is a tenth of the usual at ten percent, and none at zero", () => {
+    const count = (stockPercent: number) => {
+      const built = buildTree(
+        land(SIZE, [
+          house([
+            node("floor", { use: "storage", stockPercent, doors: [FRONT_DOOR] }),
+            node("cellar", { use: "storage", stockPercent }),
+          ]),
+        ]),
+      );
+      let n = 0;
+      for (const level of Object.values(built.map.levels)) {
+        for (const chunk of Object.values(level)) {
+          for (const stack of Object.values(chunk)) {
+            for (const placed of stack) {
+              for (const item of placed.contents ?? []) n += item.count ?? 1;
+            }
+          }
+        }
+      }
+      return n;
+    };
+    const usual = count(100);
+    expect(usual).toBeGreaterThan(30);
+    expect(count(10)).toBeGreaterThan(0);
+    expect(count(10)).toBeLessThan(usual / 5);
+    expect(count(0)).toBe(0);
   });
 });
