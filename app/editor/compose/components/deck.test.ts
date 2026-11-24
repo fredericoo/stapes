@@ -40,6 +40,18 @@ describe("deck", () => {
     expect(walks(unladdered, SHORE, PIER_END, { wading: true })).toBe(false);
   });
 
+  it("is climbed onto by a flight of stairs off its edge instead of a ladder", () => {
+    const built = buildTree(harbour({ reachedBy: "stairs" }));
+    expect(stands(built, "ladder-up")).toEqual([]);
+    expect(stands(built, "stone-stairs")).toHaveLength(2);
+    expect(walks(built, SHORE, PIER_END), sketch(built)).toBe(true);
+
+    const unstepped = buildTree(
+      harbour({ reachedBy: "stairs" }, [node("clear", { remove: ["stone-stairs", "brick-slab"] })]),
+    );
+    expect(walks(unstepped, SHORE, PIER_END, { wading: true })).toBe(false);
+  });
+
   it("stands each pole two pieces high under the deck and one on it, with no two side by side", () => {
     const built = buildTree(harbour());
     const below = stands(built, "fence").filter((s) => s.z === 0);
@@ -112,10 +124,10 @@ describe("deck", () => {
     expect(rotten.poles).toBeLessThan(sound.poles);
   });
 
-  it("is refused with a ladder outside its frame", () => {
-    const built = buildTree(harbour({ ladder: { x: -3, y: 0 } }), { problems: "returned" });
+  it("is refused with its way up outside its frame", () => {
+    const built = buildTree(harbour({ way: { x: -3, y: 0 } }), { problems: "returned" });
     expect(built.problems.map((p) => p.reason)).toEqual([
-      "The ladder is not on the deck. Move it inside the frame.",
+      "The way up is not on the deck. Move it inside the frame.",
     ]);
   });
 });

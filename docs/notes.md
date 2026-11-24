@@ -16892,8 +16892,11 @@ into from any side.
 
 The `deck` component (`app/editor/compose/components/deck.ts`) builds a pier or
 a jetty: `wooden-floor` one level above its frame's ground, posts round its
-edge, and a ladder at `ladder` (by default the second cell of the south side,
-where the side of the deck is in view).
+edge, and a way up at `way` (by default the second cell of the south side,
+where the side of the deck is in view). `reachedBy: "ladder"` stands a ladder
+there; `"stairs"` runs a flight of `stairs` off the deck's edge beside it, the
+upper stair on its half block as a house's flight is, trying the south side
+first. There is no wooden stair tile, so the flight is stone.
 
 - **A post is `fence` pieces that touch no other fence.** `fence` is an
   autotile, so two pieces side by side draw a run of railing. Posts stand on
@@ -16913,8 +16916,8 @@ where the side of the deck is in view).
   grows in patches, and some holes over water have `wreck-planks` floating
   under them.
 - **A hole is kept only while the boards still join up.** Each one is checked
-  with a walk from the ladder that goes round the posts left standing on the
-  deck, so no part of a decayed deck is cut off from the ladder.
+  with a walk from the way up that goes round the posts left standing on the
+  deck, so no part of a decayed deck is cut off from it.
 - **Nothing on the deck knows it is there.** The deck does not declare raised
   ground, so a `tile` placed on it needs `z: 1` in its `at`, as the harbour
   pier's barrel and rope have.
