@@ -3271,7 +3271,8 @@
                           "pinY": "center"
                         }
                       ],
-                      "foodOnly": true
+                      "foodOnly": true,
+                      "stockPercent": 10
                     }
                   },
                   {
@@ -3316,7 +3317,8 @@
                           "pinY": "center"
                         }
                       ],
-                      "foodOnly": true
+                      "foodOnly": true,
+                      "stockPercent": 10
                     }
                   },
                   {
@@ -3386,13 +3388,7 @@
                     "contents": [
                       {
                         "id": "",
-                        "tileId": "apple",
-                        "count": 3
-                      },
-                      {
-                        "id": "",
-                        "tileId": "bread",
-                        "count": 2
+                        "tileId": "bread"
                       }
                     ]
                   }
@@ -3411,12 +3407,7 @@
                     "contents": [
                       {
                         "id": "",
-                        "tileId": "cheese"
-                      },
-                      {
-                        "id": "",
-                        "tileId": "berry",
-                        "count": 4
+                        "tileId": "apple"
                       }
                     ]
                   }
@@ -4783,6 +4774,23 @@
             }
           },
           {
+            "type": "temple",
+            "key": "wreck-valley-ruin",
+            "frame": {
+              "x": 457,
+              "y": 755,
+              "w": 7,
+              "h": 7
+            },
+            "props": {
+              "height": 2,
+              "gap": 2,
+              "base": "step",
+              "roof": "open",
+              "ruin": 65
+            }
+          },
+          {
             "type": "cave",
             "key": "bear-den",
             "frame": {
@@ -5968,7 +5976,11 @@
               "tiles": [
                 {
                   "tile": "rat",
-                  "weight": 8
+                  "weight": 5
+                },
+                {
+                  "tile": "small-nature-slime",
+                  "weight": 3
                 },
                 {
                   "tile": "rabbit",
@@ -5993,8 +6005,8 @@
             "props": {
               "tile": "snake",
               "at": {
-                "x": 434,
-                "y": 760
+                "x": 480,
+                "y": 751
               }
             }
           },
@@ -6004,8 +6016,8 @@
             "props": {
               "tile": "snake",
               "at": {
-                "x": 460,
-                "y": 780
+                "x": 406,
+                "y": 755
               }
             }
           },
@@ -6041,6 +6053,30 @@
               "at": {
                 "x": 408,
                 "y": 761,
+                "z": 0
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-3",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 387,
+                "y": 787,
+                "z": 0
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "wreck-cave-bat-4",
+            "props": {
+              "tile": "bat",
+              "at": {
+                "x": 399,
+                "y": 774,
                 "z": 0
               }
             }

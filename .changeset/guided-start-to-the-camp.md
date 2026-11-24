@@ -2,4 +2,4 @@
 "the-last-stones": minor
 ---
 
-You now wake at the water's edge beside the wreck, by a fire, with Tove there to send you up the road. The camp is much closer: a short walk up a valley between steep hills, with a few rats, rabbits, deer, two snakes and a small bat cave on the way. Rats no longer gang up on you, and the camp's chests and barrels hold only food.
+You now wake at the water's edge beside the wreck, by a fire, with Tove there to send you up the road. Ask her to trade to see what she buys and sells; she now takes rat tails and slime jelly too. The camp is much closer: a short walk up a valley between steep hills, past a small ruin, with rats, small slimes, rabbits, deer, a bat cave and a couple of snakes keeping to the edges. Rats no longer gang up on you, and the camp's chests and barrels hold only a little food.

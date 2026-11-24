@@ -26,7 +26,8 @@ In `data/world.json`:
   the sea, with a `flame` two cells inland (its `castaway` and `fire` props).
   The `flame` never burns out; a `campfire` decays and is put out by rain.
   Tove Arnesdatter (`wreck-tove`) stands beside it and tells the player to
-  follow the road.
+  follow the road. Her trades sit behind one Trade option so a new player's
+  first conversation is about the island, not a price list.
 - **The valley.** `wreck-west-hill` and `wreck-east-hill` are steep hills either
   side of the road (`beach-path`) from the wreck to the camp. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
@@ -34,13 +35,17 @@ In `data/world.json`:
   either. The east side ends at the bay. The valley opens only at its north
   end, beside the camp.
 - **The camp** (`camp`) is at the head of the valley, about 100 cells of road from the
-  wreck. Its houses stock their containers with food only (`foodOnly`), and so
-  are the loose barrel and box: gear is found or bought further on.
+  wreck. Its houses stock their containers with a tenth of the usual food
+  and nothing else (`foodOnly`, `stockPercent: 10`), and the loose barrel and
+  box hold a bite each: gear is found or bought further on.
 - **Creatures on the way** are sized for about ten players levelling at once
-  without clearing the valley: `wreck-valley-game` scatters rats, rabbits and
-  deer with `spacing` and no `clumping`, two snakes stand in the valley, and
-  three bats live in `wreck-cave`, which opens on the valley side of the west
-  hill. Nothing stronger is placed between the wreck and the camp.
+  without clearing the valley: `wreck-valley-game` scatters rats, small
+  nature slimes, rabbits and deer with `spacing` and no `clumping`, two snakes
+  stand off at the valley's edges well away from the road, and five bats live
+  in `wreck-cave`, which opens on the valley side of the west hill. Nothing
+  stronger is placed between the wreck and the camp.
+- **Something to look at.** `wreck-valley-ruin`, a small ruined temple, stands
+  beside the road halfway up.
 
 Moving the camp, the road or either hill changes all of this at once; check
 from the castaway's cell that the only dry way out of the valley is past the
