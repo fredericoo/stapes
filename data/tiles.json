@@ -90969,6 +90969,19 @@
         ],
         "elements": [
           "nature"
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "nature-slime-jelly",
+                "chance": 50
+              }
+            ]
+          }
         ]
       }
     },
