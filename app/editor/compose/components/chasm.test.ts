@@ -170,3 +170,38 @@ describe("chasm", () => {
     expect(built.problems.map((p) => p.reason).join()).toMatch(/closes up/);
   });
 });
+
+describe("a chasm in a dungeon inside a hill", () => {
+  it("brings somebody who dropped onto each ledge back out of the hill", () => {
+    const built = buildTree(
+      land(SIZE, [
+        node("hill", { levels: 2, terrace: 0, roughness: 0 }, { frame: frame(2, 2, 60, 50) }),
+        node("hill", { levels: 2, terrace: 0, roughness: 0 }, { frame: frame(4, 4, 46, 46) }),
+        node(
+          "dungeon",
+          {},
+          {
+            frame: { ...frame(6, 4, 52, 44), z: 2 },
+            children: [
+              node(
+                "chasm",
+                { floor: "dirt", wall: "hill-wall", bottom: "floor" },
+                { frame: GORGE },
+              ),
+              node("level", {
+                shape: "caverns",
+                up: { x: 0, y: 0, pinX: "right", pinY: "center" },
+              }),
+              node("level", { shape: "caverns" }),
+            ],
+          },
+        ),
+      ]),
+    );
+    for (const z of [2, 1]) {
+      const ledge = cellsWhere(built, z, (ids) => ids.length === 1 && ids[0] === "dirt");
+      expect(ledge.length, `level ${z}`).toBeGreaterThan(20);
+      expect(walks(built, ledge[0]!, OUTSIDE), sketch(built)).toBe(true);
+    }
+  });
+});
