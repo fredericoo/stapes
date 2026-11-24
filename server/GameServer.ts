@@ -1532,6 +1532,49 @@ export class GameServer {
     return out;
   }
 
+  /**
+   * Which chunks and levels the checkpointed board has rows for, read from the
+   * keys alone, and where new players start.
+   */
+  async boardOutline(): Promise<{ chunks: string[]; levels: number[]; spawn: Coord | null }> {
+    await this.ensureLoaded();
+    const chunks = new Set<string>();
+    const levels = new Set<number>();
+    for (const key of await this.ctx.storage.listKeys(CHUNK_KEY_PREFIX)) {
+      const parsed = parseBoardKey(key);
+      if (!parsed) continue;
+      chunks.add(parsed.chunkKey);
+      levels.add(Number(parsed.levelKey));
+    }
+    const spawn = this.session?.getSpawnPoint();
+    return {
+      chunks: [...chunks],
+      levels: [...levels].sort((a, b) => a - b),
+      spawn: spawn ? { x: spawn.x, y: spawn.y, z: spawn.z } : null,
+    };
+  }
+
+  /**
+   * Every level's row of each chunk asked for, as the last checkpoint wrote
+   * it. A viewer reads the board this way so that neither side ever holds the
+   * whole map for it.
+   */
+  async readBoardChunks(chunkKeys: readonly string[]): Promise<ChangedChunk[]> {
+    await this.ensureLoaded();
+    const wanted = new Set(chunkKeys);
+    const reads: Promise<ChangedChunk | null>[] = [];
+    for (const key of await this.ctx.storage.listKeys(CHUNK_KEY_PREFIX)) {
+      const parsed = parseBoardKey(key);
+      if (!parsed || !wanted.has(parsed.chunkKey)) continue;
+      reads.push(
+        this.ctx.storage
+          .get<ChunkCells>(key)
+          .then((cells) => (cells ? { ...parsed, cells } : null)),
+      );
+    }
+    return (await Promise.all(reads)).filter((chunk) => chunk !== null);
+  }
+
   async characterSheet(actorId: string): Promise<CharacterSheet> {
     const spawn = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
     const common = {

@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { weatherAreasSchema } from "../app/lib/weatherAreas";
 import { Elysia, t } from "elysia";
 import { serializeMap } from "../app/lib/mapData";
+import { BOARD_CHUNK_SEPARATOR } from "../app/lib/boardView";
 import { parseMapDoc } from "../app/editor/compose/doc";
 import { readPngSize } from "../app/lib/png";
 import { TILESET_VERSION_PARAM } from "../app/lib/dataStore";
@@ -37,6 +38,8 @@ function tilesetCacheControl(requested: string | undefined, current: string | nu
   if (requested !== current) return "no-store";
   return `public, max-age=${VERSIONED_TILESET_MAX_AGE_S}, immutable`;
 }
+
+const MAX_BOARD_CHUNKS_PER_READ = 128;
 
 const GUEST_SIGN_IN_PATH = "/api/auth/sign-in/anonymous";
 
@@ -230,6 +233,22 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       if (!(await admin(request))) return status(404, "Not found");
       return { map: serializeMap(await store.readMap()) };
     })
+    .get("/board", async ({ request, status }) => {
+      if (!(await admin(request))) return status(404, "Not found");
+      return await world.server.boardOutline();
+    })
+    .get(
+      "/board/chunks",
+      async ({ query, request, status }) => {
+        if (!(await admin(request))) return status(404, "Not found");
+        const keys = query.chunks.split(BOARD_CHUNK_SEPARATOR).filter(Boolean);
+        if (keys.length > MAX_BOARD_CHUNKS_PER_READ) {
+          return status(400, `Ask for at most ${MAX_BOARD_CHUNKS_PER_READ} chunks at a time`);
+        }
+        return { chunks: await world.server.readBoardChunks(keys) };
+      },
+      { query: t.Object({ chunks: t.String() }) },
+    )
     .get("/bootstrap", async () => ({
       tiles: await store.readTiles(),
       tilesets: await store.readVersionedTilesets(),
