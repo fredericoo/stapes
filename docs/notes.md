@@ -89,14 +89,29 @@ compose tree (`app/editor/compose/`, edited at `/admin/compose`), and
 `World.buildAuthoredMap` builds the map from it when the server starts and when
 the editor saves on a dev server. The decisions:
 
+- **Every start plays the tree's map, never the board it saved.** The map is
+  changed only through version control, so the stored board holds nothing
+  worth keeping across a start: `World.open` replaces it with the map the tree
+  builds every time, and what players dropped, picked, opened or left lying
+  about (a death's bag too) goes back to the tree's. Players keep their kit,
+  tags, masteries, depots and saved cell. A saved cell that the new map no
+  longer has room or floor for is moved to the nearest one within
+  `ENTRY_SEARCH_RADIUS`, or to the spawn (`findEntryCell`). Inside one run the
+  board is still checkpointed, since that is where an unloaded chunk is read
+  back from.
 - **Two hashes, stored under `authoredMap` in `kv`.** The inputs hash covers the
   tree, `tiles.json` and every non-test file under `app/editor`, `app/game` and
   `app/lib`, and decides whether to build: a restart with none of them changed
-  builds nothing. The map hash covers what came out and decides whether to
-  replace the board: a code change that builds the same map leaves creatures,
-  dropped items and decay where they were. Hashing the source rather than a
-  version constant is what makes a fix to a component reach the world without
-  anybody remembering to bump anything.
+  builds nothing and streams the rows it prepared last time. The map hash
+  covers what came out and decides whether a save or a reseed while the world
+  runs replaces the board. Hashing the source rather than a version constant is
+  what makes a fix to a component reach the world without anybody remembering
+  to bump anything.
+- **A dev server prepares its start like an image does.** Its store is the
+  seed directory, so it runs the prebuild in a child into `DATA_DIR/built/`
+  when the inputs change, and every restart streams those rows rather than
+  parsing the whole map, which on the 4× island would cost a restart about
+  1.2 GB and 18 s.
 - **The build is deterministic.** The same tree, catalogue and code build the
   same bytes every time (checked on the 4× island, pooled and not), which is
   what lets the map hash stand for "nothing changed".

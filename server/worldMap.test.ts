@@ -3,6 +3,8 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getStack } from "../app/lib/mapData";
+import type { MapFile } from "../app/lib/types";
+import { GameSocket } from "./sockets";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { readConfig, type Config } from "./config";
 import { rowTree } from "./testHarness";
@@ -112,7 +114,7 @@ describe("the map an image built", () => {
     await world.drain();
   });
 
-  it("is built again at start when the traits changed since the image prepared its rows", async () => {
+  it("is built again at a deployed start when the traits changed since the image prepared its rows", async () => {
     await prebuildWorldMap(seed, "world.json");
     await replacePrebuiltWith(rowTree(5, 4));
     const tiles = await readFile(join(seed, "tiles.json"), "utf8");
@@ -122,7 +124,7 @@ describe("the map an image built", () => {
     );
     await writeFile(join(seed, "traits.json"), "[]");
 
-    const world = await World.open(config);
+    const world = await World.open({ ...config, deployed: true });
 
     expect(playedSpawnColumn(world)).toBe(3);
     await world.drain();
@@ -136,5 +138,60 @@ describe("the map an image built", () => {
 
     expect(playedSpawnColumn(world)).toBe(1);
     await world.drain();
+  });
+});
+
+describe("a start", () => {
+  function socket(): GameSocket {
+    let closed = false;
+    return new GameSocket({
+      send: () => {},
+      close: () => {
+        closed = true;
+      },
+      get closed() {
+        return closed;
+      },
+    });
+  }
+
+  function playedTilesAt(world: World, x: number): string[] {
+    const internals = world.server as unknown as { session: { getMap(): MapFile } };
+    return getStack(internals.session.getMap(), x, 0, 0).map((p) => p.tileId);
+  }
+
+  it("puts back what was changed on the board since the last, with the tree unchanged", async () => {
+    const before = await World.open(config);
+    const admin = socket();
+    await before.join(admin, "admin", { admin: true });
+    await before.message(
+      admin,
+      JSON.stringify({ type: "command", text: "/tile cat 4 0 0", requestId: 1 }),
+    );
+    expect(playedTilesAt(before, 4)).toContain("cat");
+    await before.drain();
+
+    const after = await World.open(config);
+
+    expect(playedTilesAt(after, 4)).toEqual(["grass"]);
+    await after.drain();
+  });
+
+  it("sends a player whose saved cell is gone from the new map to the spawn", async () => {
+    await writeFile(join(seed, "world.json"), rowTree(40, 2));
+    const before = await World.open(config);
+    await before.store.put("pos:alice", { x: 30, y: 0, z: 0, direction: "s", savedAt: Date.now() });
+    await before.drain();
+    await writeFile(join(seed, "world.json"), rowTree(5, 2));
+
+    const after = await World.open(config);
+    await after.join(socket(), "alice", { admin: false });
+
+    expect((await after.server.characterSheet("alice")).position).toMatchObject({
+      x: 2,
+      y: 0,
+      z: 0,
+    });
+    await after.drain();
   });
 });
