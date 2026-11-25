@@ -8,7 +8,8 @@ import type { TileDef } from "./types";
 export const ANY_STATE = "any";
 
 export type Selector =
-  | { type: "nearest"; data: { tileIds: string[] } }
+  /** `untagged` skips bodies that carry that dialog tag, so a greeting stops once a player has been talked to. */
+  | { type: "nearest"; data: { tileIds: string[]; untagged?: string } }
   | { type: "thing"; data: { tileIds: string[] } }
   | { type: "slot"; data: { name: string } }
   | { type: "speaker" }
@@ -174,6 +175,7 @@ const selectorSchema = v.variant("type", [
     type: v.literal("nearest"),
     data: v.object({
       tileIds: v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.minLength(1)),
+      untagged: v.optional(v.pipe(v.string(), v.minLength(1))),
     }),
   }),
   v.object({

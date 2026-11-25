@@ -8,7 +8,9 @@ export function describeSelector(selector: unknown): string {
   if (!isSelector(selector)) return "?";
   switch (selector.type) {
     case "nearest":
-      return `nearest ${tileList(selector.data.tileIds)}`;
+      return selector.data.untagged
+        ? `nearest ${tileList(selector.data.tileIds)} not tagged ${selector.data.untagged}`
+        : `nearest ${tileList(selector.data.tileIds)}`;
     case "thing":
       return `nearest ${tileList(selector.data.tileIds)} lying about`;
     case "slot":

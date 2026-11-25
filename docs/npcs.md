@@ -157,8 +157,13 @@ than in either town.
   eating heals, gives a first meal, and points to the camp. By day she hunts
   deer and rabbits around the camp; at dusk she cooks at Ifeoma's fire. She
   never sleeps: she is the island's tutorial, and a player who wakes on the
-  wreck in the night needs her as much as one who wakes at noon. She sells
-  cooked meat and buys raw meat and skins.
+  wreck in the night needs her as much as one who wakes at noon. She does not
+  trade: she sends players up to the camp for that. She shoots any hostile
+  creature that comes near her spot on the beach. She tells a new player what
+  the islanders know: ships are pulled onto the rocks by the light, nobody has
+  died for good since the night it changed, the man who built it went to the
+  top that night and never came down, the camp is up the road to the north,
+  and the island has two towns.
 - **Before Wyrd**: aged 34. Born on the island, the daughter of a whaler who
   settled there. She worked the harbour's whaleboats as a harpooner.
 - **Backstory**: when the harbour flooded she went into the hills and learned to
@@ -186,9 +191,13 @@ than in either town.
     bring ships home. It still does, in its way."
   - "Wolves I can live with. If anyone tells you a troll is not so bad, they
     have not met one."
-- **Game support**: dialog script with `request_trade` for food. Teaching that
-  eating heals can be a `say` line plus a free trade that gives a cooked meal
-  once, remembered with a `tag`. Her dawn walk to the beach is a brain state
+- **Game support**: dialog script. Teaching that eating heals is a `say` line
+  plus a free `request_trade` that gives a cooked meal once, remembered with a
+  `tag`. "Another one off the wreck! Over here, by the fire." is `greets-newcomers`: she says it every 10 to 20
+  seconds while a player who has not talked to her is in sight, and the first
+  line of her dialog tags the player `tove-met`. Guarding the beach is `hunts-on-sight` with Runa's list of hostile
+  creatures, limited to eight cells from her spot, and a fight state that
+  shoots with `attack_range` and strikes with `attack`. Her dawn walk to the beach is a brain state
   gated on `time_of_day`. Finding a *new* castaway on her own needs a trigger on
   a player who has just woken for the first time; nothing like that exists, so
   for now she stands on the beach by the waking spot all day and all night,

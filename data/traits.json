@@ -3655,6 +3655,107 @@
     ]
   },
   {
+    "id": "greets-newcomers",
+    "name": "Greets newcomers",
+    "hint": "Says its line now and then while a player it has not met is in sight within near and nobody is talking to it. A player counts as met once they carry the tag, which the body's dialog sets.",
+    "params": {
+      "line": {
+        "kind": "text",
+        "label": "says"
+      },
+      "tag": {
+        "kind": "text",
+        "label": "until the player is tagged"
+      },
+      "near": {
+        "kind": "cells",
+        "default": 8,
+        "label": "to a player within"
+      },
+      "every": {
+        "kind": "ms",
+        "default": 10000,
+        "label": "waits at least"
+      },
+      "upTo": {
+        "kind": "ms",
+        "default": 20000,
+        "label": "waits at most"
+      }
+    },
+    "states": {
+      "greeting": {
+        "band": "roam",
+        "onEnter": [
+          {
+            "effect": "say",
+            "text": {
+              "arg": "line"
+            }
+          }
+        ],
+        "do": [
+          {
+            "action": "hold"
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "if": {
+          "combinator": "and",
+          "rules": [
+            {
+              "cond": "after",
+              "ms": {
+                "arg": "every"
+              },
+              "toMs": {
+                "arg": "upTo"
+              }
+            },
+            {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": ["player"],
+                  "untagged": {
+                    "arg": "tag"
+                  }
+                }
+              },
+              "cells": {
+                "arg": "near"
+              }
+            }
+          ]
+        },
+        "to": "greeting"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "greeting",
+        "if": {
+          "cond": "after",
+          "ms": 500
+        },
+        "to": "rest"
+      }
+    ]
+  },
+  {
     "id": "tends-lights",
     "name": "Tends lights",
     "hint": "Lights the unlit lanterns and candles near it for the hours given, and puts the lit ones out outside them. Walks to each light and throws it, one at a time, and gives up on one it cannot reach. Called before keeps-hours, a body whose hours end at bedtime puts its lights out before it goes to bed.",
