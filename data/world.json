@@ -6785,19 +6785,15 @@
             "props": {
               "tiles": [
                 {
-                  "tile": "half-stone",
-                  "weight": 1
-                },
-                {
-                  "tile": "rock-pillar",
-                  "weight": 2
+                  "tile": "rubble",
+                  "weight": 3
                 },
                 {
                   "tile": "tuft",
                   "weight": 4
                 }
               ],
-              "density": 2,
+              "density": 2.5,
               "clumping": 50,
               "onlyOn": [
                 "grass-2",

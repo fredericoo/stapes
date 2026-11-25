@@ -37,8 +37,8 @@ In `data/world.json`:
 - **The valley.** `wreck-west-hill` and `wreck-east-hill` are hills with no
   ramps either side of the road (`beach-path`) from the wreck to the camp,
   stepped in ragged terraces three cells wide (`terrace` 3, `roughness` 70)
-  and tallest toward the sea. Their tops carry a few trees and rocks
-  (`wreck-hills-trees`, `wreck-hills-rocks`) and sandy patches
+  and tallest toward the sea. Their tops carry a few trees and pebbles
+  (`wreck-hills-trees`, and `rubble` in `wreck-hills-rocks`) and sandy patches
   (`wreck-hills-sand-*`, each ringed by a `grass` rim so its edge is ragged);
   a patch must sit on one level, or the landscape check finds it in pieces. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
