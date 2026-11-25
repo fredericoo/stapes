@@ -133,8 +133,9 @@ an agent drives", lists every call.
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
 - `bun run generate:camp` — copy the two canvas tents out of the tiny-ranch
-  sheet onto the cell grid of `data/tilesets/camp.png` and draw the bedroll
-  beside them; writes the `tent`, `tent-2` and `bedroll` tiles.
+  sheet onto the cell grid of `data/tilesets/camp.png` and cast the bedroll in
+  its four facings below them; writes the `tent`, `tent-2` and `bedroll` tiles.
+  `PREVIEW=<dir>` also writes each bedroll facing cast four times larger.
 - `bun run generate:low-roofs` — draw the low-pitch roof into the free right-hand
   side of `data/tilesets/roofs.png` and write its six tiles: `low-roof-<colour>`,
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
@@ -407,6 +408,10 @@ an agent drives", lists every call.
   faces. The sprites are 3D models cast through the game's projection by
   `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
   times larger
+- `bun run generate:cauldron` — write `cauldron` from the full cauldron in
+  the Ultima VI sheet (`ultima-vi.png`, 240,336), recoloured to our palette,
+  with bubbles rising and popping on the stew over four frames. Its steam is a
+  particle emitter authored on the tile
 - `bun run generate:lanterns` — draw `data/tilesets/lanterns.png` and write
   `lantern` and `candle`, each with its unlit tile and a `switch` between the
   two. A lantern is an iron-framed glass box lit from inside, short enough to
@@ -646,21 +651,20 @@ edits save immediately.
 `serializeMap` round-trips byte-for-byte, so saving an unmodified map leaves
 `git status` clean rather than reformatting the file.
 
-**The world people are in is a third source of truth.** It prefers its own
-checkpoint to the authored content, and carries each player's kit, tags,
-masteries, statuses and health across a change of map. Three things replace its
-board with the authored map:
+**The world people are in plays the authored map.** Every start replaces its
+board with the map `data/world.json` builds, so the map changes only through
+version control. What players dropped, picked or opened on the board lasts
+until the next start; each player's kit, tags, masteries, statuses, health,
+depot and position carry over, and a position the new map has no room or floor
+for moves to the nearest free cell or to the spawn. Besides a start, three
+things replace the board:
 
-- **Every deploy**, through `POST /api/seed`. Players stay where they are
-  standing. The map, tiles, statuses and tilesets saved in a deployed editor
-  since the last deploy are overwritten by `data/`, so an edit made there lasts
-  until the next deploy unless it is committed too.
-- **Save in `/admin/compose`.** The server builds the map from the saved tree
-  and replaces the world's board with it, unless it came out the same. Players
-  keep their kit and stay where they are standing.
-- **A start whose tree, tile catalogue or map builder changed**, which is any
-  deploy that touches them. The same as a save; a restart with nothing changed
-  keeps the board.
+- **Every deploy**, through `POST /api/seed`, when the image's content differs
+  from the store's. Tiles, statuses and tilesets saved in a deployed editor
+  since the last deploy are overwritten by `data/`.
+- **Save in `/admin/compose`** on a dev server. The server builds the map from
+  the saved tree and replaces the world's board with it, unless it came out the
+  same. Players keep their kit and stay where they are standing.
 - **`POST /api/reset`**, with the `ADMIN_SECRET` bearer token, which also
   destroys every position, kit, reward and mastery.
 

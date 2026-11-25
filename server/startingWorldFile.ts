@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { ChunkCells } from "../app/lib/types";
 import type { startingWorldOf, StartingWorld } from "./startingWorld";
@@ -21,6 +21,8 @@ export async function writeStartingWorld(
   traits: string,
 ) {
   const { authored: _authored, whole: _whole, rows, ...rest } = start;
+  /** Bun's file writer does not truncate, so a shorter set of rows would keep the tail of the last. */
+  await rm(paths(stem).rows, { force: true });
   const out = Bun.file(paths(stem).rows).writer();
   for await (const { levelKey, chunkKey, cells } of rows()) {
     out.write(`${JSON.stringify([levelKey, chunkKey, cells])}\n`);

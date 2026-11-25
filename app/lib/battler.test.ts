@@ -90,6 +90,23 @@ describe("battlerRating", () => {
     expect(battlerRating(dummy)).toBe(rating(fighter));
   });
 
+  it("leaves out the hit points of a body whose only spell mends itself", () => {
+    const dummy = {
+      ...body(fighter),
+      baseHp: 10_000,
+      naturalWeapon: { ...DEFAULT_BATTLER.naturalWeapon, damage: 0 },
+      spells: [
+        {
+          type: "stone" as const,
+          name: "Restuff",
+          effect: { kind: "bolt" as const, on: "caster" as const, damage: -999 },
+          cooldownMs: MIN_STONE_COOLDOWN_MS,
+        },
+      ],
+    };
+    expect(battlerRating(dummy)).toBe(rating(fighter));
+  });
+
   it("shows an authored rating in place of the one its stats give", () => {
     const authored = { ...body(fighter), baseHp: 500, rating: 7 };
     expect(battlerRating(authored)).toBe(7);

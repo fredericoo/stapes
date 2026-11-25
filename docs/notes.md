@@ -89,14 +89,29 @@ compose tree (`app/editor/compose/`, edited at `/admin/compose`), and
 `World.buildAuthoredMap` builds the map from it when the server starts and when
 the editor saves on a dev server. The decisions:
 
+- **Every start plays the tree's map, never the board it saved.** The map is
+  changed only through version control, so the stored board holds nothing
+  worth keeping across a start: `World.open` replaces it with the map the tree
+  builds every time, and what players dropped, picked, opened or left lying
+  about (a death's bag too) goes back to the tree's. Players keep their kit,
+  tags, masteries, depots and saved cell. A saved cell that the new map no
+  longer has room or floor for is moved to the nearest one within
+  `ENTRY_SEARCH_RADIUS`, or to the spawn (`findEntryCell`). Inside one run the
+  board is still checkpointed, since that is where an unloaded chunk is read
+  back from.
 - **Two hashes, stored under `authoredMap` in `kv`.** The inputs hash covers the
   tree, `tiles.json` and every non-test file under `app/editor`, `app/game` and
   `app/lib`, and decides whether to build: a restart with none of them changed
-  builds nothing. The map hash covers what came out and decides whether to
-  replace the board: a code change that builds the same map leaves creatures,
-  dropped items and decay where they were. Hashing the source rather than a
-  version constant is what makes a fix to a component reach the world without
-  anybody remembering to bump anything.
+  builds nothing and streams the rows it prepared last time. The map hash
+  covers what came out and decides whether a save or a reseed while the world
+  runs replaces the board. Hashing the source rather than a version constant is
+  what makes a fix to a component reach the world without anybody remembering
+  to bump anything.
+- **A dev server prepares its start like an image does.** Its store is the
+  seed directory, so it runs the prebuild in a child into `DATA_DIR/built/`
+  when the inputs change, and every restart streams those rows rather than
+  parsing the whole map, which on the 4× island would cost a restart about
+  1.2 GB and 18 s.
 - **The build is deterministic.** The same tree, catalogue and code build the
   same bytes every time (checked on the 4× island, pooled and not), which is
   what lets the map hash stand for "nothing changed".
@@ -1690,6 +1705,12 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   the opposite of `potters`'s, so the two never compete for the same idle
   moment: a shopkeeper potters on an empty street and cries their wares to a
   passer-by.
+- **`greets-newcomers` is `calls-out` for players the body has not met**: its
+  `nearest` selector carries `untagged`, which skips a body that holds that
+  dialog tag, and the body's dialog sets the tag on first talk. Speech is a
+  bubble everyone nearby sees, so a player who has the tag still hears the
+  line while a newcomer stands beside them. A death clears tags, so a player is
+  greeted again after dying.
 - **`tends-lights` lights the lanterns and candles near a body for the hours it
   is given and puts them out outside them**, one at a time, nearest first,
   within 6 cells unless told otherwise. It is the lamplighter's routine as a
@@ -3019,6 +3040,37 @@ and likewise south with `phase.y`, which is what makes the field seamless.
 - **The light has to be the same on every frame.** A frame-varying light turns
   the phase off (`spritePhase`), and every cell would show layout 0.
 
+### A full-mask autotile rounds its corners: `water` and `grass`
+
+A blob autotile has 47 slices because it forgets a diagonal neighbour
+whenever either side next to it is open. Its edge therefore has to reach each
+cell side at the same depth whatever lies on the far corner, so an inner
+corner can be rounded no further than the edge's own inset, and a river one
+cell wide that runs diagonally is drawn as a staircase. `autotileMask: "full"`
+keys the slices by the raw eight-neighbour mask instead, 256 of them, and
+`resolveAutotileSlice` returns the mask itself.
+
+- **The outline is a distance field, `scripts/rounded-edge.ts`.** Each cell
+  the tile does not join is a square with corners rounded to `outerRound`;
+  their smooth union (`blend`) is measured from every pixel, and the tile
+  covers the pixels at least `inset` away. `generate-water-tileset.ts` and
+  `generate-grass.ts` both draw from it.
+- **A sheet row per mask is seamless only if no outline reads past the eight
+  neighbours.** `masksReadingTooFar` checks every mask against several
+  different rings of cells two away. `outerRound` 4 and `blend` 6 is the most
+  that passes with a 2px inset: a larger blend lets a cell two away pull the
+  fillet, and so the same mask would need two drawings.
+- **Water draws its own bank.** Every water cell is opaque: water, a 1px line
+  of wet sand, then `sand`'s own colour out to the cell's sides, so a river
+  meets the sand under the grass beside it without a seam, and the `dirt`
+  under a river is no longer seen.
+- **Grass lobes fade out towards grass.** Each of the six columns adds its own
+  waves to the inset, scaled to nothing within 3px of any neighbour that is
+  grass, so where the edge crosses into the next cell it is where the outline
+  alone puts it, whichever column that cell drew.
+- **It costs 256 rows of sheet and of `tiles.json`.** Water's 14 frames per
+  slice made `tiles.json` about 1MB larger, 20KB gzipped.
+
 ### Deep water and swamp are laid over shallow water
 
 `deep-water` and `swamp` are autotiles meant to sit on top of `water` in the
@@ -4003,6 +4055,21 @@ version of a client making up where it is allowed to go.
     the walk stops where it stands — silently, because what stops a route halfway
     is ordinary traffic and a sentence for each is a line of text every time
     anybody walks anywhere.
+- **Hovering ground asks the same search a click would, and the click reuses
+  it.** With nothing under the pointer that offers an interaction, the renderer
+  asks `WalkTo.standFor`: `standingCellOn` and then a search with
+  `arrive: "on"`. A cell it answers gets a frame and footprints beside the
+  pointer (`WalkBadge`, an element over the canvas; the system cursor is left
+  alone); a wall, a
+  hole with no route and the walker's own cell get neither, so the frame never
+  promises a walk the click would refuse. The beside-walk to a tile with no top
+  is not offered on hover, because the pointer over a wall is not a place.
+  `WalkTo` keeps its last search keyed on the map object, the cell searched
+  from, the goal and the arrival, so a click before the board changes routes
+  without searching again. That does not break "never kept": the key includes
+  the map, so a kept answer is only ever the answer to the same question. The
+  hover search runs when the pointer moves and when the camera or the map
+  changes, which is the cost `repickPointer` already paid for picking.
 - **A key cancels it, and a click never clears a key**, and neither of them
   knows about the other: `HeldDirections` holds one direction a click is asking
   for beside the list of keys that are down, on the same "latest wins" rule the
@@ -5969,7 +6036,13 @@ on the curve, and no exchange rate is tuned. `computedRating` is that reading.
 - **A body that cannot hurt anybody is rated on its masteries alone**
   (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
-  experience against it would pay double to every player in the game.
+  experience against it would pay double to every player in the game. A spell
+  whose only effect is a bolt on the caster does not count as hurting anybody,
+  so the dummy's `Restuff` leaves its rating where it was.
+- **The dummy restuffs itself below half health.** Its brain casts `Restuff`
+  (999 hit points on itself, once a second) until it is above half again, so an
+  archer shooting it all day, as Runa Hask does at the first camp, never brings
+  it down.
 - **Above a player's ceiling, it keeps climbing.** The cyclops's 2,000 hit
   points rate it 165, past the 150 no player reaches, because the curve is not
   clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
@@ -12709,6 +12782,17 @@ it is not a crime.
   four bodies.
 - **Iolanthe Sarno and the cats call neither trait.** Iolanthe already turns
   on whoever hits Rosalind Peake. None is a witness the guards hear from.
+- **A townsperson's cat is protected as its owner is.** Biscuit, Soot, Ghee,
+  Captain and Nettle carry `pvp` on their battler, so only a player with PvP
+  on can hurt one. They are not on any `town` list, so hitting one is still not
+  a crime the guards hear about.
+- **`defends-its-own` is Ifeoma's answer to a blow on Biscuit.** On
+  `witnessed` of a body on `ward` it cries out and fights the culprit in its
+  own `defending`, until they are `calm` cells off or it is `leash` cells from
+  home. `defending` holds at `danger`, so the `attacked` trigger of
+  `townsfolk-flee`, also at `danger`, cannot take her out of it: a culprit who
+  hits back gets a fight, not a run for the guards. She calls it first, ahead
+  of `raises-the-alarm`.
 
 ## A respawn can keep to hours
 

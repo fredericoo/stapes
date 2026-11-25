@@ -420,6 +420,8 @@ const CELL_FILL_VERTICES = [
   [0, 1],
 ] as const;
 
+type PxRect = { x: number; y: number; w: number; h: number };
+
 /** One mesh for every cell, so a radius-8 area costs one draw call rather than 289. */
 export function makeCellFill(
   origins: readonly { x: number; y: number }[],
@@ -427,12 +429,45 @@ export function makeCellFill(
   color: number,
   opacity: number,
 ): THREE.Mesh {
-  const positions = new Float32Array(origins.length * CELL_FILL_VERTICES.length * 3);
+  return makeRectsFill(
+    origins.map(({ x, y }) => ({ x, y, w: sizePx, h: sizePx })),
+    color,
+    opacity,
+  );
+}
+
+/**
+ * A frame drawn inside the cell as four filled strips rather than a line, so
+ * its width is in world pixels and scales with the zoom like the art does.
+ */
+export function makeCellFrame(
+  origin: { x: number; y: number },
+  sizePx: number,
+  widthPx: number,
+  color: number,
+  opacity: number,
+): THREE.Mesh {
+  const { x, y } = origin;
+  const inner = sizePx - widthPx * 2;
+  return makeRectsFill(
+    [
+      { x, y, w: sizePx, h: widthPx },
+      { x, y: y + sizePx - widthPx, w: sizePx, h: widthPx },
+      { x, y: y + widthPx, w: widthPx, h: inner },
+      { x: x + sizePx - widthPx, y: y + widthPx, w: widthPx, h: inner },
+    ],
+    color,
+    opacity,
+  );
+}
+
+function makeRectsFill(rects: readonly PxRect[], color: number, opacity: number): THREE.Mesh {
+  const positions = new Float32Array(rects.length * CELL_FILL_VERTICES.length * 3);
   let i = 0;
-  for (const origin of origins) {
+  for (const rect of rects) {
     for (const [u, v] of CELL_FILL_VERTICES) {
-      positions[i++] = origin.x + u * sizePx;
-      positions[i++] = origin.y + v * sizePx;
+      positions[i++] = rect.x + u * rect.w;
+      positions[i++] = rect.y + v * rect.h;
       positions[i++] = 0;
     }
   }

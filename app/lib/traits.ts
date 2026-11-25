@@ -335,7 +335,10 @@ function mapSelector(raw: unknown, visit: Visitor, at: string): unknown {
     const kind = raw.type === "nearest" ? "bodies" : "things";
     const tileIds = mapScalar(raw.data.tileIds, kind, visit, within(at, "tiles"));
     if (tileIds === DROP) return DROP;
-    return { ...raw, data: { ...raw.data, tileIds } };
+    if (!Object.hasOwn(raw.data, "untagged")) return { ...raw, data: { ...raw.data, tileIds } };
+    const untagged = mapScalar(raw.data.untagged, "text", visit, within(at, "untagged"));
+    if (untagged === DROP) return DROP;
+    return { ...raw, data: { ...raw.data, tileIds, untagged } };
   }
   if (raw.type === "slot") {
     const name = visit.slot(raw.data.name, within(at, "slot"));

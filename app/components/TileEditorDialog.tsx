@@ -27,8 +27,8 @@ import { ReflectiveFields } from "./ReflectiveFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
 import { NO_VFX } from "../lib/statusVfx";
+import { autotileSliceCount } from "../lib/autotile";
 import {
-  AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
   MAX_LIGHT_LEVEL,
   OCTANTS,
@@ -624,6 +624,7 @@ export function TileEditorDialog({
         draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
       sliceColumns: draft.type === "autotile" ? draft.sliceColumns : undefined,
+      autotileMask: draft.type === "autotile" ? draft.autotileMask : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
       particleRule: draft.particles ? draft.particleRule : undefined,
@@ -959,7 +960,7 @@ export function TileEditorDialog({
           role="listbox"
           aria-label="Autotile slices"
         >
-          {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
+          {Array.from({ length: autotileSliceCount(draft) }, (_, i) => {
             const defined = Boolean(draft.slices?.[i]);
             const selected = slice === i;
             return (
@@ -968,8 +969,8 @@ export function TileEditorDialog({
                 type="button"
                 role="option"
                 aria-selected={selected}
-                aria-label={autotileSliceTitle(i)}
-                title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
+                aria-label={autotileSliceTitle(i, draft)}
+                title={`${autotileSliceTitle(i, draft)}${defined ? "" : " — empty"}`}
                 onClick={() => {
                   setSlice(i);
                   setFrameIndex(0);
@@ -993,7 +994,7 @@ export function TileEditorDialog({
                       : "border-dashed border-muted opacity-55 hover:opacity-100",
                 ].join(" ")}
               >
-                <AutotileSlicePreview slice={i} size={32} />
+                <AutotileSlicePreview slice={i} tile={draft} size={32} />
                 <span
                   className={[
                     "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
@@ -1007,8 +1008,8 @@ export function TileEditorDialog({
           })}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted">
-          <AutotileSlicePreview slice={slice} size={20} />
-          <span>{autotileSliceTitle(slice)}</span>
+          <AutotileSlicePreview slice={slice} tile={draft} size={20} />
+          <span>{autotileSliceTitle(slice, draft)}</span>
           {definedSlice ? (
             <span className="text-ink">· sprite defined</span>
           ) : (

@@ -81,7 +81,7 @@
     "name": "Water",
     "file": "water.png",
     "width": 112,
-    "height": 376
+    "height": 2048
   },
   {
     "id": "respawn",
@@ -345,7 +345,7 @@
     "name": "Grass",
     "file": "grass.png",
     "width": 48,
-    "height": 376,
+    "height": 2048,
     "translucent": true
   },
   {
@@ -374,6 +374,13 @@
     "name": "Camp",
     "file": "camp.png",
     "width": 48,
-    "height": 32
+    "height": 64
+  },
+  {
+    "id": "cauldron",
+    "name": "Cauldron",
+    "file": "cauldron.png",
+    "width": 64,
+    "height": 16
   }
 ]

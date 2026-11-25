@@ -136,7 +136,10 @@ export function ratedToughness(baseHp: number, toughness: number): number {
 }
 
 export function hurtsAnybody(battler: Pick<BattlerDef, "naturalWeapon" | "spells">): boolean {
-  return battler.naturalWeapon.damage > 0 || (battler.spells?.length ?? 0) > 0;
+  if (battler.naturalWeapon.damage > 0) return true;
+  return (battler.spells ?? []).some(
+    (spell) => spell.effect.kind !== "bolt" || spell.effect.on !== "caster",
+  );
 }
 
 export const MAX_AUTHORED_RATING = 999;

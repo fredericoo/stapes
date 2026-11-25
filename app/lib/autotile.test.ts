@@ -78,6 +78,16 @@ describe("neighbor matching", () => {
     expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(3);
   });
 
+  it("keeps a diagonal neighbour beside an open side for a full-mask tile", () => {
+    const map = mapWith([
+      { x: 0, y: 0, tileId: "g" },
+      { x: 0, y: -1, tileId: "g" },
+      { x: 1, y: -1, tileId: "g" },
+    ]);
+    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(blobMaskToSlice(N));
+    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g", autotileMask: "full" })).toBe(N | NE);
+  });
+
   it("counts a connectsTo neighbour as itself", () => {
     const map = mapWith([
       { x: 0, y: 0, tileId: "grass" },

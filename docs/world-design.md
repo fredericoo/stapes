@@ -14,9 +14,10 @@ Two consequences for anyone editing the map:
 - **The start is short and the adventure comes after it.** The walk from the
   wreck to the first camp is a minute or two. The long walks are from the camp
   to the towns, the dungeons and the coast.
-- **A barrier is terrain a player can see.** A hill the player is meant not to
-  climb is a steep hill (`terrace` 0 or 1, no `ramps`), not a gentle one with
-  its ramps left out.
+- **A barrier is terrain a player can see.** A player cannot climb even one
+  level without a ramp, so a hill with no `ramps` is a barrier however its
+  levels are stepped: sheer (`terrace` 0 or 1) or in ragged terraces like the
+  valley's hills.
 
 ## The guided start
 
@@ -25,11 +26,29 @@ In `data/world.json`:
 - **The wreck** (`shipwreck`) wakes every new player on the first sand beside
   the sea, with a `flame` two cells inland (its `castaway` and `fire` props).
   The `flame` never burns out; a `campfire` decays and is put out by rain.
-  Tove Arnesdatter (`wreck-tove`) stands beside it and tells the player to
-  follow the road. Her trades sit behind one Trade option so a new player's
-  first conversation is about the island, not a price list.
-- **The valley.** `wreck-west-hill` and `wreck-east-hill` are steep hills either
-  side of the road (`beach-path`) from the wreck to the camp. The west hill
+  Tove Arnesdatter (`wreck-tove`) stands beside it, calls "Another one off the wreck! Over here, by the fire." to
+  any player who has not talked to her yet, and tells the player to follow
+  the road. She has no `keeps-hours`, so she is awake at every hour:
+  a player who joins at night still gets the guided start. She gives one
+  free meal and does not trade, so a new player's first conversation is about
+  the island and the only reason to stay on the beach is to listen. She shoots any
+  hostile creature she sees within seven cells while she is near her spot, so
+  the waking spot is safe.
+- **The valley.** `wreck-west-hill` and `wreck-east-hill` are hills with no
+  ramps either side of the road (`beach-path`) from the wreck to the camp,
+  stepped in ragged terraces three cells wide (`terrace` 3, `roughness` 70)
+  and tallest toward the sea. Their tops carry a few trees and pebbles
+  (`wreck-hills-trees`, and `rubble` in `wreck-hills-rocks`) and sandy patches
+  (`wreck-hills-sand-*`, whose fill lays `sand` with `grass` on it along its
+  `edge`, so grass fades into the sand on every side). A ring of `grass` laid
+  by a separate layer through an inner mask comes apart into small pieces,
+  and the `grass` component drops pieces under 16 cells, so the rim belongs
+  to the fill. A patch must sit on one level and keep a cell off any brink,
+  or the landscape check finds it in pieces or the sand meets the brink with
+  no rim; a small frame draws its oval mask as a near-square unless
+  `raggedScale` is small, so the masks use `ragged` 90 and `raggedScale` 3.
+  The patches are masked out of `shore-slimes`, which reads any sand as
+  shore. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
   stands in the shallows at its foot so that wading along the shore does not
   either. The east side ends at the bay. The valley opens only at its north
@@ -37,9 +56,8 @@ In `data/world.json`:
 - **The camp** (`camp`) is at the head of the valley, about 100 cells of road from the
   wreck. It is one house, `camp-pub`, and six decorative tents round the
   fire, each with a few things in front of it and a `bedroll`. Every
-  townsfolk there, and Tove at the wreck, has a `bed` spot on its own
-  bedroll, so nobody walks indoors to sleep; the spot is in map
-  coordinates and goes stale if the camp moves, after which `keeps-hours`
+  townsfolk there has a `bed` spot on its own bedroll, so nobody walks
+  indoors to sleep; the spot is in map coordinates and goes stale if the camp moves, after which `keeps-hours`
   falls back to the nearest bedroll. The pub stocks a fifth of the usual
   food and nothing else (`foodOnly`, `stockPercent: 20`), and the loose
   barrel and box hold a bite each: gear is found or bought further on.
@@ -49,9 +67,15 @@ In `data/world.json`:
 - **The old harbour** (`old-harbour`) is a short walk east of the camp. Its
   warehouse cellar is the first small dungeon: four rats and a nature slime,
   and a sixth of a storage cellar's food (`stockPercent: 15`).
+- **The valley wood.** `wreck-valley-wood` is a forest of the plain `tree`
+  only, thick against the hill cliffs and thinning to loose trees beside the
+  road, round the ruin and toward the beach (its `opensTo`). Its weeding
+  clears the berry bushes the meadows lay in it, so the walk to the camp
+  holds little food.
 - **Creatures on the way** are sized for about ten players levelling at once
-  without clearing the valley: `wreck-valley-game` scatters rats, small
-  nature slimes, rabbits and deer with `spacing` and no `clumping`, two snakes
+  without clearing the valley: `wreck-valley-game` scatters rats, rabbits
+  and deer with `spacing` and no `clumping`, `wreck-valley-slimes` puts a
+  few small nature slimes only where trees stand thick (`among`), two snakes
   stand off at the valley's edges well away from the road, and five bats live
   in `wreck-cave`, which opens on the valley side of the west hill. Nothing
   stronger is placed between the wreck and the camp.

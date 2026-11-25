@@ -1,7 +1,18 @@
 import { PNG } from "pngjs";
-import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
-import { CELL_SIZE, type TileDef, type TileSprite } from "../app/lib/types";
+import {
+  CELL_SIZE,
+  FULL_AUTOTILE_SLICE_COUNT,
+  type TileDef,
+  type TileSprite,
+} from "../app/lib/types";
 import { mulberry32 } from "./island/grid";
+import {
+  clearanceAt,
+  joinedByMask,
+  outlineCoverage,
+  type Joined,
+  type RoundedEdge,
+} from "./rounded-edge";
 import { paint, paintRgba, writeTileset, type Rgba } from "./tileset-output";
 
 const TILESET_ID = "grass";
@@ -28,41 +39,60 @@ const SHADOW: Rgba = [0, 0, 0, Math.round(SHADOW_ALPHA * CHANNEL_MAX)];
 const COLUMNS = 6;
 const PROFILE_SALT = 0x9e55;
 
-type Profiles = { n: number[]; w: number[]; s: number[]; e: number[] };
+/** 4 and 6 are the largest rounding that still leaves every cell's outline readable from its eight neighbours (`masksReadingTooFar`). */
+const EDGE: RoundedEdge = { inset: 1.5, outerRound: 4, blend: 6 };
 
-/** How deep the cut is at both ends of every side, so a cell meets its neighbour's edge whichever variant either is. */
-const END_CUT = 1;
-const MAX_CUT = 2;
-const HOLD_CHANCE = 0.3;
-
+/** How far a lobe pushes the edge in or out, in art pixels. */
+const LOBE_PX = 1;
 /**
- * How deep the cut into the grass is at each pixel along a side: a walk
- * that steps at most a pixel at a time between no cut and `MAX_CUT`, so the
- * edge is lobes of uneven width rather than one bump repeated.
+ * A lobe fades out over this many pixels towards every neighbour that is
+ * grass too, so where the edge crosses into the next cell it is where the
+ * outline alone puts it, whichever column either cell drew.
  */
-function profile(next: () => number): number[] {
-  const cut = [END_CUT];
-  for (let along = 1; along < CELL_SIZE - 1; along++) {
-    const last = cut[along - 1]!;
-    const flat = along > 1 && cut[along - 2] === last;
-    const roll = next();
-    /** A run held flat for two pixels always turns, so the edge is slopes and rounds, never a row of square teeth. */
-    const step =
-      !flat && roll < HOLD_CHANCE ? 0 : roll < HOLD_CHANCE + (1 - HOLD_CHANCE) / 2 ? -1 : 1;
-    const bounced = last + step < 0 || last + step > MAX_CUT ? last - step : last + step;
-    cut.push(bounced);
-  }
-  cut.push(END_CUT);
-  return cut;
+const LOBE_FADE_PX = 3;
+const WAVES = 3;
+
+type Lobes = (px: number, py: number) => number;
+
+/** A few sine waves at random angles and phases: lobes of uneven width rather than one bump repeated. */
+function lobes(next: () => number): Lobes {
+  const waves = Array.from({ length: WAVES }, () => {
+    const angle = next() * Math.PI * 2;
+    const period = 5 + next() * 6;
+    return {
+      kx: (Math.cos(angle) * Math.PI * 2) / period,
+      ky: (Math.sin(angle) * Math.PI * 2) / period,
+      phase: next() * Math.PI * 2,
+    };
+  });
+  return (px, py) =>
+    (LOBE_PX / WAVES) *
+    waves.reduce((sum, w) => sum + Math.sin(w.kx * px + w.ky * py + w.phase), 0) *
+    Math.SQRT2;
+}
+
+function distanceToCell(px: number, py: number, dx: number, dy: number): number {
+  const gapX = Math.max(dx * CELL_SIZE - px, px - (dx + 1) * CELL_SIZE, 0);
+  const gapY = Math.max(dy * CELL_SIZE - py, py - (dy + 1) * CELL_SIZE, 0);
+  return Math.hypot(gapX, gapY);
+}
+
+function lobedOffset(joined: Joined, wave: Lobes): (px: number, py: number) => number {
+  return (px, py) => {
+    let fade = 1;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dy) && joined(dx, dy)) {
+          fade = Math.min(fade, distanceToCell(px, py, dx, dy) / LOBE_FADE_PX);
+        }
+      }
+    }
+    return wave(px, py) * fade;
+  };
 }
 
 const next = mulberry32(PROFILE_SALT);
-const CUTS: Profiles[] = Array.from({ length: COLUMNS }, () => ({
-  n: profile(next),
-  w: profile(next),
-  s: profile(next),
-  e: profile(next),
-}));
+const LOBES: Lobes[] = Array.from({ length: COLUMNS }, () => lobes(next));
 
 /** Older grass that this grass runs into without an edge, as well as itself. */
 const GRASS_GROUND = ["grass-2", "grass-brink", "grass-ledge"];
@@ -83,72 +113,58 @@ const CLIFF_FEET = [
   "hill-cave-mouth-basalt",
 ];
 
-const LAST = CELL_SIZE - 1;
-
-/** A south or east side is cut a pixel deeper, so the shadow its grass casts lands inside the cell rather than in the one beyond. */
-const SHADED_SIDE_EXTRA_PX = 1;
-/** How far into the cell a lone open corner's round notch reaches. */
-const NOTCH_PX = 2;
-
-/** Whether the grass covers a pixel, given the cell's open sides and corners. */
-function grassAt(cut: Profiles, mask: number, x: number, y: number): boolean {
-  const sides: Array<[open: boolean, depth: number, cutHere: number]> = [
-    [!(mask & N), y, cut.n[x]!],
-    [!(mask & W), x, cut.w[y]!],
-    [!(mask & S), LAST - y, cut.s[x]! + SHADED_SIDE_EXTRA_PX],
-    [!(mask & E), LAST - x, cut.e[y]! + SHADED_SIDE_EXTRA_PX],
-  ];
-  for (const [open, depth, cutHere] of sides) {
-    if (open && depth < cutHere) return false;
-  }
-  const corners: Array<[open: boolean, dx: number, dy: number]> = [
-    [!(mask & NW), x, y],
-    [!(mask & NE), LAST - x, y],
-    [!(mask & SW), x, LAST - y],
-    [!(mask & SE), LAST - x, LAST - y],
-  ];
-  return !corners.some(([open, dx, dy]) => open && Math.hypot(dx, dy) < NOTCH_PX);
-}
-
-/** Whether a pixel is in the cut along an open south or east side, or in a lone south-east notch: the only ground the grass shades. */
-function onShadedSide(cut: Profiles, mask: number, x: number, y: number): boolean {
-  const south = !(mask & S) && LAST - y < cut.s[x]! + SHADED_SIDE_EXTRA_PX;
-  const east = !(mask & E) && LAST - x < cut.e[y]! + SHADED_SIDE_EXTRA_PX;
-  const notch = !(mask & SE) && Math.hypot(LAST - x, LAST - y) < NOTCH_PX;
-  return south || east || notch;
+/**
+ * Whether grass covers the pixel `x, y` of the centre cell, or of the row and
+ * column just outside it. Outside the cell only the outline counts: the
+ * neighbour's own lobes depend on its column, which this cell cannot know.
+ */
+function grassAt(joined: Joined, cover: number[][], x: number, y: number): boolean {
+  if (x >= 0 && y >= 0 && x < CELL_SIZE && y < CELL_SIZE) return cover[y]![x]! >= 0.5;
+  return clearanceAt(joined, EDGE, x + 0.5, y + 0.5) >= EDGE.inset;
 }
 
 /**
- * Grass to a pixel's west or north casts its shadow on it, so the shadow
- * falls along the south and east of the grass. Past the cell's own edge, a
- * side that joins more grass counts as grass.
+ * A pixel of grass with grass on at most one side is a spur, and a pixel of
+ * ground with grass on three is a pit; both read as noise rather than an
+ * edge. Only pixels clear of the cell's sides are tidied, since a side pixel's
+ * neighbour across it is in a cell drawn from another column.
  */
-function shadowedAt(cut: Profiles, mask: number, x: number, y: number): boolean {
-  if (!onShadedSide(cut, mask, x, y)) return false;
-  const west = x > 0 ? grassAt(cut, mask, x - 1, y) : !!(mask & W);
-  const north = y > 0 ? grassAt(cut, mask, x, y - 1) : !!(mask & N);
-  return west || north;
+function tidy(cover: number[][]): number[][] {
+  const at = (x: number, y: number) => (cover[y]?.[x] ?? 0) >= 0.5;
+  return cover.map((row, y) =>
+    row.map((c, x) => {
+      if (x === 0 || y === 0 || x === CELL_SIZE - 1 || y === CELL_SIZE - 1) return c;
+      const around = [at(x - 1, y), at(x + 1, y), at(x, y - 1), at(x, y + 1)].filter(Boolean);
+      if (at(x, y) && around.length <= 1) return 0;
+      if (!at(x, y) && around.length >= 3) return 1;
+      return c;
+    }),
+  );
 }
 
-function paintColumn(sheet: PNG, cut: Profiles, column: number) {
-  AUTOTILE_SLICE_MASKS.forEach((mask, slice) => {
+function paintColumn(sheet: PNG, wave: Lobes, column: number) {
+  for (let mask = 0; mask < FULL_AUTOTILE_SLICE_COUNT; mask++) {
+    const joined = joinedByMask(mask);
+    const cover = tidy(outlineCoverage(joined, EDGE, lobedOffset(joined, wave)));
     for (let y = 0; y < CELL_SIZE; y++) {
       for (let x = 0; x < CELL_SIZE; x++) {
-        const at = [column * CELL_SIZE + x, slice * CELL_SIZE + y] as const;
-        if (grassAt(cut, mask, x, y)) paint(sheet, ...at, GRASS);
-        else if (shadowedAt(cut, mask, x, y)) paintRgba(sheet, ...at, SHADOW);
+        const at = [column * CELL_SIZE + x, mask * CELL_SIZE + y] as const;
+        if (grassAt(joined, cover, x, y)) paint(sheet, ...at, GRASS);
+        else if (grassAt(joined, cover, x - 1, y) || grassAt(joined, cover, x, y - 1)) {
+          paintRgba(sheet, ...at, SHADOW);
+        }
       }
     }
-  });
+  }
 }
 
 /** Burning grass leaves the ground it lay on. */
 const BURNS_AWAY = { endure: { durability: 12, suffers: [{ statusId: "burned", tileId: "" }] } };
 
 function grassTile(): TileDef {
-  const slices = AUTOTILE_SLICE_MASKS.map((_, slice): TileSprite => ({
+  const slices = Array.from({ length: FULL_AUTOTILE_SLICE_COUNT }, (_, mask): TileSprite => ({
     frames: [
-      { sprite: { rect: { x: 0, y: slice, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 },
+      { sprite: { rect: { x: 0, y: mask, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 },
     ],
   }));
   return {
@@ -162,6 +178,7 @@ function grassTile(): TileDef {
     lightPassing: true,
     connectsTo: [...GRASS_GROUND, ...CLIFF_FEET],
     sliceColumns: COLUMNS,
+    autotileMask: "full",
     interactions: BURNS_AWAY,
     slices: Object.fromEntries(slices.map((s, i) => [i, s])),
   } as TileDef;
@@ -170,9 +187,9 @@ function grassTile(): TileDef {
 if (import.meta.main) {
   const sheet = new PNG({
     width: COLUMNS * CELL_SIZE,
-    height: AUTOTILE_SLICE_MASKS.length * CELL_SIZE,
+    height: FULL_AUTOTILE_SLICE_COUNT * CELL_SIZE,
   });
   sheet.data.fill(0);
-  CUTS.forEach((cut, column) => paintColumn(sheet, cut, column));
+  LOBES.forEach((wave, column) => paintColumn(sheet, wave, column));
   await writeTileset(TILESET_ID, "Grass", sheet, [grassTile()], { translucent: true });
 }

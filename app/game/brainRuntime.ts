@@ -63,7 +63,7 @@ export type BrainContext = {
   home: Coord | null;
   /** A cell this body's placement names, such as its `bed`. */
   spot(name: string): Coord | null;
-  nearestOnTile(tileIds: readonly string[]): string | null;
+  nearestOnTile(tileIds: readonly string[], untagged?: string): string | null;
   nearestThing(tileIds: readonly string[]): FoundThing | null;
   positionOf(actorId: string): Coord | null;
   thingStillThere(at: Coord, tileId: string): boolean;
@@ -197,7 +197,7 @@ function identify(selector: Selector, memory: BrainMemory, ctx: BrainContext): B
     case "attacker":
       return asBody(memory.hurtBy);
     case "nearest":
-      return asBody(ctx.nearestOnTile(selector.data.tileIds));
+      return asBody(ctx.nearestOnTile(selector.data.tileIds, selector.data.untagged));
     case "thing": {
       const found = ctx.nearestThing(selector.data.tileIds);
       return found === null ? null : { kind: "thing", at: found.at, tileId: found.tileId };

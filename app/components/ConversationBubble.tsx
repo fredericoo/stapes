@@ -462,7 +462,7 @@ function TradeOffer({
           disabled={!possible}
           onPress={() => onTalk({ kind: "trade", amount })}
         >
-          Trade
+          {take.length === 0 && takeCash === 0 ? "Accept" : "Trade"}
         </TalkOption>
         <TalkOption
           hint={hotkeys ? numberKeyLabel(1) : null}

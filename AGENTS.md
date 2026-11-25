@@ -23,9 +23,9 @@ an oblique cabinet projection with Three.js.
 - **Authored content lives in `data/`** and is copied into the store on deploy.
   The map is not authored directly: `data/world.json` is a compose tree
   (`/admin/compose`, `app/editor/compose/`), and the server builds the map from
-  it at start (`server/worldMap.ts`). The world being played prefers its own
-  checkpoint, so writing content alone changes nothing anybody can see until
-  the build or a save replaces the board.
+  it on every start (`server/worldMap.ts`). The board it saved is never read
+  at start, so the map changes only through version control, and a change to
+  the tree reaches players on the next start.
 
 ## Where things are written down
 
