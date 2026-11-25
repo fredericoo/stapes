@@ -220518,6 +220518,31 @@
                 "action": "hold"
               }
             ]
+          },
+          "practising": {
+            "do": [
+              {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "mark"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "mark"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -220736,6 +220761,147 @@
                     "ember-wisp",
                     "tide-wisp",
                     "moss-wisp"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "practising",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rat",
+                        "snake",
+                        "bat",
+                        "bog-imp",
+                        "cave-troll",
+                        "cyclops",
+                        "skeleton",
+                        "water-slime",
+                        "small-water-slime",
+                        "fire-slime",
+                        "small-fire-slime",
+                        "nature-slime",
+                        "small-nature-slime",
+                        "ember-wisp",
+                        "tide-wisp",
+                        "moss-wisp"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                }
+              ]
+            },
+            "to": "fighting",
+            "bind": {
+              "threat": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "wolf",
+                    "rat",
+                    "snake",
+                    "bat",
+                    "bog-imp",
+                    "cave-troll",
+                    "cyclops",
+                    "skeleton",
+                    "water-slime",
+                    "small-water-slime",
+                    "fire-slime",
+                    "small-fire-slime",
+                    "nature-slime",
+                    "small-nature-slime",
+                    "ember-wisp",
+                    "tide-wisp",
+                    "moss-wisp"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "from": "practising",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "listening"
+          },
+          {
+            "from": "practising",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "mark"
+                    }
+                  },
+                  "cells": 9
+                },
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                }
+              ]
+            },
+            "to": "watching"
+          },
+          {
+            "from": "watching",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "home"
+                  },
+                  "cells": 10
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "training-dummy"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                }
+              ]
+            },
+            "to": "practising",
+            "bind": {
+              "mark": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "training-dummy"
                   ]
                 }
               }
