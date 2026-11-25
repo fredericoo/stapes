@@ -1,6 +1,7 @@
 import { getStack } from "./mapData";
 import {
   AUTOTILE_SLICE_COUNT,
+  FULL_AUTOTILE_SLICE_COUNT,
   type AutotileSlice,
   type MapFile,
   type StateSprites,
@@ -74,8 +75,16 @@ export const AUTOTILE_SLICE_MASKS: readonly number[] = (() => {
   return masks;
 })();
 
-export function sliceRepresentativeMask(slice: AutotileSlice): number {
+export function sliceRepresentativeMask(
+  slice: AutotileSlice,
+  tile?: Pick<AutotileIdentity, "autotileMask">,
+): number {
+  if (tile?.autotileMask === "full") return slice & 0xff;
   return AUTOTILE_SLICE_MASKS[slice] ?? 0;
+}
+
+export function autotileSliceCount(tile: Pick<AutotileIdentity, "autotileMask">): number {
+  return tile.autotileMask === "full" ? FULL_AUTOTILE_SLICE_COUNT : AUTOTILE_SLICE_COUNT;
 }
 
 export function blobMaskToSlice(rawMask: number): AutotileSlice {
@@ -96,6 +105,7 @@ const NEIGHBOR_OFFSETS: { bit: number; dx: number; dy: number }[] = [
 export type AutotileIdentity = {
   id: string;
   connectsTo?: readonly string[];
+  autotileMask?: "full";
 };
 
 export function stackConnects(
@@ -131,7 +141,8 @@ export function resolveAutotileSlice(
   z: number,
   tile: AutotileIdentity,
 ): AutotileSlice {
-  return blobMaskToSlice(neighborMask(map, x, y, z, tile));
+  const mask = neighborMask(map, x, y, z, tile);
+  return tile.autotileMask === "full" ? mask : blobMaskToSlice(mask);
 }
 
 export function pickAutotileSprite(
@@ -143,7 +154,7 @@ export function pickAutotileSprite(
   const direct = slices[slice];
   if (direct) return direct;
   if (slices[0]) return slices[0];
-  for (let i = 0; i < AUTOTILE_SLICE_COUNT; i++) {
+  for (let i = 0; i < FULL_AUTOTILE_SLICE_COUNT; i++) {
     const s = slices[i];
     if (s) return s;
   }

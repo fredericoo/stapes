@@ -1,8 +1,11 @@
 import { E, N, NE, NW, S, SE, SW, W, sliceRepresentativeMask } from "../lib/autotile";
-import type { AutotileSlice } from "../lib/types";
+import type { AutotileSlice, TileDef } from "../lib/types";
+
+type SliceSet = Pick<TileDef, "autotileMask">;
 
 type Props = {
   slice: AutotileSlice;
+  tile?: SliceSet;
   size?: number;
   className?: string;
 };
@@ -21,8 +24,8 @@ const CELLS: Cell[] = [
   { bit: SE, col: 2, row: 2 },
 ];
 
-export function AutotileSlicePreview({ slice, size = 32, className = "" }: Props) {
-  const mask = sliceRepresentativeMask(slice);
+export function AutotileSlicePreview({ slice, tile, size = 32, className = "" }: Props) {
+  const mask = sliceRepresentativeMask(slice, tile);
   const cell = size / 3;
   const gap = Math.max(0.75, size * 0.04);
   const r = Math.max(1, cell * 0.22);
@@ -57,8 +60,8 @@ export function AutotileSlicePreview({ slice, size = 32, className = "" }: Props
   );
 }
 
-export function autotileSliceTitle(slice: AutotileSlice): string {
-  const mask = sliceRepresentativeMask(slice);
+export function autotileSliceTitle(slice: AutotileSlice, tile?: SliceSet): string {
+  const mask = sliceRepresentativeMask(slice, tile);
   if (mask === 0) return `Slice ${slice}: isolated (no neighbors)`;
   const parts: string[] = [];
   if (mask & N) parts.push("N");
