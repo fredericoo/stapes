@@ -4,26 +4,9 @@ import { traitsById, withTraits } from "../../app/lib/traits";
 import { normalizeTiles } from "../../app/lib/types";
 import { tilesByIdFromList } from "../../app/lib/validation";
 import { type CaveProblem, checkCaves } from "../../app/verify/caves";
-import {
-  applyExceptions,
-  describeArea,
-  parseExceptions,
-  type VerifyException,
-} from "../../app/verify/exceptions";
+import { applyExceptions, describeArea } from "../../app/verify/exceptions";
 import { type Command, type Outcome, UsageError } from "./cli";
-
-const EXCEPTIONS_FILE = "verify-exceptions.json";
-
-async function readExceptions(dir: string): Promise<VerifyException[]> {
-  const file = Bun.file(join(dir, EXCEPTIONS_FILE));
-  if (!(await file.exists())) return [];
-  try {
-    return parseExceptions(JSON.parse(await file.text()));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new UsageError(`${join(dir, EXCEPTIONS_FILE)} does not load: ${message}`);
-  }
-}
+import { EXCEPTIONS_FILE, readExceptions } from "./exceptionsFile";
 
 export const caves: Command = {
   name: "caves",
