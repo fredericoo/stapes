@@ -6438,6 +6438,37 @@
             ]
           },
           {
+            "type": "forest",
+            "key": "wreck-valley-wood",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "onlyOn": [
+                "grass"
+              ],
+              "trees": [
+                {
+                  "tile": "tree",
+                  "weight": 1
+                }
+              ],
+              "density": 55,
+              "edge": 10,
+              "outliers": 2,
+              "opensTo": [
+                "dirt",
+                "sand",
+                "moss-flagstone"
+              ],
+              "path": null,
+              "undergrowthDensity": 0
+            }
+          },
+          {
             "type": "scatter",
             "key": "meadow-flowers",
             "frame": {
@@ -6450,15 +6481,15 @@
               "tiles": [
                 {
                   "tile": "red-flowers",
-                  "weight": 2
+                  "weight": 4
                 },
                 {
                   "tile": "yellow-flowers",
-                  "weight": 2
+                  "weight": 4
                 },
                 {
                   "tile": "tuft",
-                  "weight": 4
+                  "weight": 8
                 },
                 {
                   "tile": "bush",
@@ -6504,6 +6535,21 @@
             ]
           },
           {
+            "type": "clear",
+            "key": "wreck-valley-wood-weeding",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "remove": [
+                "bush"
+              ]
+            }
+          },
+          {
             "type": "scatter",
             "key": "wreck-valley-game",
             "frame": {
@@ -6517,10 +6563,6 @@
                 {
                   "tile": "rat",
                   "weight": 5
-                },
-                {
-                  "tile": "small-nature-slime",
-                  "weight": 3
                 },
                 {
                   "tile": "rabbit",
@@ -6540,6 +6582,34 @@
             }
           },
           {
+            "type": "scatter",
+            "key": "wreck-valley-slimes",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "small-nature-slime",
+                  "weight": 1
+                }
+              ],
+              "density": 3.0,
+              "clumping": 0,
+              "spacing": 6,
+              "onlyOn": [
+                "grass"
+              ],
+              "among": [
+                "tree"
+              ],
+              "amongAtLeast": 14
+            }
+          },
+          {
             "type": "tile",
             "key": "wreck-valley-snake-0",
             "props": {
@@ -6556,7 +6626,7 @@
             "props": {
               "tile": "snake",
               "at": {
-                "x": 406,
+                "x": 405,
                 "y": 755
               }
             }

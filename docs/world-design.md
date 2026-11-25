@@ -49,9 +49,15 @@ In `data/world.json`:
 - **The old harbour** (`old-harbour`) is a short walk east of the camp. Its
   warehouse cellar is the first small dungeon: four rats and a nature slime,
   and a sixth of a storage cellar's food (`stockPercent: 15`).
+- **The valley wood.** `wreck-valley-wood` is a forest of the plain `tree`
+  only, thick against the hill cliffs and thinning to loose trees beside the
+  road, round the ruin and toward the beach (its `opensTo`). Its weeding
+  clears the berry bushes the meadows lay in it, so the walk to the camp
+  holds little food.
 - **Creatures on the way** are sized for about ten players levelling at once
-  without clearing the valley: `wreck-valley-game` scatters rats, small
-  nature slimes, rabbits and deer with `spacing` and no `clumping`, two snakes
+  without clearing the valley: `wreck-valley-game` scatters rats, rabbits
+  and deer with `spacing` and no `clumping`, `wreck-valley-slimes` puts a
+  few small nature slimes only where trees stand thick (`among`), two snakes
   stand off at the valley's edges well away from the road, and five bats live
   in `wreck-cave`, which opens on the valley side of the west hill. Nothing
   stronger is placed between the wreck and the camp.
