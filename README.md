@@ -408,6 +408,10 @@ an agent drives", lists every call.
   faces. The sprites are 3D models cast through the game's projection by
   `scripts/model-caster.ts`; `PREVIEW=<dir>` also writes each face cast four
   times larger
+- `bun run generate:cauldron` — write `cauldron` from the full cauldron in
+  the Ultima VI sheet (`ultima-vi.png`, 240,336), recoloured to our palette,
+  with bubbles rising and popping on the stew over four frames. Its steam is a
+  particle emitter authored on the tile
 - `bun run generate:lanterns` — draw `data/tilesets/lanterns.png` and write
   `lantern` and `candle`, each with its unlit tile and a `switch` between the
   two. A lantern is an iron-framed glass box lit from inside, short enough to

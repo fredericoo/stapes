@@ -3256,6 +3256,20 @@
               },
               {
                 "type": "tile",
+                "key": "camp-cauldron",
+                "props": {
+                  "tile": "cauldron",
+                  "at": {
+                    "x": 15,
+                    "y": 10
+                  },
+                  "placement": {
+                    "foot": 2
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-stool-1",
                 "props": {
                   "tile": "stool",
@@ -3564,15 +3578,26 @@
               },
               {
                 "type": "tile",
+                "key": "camp-ifeoma-stool",
+                "props": {
+                  "tile": "stool",
+                  "at": {
+                    "x": 16,
+                    "y": 10
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-ifeoma",
                 "props": {
                   "tile": "ifeoma-nwachukwu",
                   "at": {
-                    "x": 15,
-                    "y": 8
+                    "x": 16,
+                    "y": 10
                   },
+                  "facing": "w",
                   "placement": {
-                    "direction": "s",
                     "spots": {
                       "bed": {
                         "x": 479,

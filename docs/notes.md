@@ -12715,6 +12715,17 @@ it is not a crime.
   four bodies.
 - **Iolanthe Sarno and the cats call neither trait.** Iolanthe already turns
   on whoever hits Rosalind Peake. None is a witness the guards hear from.
+- **A townsperson's cat is protected as its owner is.** Biscuit, Soot, Ghee,
+  Captain and Nettle carry `pvp` on their battler, so only a player with PvP
+  on can hurt one. They are not on any `town` list, so hitting one is still not
+  a crime the guards hear about.
+- **`defends-its-own` is Ifeoma's answer to a blow on Biscuit.** On
+  `witnessed` of a body on `ward` it cries out and fights the culprit in its
+  own `defending`, until they are `calm` cells off or it is `leash` cells from
+  home. `defending` holds at `danger`, so the `attacked` trigger of
+  `townsfolk-flee`, also at `danger`, cannot take her out of it: a culprit who
+  hits back gets a fight, not a run for the guards. She calls it first, ahead
+  of `raises-the-alarm`.
 
 ## A respawn can keep to hours
 

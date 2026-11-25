@@ -375,5 +375,12 @@
     "file": "camp.png",
     "width": 48,
     "height": 64
+  },
+  {
+    "id": "cauldron",
+    "name": "Cauldron",
+    "file": "cauldron.png",
+    "width": 64,
+    "height": 16
   }
 ]
