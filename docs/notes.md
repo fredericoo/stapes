@@ -4003,6 +4003,21 @@ version of a client making up where it is allowed to go.
     the walk stops where it stands — silently, because what stops a route halfway
     is ordinary traffic and a sentence for each is a line of text every time
     anybody walks anywhere.
+- **Hovering ground asks the same search a click would, and the click reuses
+  it.** With nothing under the pointer that offers an interaction, the renderer
+  asks `WalkTo.standFor`: `standingCellOn` and then a search with
+  `arrive: "on"`. A cell it answers gets a frame and footprints beside the
+  pointer (`WalkBadge`, an element over the canvas; the system cursor is left
+  alone); a wall, a
+  hole with no route and the walker's own cell get neither, so the frame never
+  promises a walk the click would refuse. The beside-walk to a tile with no top
+  is not offered on hover, because the pointer over a wall is not a place.
+  `WalkTo` keeps its last search keyed on the map object, the cell searched
+  from, the goal and the arrival, so a click before the board changes routes
+  without searching again. That does not break "never kept": the key includes
+  the map, so a kept answer is only ever the answer to the same question. The
+  hover search runs when the pointer moves and when the camera or the map
+  changes, which is the cost `repickPointer` already paid for picking.
 - **A key cancels it, and a click never clears a key**, and neither of them
   knows about the other: `HeldDirections` holds one direction a click is asking
   for beside the list of keys that are down, on the same "latest wins" rule the

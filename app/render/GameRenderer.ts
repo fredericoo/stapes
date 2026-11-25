@@ -83,6 +83,7 @@ import {
   type HeldDirections,
 } from "../game/heldDirections";
 import { approachStand, WalkTo, type WalkView } from "../game/walkTo";
+import { WalkBadge } from "./walkBadge";
 import { listFarOptions } from "../game/farInteractions";
 import { resolveDialog } from "../lib/dialog";
 import type { EmitterOverride } from "../lib/lighting";
@@ -91,7 +92,7 @@ import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from
 import { emitterCenter } from "../lib/lighting";
 import { resolveSetSpawn } from "../lib/interactions";
 import { DWELL_MS } from "../lib/useDwell";
-import { elevationAt, getStack, removeTileAt, stackHeight } from "../lib/mapData";
+import { elevationAt, footingOfStack, getStack, removeTileAt, stackHeight } from "../lib/mapData";
 import { conjuredName } from "../game/conjured";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
@@ -171,6 +172,8 @@ const ACTIVE_SPAWN_EXTRA_RADIUS = 2;
 const TARGET_COLOR = 0xffffff;
 
 const LOOK_COLOR = 0x3fa9ff;
+
+const WALK_HOVER_COLOR = 0xffffff;
 
 const AREA_WINDUP_COLOR = 0xe83b3b;
 
@@ -357,6 +360,8 @@ export class GameRenderer {
   private lastTime = 0;
   private running = false;
   private pointerRef: ObjectRef | null = null;
+  private walkHover: (Coord & { elevAbs: number }) | null = null;
+  private walkBadge: WalkBadge | null = null;
   private pointerPickKey = "";
   private pointerPickMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
@@ -934,6 +939,8 @@ export class GameRenderer {
     this.notificationLayer = null;
     this.debugPanel?.dispose();
     this.debugPanel = null;
+    this.walkBadge?.dispose();
+    this.walkBadge = null;
     this.world.dispose();
   }
 
@@ -1013,10 +1020,35 @@ export class GameRenderer {
     const snap = this.session.getSnapshot();
     if (this.lookMode) {
       this.lookedAt = this.lookAt(this.lastPointer, snap);
-      return;
+    } else {
+      this.pointAt(this.lastPointer, snap);
     }
-    this.pointerRef = this.pickRefAt(this.lastPointer, snap);
+    this.applyCursor();
   };
+
+  private pointAt(point: { x: number; y: number }, snap: GameSnapshot) {
+    this.pointerRef = this.pickRefAt(point, snap);
+    this.walkHover = this.pointerOption() ? null : this.walkHoverAt(point, snap);
+  }
+
+  /**
+   * Only a mouse hovers, so a touch never asks. `WalkTo` keeps the search, and
+   * a click here before the map changes walks along it without searching again.
+   */
+  private walkHoverAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+  ): (Coord & { elevAbs: number }) | null {
+    if (!this.pointerIsMouse || !this.walkTo) return null;
+    const on = this.lookAt(point, snap);
+    if (!on) return null;
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!view) return null;
+    const stand = this.walkTo.standFor(on, view);
+    if (!stand) return null;
+    const footing = footingOfStack(getStack(snap.map, stand.x, stand.y, stand.z), this.tilesById);
+    return { ...stand, elevAbs: stand.z * HEIGHT_PER_LEVEL + (footing?.elev ?? 0) };
+  }
 
   private actSecondAt(point: { x: number; y: number }, snap: GameSnapshot) {
     this.pointerRef = this.pickRefAt(point, snap);
@@ -1273,6 +1305,8 @@ export class GameRenderer {
     this.lastPointer = null;
     this.lookedAt = null;
     this.pointerRef = null;
+    this.walkHover = null;
+    this.applyCursor();
   };
 
   private bodyAt(
@@ -1320,6 +1354,7 @@ export class GameRenderer {
       return;
     }
     this.pointerRef = null;
+    this.walkHover = null;
     if (this.lastPointer) {
       this.lookedAt = this.lookAt(this.lastPointer, this.session.getSnapshot());
     }
@@ -1404,6 +1439,9 @@ export class GameRenderer {
     const pointed = this.pointerOption();
     if (pointed && !sameRef(pointed.ref, target)) {
       specs.push(outline(pointed.ref, interactionColor(pointed)));
+    }
+    if (!pointed && this.walkHover) {
+      specs.push({ kind: "cellFrame", ...this.walkHover, color: WALK_HOVER_COLOR });
     }
     if (listed && !sameRef(listed.ref, target)) {
       specs.push(outline(listed.ref, interactionColor(listed)));
@@ -1548,7 +1586,7 @@ export class GameRenderer {
     if (key === this.pointerPickKey && snap.map === this.pointerPickMap) return;
     this.pointerPickKey = key;
     this.pointerPickMap = snap.map;
-    this.pointerRef = this.pickRefAt(this.lastPointer, snap);
+    this.pointAt(this.lastPointer, snap);
   }
 
   private pickRefAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
@@ -2042,9 +2080,18 @@ export class GameRenderer {
   private applyCursor() {
     if (this.lookMode) {
       this.setCursor(this.lookedAt ? "help" : "");
+      this.walkBadge?.place(null);
       return;
     }
-    this.setCursor(this.pointerOption() ? "pointer" : "");
+    const pointed = this.pointerOption() !== null;
+    this.setCursor(pointed ? "pointer" : "");
+    this.placeWalkBadge(pointed || !this.walkHover ? null : this.lastPointer);
+  }
+
+  /** Made on first use, so a touch screen, which never hovers, never gets one. */
+  private placeWalkBadge(point: { x: number; y: number } | null) {
+    if (point && !this.walkBadge) this.walkBadge = new WalkBadge(this.canvas);
+    this.walkBadge?.place(point);
   }
 
   private setCursor(cursor: string) {
