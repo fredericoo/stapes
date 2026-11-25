@@ -559,7 +559,7 @@
                   "wall": "hill-wall-frost",
                   "bottom": "floor",
                   "cavern": 4,
-                  "openings": 2
+                  "openings": 0
                 }
               },
               {
@@ -772,6 +772,82 @@
                 }
               }
             ]
+          },
+          {
+            "type": "clear",
+            "key": "mtn-pit-unmouth",
+            "frame": {
+              "x": 610,
+              "y": 134,
+              "z": -3,
+              "w": 21,
+              "h": 19
+            },
+            "props": {
+              "remove": [
+                "hill-cave-mouth-frost"
+              ]
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-pit-seal-0",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 617,
+                "y": 135,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-pit-seal-1",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 625,
+                "y": 137,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-pit-seal-2",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 611,
+                "y": 138,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-pit-seal-3",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 629,
+                "y": 144,
+                "z": -3
+              }
+            }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-pit-seal-4",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 616,
+                "y": 151,
+                "z": -3
+              }
+            }
           },
           {
             "type": "temple",
@@ -8815,7 +8891,8 @@
                 "engraved": "Torvald Berg",
                 "inscription": "Torvald's last page",
                 "description": "The summit split under my feet and I fell into the ice. Broke my leg on the ledge. There is a way out east onto the crown's shelf, but a lip of ice rings it, a full storey high, and nobody climbs that. I left Sigrid's Glacier rune in the chest on the shelf. Set it in a slot and it raises a block of ice to stand on; climb it before it melts. My leg will not take me up. Tell Edvard I found the top."
-              }
+              },
+              "description": "The summit split under my feet and I fell into the ice. Broke my leg on the ledge. Below me, at the very bottom of the pit, stands an old temple with no door, and a chest in its heart. Sigrid swore her Glacier rune was laid there: set it in a slot and it raises a block of ice to stand on, the only way up out of that pit, and over the lip of ice a full storey high that rings the crown's shelf. My leg will not take me down to it. Tell Edvard I found the top."
             }
           },
           {
@@ -8873,16 +8950,37 @@
             }
           },
           {
+            "type": "temple",
+            "key": "mtn-glacier-temple",
+            "frame": {
+              "x": 615,
+              "y": 139,
+              "z": -3,
+              "w": 9,
+              "h": 9
+            },
+            "props": {
+              "height": 2,
+              "gap": 1,
+              "base": "none",
+              "roof": "open",
+              "ruin": 65,
+              "floor": "flagstone-floor",
+              "block": "marble-block"
+            }
+          },
+          {
             "type": "tile",
-            "key": "mtn-shelf-cache",
+            "key": "mtn-glacier-chest",
             "props": {
               "tile": "quest-chest",
               "at": {
-                "x": 648,
-                "y": 139
+                "x": 619,
+                "y": 143,
+                "z": -3
               },
               "placement": {
-                "rewardTag": "white-peak-shelf",
+                "rewardTag": "white-peak-temple",
                 "rewardTileIds": [
                   "rune-glacier",
                   "gold",
@@ -8892,17 +8990,6 @@
                   "gold": 40,
                   "essence-water": 2
                 }
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "mtn-shelf-rope",
-            "props": {
-              "tile": "rope-coil",
-              "at": {
-                "x": 647,
-                "y": 141
               }
             }
           }
