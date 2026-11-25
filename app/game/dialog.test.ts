@@ -479,7 +479,7 @@ describe("Noor Halabi's apothecary, as authored", () => {
 
     press(session, 1);
     trade(session, 3);
-    expect(lastLine(session)).toContain("Ta.");
+    expect(lastLine(session)).toContain("Thank you.");
     expect(bagOf(session)).toEqual(["luminous-potionx2", "goldx6"]);
 
     press(session, 0);
