@@ -6632,7 +6632,7 @@
               "tiles": [
                 {
                   "tile": "rubble",
-                  "weight": 3
+                  "weight": 1
                 },
                 {
                   "tile": "tuft",
