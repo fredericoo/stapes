@@ -716,6 +716,47 @@ describe("which cell a tile means", () => {
   });
 });
 
+function boxedIn(map: MapFile, x: number, y: number): MapFile {
+  let boxed = map;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (dx !== 0 || dy !== 0) boxed = put(boxed, x + dx, y + dy, "wall");
+    }
+  }
+  return boxed;
+}
+
+describe("the cell a click would walk onto", () => {
+  it("is the floor under the pointer when a route reaches it", () => {
+    const { walk } = walker();
+
+    expect(walk.standFor(ground(3, 0), view(field(6)))).toEqual({ x: 3, y: 0, z: 0 });
+  });
+
+  it("is nothing for the cell the walker already stands on", () => {
+    const { walk } = walker();
+
+    expect(walk.standFor(ground(0, 0), view(field(6)))).toBeNull();
+  });
+
+  it("is nothing for floor no route reaches", () => {
+    const { walk } = walker();
+
+    expect(walk.standFor(ground(3, 0), view(boxedIn(field(6), 3, 0)))).toBeNull();
+  });
+
+  it("is searched again when the board has changed since the pointer found it", () => {
+    const { walk, last } = walker();
+    walk.standFor(ground(3, 0), view(field(6)));
+
+    walk.start(ground(3, 0), view(boxedIn(field(6), 3, 0)));
+
+    expect(walk.walking).toBe(false);
+    expect(last()).toBeNull();
+    expect(walk.drainNotices()).toHaveLength(1);
+  });
+});
+
 describe("asking the board only when the answer could have changed", () => {
   it("does not re-press the same direction on a frame that moved nobody", () => {
     const { walk, asked } = walker();
