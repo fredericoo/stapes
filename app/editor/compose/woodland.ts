@@ -200,6 +200,8 @@ function heap(cost: Float64Array) {
  * path. Each glade that is not, largest first, is joined to what is by the
  * way that fells the fewest trees, each tree costed with a little noise so
  * the track bends round the thick of the wood instead of running straight.
+ * A pocket too small to be a glade that is still not reached is planted
+ * over, since nobody could walk into it.
  */
 function joinGlades(
   cells: Uint8Array,
@@ -292,6 +294,7 @@ function joinGlades(
     }
     if (end === -1) continue;
     for (let i = end; i !== -1; i = from[i]!) {
+      if (region[i] !== -1) reached[region[i]!] = true;
       const x = i % width;
       const y = Math.floor(i / width);
       for (let dy = 0; dy <= 1; dy++) {
@@ -306,5 +309,10 @@ function joinGlades(
     reached[glade.id] = true;
     const r = region[end]!;
     if (r !== -1) reached[r] = true;
+  }
+  for (let i = 0; i < n; i++) {
+    const r = region[i]!;
+    if (r !== -1 && !reached[r] && sizes[r]! < MIN_GLADE_CELLS && cells[i] === OPEN)
+      cells[i] = TREE;
   }
 }

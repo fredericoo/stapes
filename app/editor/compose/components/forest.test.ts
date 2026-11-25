@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
 import { MAP_DOC_VERSION, parseMapDoc } from "../doc";
 import { buildTree, cutFootprints, frame, land, node, reach, sketch, stands } from "../testTree";
-import { MIN_GLADE_CELLS } from "../woodland";
 
 const SIZE = { w: 30, h: 20 };
 
@@ -98,38 +97,18 @@ describe("a forest's shape", () => {
     expect(rim, sketch(built)).toBeLessThan(deep / 4);
   });
 
-  it.each([1, 2, 3, 4])(
-    "leaves no glade worth reaching cut off from the field outside, seed %i",
-    (seed) => {
-      const built = wood({ density: 75 }, seed);
-      const walked = reach(built, { x: 0, y: 0 });
-      const lost = new Set<string>();
-      for (let y = FRAME.y; y < FRAME.y + FRAME.h; y++) {
-        for (let x = FRAME.x; x < FRAME.x + FRAME.w; x++) {
-          const top = getStack(built.map, x, y, 0).at(-1)?.tileId;
-          if (top === "grass" && !walked.has(`0:${x},${y}`)) lost.add(`${x},${y}`);
-        }
+  it.each([1, 2, 3, 4])("leaves no open ground cut off from the field outside, seed %i", (seed) => {
+    const built = wood({ density: 75 }, seed);
+    const walked = reach(built, { x: 0, y: 0 });
+    const lost: string[] = [];
+    for (let y = FRAME.y; y < FRAME.y + FRAME.h; y++) {
+      for (let x = FRAME.x; x < FRAME.x + FRAME.w; x++) {
+        const top = getStack(built.map, x, y, 0).at(-1)?.tileId;
+        if (top === "grass" && !walked.has(`0:${x},${y}`)) lost.push(`${x},${y}`);
       }
-      const pockets: number[] = [];
-      const seen = new Set<string>();
-      for (const start of lost) {
-        if (seen.has(start)) continue;
-        seen.add(start);
-        const queue = [start];
-        for (let head = 0; head < queue.length; head++) {
-          const [x, y] = queue[head]!.split(",").map(Number) as [number, number];
-          for (const next of [`${x + 1},${y}`, `${x - 1},${y}`, `${x},${y + 1}`, `${x},${y - 1}`]) {
-            if (lost.has(next) && !seen.has(next)) {
-              seen.add(next);
-              queue.push(next);
-            }
-          }
-        }
-        pockets.push(queue.length);
-      }
-      expect(Math.max(0, ...pockets), sketch(built)).toBeLessThan(MIN_GLADE_CELLS);
-    },
-  );
+    }
+    expect(lost, sketch(built)).toEqual([]);
+  });
 
   it("grows its mix of trees in stands of one kind rather than evenly salted", () => {
     const built = wood({
