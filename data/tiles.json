@@ -70998,6 +70998,102 @@
     }
   },
   {
+    "id": "rune-glacier",
+    "name": "Glacier",
+    "description": "Clear ice in a gold rim, carved with a cube. Raises a block of ice in front of you, half a storey high, that melts within half a minute.",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "runes",
+      "x": 5,
+      "y": 1
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "conjure",
+          "tileId": "ice-cube"
+        },
+        "cooldownMs": 20000,
+        "castTimeMs": 1500,
+        "requirements": {
+          "arcane": 10,
+          "water": 5
+        },
+        "casterEffect": {
+          "durationMs": 600,
+          "particles": {
+            "ratePerSecond": 50,
+            "ttlFromMs": 500,
+            "ttlToMs": 900,
+            "spawnRadiusCells": 0.4,
+            "spawnElevFrom": 0,
+            "spawnElevTo": 4,
+            "riseFrom": -1,
+            "riseTo": 1,
+            "driftCellsPerSecond": 0.15,
+            "lit": false,
+            "ownDepth": true,
+            "gravity": 1.2,
+            "offsetX": "",
+            "offsetY": "",
+            "offsetElev": "",
+            "shape": null,
+            "sizeFromPx": 5,
+            "sizeToPx": null,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.5,
+                "color": "#bfe6ff"
+              },
+              {
+                "at": 1,
+                "color": "#4fa4ff"
+              }
+            ]
+          }
+        },
+        "reach": {
+          "cells": 2.5,
+          "height": 2
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "rune-blossom",
     "name": "Blossom",
     "description": "Obsidian, carved with two linked buds. You flower and mend fast.",
@@ -216625,6 +216721,70 @@
           "durationMs": 200
         }
       ]
+    }
+  },
+  {
+    "id": "ice-cube",
+    "name": "Ice Cube",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "ramps",
+      "x": 4,
+      "y": 8
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "decay": {
+        "tileId": "",
+        "fromMs": 20000,
+        "toMs": 30000
+      }
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#ffffff",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#53d5cf",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {
