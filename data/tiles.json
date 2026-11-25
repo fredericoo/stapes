@@ -14488,14 +14488,6 @@
             }
           },
           {
-            "trait": "keeps-hours",
-            "with": {
-              "from": 21,
-              "to": 4,
-              "spell": 3
-            }
-          },
-          {
             "trait": "calls-out",
             "with": {
               "line": "Eat something, then follow the road up to the camp."

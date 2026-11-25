@@ -155,9 +155,10 @@ than in either town.
 - **What she does**: the hunter. At dawn she walks the wreck beach looking for
   castaways, and she is the first person a player meets. She teaches that
   eating heals, gives a first meal, and points to the camp. By day she hunts
-  deer and rabbits around the camp; at dusk she cooks at Ifeoma's fire; at
-  night she sleeps in the lean-to. She sells cooked meat and buys raw meat and
-  skins.
+  deer and rabbits around the camp; at dusk she cooks at Ifeoma's fire. She
+  never sleeps: she is the island's tutorial, and a player who wakes on the
+  wreck in the night needs her as much as one who wakes at noon. She sells
+  cooked meat and buys raw meat and skins.
 - **Before Wyrd**: aged 34. Born on the island, the daughter of a whaler who
   settled there. She worked the harbour's whaleboats as a harpooner.
 - **Backstory**: when the harbour flooded she went into the hills and learned to
@@ -190,7 +191,8 @@ than in either town.
   once, remembered with a `tag`. Her dawn walk to the beach is a brain state
   gated on `time_of_day`. Finding a *new* castaway on her own needs a trigger on
   a player who has just woken for the first time; nothing like that exists, so
-  for now she stands on the beach by the waking spot from dawn to midday.
+  for now she stands on the beach by the waking spot all day and all night,
+  with no `keeps-hours`.
 
 ### Idris Kaya
 
