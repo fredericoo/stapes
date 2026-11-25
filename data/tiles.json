@@ -19262,7 +19262,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Fresh up off the wrecks, still dripping. Lanterns and sacking, proper stuff."
+                    "text": "Fresh up off the wrecks, still dripping. Lanterns and a few tools, proper stuff."
                   },
                   {
                     "kind": "anchor",
@@ -19272,18 +19272,18 @@
                     "kind": "choices",
                     "options": [
                       {
-                        "label": "{item:sack} - 3",
+                        "label": "{item:hand-lantern} - 3",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "A {item:sack}. Smells of the sea, but it'll hold anything you put in it. Cheap as you like."
+                            "text": "A {item:hand-lantern}. Off a ship's galley, I reckon. It still lights; I tried it myself."
                           },
                           {
                             "kind": "request_trade",
                             "take": [],
                             "give": [
                               {
-                                "tileId": "sack",
+                                "tileId": "hand-lantern",
                                 "count": 1
                               }
                             ],
@@ -19315,22 +19315,65 @@
                         ]
                       },
                       {
-                        "label": "{item:hand-lantern} - 3",
+                        "label": "{item:simple-hammer} - 15",
                         "then": [
                           {
                             "kind": "say",
-                            "text": "A {item:hand-lantern}. Off a ship's galley, I reckon. It still lights; I tried it myself."
+                            "text": "A {item:simple-hammer}. Came out of a carpenter's chest, still oiled. Brannoc wants twenty for a new one; this one's fifteen and it's done some work already."
                           },
                           {
                             "kind": "request_trade",
                             "take": [],
                             "give": [
                               {
-                                "tileId": "hand-lantern",
+                                "tileId": "simple-hammer",
                                 "count": 1
                               }
                             ],
-                            "takeCash": 3,
+                            "takeCash": 15,
+                            "min": 1,
+                            "max": 99,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Lovely! Pleasure doing business. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "salvage"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "Your loss, my 'andsome. Somebody'll have it dreckly. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "salvage"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "{item:simple-axe} - 15",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "A {item:simple-axe}. Off a ship's woodpile, a bit of rust on the cheek, nothing a stone won't sort. Fifteen gold, my 'andsome."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [],
+                            "give": [
+                              {
+                                "tileId": "simple-axe",
+                                "count": 1
+                              }
+                            ],
+                            "takeCash": 15,
                             "min": 1,
                             "max": 99,
                             "default": 1,

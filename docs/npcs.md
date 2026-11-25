@@ -303,7 +303,10 @@ than in either town.
   - "Whatever was in your hold is mine now, unless you want to buy it back."
   - "Drowning's the bad one. Second worst on the island, they tell me."
   - "I was going to build ships. Now I take them apart. Same tools."
-- **Game support**: a shop dialog. Her two-place routine is brain states on
+- **Game support**: a shop dialog selling a `hand-lantern` and a
+  `simple-hammer` and `simple-axe` (15 gold each, under Brannoc's 20 for new
+  ones). She sells no bags: a player always wakes with a `basic-bag`, and a
+  `sack` cannot be carried in one. Her two-place routine is brain states on
   `time_of_day` with `step_toward` a marker tile at each place.
 
 ### Jory Thistlewood
