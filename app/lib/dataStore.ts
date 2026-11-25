@@ -123,6 +123,10 @@ export class DataStore {
     return pool ? parseSharedMap(raw, pool) : parseMap(raw);
   }
 
+  async readMapText(): Promise<string | null> {
+    return this.blobs.getText(MAP_KEY);
+  }
+
   async readFlatMap(): Promise<FlatMapFile> {
     const raw = await this.blobs.getText(MAP_KEY);
     if (raw === null) return { version: MAP_FILE_VERSION, levels: {} };

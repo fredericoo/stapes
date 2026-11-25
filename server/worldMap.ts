@@ -91,12 +91,17 @@ export function traitsHash(traits: readonly unknown[]): string {
   return hashOf(JSON.stringify(traits));
 }
 
-export async function prebuildWorldMap(dataDir: string, treeFile: string): Promise<BuiltWorldMap> {
+/** `outDir` is where `built/` goes, so a dev server can prepare its start beside its database. */
+export async function prebuildWorldMap(
+  dataDir: string,
+  treeFile: string,
+  outDir = dataDir,
+): Promise<BuiltWorldMap> {
   const tree = await readFile(join(dataDir, treeFile), "utf8");
   const tiles = await readFile(join(dataDir, "tiles.json"), "utf8");
   const built = buildWorldMap(tree, tiles);
-  const paths = prebuiltPaths(dataDir, treeFile);
-  await mkdir(join(dataDir, PREBUILT_DIR), { recursive: true });
+  const paths = prebuiltPaths(outDir, treeFile);
+  await mkdir(join(outDir, PREBUILT_DIR), { recursive: true });
   await writeFile(paths.map, built.text);
   await writeFile(paths.hash, hashOf(built.text));
   await prepareStartingWorld(dataDir, paths.stem, built.text);
@@ -204,7 +209,35 @@ export async function buildWorldMapApart(
   }
 }
 
-if (import.meta.main && process.argv[2] === "--prebuild") {
+/**
+ * Prepares what `prebuildWorldMap` does in a child process, for the same
+ * reason the build runs in one.
+ */
+export async function prebuildWorldMapApart(
+  dataDir: string,
+  treeFile: string,
+  outDir: string,
+): Promise<BuildProblem[]> {
+  const child = Bun.spawn(
+    [process.execPath, "--smol", ENTRY, "--prebuild-into", outDir, dataDir, treeFile],
+    { stdout: "pipe", stderr: "inherit" },
+  );
+  const [code, report] = await Promise.all([child.exited, new Response(child.stdout).text()]);
+  if (code !== 0)
+    throw new Error(`Preparing the world's map from ${treeFile} failed (exit ${code})`);
+  const last = report.trim().split("\n").at(-1) ?? "{}";
+  return (JSON.parse(last) as { problems: BuildProblem[] }).problems;
+}
+
+if (import.meta.main && process.argv[2] === "--prebuild-into") {
+  const [outDir, dataDir, treeFile] = process.argv.slice(3);
+  if (!outDir || !dataDir || !treeFile) {
+    console.error("usage: bun server/worldMap.ts --prebuild-into <out dir> <data dir> <tree.json>");
+    process.exit(1);
+  }
+  const { problems } = await prebuildWorldMap(dataDir, treeFile, outDir);
+  console.log(JSON.stringify({ problems }));
+} else if (import.meta.main && process.argv[2] === "--prebuild") {
   const [dataDir, ...trees] = process.argv.slice(3);
   if (!dataDir || trees.length === 0) {
     console.error("usage: bun server/worldMap.ts --prebuild <data dir> <tree.json>...");
