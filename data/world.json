@@ -3249,6 +3249,17 @@
               },
               {
                 "type": "tile",
+                "key": "camp-cauldron",
+                "props": {
+                  "tile": "cauldron",
+                  "at": {
+                    "x": 17,
+                    "y": 10
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-stool-1",
                 "props": {
                   "tile": "stool",
