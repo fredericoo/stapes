@@ -26,7 +26,8 @@ In `data/world.json`:
   the sea, with a `flame` two cells inland (its `castaway` and `fire` props).
   The `flame` never burns out; a `campfire` decays and is put out by rain.
   Tove Arnesdatter (`wreck-tove`) stands beside it and tells the player to
-  follow the road. Her trades sit behind one Trade option so a new player's
+  follow the road. She has no `keeps-hours`, so she is awake at every hour:
+  a player who joins at night still gets the guided start. Her trades sit behind one Trade option so a new player's
   first conversation is about the island, not a price list.
 - **The valley.** `wreck-west-hill` and `wreck-east-hill` are steep hills either
   side of the road (`beach-path`) from the wreck to the camp. The west hill
@@ -37,9 +38,8 @@ In `data/world.json`:
 - **The camp** (`camp`) is at the head of the valley, about 100 cells of road from the
   wreck. It is one house, `camp-pub`, and six decorative tents round the
   fire, each with a few things in front of it and a `bedroll`. Every
-  townsfolk there, and Tove at the wreck, has a `bed` spot on its own
-  bedroll, so nobody walks indoors to sleep; the spot is in map
-  coordinates and goes stale if the camp moves, after which `keeps-hours`
+  townsfolk there has a `bed` spot on its own bedroll, so nobody walks
+  indoors to sleep; the spot is in map coordinates and goes stale if the camp moves, after which `keeps-hours`
   falls back to the nearest bedroll. The pub stocks a fifth of the usual
   food and nothing else (`foodOnly`, `stockPercent: 20`), and the loose
   barrel and box hold a bite each: gear is found or bought further on.

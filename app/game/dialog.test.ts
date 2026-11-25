@@ -226,6 +226,8 @@ const tiles: TileDef[] = [
       "iron-helm",
       "wolf-skin",
       "wolfskin-coat",
+      "runa-hask",
+      "simple-bow",
     ].includes(t.id),
   ),
 ];
@@ -479,7 +481,7 @@ describe("Noor Halabi's apothecary, as authored", () => {
 
     press(session, 1);
     trade(session, 3);
-    expect(lastLine(session)).toContain("Ta.");
+    expect(lastLine(session)).toContain("Thank you.");
     expect(bagOf(session)).toEqual(["luminous-potionx2", "goldx6"]);
 
     press(session, 0);
@@ -605,6 +607,25 @@ describe("Idris Kaya's leather, as authored", () => {
     press(session, 0);
     trade(session, 1);
     expect(bagOf(session)).toEqual(["wolf-skinx2", "goldx5", "wolfskin-coat"]);
+  });
+});
+
+describe("Runa Hask's old bow, as authored", () => {
+  it("sells her one spare bow for ten gold, and not a second time", () => {
+    let map = fieldWith("runa-hask");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "gold", count: 25 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "runa-hask");
+    press(session, 2);
+    expect(lastLine(session)).toContain("deer and rabbits");
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["goldx15", "simple-bow"]);
+
+    press(session, 2);
+    expect(lastLine(session)).toContain("only spare");
+    expect(bagOf(session)).toEqual(["goldx15", "simple-bow"]);
   });
 });
 
