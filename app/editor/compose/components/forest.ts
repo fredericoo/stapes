@@ -16,6 +16,7 @@ const ForestSchema = v.object({
   density: v.optional(field.percent(), 55),
   edge: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(24)), 6),
   outliers: v.optional(field.percent(), 3),
+  opensTo: v.optional(field.tiles(TILES.ground), []),
   paths: v.optional(
     v.pipe(
       v.number(),
@@ -83,7 +84,9 @@ function pickWeighted(entries: Weighted, hash: number, scale?: (index: number) =
  * a cell grows south and east of the cell it starts in, and only where every
  * cell it covers is its own kind of ground; where it does not fit, the
  * commonest one-cell tree stands there instead. Nothing grows at the foot of
- * a cliff (`atCliffFoot`).
+ * a cliff (`atCliffFoot`). With `opensTo`, the wood thins toward the ground
+ * tiles named there, such as a road's, and toward its frame and masks, and is
+ * thickest where other ground, such as a hill's foot, ends it.
  */
 export const forest: Component<ForestProps> = {
   type: "forest",
@@ -100,6 +103,7 @@ export const forest: Component<ForestProps> = {
     const grid = newGrid(ctx.bounds);
     const path = forestPaths(grid, ctx.bounds, ctx.seed, props.paths, props.pathWidth);
     const onlyOn = new Set(props.onlyOn);
+    const opensTo = new Set(props.opensTo);
     const grows = (x: number, y: number) => {
       const top = ctx.stackAt(x, y).at(-1);
       return !!top && onlyOn.has(top.tileId) && ctx.covered(x, y);
@@ -111,6 +115,10 @@ export const forest: Component<ForestProps> = {
       density: props.density / 100,
       edge: props.edge,
       outliers: props.outliers / 100,
+      opensTo:
+        opensTo.size > 0
+          ? (x, y) => !ctx.covered(x, y) || opensTo.has(ctx.stackAt(x, y).at(-1)?.tileId ?? "")
+          : undefined,
     });
     const cellAt = (x: number, y: number) =>
       inGrid(grid, x, y) ? wood.cells[gridIndex(grid, x, y)]! : OUTSIDE;

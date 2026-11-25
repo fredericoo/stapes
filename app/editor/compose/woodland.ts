@@ -9,6 +9,12 @@ export type WoodlandOptions = {
   edge: number;
   /** The chance, 0 to 1, of a lone tree anywhere on its ground, however open. */
   outliers: number;
+  /**
+   * Cells the wood opens toward. When given, `edge` is counted from the nearest
+   * of them or from the edge of `bounds` instead of from the end of the ground,
+   * so the wood is thickest against whatever else ends its ground.
+   */
+  opensTo?: (x: number, y: number) => boolean;
 };
 
 /** What a cell of the wood's ground holds. */
@@ -69,11 +75,11 @@ function smooth(t: number): number {
 /**
  * Plants a wood over the cells of `bounds` that `ground` allows. The chance of
  * a tree is the density, scaled by two noise fields of different sizes, by a
- * canopy that rises from nothing at the edge of the ground to one `edge`
- * cells in, and by a verge either side of `path`. The edge is measured in a
- * straight line and pushed in and out by noise, so the wood ends in bays and
- * tongues rather than in the shape of its frame, and `outliers` puts lone
- * trees in the open beyond it.
+ * canopy that rises from nothing at the edge of the ground, or at the cells
+ * it `opensTo`, to one `edge` cells in, and by a verge either side of `path`.
+ * The edge is measured in a straight line and pushed in and out by noise, so
+ * the wood ends in bays and tongues rather than in the shape of its frame,
+ * and `outliers` puts lone trees in the open beyond it.
  *
  * In the close wood an open cell nearly ringed by trees is planted over,
  * because the camera draws the trees in front of it over it, and every glade
@@ -97,10 +103,13 @@ export function growWoodland(
 
   /** One cell of padding so the frame's own edge counts as the end of the ground. */
   const pw = width + 2;
+  const opensTo = options.opensTo;
   const fromEdgePadded = distanceTo(pw, height + 2, (j) => {
     const x = (j % pw) - 1;
     const y = Math.floor(j / pw) - 1;
-    return x < 0 || y < 0 || x >= width || y >= height || cells[y * width + x] === OUTSIDE;
+    const inside = x >= 0 && y >= 0 && x < width && y < height;
+    if (opensTo) return !inside || opensTo(bounds.minX + x, bounds.minY + y);
+    return !inside || cells[y * width + x] === OUTSIDE;
   });
   const fromPath = path.size > 0 ? distanceTo(width, height, (i) => path.has(i)) : null;
 
@@ -148,7 +157,8 @@ export function growWoodland(
     for (const i of fill) cells[i] = TREE;
   }
 
-  joinGlades(cells, width, height, path, options.seed);
+  const exit = opensTo ? (i: number) => opensTo(xOf(i), yOf(i)) : () => true;
+  joinGlades(cells, width, height, path, options.seed, exit);
   return { cells, canopy };
 }
 
@@ -196,12 +206,13 @@ function heap(cost: Float64Array) {
 }
 
 /**
- * Open ground counts as reached when it touches the ground's edge or the
- * path. Each glade that is not, largest first, is joined to what is by the
- * way that fells the fewest trees, each tree costed with a little noise so
- * the track bends round the thick of the wood instead of running straight.
- * A pocket too small to be a glade that is still not reached is planted
- * over, since nobody could walk into it.
+ * Open ground counts as reached when it touches the path, the edge of the
+ * bounds, or a cell beyond the ground that `exit` allows. Each glade that is
+ * not, largest first, is joined to what is by the way that fells the fewest
+ * trees, each tree costed with a little noise so the track bends round the
+ * thick of the wood instead of running straight. A pocket too small to be a
+ * glade that is still not reached is planted over, since nobody could walk
+ * into it.
  */
 function joinGlades(
   cells: Uint8Array,
@@ -209,6 +220,7 @@ function joinGlades(
   height: number,
   path: ReadonlySet<number>,
   seed: number,
+  exit: (i: number) => boolean,
 ) {
   const n = cells.length;
   const region = new Int32Array(n).fill(-1);
@@ -235,7 +247,7 @@ function joinGlades(
           continue;
         }
         const j = ny * width + nx;
-        if (cells[j] === OUTSIDE) home = true;
+        if (cells[j] === OUTSIDE && exit(j)) home = true;
         if (cells[j] !== OPEN || region[j] !== -1) continue;
         region[j] = id;
         stack.push(j);
@@ -281,6 +293,7 @@ function joinGlades(
       for (const [dx, dy] of N4) {
         const j = (y + dy) * width + (x + dx);
         if (cells[j] === OUTSIDE) {
+          if (!exit(j)) continue;
           end = i;
           break;
         }

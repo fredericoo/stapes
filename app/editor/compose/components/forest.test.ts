@@ -148,3 +148,81 @@ describe("a forest's shape", () => {
     });
   });
 });
+
+describe("a forest that opens to a road", () => {
+  const SIZE = { w: 60, h: 40 };
+  const ROAD_X = 40;
+  const SAND_W = 4;
+  /** Open field left round the wood, so the frame's own edge is somewhere a player can walk. */
+  const FIELD = 4;
+  const wood = (seed: number, props: Record<string, unknown> = {}) =>
+    buildTree(
+      land(SIZE, [
+        node(
+          "fill",
+          { tiles: ["sand"], edge: [], mode: "whole stack" },
+          { frame: frame(0, 0, SAND_W, SIZE.h) },
+        ),
+        node(
+          "fill",
+          { tiles: ["dirt"], edge: [], mode: "whole stack" },
+          { frame: frame(ROAD_X, 0, 1, SIZE.h) },
+        ),
+        node(
+          "forest",
+          {
+            onlyOn: ["grass"],
+            density: 80,
+            path: null,
+            undergrowthDensity: 0,
+            opensTo: ["dirt"],
+            ...props,
+          },
+          { frame: frame(0, FIELD, SIZE.w - FIELD, SIZE.h - 2 * FIELD) },
+        ),
+      ]),
+      { seed },
+    );
+  const share = (built: ReturnType<typeof wood>, xs: number[]) => {
+    const trees = new Set(stands(built, "tree").map((c) => `${c.x},${c.y}`));
+    let cells = 0;
+    let found = 0;
+    for (const x of xs) {
+      for (let y = FIELD + 4; y < SIZE.h - FIELD - 4; y++) {
+        cells++;
+        if (trees.has(`${x},${y}`)) found++;
+      }
+    }
+    return found / cells;
+  };
+
+  it.each([1, 2, 3])("is thick against other ground and thin beside the road, seed %i", (seed) => {
+    const built = wood(seed);
+    const besideRoad = share(built, [ROAD_X - 2, ROAD_X - 1, ROAD_X + 1, ROAD_X + 2]);
+    const besideSand = share(built, [SAND_W, SAND_W + 1, SAND_W + 2]);
+    expect(besideRoad, sketch(built)).toBeLessThan(besideSand / 3);
+  });
+
+  it("thins against other ground when it opens to nothing", () => {
+    const built = wood(1, { opensTo: [] });
+    const besideSand = share(built, [SAND_W, SAND_W + 1]);
+    const deep = share(built, [SAND_W + 14, SAND_W + 15]);
+    expect(besideSand, sketch(built)).toBeLessThan(deep / 3);
+  });
+
+  it.each([1, 2, 3, 4])(
+    "leaves no open ground that cannot be walked to from the road, seed %i",
+    (seed) => {
+      const built = wood(seed);
+      const walked = reach(built, { x: ROAD_X, y: SIZE.h / 2 });
+      const lost: string[] = [];
+      for (let y = 0; y < SIZE.h; y++) {
+        for (let x = SAND_W; x < SIZE.w; x++) {
+          const top = getStack(built.map, x, y, 0).at(-1)?.tileId;
+          if (top === "grass" && !walked.has(`0:${x},${y}`)) lost.push(`${x},${y}`);
+        }
+      }
+      expect(lost, sketch(built)).toEqual([]);
+    },
+  );
+});
