@@ -2662,7 +2662,7 @@ export class GameSession implements PlaySession {
       self: { x: loc.x, y: loc.y, z: loc.z },
       home: actor.home,
       spot: (name) => loc.placed.spots?.[name] ?? null,
-      nearestOnTile: (tileIds) => this.nearestOnTile(actor.id, loc, tileIds),
+      nearestOnTile: (tileIds, untagged) => this.nearestOnTile(actor.id, loc, tileIds, untagged),
       nearestThing: (tileIds) => {
         const key = tileIds.join("+");
         const known = thingsFound.get(key);
@@ -5459,11 +5459,17 @@ export class GameSession implements PlaySession {
     return this.isConcealed(goal.id) ? null : this.actorCell(goal.id);
   }
 
-  private nearestOnTile(selfId: string, from: Coord, tileIds: readonly string[]): string | null {
+  private nearestOnTile(
+    selfId: string,
+    from: Coord,
+    tileIds: readonly string[],
+    untagged?: string,
+  ): string | null {
     const accept = (id: string) => {
       if (id === selfId) return false;
       const actor = this.actors.get(id);
-      return actor !== undefined && !actor.hidden;
+      if (actor === undefined || actor.hidden) return false;
+      return untagged === undefined || !actor.tags.includes(untagged);
     };
     return nearestOnTiles(tileIds, (tileId) => this.columnsOnTile(tileId), from, accept);
   }

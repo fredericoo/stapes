@@ -91,6 +91,31 @@ describe("the castaways' guide", () => {
     expect(Math.max(Math.abs(tove.x), Math.abs(tove.y))).toBeLessThanOrEqual(4);
   });
 
+  it("greets a player until they have talked to her", () => {
+    const session = camp([[12, -9, "tove-arnesdatter"]]);
+    const heard = (ms: number) => {
+      const said: string[] = [];
+      run(session, ms, () => {
+        said.push(...session.drainSpeech().map((line) => line.text));
+        return false;
+      });
+      return said;
+    };
+
+    expect(heard(30_000)).toContain("Another one off the wreck! Over here, by the fire.");
+
+    const tove = bodyOf(session, "tove-arnesdatter")!;
+    expect(
+      session.talk({
+        kind: "open",
+        ref: { x: tove.x, y: tove.y, z: tove.z, stackIndex: tove.stackIndex },
+      }),
+    ).toBe(true);
+    session.talk({ kind: "close" });
+
+    expect(heard(60_000)).not.toContain("Another one off the wreck! Over here, by the fire.");
+  });
+
   it("leaves a rabbit alone", () => {
     const session = camp([
       [0, 0, "tove-arnesdatter"],

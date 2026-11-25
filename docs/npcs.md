@@ -193,7 +193,9 @@ than in either town.
     have not met one."
 - **Game support**: dialog script. Teaching that eating heals is a `say` line
   plus a free `request_trade` that gives a cooked meal once, remembered with a
-  `tag`. Guarding the beach is `hunts-on-sight` with Runa's list of hostile
+  `tag`. "Another one off the wreck! Over here, by the fire." is `greets-newcomers`: she says it every 10 to 20
+  seconds while a player who has not talked to her is in sight, and the first
+  line of her dialog tags the player `tove-met`. Guarding the beach is `hunts-on-sight` with Runa's list of hostile
   creatures, limited to eight cells from her spot, and a fight state that
   shoots with `attack_range` and strikes with `attack`. Her dawn walk to the beach is a brain state
   gated on `time_of_day`. Finding a *new* castaway on her own needs a trigger on

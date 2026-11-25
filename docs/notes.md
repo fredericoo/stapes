@@ -1690,6 +1690,12 @@ reasoning behind each value is in their profile in `docs/npcs.md`.
   the opposite of `potters`'s, so the two never compete for the same idle
   moment: a shopkeeper potters on an empty street and cries their wares to a
   passer-by.
+- **`greets-newcomers` is `calls-out` for players the body has not met**: its
+  `nearest` selector carries `untagged`, which skips a body that holds that
+  dialog tag, and the body's dialog sets the tag on first talk. Speech is a
+  bubble everyone nearby sees, so a player who has the tag still hears the
+  line while a newcomer stands beside them. A death clears tags, so a player is
+  greeted again after dying.
 - **`tends-lights` lights the lanterns and candles near a body for the hours it
   is given and puts them out outside them**, one at a time, nearest first,
   within 6 cells unless told otherwise. It is the lamplighter's routine as a

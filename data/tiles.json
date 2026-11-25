@@ -14554,9 +14554,10 @@
             }
           },
           {
-            "trait": "calls-out",
+            "trait": "greets-newcomers",
             "with": {
-              "line": "Eat something, then follow the road up to the camp."
+              "line": "Another one off the wreck! Over here, by the fire.",
+              "tag": "tove-met"
             }
           },
           {
@@ -14580,6 +14581,10 @@
       },
       "dialog": {
         "script": [
+          {
+            "kind": "tag",
+            "tag": "tove-met"
+          },
           {
             "kind": "say",
             "text": "You're awake. Good. Sit up slow, the sand moves under you. Eat this first, talk after."
