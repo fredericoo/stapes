@@ -136,6 +136,9 @@ export type AutotileSlice = number;
 
 export const AUTOTILE_SLICE_COUNT = 47;
 
+/** One slice per neighbour mask, for a tile with `autotileMask: "full"`. */
+export const FULL_AUTOTILE_SLICE_COUNT = 256;
+
 export type SpriteState = "idle" | "moving";
 
 export type OverrideSpriteState = Exclude<SpriteState, "idle">;
@@ -192,6 +195,14 @@ export type TileDef = StateSprites & {
    * same few pixels. One copy when unset.
    */
   sliceColumns?: number;
+  /**
+   * `"full"` keys an autotile's slices by the raw eight-neighbour mask, 256 of
+   * them, instead of the 47 blob slices. A blob slice cannot tell whether a
+   * diagonal neighbour is joined when a side next to it is not, so its edge
+   * has to stop straight at every cell side; a full slice knows, and its edge
+   * can curve through the corner of the cell.
+   */
+  autotileMask?: "full";
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;
