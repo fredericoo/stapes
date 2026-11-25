@@ -7,6 +7,7 @@ import { serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
+import { withFlow } from "../app/lib/waterFlow";
 
 const USAGE = `bun run build:map <tree.json> [--out map.json] [--scene scene.json]
 
@@ -36,7 +37,9 @@ const tilesById = tilesByIdFromList(
 );
 
 const started = performance.now();
-const { map, layout, problems } = buildMap(parsed.doc, tilesById, COMPONENTS);
+const built = buildMap(parsed.doc, tilesById, COMPONENTS);
+const { layout, problems } = built;
+const map = withFlow(built.map, tilesById);
 const ms = Math.round(performance.now() - started);
 
 function cellsOf(file: MapFile) {

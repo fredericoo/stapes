@@ -156,8 +156,8 @@ bun run scene scripts/scenes/cyclops-pond.json --out before.png
   the branch, with the same `--size`, and the only difference is the change.
   Keep a scene that shows something worth checking again in `scripts/scenes/`.
 - **`"clockMs"` is the animation clock the scene is drawn at**, zero when
-  absent. It picks every animation's frame, so the same scene drawn at a few
-  clocks a frame apart shows it move.
+  absent. It picks every animation's frame and every colour cycle's step, so
+  the same scene drawn at a few clocks a step apart shows the water moving.
 - **`"weather": "rain"` or `"fog"` draws the scene under that weather.** Fog is
   measured from the cell in `look`. `"weatherAreas"` takes the rectangles that
   `weather` nodes in the tree lay out (`app/lib/weatherAreas.ts`).

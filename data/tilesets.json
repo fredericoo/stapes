@@ -80,7 +80,7 @@
     "id": "water",
     "name": "Water",
     "file": "water.png",
-    "width": 112,
+    "width": 8,
     "height": 2048
   },
   {
@@ -165,16 +165,16 @@
     "id": "deep-water",
     "name": "Deep Water",
     "file": "deep-water.png",
-    "width": 112,
-    "height": 376,
+    "width": 8,
+    "height": 8,
     "translucent": true
   },
   {
     "id": "swamp",
     "name": "Swamp",
     "file": "swamp.png",
-    "width": 112,
-    "height": 376,
+    "width": 8,
+    "height": 8,
     "translucent": true
   },
   {

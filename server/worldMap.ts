@@ -11,6 +11,7 @@ import { StackPool } from "../app/lib/stackPool";
 import { normalizeTiles } from "../app/lib/types";
 import type { WeatherArea } from "../app/lib/weatherAreas";
 import { tilesByIdFromList } from "../app/lib/validation";
+import { withFlow } from "../app/lib/waterFlow";
 import type { StartingWorld } from "./startingWorld";
 
 /** What the world's board was last built from, in the world's own store. */
@@ -38,15 +39,9 @@ export function buildWorldMap(treeText: string, tilesText: string): BuiltWorldMa
   const parsed = parseMapDoc(JSON.parse(treeText) as unknown);
   if (!parsed.ok) throw new Error(`The world's tree is not a map tree: ${parsed.reason}`);
   const tilesById = tilesByIdFromList(normalizeTiles(JSON.parse(tilesText) as unknown[]));
-  const { map, problems } = buildMap(
-    parsed.doc,
-    tilesById,
-    COMPONENTS,
-    undefined,
-    null,
-    new StackPool(),
-  );
-  return { text: serializeMap(map), problems };
+  const pool = new StackPool();
+  const { map, problems } = buildMap(parsed.doc, tilesById, COMPONENTS, undefined, null, pool);
+  return { text: serializeMap(withFlow(map, tilesById, pool)), problems };
 }
 
 /** Laid out without building, so a restart that builds nothing still reads its areas from the tree. */

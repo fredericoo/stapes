@@ -3068,16 +3068,17 @@ keys the slices by the raw eight-neighbour mask instead, 256 of them, and
   waves to the inset, scaled to nothing within 3px of any neighbour that is
   grass, so where the edge crosses into the next cell it is where the outline
   alone puts it, whichever column that cell drew.
-- **It costs 256 rows of sheet and of `tiles.json`.** Water's 14 frames per
-  slice made `tiles.json` about 1MB larger, 20KB gzipped.
+- **It costs 256 rows of sheet and of `tiles.json`**, one still frame each:
+  the colour cycle moves the water, not the frames (*Water is colour-cycled
+  along a current worked out when the world is built*).
 
 ### Deep water and swamp are laid over shallow water
 
 `deep-water` and `swamp` are autotiles meant to sit on top of `water` in the
-same stack (`dirt, water, deep-water`). Each connects only to itself, and where
-it does not connect its art fades in opacity over the three pixels in from the
-edge (0, ½, 1), so the water underneath shows through and the two read as one
-body of water. The water underneath still draws the shoreline against the bank.
+same stack (`dirt, water, deep-water`). Each connects only to itself, and the
+shader thins it out over the two cells in from the edge of its pool (*A liquid
+laid over water fades by how much of the pool is round it*, below), so the
+water underneath shows through and the two read as one body of water. The water underneath still draws the shoreline against the bank.
 A swamp laid straight on grass, with no water under it, fades into the grass,
 which reads as a marshy edge. Both sheets are `translucent` (below).
 
@@ -3136,13 +3137,12 @@ picture:
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:
 
-- **The liquids are the water's own frames, at the water's `phase` and frame
-  time.** The renderer offsets an animated tile's frame per cell by its
-  `phase`, which is what stops water repeating every 8px. A liquid without the
-  phase showed the same frame in every cell and read as a grid, and one at
-  another frame time ripples out of step with the water showing through its
-  edge.
-- **The fade has three steps, not a smooth ramp.** A blend goes through the
+- **The liquids are colour-cycled on the water's current, and deep water at
+  the water's cycle length and pace.** A wave then runs on from the shallows
+  through the fading edge into the deep without a seam. Deep water's ramp has
+  no trough: the palette pass snaps any shade darker than its body to near
+  black, which drew a black scratch across the sea.
+- **The fade drops whole pixels, not opacity.** A blend goes through the
   palette pass, and a faint one (a fifth of deep blue over the water's crest)
   lands on a grey, which drew a broken grey line round every pool.
 - **A plant's stalks are shaded by height, not by the light.** Lit from above, a
@@ -17815,10 +17815,10 @@ Measured on the shipped map: **131 world meshes and 205 draw calls became 23 and
 
 ### A phase is a vector on the sprite, and it is for art whose light does not vary
 
-`TileSprite.phase` — `{ x: 3, y: -1 }` on water — advances the cycle by that
+`TileSprite.phase` — `{ x: 5, y: 3 }` on `lava` — advances the cycle by that
 many frames per cell, so neighbouring placements are out of step. Without one a
-pond is one motif stamped in lockstep and reads as wallpaper; the vector is what
-makes the wave travel diagonally across it. It is deliberately a vector rather
+lava field is one motif stamped in lockstep and reads as wallpaper; the vector
+is what makes the waves travel diagonally across it. It is deliberately a vector rather
 than a hash of the cell: the direction is art direction, and a hash gives static.
 
 **A sprite whose light varies may not declare one**, and `spritePhase` returns
@@ -17854,75 +17854,142 @@ editor did exactly that — `setSprite({ frames: next })` — which made every f
 edit in the dialog, including changing a duration, silently unphase the tile.
 Spread the sprite.
 
-### The water autotile is generated from two masks, not drawn
+### Water is colour-cycled along a current worked out when the world is built
 
-`bun run generate:water` writes `data/tilesets/water.png` and the `water` tile's
-47 slices together, from:
+`water`, `deep-water` and `swamp` are drawn by colour cycling, as palette
+animation was on indexed hardware. Their art is one still frame per slice with
+the liquid painted in a single key colour (`colorCycle.key`). The world shader
+(`app/render/colorCycle.ts`) replaces every pixel of that colour with a colour
+from the tile's `ramp`, picked by how far the current has come to the pixel and
+by the clock. The ramp turns a step at a time, so its bands travel with the
+current, and the bank keeps the colours it was drawn in.
 
-- `scripts/wave-frames.png` — the fourteen recovered wave frames, white where
-  the wave catches the light. Not in `data/tilesets/` because it is not a
-  tileset: nothing draws it, it is only ever an input.
-- the green autotile block in `data/tilesets/floors.png` — its green pixels are
-  the shape of each of the 47 neighbourhoods.
+**The current is a field over the whole map, so the server works it out.**
+`withFlow` (`app/lib/waterFlow.ts`) runs after `buildMap` in `buildWorldMap`
+and writes each colour-cycled placement's `flow`: the time for the current to
+reach that cell. A client only holds the chunks round it, and which way the
+sea runs past a beach depends on where the open water is a long way off.
+`bun run build:map` and the scene page call it too. The compose editor's
+preview, which builds on every drag step, does not: it has no `flow` and draws
+every liquid drifting south, as water put down without a current does.
 
-The slice-to-source-cell map is read off `dirt`, the ground autotile already laid
-out on that sheet, rather than restated. A pond's rim has to tuck into its
-neighbours exactly the way the ground does, and two hand-maintained copies of
-the same 47-entry mapping would drift.
+- **The sea runs in towards the coast.** Sea is the water a disc of
+  `SEA_CLEARANCE` cells can reach from the map's edge without touching a bank,
+  plus any narrow water whose far end is within `INLET_REACH` of it. Its
+  current starts at every sea cell beside something that is not sea and is
+  measured outwards, then reversed, so waves arrive square on to every shore,
+  into bays and round islets, as real waves are turned by the shallows.
+- **A river runs to the sea by the shortest way through water.** It is
+  measured from its mouths, a mouth further north starting `SOUTHWARD_BIAS`
+  later per cell, so a river joined to the sea at both ends leaves by the
+  southern one unless the other is much nearer. A lake on a river carries the
+  river's current from its inlet to its outlet. A narrow river runs faster
+  than a wide one, and a drop of a level is a fall, crossed four times as fast.
+- **Water that reaches no sea drifts south**, as does every placement written
+  without a `flow`.
+- **The distance steps include knight's moves.** Eight steps alone make every
+  front an octagon, which shows as straight bands breaking at 45°.
 
-47 slices x 14 frames is 47 rows in the level's animation table and one texture
-either way, so it costs a few hundred texels and **no extra draw call**. Measured
-on the shipped map with the pond in view: 27 world meshes, 58 draw calls.
+Measured on the shipped world: 721,837 cells of water, 0.9 s to find them,
+2.0 s for the current and 3.6–3.9 s for the whole pass, added to a 30 s build.
 
-The tile is **opaque**, unlike the translucent slab water used to be. A wash over
-whatever was underneath made a pond over a dirt bed read as mud; the ground still
-shows at the rim, because that is where the autotile's own shape stops rather
-than where its alpha does. Three tones, not two: the third is a shadow one pixel
-down and right of every bright one, which is what stops a crest reading as a flat
-line, plus a two-pixel band inside each slice's top and left edges so the water
-reads as sunken into the bank rather than painted onto it.
+**`flow` is stored modulo `FLOW_PERIOD` (16 cells) in steps of an eighth of a
+cell**, so a placement holds one of 128 values and identical stacks of open
+water are still shared by the stack pool. With `bank` and `waves` beside it
+(below), the shipped world's distinct stacks went from 13,882 to 18,910 and its
+map text from 102 MB to 122 MB (6.0 MB to 8.6 MB gzipped). Every `cellsPerCycle` divides the period, so the wrap lands on
+a whole number of cycles and the shader's `fract` cannot see it.
 
-**A phased pattern does not wrap within its own frame.** The shadow on a tile's
-left column is cast by the pixel to its left, which is in the tile to the *west*
-— and that tile is `phase.x` frames further round the cycle, so its column 7 is
-not this frame's column 7. Wrapping within the frame is what a plain tiling
-pattern wants, and this one only tiles across space after the clock has been
-shifted per cell. The source frame therefore steps back by `-phase.x` across the
-left seam, `-phase.y` across the top one, and both at the corner.
+**The shader blends the current at the cell's four corners.** Each corner is
+the mean of the water cells that meet there (`cycleCorners`), each taken within
+half a period of the cell's own value so that a corner averaged across the wrap
+is not pulled half a period away. The blend is bilinear, at the art pixel's
+centre, in the fragment shader: leaving it to a varying would crease every band
+along the diagonal of the quad's two triangles. The corners ride on the quad as
+`aCycle`, beside `aCycleWaves` and `aCycleCover` (below), which only quads of a
+colour-cycled tile carry.
 
-The consequence is worth stating plainly: **the phase is baked into the art.**
-Change it on the tile — in the editor, say — and the sheet has to be regenerated
-with `bun run generate:water`, or every tile's leading edges stop lining up with
-its neighbours.
+**Two kinds of fixed noise keep the bands from reading as stripes.** `ripple`
+moves each pixel's place on the ramp by up to that many steps, which bends a
+band. `gaps` hides that share of each band behind the ramp's first colour,
+the water's own, which breaks it into dashes. Each band takes its gaps from a
+hash of its count along the current, so the dashes change shape as they
+travel rather than sliding under fixed holes. The count is taken modulo the
+cycles in a stored period, because two cells either side of a wrap count their
+bands from different starts.
 
-The bank band reads its edges off the slice's own shape, with off-tile counting
-as inside. That is what separates open water, whose shape fills the tile and
-which gets no band at all, from an edge slice whose outline the artwork already
-cuts in. The reach is a square rather than a row and a column of it: two
-separate reaches leave the corner where they meet unshaded, and a bank that turns
-a corner in two strips with a gap between them reads as two shadows rather than
-as one edge.
+**A river's waves are smaller than the sea's.** `withFlow` also writes
+`waves` on water that is not sea: 2 within `TWO_WAVES_WITHIN` cells of a bank
+and 3 within `THREE_WAVES_WITHIN`, absent (one) elsewhere. The shader
+multiplies both the current and the clock by it, so the bands are that many
+times closer and travel at the same speed. It has to be a whole number, or the
+bands would not meet where the stored flow wraps, so where the corners blend
+between two counts each pixel takes one or the other in noisy patches of
+`WAVES_PATCH_PX`. The noise that bends and breaks the bands shrinks half as
+fast as the waves: shrunk as fast, a river's dashes broke up into single
+pixels.
 
-**A shaded autotile needs its corner slices, and a flat one does not.** The
-ground autotiles map the whole 47-slice blob set onto the sixteen cells their
-artwork has, so a cell with material on two sides but ground on the diagonal
-between them draws the same square corner as one with material all round.
-Nobody minded, because a flat fill makes the two identical. Water shaded from the
-top and left is not flat: a corner with no nick taken out of it has no shade in
-it either, and the bank stops exactly where the eye is looking.
+**Open water calms with distance from the shore.** `withFlow` writes `bank`
+on every colour-cycled placement: whole cells to the nearest bank, capped at
+`BANK_CAP` (24) so the open sea is one value and its stacks stay shared. It is
+left off at the cap, so a placement with a `flow` and no `bank` is open water
+(`placedBank`); written on all of it, it made the map 12 MB larger. The
+shader blends it at the corners like the current. From `LONG_FROM` cells out
+it halves the wave count, a dithered patch at a time; a half still leaves a
+whole number of cycles in a stored period. From `CALM_FROM` to `CALM_TO` cells
+it raises `gaps` to all of every band, so the bands thin out and the middle of
+a lake or the open sea is its plain colour. Without it the sea was one
+pattern of rings drawn round every coast out to the edge of the map.
 
-So the generator cuts one pixel out of each corner the ground reaches into, on
-top of the shape it borrows — one pixel because that is the radius the artwork
-rounds its own corners by, and picking any other number would be picking a
-different sheet's answer. The 47 slices become 47 distinct shapes rather than
-sixteen repeated.
+**A liquid laid over water fades by how much of the pool is round it.** The
+3-pixel opacity fade the `deep-water` and `swamp` sheets used to carry followed
+the cell sides, so a pool's outline was its cells'. Their sheets are now one
+solid cell of the key colour. Each quad of a translucent colour-cycled tile
+carries `aCycleCover`: at each corner, the share of the cells within
+`LIQUID_FADE_CELLS` (2) that hold the same tile (`coverCorners`). The shader
+blends it like the current and drops a pixel where it falls under a threshold
+mixed from a Bayer matrix and noise, so the edge is dithered and ragged over
+two cells. Three things follow:
 
-**Only the northern nicks cast a bank.** A nick at a *southern* corner is the
-near shore: the light comes over the water's top-left shoulder, so that ground is
-lit rather than casting, and letting it cast drew a bar of shadow running off to
-the right along the bottom of the tile with nothing above it to explain itself.
-So the bank is measured from a shape carrying only the north-west and north-east
-nicks, while the tile is drawn from the shape carrying all four.
+- **Every cell within two of a pool's edge needs `water` under it**, or the
+  background shows through the gaps. `bun run verify content` warns about one
+  with nothing under it.
+- **A pool one cell wide all but vanishes**, and one two wide shows about a
+  quarter of its pixels: neither has a cell with enough of the pool round it.
+- **The cover reads two cells out, and an edit rebuilds the cells one out.**
+  Deep water put down or taken away at runtime leaves the cover of the cells
+  two away as it was until their chunk is next rebuilt.
+
+The rest of the design follows from where the shader sits:
+
+- **It runs straight after the texture is sampled.** The reflection mask reads
+  `sampledDiffuseColor`, which the cycle overwrites, so `reflective.colors`
+  names ramp colours and the crest can still be left out of the mirror. Light,
+  fog and the palette pass all come after, as they do for any other pixel.
+- **A material for a colour-cycled sheet carries the `COLOR_CYCLE` define** and
+  its own copy of the weather defines (`cycleDefines`), kept in step with
+  `weatherDefines`. Every other world material compiles without the code.
+- **The clock's phase loops over a stored period, not over one cycle**
+  (`cyclePhaseAt`). Looping after one cycle snapped every band each time it
+  wrapped: water drawing half the waves jumped half a cycle, and every band's
+  count along the current, which picks its gaps, moved on, so all the dashes
+  changed at once. Four cycles is a whole number at every wave count and is
+  what that count is taken modulo.
+- **The picture changes only when a ramp steps.** `updateColorCycles` asks for
+  a frame only then, as `crossedFrame` does for the animation table, so a view
+  of open water renders once per step rather than on every tick of the clock.
+- **The key and the sheet are generated together.** `colorCycle` is one of the
+  fields `writeTileset` takes from a generator, beside `slices`, because a key
+  that no longer matches a pixel of the art draws the key colour itself.
+
+Water put down after the world was built (`GameSession`'s map setter calls
+`settleFlow`) takes the mean current of the water beside it, so a channel dug
+from a river carries the river on. Only changed chunks that hold a colour-cycled
+tile are read, and a step through water changes no placement's `flow`.
+
+The sheets went from 344 KB to 10 KB, and `tiles.json` from 6.1 MB to 4.5 MB
+(213 KB to 181 KB gzipped), the fourteen wave frames per slice it no longer
+lists.
 
 ### Mobility is a property of the tile, not of the frame
 

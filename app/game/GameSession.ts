@@ -546,6 +546,7 @@ import {
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor, spanningTileIds } from "../lib/footprint";
+import { settleFlow } from "../lib/waterFlow";
 import { withTraits, type TraitCatalogue } from "../lib/traits";
 import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
@@ -1041,15 +1042,17 @@ export class GameSession implements PlaySession {
   private board!: MapFile;
   private readonly tilesById: Record<string, TileDef>;
   /**
-   * Every write settles the multi-cell footprints it touched, so the value read
-   * back can differ from the one assigned. Derive the next edit from `this.map`,
-   * never from a value already assigned to it.
+   * Every write settles the multi-cell footprints it touched and gives new
+   * water a current, so the value read back can differ from the one assigned.
+   * Derive the next edit from `this.map`, never from a value already assigned
+   * to it.
    */
   private get map(): MapFile {
     return this.board;
   }
   private set map(next: MapFile) {
-    this.board = settleSpans(this.board, next, this.tilesById);
+    const prev = this.board;
+    this.board = settleFlow(prev, settleSpans(prev, next, this.tilesById), this.tilesById);
   }
   /**
    * Steps and turns write through this, so a crowd walking one level copies
