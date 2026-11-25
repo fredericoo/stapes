@@ -57475,7 +57475,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -58068,7 +58069,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -58661,7 +58663,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -59254,7 +59257,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -59847,7 +59851,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,

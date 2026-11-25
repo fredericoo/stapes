@@ -12709,6 +12709,10 @@ it is not a crime.
   four bodies.
 - **Iolanthe Sarno and the cats call neither trait.** Iolanthe already turns
   on whoever hits Rosalind Peake. None is a witness the guards hear from.
+- **A townsperson's cat is protected as its owner is.** Biscuit, Soot, Ghee,
+  Captain and Nettle carry `pvp` on their battler, so only a player with PvP
+  on can hurt one. They are not on any `town` list, so hitting one is still not
+  a crime the guards hear about.
 
 ## A respawn can keep to hours
 
