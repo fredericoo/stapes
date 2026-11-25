@@ -14600,7 +14600,36 @@
                   },
                   {
                     "kind": "say",
-                    "text": "Take the road up between the hills. The camp's at the top. Rats on the way, a snake or two, nothing worse. Keep something in your hand and you'll be fine."
+                    "text": "You're not the first, and you won't be the last. A ship comes in every few weeks. Something out there pulls them. The current runs wrong, the wind swings round, and every helm ends up pointed at that light."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Crews fight it all night and wake up here anyway. Only ones like you walk off the wrecks. Don't ask me why. I stopped asking."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Where do I go?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "North. Take the road up between the hills. The camp's at the top: a fire, a pub, a few tents, and people. Ifeoma cooks, Idris buys skins, Runa keeps the rats off. That's where you trade, not here."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Rats on the way, a snake or two, nothing worse. Keep something in your hand and you'll be fine."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Past the camp the island opens up. There are two towns worth the walk. The druids' town, round the rune temple, where they still carve. And the warriors' town to the east, where they won't touch a rune."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "They don't love each other. My brother lives with the warriors. Go and see both, then pick."
                   },
                   {
                     "kind": "goto",
@@ -14620,7 +14649,11 @@
                     "then": [
                       {
                         "kind": "say",
-                        "text": "You've had your free one. After that it's three gold, same as anyone. Meat doesn't hunt itself."
+                        "text": "You've had your free one. The rest you buy up at the camp. Ifeoma cooks, and she'll take what you hunt off you too."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
                       }
                     ],
                     "else": [
@@ -14670,252 +14703,6 @@
                 ]
               },
               {
-                "label": "Trade",
-                "then": [
-                  {
-                    "kind": "say",
-                    "text": "Cooked meat, if you're buying. If you've been hunting, I'll take what you cut off the animals."
-                  },
-                  {
-                    "kind": "anchor",
-                    "name": "trade"
-                  },
-                  {
-                    "kind": "choices",
-                    "options": [
-                      {
-                        "label": "Buy {item:cooked-meat}",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Three gold a piece. Cooked this morning on Ifeoma's fire."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [],
-                            "give": [
-                              {
-                                "tileId": "cooked-meat",
-                                "count": 1
-                              }
-                            ],
-                            "takeCash": 3,
-                            "min": 1,
-                            "max": 99,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "There. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "Fine. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Sell {item:raw-meat}",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "One gold a cut. Raw's no use to you. I'll cook it."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "raw-meat",
-                                "count": 1
-                              }
-                            ],
-                            "give": [],
-                            "giveCash": 1,
-                            "min": 1,
-                            "max": 99,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Done. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "Fine. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Sell {item:skin}",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Two gold a skin. Idris at the camp pays the same, but he'll talk at you while he does."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "skin",
-                                "count": 1
-                              }
-                            ],
-                            "give": [],
-                            "giveCash": 2,
-                            "min": 1,
-                            "max": 99,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Done. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "Fine. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Sell {item:rat-tail}",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "One gold a tail. Every tail is one rat fewer near the camp."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "rat-tail",
-                                "count": 1
-                              }
-                            ],
-                            "give": [],
-                            "giveCash": 1,
-                            "min": 1,
-                            "max": 99,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Done. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "Fine. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "Sell {item:nature-slime-jelly}",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "One gold a jelly. Noor in the druids' town brews with them. Don't ask me what."
-                          },
-                          {
-                            "kind": "request_trade",
-                            "take": [
-                              {
-                                "tileId": "nature-slime-jelly",
-                                "count": 1
-                              }
-                            ],
-                            "give": [],
-                            "giveCash": 1,
-                            "min": 1,
-                            "max": 99,
-                            "default": 1,
-                            "traded": [
-                              {
-                                "kind": "say",
-                                "text": "Done. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ],
-                            "cancel": [
-                              {
-                                "kind": "say",
-                                "text": "Fine. What else?"
-                              },
-                              {
-                                "kind": "goto",
-                                "name": "trade"
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "label": "That's all",
-                        "then": [
-                          {
-                            "kind": "say",
-                            "text": "Right. Anything else?"
-                          },
-                          {
-                            "kind": "goto",
-                            "name": "main"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
                 "label": "Will I die here?",
                 "then": [
                   {
@@ -14925,6 +14712,18 @@
                   {
                     "kind": "say",
                     "text": "Usually something small. Forty-odd times for me. Wolves I can live with. Anyone tells you a troll is not so bad, they've not met one."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "It's been like this since the night the light changed. A hundred and thirty years, near enough. Nobody's aged a day since. Nobody's stayed dead."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Look at the top of the lighthouse after dark. That's not oil burning. The man who built it carved runes, and the stone did what he told it. That night he went up to the top, and he never came down."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Whatever stopped us dying, it started up there. Leave it be for now. You're not ready for that climb."
                   },
                   {
                     "kind": "goto",

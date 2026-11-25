@@ -27,8 +27,11 @@ In `data/world.json`:
   The `flame` never burns out; a `campfire` decays and is put out by rain.
   Tove Arnesdatter (`wreck-tove`) stands beside it and tells the player to
   follow the road. She has no `keeps-hours`, so she is awake at every hour:
-  a player who joins at night still gets the guided start. Her trades sit behind one Trade option so a new player's
-  first conversation is about the island, not a price list.
+  a player who joins at night still gets the guided start. She gives one
+  free meal and does not trade, so a new player's first conversation is about
+  the island and the only reason to stay on the beach is to listen. She shoots any
+  hostile creature she sees within seven cells while she is near her spot, so
+  the waking spot is safe.
 - **The valley.** `wreck-west-hill` and `wreck-east-hill` are steep hills either
   side of the road (`beach-path`) from the wreck to the camp. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
