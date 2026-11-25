@@ -5,6 +5,7 @@ import {
   dropLanding,
   findPath,
   type PathOptions,
+  type PathOutcome,
   type PathRefusal,
   type Reaching,
 } from "./pathfinding";
@@ -24,8 +25,12 @@ export type WalkView = {
   strikes: (actorId: string) => boolean;
 };
 
+type Arrive = NonNullable<PathOptions["arrive"]>;
+
+type Plan = { map: MapFile; from: Coord; goal: Coord; arrive: Arrive; found: PathOutcome };
+
 type Errand =
-  | { kind: "cell"; at: Coord; arrive: NonNullable<PathOptions["arrive"]>; linger: boolean }
+  | { kind: "cell"; at: Coord; arrive: Arrive; linger: boolean }
   | { kind: "body"; actorId: string };
 
 export class WalkTo {
@@ -36,6 +41,7 @@ export class WalkTo {
   private searchedMap: MapFile | null = null;
   private stalled = false;
   private landed = false;
+  private plan: Plan | null = null;
 
   constructor(private readonly input: HeldDirections) {}
 
@@ -63,6 +69,19 @@ export class WalkTo {
         : { kind: "cell", at: { x: on.x, y: on.y, z: on.z }, arrive: "beside", linger: false },
       view,
     );
+  }
+
+  /**
+   * The cell `start` would walk onto for `on`, or null when it would not walk
+   * onto it: no floor there, no route, or already standing on it. The search is
+   * kept, so a click on the same cell before the map changes walks without
+   * searching again.
+   */
+  standFor(on: Coord & { stackIndex: number }, view: WalkView): Coord | null {
+    const standing = standingCellOn(view, on);
+    if (!standing) return null;
+    const found = this.search(view, standing, "on");
+    return found.ok && found.route.length > 0 ? standing : null;
   }
 
   /**
@@ -163,18 +182,7 @@ export class WalkTo {
     this.searchedGoal = goal;
     this.searchedMap = view.map;
 
-    const found = findPath(
-      view.map,
-      { at: from, self: view.at, who: view.who },
-      goal,
-      view.def,
-      view.tilesById,
-      view.statusDefs,
-      {
-        arrive: errand.kind === "body" ? "beside" : errand.arrive,
-        drops: "toGoal",
-      },
-    );
+    const found = this.search(view, goal, errand.kind === "body" ? "beside" : errand.arrive);
     if (!found.ok) {
       this.stalled = true;
       if (errand.kind === "cell") this.cancel();
@@ -193,6 +201,42 @@ export class WalkTo {
 
     this.input.setAuto(leg.direction);
     return null;
+  }
+
+  /**
+   * A `Reaching` is a fresh object on every approach, so only the named
+   * arrivals can match a kept search.
+   */
+  private search(view: WalkView, goal: Coord, arrive: Arrive): PathOutcome {
+    const from = view.stepping ?? view.at;
+    const kept = this.plan;
+    if (
+      kept &&
+      kept.map === view.map &&
+      kept.arrive === arrive &&
+      typeof arrive === "string" &&
+      sameCell(kept.from, from) &&
+      sameCell(kept.goal, goal)
+    ) {
+      return kept.found;
+    }
+    const found = findPath(
+      view.map,
+      { at: from, self: view.at, who: view.who },
+      goal,
+      view.def,
+      view.tilesById,
+      view.statusDefs,
+      { arrive, drops: "toGoal" },
+    );
+    this.plan = {
+      map: view.map,
+      from: { x: from.x, y: from.y, z: from.z },
+      goal: { x: goal.x, y: goal.y, z: goal.z },
+      arrive,
+      found,
+    };
+    return found;
   }
 
   /**

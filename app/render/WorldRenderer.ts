@@ -170,6 +170,7 @@ import {
   makeFollowingPileOutlines,
   makeRectOutline,
   makeCellFill,
+  makeCellFrame,
   makeSpriteGhost,
   makeSpriteOutline,
   OutlineMaterials,
@@ -262,6 +263,8 @@ const REFLECTION_CLEAR = 0x000000;
 const WORLD_LAYER = 0;
 
 const AREA_CELL_OPACITY = 0.35;
+const CELL_FRAME_WIDTH_PX = 1;
+const CELL_FRAME_OPACITY = 0.6;
 
 type ProjectileMesh = {
   mesh: THREE.Mesh;
@@ -505,11 +508,27 @@ export type AreaCellsOverlay = {
   color: number;
 };
 
-export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay | AreaCellsOverlay;
+/** A frame round one ground cell, such as the cell a click would walk to. */
+export type CellFrameOverlay = {
+  kind: "cellFrame";
+  x: number;
+  y: number;
+  elevAbs: number;
+  color: number;
+};
+
+export type OverlaySpec =
+  | ObjectOutlineOverlay
+  | TileGhostOverlay
+  | AreaCellsOverlay
+  | CellFrameOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
   if (spec.kind === "areaCells") {
     return `a:${spec.color}:${spec.cells.map((c) => `${c.x},${c.y},${c.elevAbs}`).join(";")}`;
+  }
+  if (spec.kind === "cellFrame") {
+    return `c:${spec.x},${spec.y},${spec.elevAbs}:${spec.color}`;
   }
   if (spec.kind === "ghost") {
     return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
@@ -1162,6 +1181,10 @@ export class WorldRenderer {
       this.addAreaCells(spec);
       return;
     }
+    if (spec.kind === "cellFrame") {
+      this.addCellFrame(spec);
+      return;
+    }
     for (const outline of this.outlinesFor(spec)) {
       if (spec.pulse) {
         this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
@@ -1221,6 +1244,16 @@ export class WorldRenderer {
     const fill = makeCellFill(origins, CELL_SIZE, spec.color, AREA_CELL_OPACITY);
     this.pulsingFills.push(fill.material as THREE.MeshBasicMaterial);
     this.overlays.add(fill);
+  }
+
+  private addCellFrame(spec: CellFrameOverlay) {
+    const origin = {
+      x: spec.x * CELL_SIZE - spec.elevAbs * PX_PER_HEIGHT,
+      y: spec.y * CELL_SIZE - spec.elevAbs * PX_PER_HEIGHT,
+    };
+    this.overlays.add(
+      makeCellFrame(origin, CELL_SIZE, CELL_FRAME_WIDTH_PX, spec.color, CELL_FRAME_OPACITY),
+    );
   }
 
   private addGhost(spec: TileGhostOverlay) {

@@ -1,7 +1,9 @@
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { coordKey } from "../lib/types";
+import { getStack } from "../lib/mapData";
 import { fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
+import { isSupported } from "./gravity";
 import { DIR_DELTA } from "./movement";
 
 export const ENTRY_SEARCH_RADIUS = 8;
@@ -25,7 +27,15 @@ export function findEntryCell(
     if (
       fitsTile(map, cell.x, cell.y, cell.z, playerDef, tilesById, {
         throughPlayers: true,
-      }).ok
+      }).ok &&
+      isSupported(
+        map,
+        cell.x,
+        cell.y,
+        cell.z,
+        getStack(map, cell.x, cell.y, cell.z).length,
+        tilesById,
+      )
     ) {
       return cell;
     }

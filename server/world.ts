@@ -10,6 +10,7 @@ import {
   buildWorldMapApart,
   readPrebuiltMap,
   readPrebuiltStart,
+  prebuildWorldMapApart,
   builderSourceHash,
   hashOf,
   weatherAreasOfTree,
@@ -111,7 +112,7 @@ export class World {
       config,
     );
 
-    await world.buildAuthoredMap();
+    await world.buildAuthoredMap(undefined, { fresh: true });
     await store.loadAlarm();
     world.rearmAlarm(store.alarmAt());
     store.onAlarmChange = (atMs) => world.rearmAlarm(atMs);
@@ -296,22 +297,31 @@ export class World {
   }
 
   /**
-   * Builds the map from the world's tree when the tree, the tile catalogue or
-   * the builder's source changed since the board was last built, and replaces
-   * the board with it when the map came out different. Players keep their
-   * kit, and their positions unless the world is marked to forget them.
+   * Replaces the board with the map the world's tree builds. At start
+   * (`fresh`) it always does, so a world never plays a board it saved: what
+   * players left lying about, picked or opened goes back to the tree's on
+   * every start. Otherwise it builds only when the tree, the tile catalogue or
+   * the builder's source changed, and replaces the board only when the map came
+   * out different. Players keep their kit, and their positions unless the
+   * world is marked to forget them.
    *
    * `proposed` is a tree to save: it is stored only once its map has started a
    * world, so a tree that cannot start one never becomes the tree the next
    * start builds. Returns whether the board was replaced.
    */
-  buildAuthoredMap(proposed?: string): Promise<boolean> {
-    const next = this.building.then(() => this.buildAuthoredMapNow(proposed));
+  buildAuthoredMap(
+    proposed?: string,
+    { fresh = false }: { fresh?: boolean } = {},
+  ): Promise<boolean> {
+    const next = this.building.then(() => this.buildAuthoredMapNow(proposed, fresh));
     this.building = next.catch(() => false);
     return next;
   }
 
-  private async buildAuthoredMapNow(proposed?: string): Promise<boolean> {
+  private async buildAuthoredMapNow(
+    proposed: string | undefined,
+    fresh: boolean,
+  ): Promise<boolean> {
     const tree = proposed ?? (await this.blobs.readTreeText());
     if (tree === null) return false;
     const tiles = (await this.blobs.readTilesText()) ?? "[]";
@@ -322,28 +332,31 @@ export class World {
     if (areasChanged) await this.blobs.writeWeatherAreas(areas);
     const inputs = hashOf(tree, tiles, await builderSourceHash());
     const recorded = await this.store.get<AuthoredMap>(AUTHORED_MAP_KEY);
+    const unchanged = recorded?.inputs === inputs;
     let replaced = false;
-    const prepared =
-      recorded?.inputs !== inputs && proposed === undefined
-        ? await readPrebuiltStart(
-            this.config.SEED_DIR,
-            this.config.SEED_TREE,
-            inputs,
-            await this.blobs.readTraits(),
-          )
-        : null;
+    if (!fresh && unchanged) {
+      if (proposed !== undefined) await this.blobs.writeTreeText(proposed);
+      return false;
+    }
+    const prepared = proposed === undefined ? await this.preparedStart(inputs) : null;
     if (prepared) {
-      console.log("[world] read the map and the starting rows the image built");
+      console.log("[world] read the map and the starting rows prepared from the tree");
       if (recorded?.map !== prepared.hash) {
         /** Stored first and let go of, so the map text and the new board are never held together. */
         await this.blobs.writeMapFile(prepared.mapPath, () => readFile(prepared.mapPath, "utf8"));
+      }
+      if (fresh || recorded?.map !== prepared.hash) {
         await this.server.replaceWorld(prepared.start, { keepPositions: true });
         replaced = true;
       }
       await this.store.put(AUTHORED_MAP_KEY, { inputs, map: prepared.hash } satisfies AuthoredMap);
-    } else if (recorded?.inputs !== inputs) {
-      const built = await this.buildMap(tree, tiles, inputs);
-      if (recorded?.map !== built.hash) {
+    } else {
+      const stored = unchanged && proposed === undefined ? await this.blobs.readMapText() : null;
+      const built =
+        stored === null
+          ? await this.buildMap(tree, tiles, inputs)
+          : { hash: hashOf(stored), text: stored };
+      if (fresh || recorded?.map !== built.hash) {
         await this.server.replaceWorld(parseSharedMap(built.text, new StackPool()), {
           keepPositions: true,
           text: built.text,
@@ -356,6 +369,28 @@ export class World {
     if (proposed !== undefined) await this.blobs.writeTreeText(proposed);
     await this.store.flush();
     return replaced;
+  }
+
+  /**
+   * The rows to start the world from: the image's, or on a dev server, whose
+   * store is the seed directory itself, ones it prepares beside its database
+   * so a restart streams them instead of parsing the whole map.
+   */
+  private async preparedStart(inputs: string) {
+    const { SEED_DIR, SEED_TREE, DATA_DIR } = this.config;
+    const traits = await this.blobs.readTraits();
+    const fromImage = await readPrebuiltStart(SEED_DIR, SEED_TREE, inputs, traits);
+    if (fromImage || this.rawBlobs instanceof SqliteBlobs) return fromImage;
+    const cached = await readPrebuiltStart(DATA_DIR, SEED_TREE, inputs, traits);
+    if (cached) return cached;
+    const started = performance.now();
+    for (const problem of await prebuildWorldMapApart(SEED_DIR, SEED_TREE, DATA_DIR)) {
+      console.warn(`[world] ${problem.key} was left out of the map: ${problem.reason}`);
+    }
+    console.log(
+      `[world] prepared the map from its tree in ${Math.round(performance.now() - started)} ms`,
+    );
+    return readPrebuiltStart(DATA_DIR, SEED_TREE, inputs, traits);
   }
 
   /** A map the image built from the same inputs is used instead of building it here. */
