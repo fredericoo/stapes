@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
-import type { TileDef, TileSprite } from "../app/lib/types";
+import { FULL_AUTOTILE_SLICE_COUNT, type TileDef, type TileSprite } from "../app/lib/types";
+import { joinedByMask, outlineCoverage, type RoundedEdge } from "./rounded-edge";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA = path.join(ROOT, "data");
@@ -10,9 +10,20 @@ const TILESETS = path.join(DATA, "tilesets");
 
 const CELL = 8;
 
-const SHAPE_BLOCK_X = 4;
-
-const SHAPE_FILL: [number, number, number] = [35, 144, 99];
+/**
+ * The water stops `inset` pixels short of any cell that holds no water, and
+ * the rest of its cell is a sandy bank, so a river or a pond is drawn the same
+ * on whatever ground it is laid on. 4 and 6 are the largest rounding that
+ * still leaves every cell's outline readable from its eight neighbours
+ * (`masksReadingTooFar`).
+ */
+const EDGE: RoundedEdge = { inset: 2, outerRound: 4, blend: 6 };
+/** The wet line is this much wider than the water, round the whole bank. */
+const WET_PX = 1;
+/** `sand`'s own colour, so the bank meets the ground beside it without a seam. */
+const SAND: [number, number, number, number] = [0xfb, 0xb9, 0x54, 255];
+/** `sand`'s ripple colour, darkening the sand the water has just left. */
+const WET_SAND: [number, number, number, number] = [0xe6, 0x90, 0x4e, 255];
 
 const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
 const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
@@ -21,8 +32,6 @@ const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
 const FRAME_MS = 80;
 
 const PHASE = { x: 3, y: -1 };
-
-const SHAPE_SOURCE_TILE = "dirt";
 
 const TILESET_ID = "water";
 const TILE_ID = "water";
@@ -49,28 +58,6 @@ function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
   return out;
 }
 
-const CORNERS: {
-  needs: number;
-  missing: number;
-  x: number;
-  y: number;
-}[] = [
-  { needs: N | W, missing: NW, x: 0, y: 0 },
-  { needs: N | E, missing: NE, x: CELL - 1, y: 0 },
-  { needs: S | W, missing: SW, x: 0, y: CELL - 1 },
-  { needs: S | E, missing: SE, x: CELL - 1, y: CELL - 1 },
-];
-
-function nickCorners(inside: boolean[][], mask: number): boolean[][] {
-  const out = inside.map((row) => [...row]);
-  for (const corner of CORNERS) {
-    const bothEdges = (mask & corner.needs) === corner.needs;
-    if (!bothEdges || mask & corner.missing) continue;
-    out[corner.y]![corner.x] = false;
-  }
-  return out;
-}
-
 async function readPng(file: string): Promise<PNG> {
   return PNG.sync.read(await fs.readFile(file));
 }
@@ -88,33 +75,14 @@ function setPixel(png: PNG, x: number, y: number, rgba: readonly number[]) {
   png.data[i + 3] = rgba[3]!;
 }
 
-async function sliceCells(): Promise<Map<number, { x: number; y: number }>> {
-  const tiles = JSON.parse(await fs.readFile(path.join(DATA, "tiles.json"), "utf8")) as TileDef[];
-  const source = tiles.find((t) => t.id === SHAPE_SOURCE_TILE);
-  if (!source?.slices) throw new Error(`no slices on ${SHAPE_SOURCE_TILE}`);
-
-  const out = new Map<number, { x: number; y: number }>();
-  for (const [key, sprite] of Object.entries(source.slices)) {
-    const rect = sprite?.frames[0]?.sprite.rect;
-    if (!rect) continue;
-    if (rect.w !== 1 || rect.h !== 1) {
-      throw new Error(`slice ${key} of ${SHAPE_SOURCE_TILE} is not one cell`);
-    }
-    out.set(Number(key), { x: rect.x, y: rect.y });
-  }
-  return out;
-}
-
 async function main() {
   const waves = await readPng(path.join(ROOT, "scripts", "wave-frames.png"));
-  const floors = await readPng(path.join(TILESETS, "floors.png"));
-  const cells = await sliceCells();
 
   const frameCount = waves.width / CELL;
   if (!Number.isInteger(frameCount) || waves.height !== CELL) {
     throw new Error(`wave-frames.png should be a row of ${CELL}px frames`);
   }
-  const slices = [...cells.keys()].sort((a, b) => a - b);
+  const slices = Array.from({ length: FULL_AUTOTILE_SLICE_COUNT }, (_, mask) => mask);
 
   const sheet = new PNG({
     width: frameCount * CELL,
@@ -132,24 +100,26 @@ async function main() {
   }
   const shadowByFrame = litByFrame.map((_, frame) => shadowOf(litByFrame, frame));
 
-  slices.forEach((slice, row) => {
-    const cell = cells.get(slice)!;
-    const inside = Array.from({ length: CELL }, (_, y) =>
-      Array.from({ length: CELL }, (_, x) => {
-        const [r, g, b, a] = pixel(floors, (SHAPE_BLOCK_X + cell.x) * CELL + x, cell.y * CELL + y);
-        return a > 0 && r === SHAPE_FILL[0] && g === SHAPE_FILL[1] && b === SHAPE_FILL[2];
-      }),
-    );
-    const mask = AUTOTILE_SLICE_MASKS[slice]!;
-    const shape = nickCorners(inside, mask);
+  slices.forEach((mask, row) => {
+    const joined = joinedByMask(mask);
+    const water = outlineCoverage(joined, EDGE);
+    const wet = outlineCoverage(joined, EDGE, -WET_PX);
 
     for (let frame = 0; frame < frameCount; frame++) {
       const lit = litByFrame[frame]!;
       const shade = shadowByFrame[frame]!;
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
-          if (!shape[y]![x]!) continue;
-          const tone = lit[y]![x]! ? HIGHLIGHT : shade[y]![x]! ? SHADOW : BASE;
+          const tone =
+            water[y]![x]! >= 0.5
+              ? lit[y]![x]!
+                ? HIGHLIGHT
+                : shade[y]![x]!
+                  ? SHADOW
+                  : BASE
+              : wet[y]![x]! >= 0.5
+                ? WET_SAND
+                : SAND;
           setPixel(sheet, frame * CELL + x, row * CELL + y, tone);
         }
       }
@@ -164,6 +134,7 @@ async function main() {
   if (!water) throw new Error(`no ${TILE_ID} tile to point at the sheet`);
 
   water.type = "autotile";
+  water.autotileMask = "full";
   delete water.sprite;
   water.slices = Object.fromEntries(
     slices.map((slice, row): [number, TileSprite] => [

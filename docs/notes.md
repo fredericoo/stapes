@@ -3040,6 +3040,37 @@ and likewise south with `phase.y`, which is what makes the field seamless.
 - **The light has to be the same on every frame.** A frame-varying light turns
   the phase off (`spritePhase`), and every cell would show layout 0.
 
+### A full-mask autotile rounds its corners: `water` and `grass`
+
+A blob autotile has 47 slices because it forgets a diagonal neighbour
+whenever either side next to it is open. Its edge therefore has to reach each
+cell side at the same depth whatever lies on the far corner, so an inner
+corner can be rounded no further than the edge's own inset, and a river one
+cell wide that runs diagonally is drawn as a staircase. `autotileMask: "full"`
+keys the slices by the raw eight-neighbour mask instead, 256 of them, and
+`resolveAutotileSlice` returns the mask itself.
+
+- **The outline is a distance field, `scripts/rounded-edge.ts`.** Each cell
+  the tile does not join is a square with corners rounded to `outerRound`;
+  their smooth union (`blend`) is measured from every pixel, and the tile
+  covers the pixels at least `inset` away. `generate-water-tileset.ts` and
+  `generate-grass.ts` both draw from it.
+- **A sheet row per mask is seamless only if no outline reads past the eight
+  neighbours.** `masksReadingTooFar` checks every mask against several
+  different rings of cells two away. `outerRound` 4 and `blend` 6 is the most
+  that passes with a 2px inset: a larger blend lets a cell two away pull the
+  fillet, and so the same mask would need two drawings.
+- **Water draws its own bank.** Every water cell is opaque: water, a 1px line
+  of wet sand, then `sand`'s own colour out to the cell's sides, so a river
+  meets the sand under the grass beside it without a seam, and the `dirt`
+  under a river is no longer seen.
+- **Grass lobes fade out towards grass.** Each of the six columns adds its own
+  waves to the inset, scaled to nothing within 3px of any neighbour that is
+  grass, so where the edge crosses into the next cell it is where the outline
+  alone puts it, whichever column that cell drew.
+- **It costs 256 rows of sheet and of `tiles.json`.** Water's 14 frames per
+  slice made `tiles.json` about 1MB larger, 20KB gzipped.
+
 ### Deep water and swamp are laid over shallow water
 
 `deep-water` and `swamp` are autotiles meant to sit on top of `water` in the

@@ -81,7 +81,7 @@
     "name": "Water",
     "file": "water.png",
     "width": 112,
-    "height": 376
+    "height": 2048
   },
   {
     "id": "respawn",
@@ -345,7 +345,7 @@
     "name": "Grass",
     "file": "grass.png",
     "width": 48,
-    "height": 376,
+    "height": 2048,
     "translucent": true
   },
   {
