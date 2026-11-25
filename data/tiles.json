@@ -17382,6 +17382,15 @@
         ],
         "traits": [
           {
+            "trait": "defends-its-own",
+            "with": {
+              "ward": [
+                "cat-biscuit"
+              ],
+              "cry": "Get away from my Biscuit!"
+            }
+          },
+          {
             "trait": "raises-the-alarm",
             "with": {
               "town": [

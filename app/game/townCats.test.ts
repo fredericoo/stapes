@@ -82,3 +82,47 @@ describe("a townsperson's cat", () => {
     expect(hpOf(session, id)).toBeLessThan(before);
   });
 });
+
+describe("Ifeoma", () => {
+  it("turns on whoever she sees strike Biscuit", () => {
+    const session = yard([
+      [1, 0, "cat-biscuit"],
+      [3, 1, "ifeoma-nwachukwu"],
+    ]);
+    const ifeoma = idOf(session, "ifeoma-nwachukwu");
+
+    const struck = swingAt(session, idOf(session, "cat-biscuit"), true);
+    const after = run(session, 3_000);
+
+    expect(struck.said).toContain("Get away from my Biscuit!");
+    expect([...struck.swung, ...after.swung]).toContain(ifeoma);
+  });
+
+  it("stands her ground when the culprit hits her back", () => {
+    const session = yard([
+      [1, 0, "cat-biscuit"],
+      [3, 1, "ifeoma-nwachukwu"],
+    ]);
+    const ifeoma = idOf(session, "ifeoma-nwachukwu");
+    swingAt(session, idOf(session, "cat-biscuit"), true);
+
+    const fought = swingAt(session, ifeoma, true);
+
+    expect(fought.said).not.toContain("Please, don't hurt me!");
+    expect(fought.swung).toContain(ifeoma);
+  });
+
+  it("leaves a blow on somebody else's cat to its owner", () => {
+    const session = yard([
+      [1, 0, "cat-soot"],
+      [3, 1, "ifeoma-nwachukwu"],
+    ]);
+    const ifeoma = idOf(session, "ifeoma-nwachukwu");
+
+    const struck = swingAt(session, idOf(session, "cat-soot"), true);
+    const after = run(session, 3_000);
+
+    expect(struck.said).not.toContain("Get away from my Biscuit!");
+    expect([...struck.swung, ...after.swung]).not.toContain(ifeoma);
+  });
+});
