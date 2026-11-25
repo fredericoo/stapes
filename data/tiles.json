@@ -220296,7 +220296,7 @@
     "id": "bedroll",
     "name": "Bedroll",
     "height": 0,
-    "type": "simple",
+    "type": "directional",
     "kind": "prop",
     "attributes": {},
     "anchor": {
@@ -220306,27 +220306,86 @@
     },
     "lightPassing": true,
     "footprint": {
-      "w": 2,
-      "d": 1
+      "w": 1,
+      "d": 2
     },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 0,
-              "w": 2,
-              "h": 1
+    "sprites": {
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 3,
+                "h": 2
+              },
+              "base": {
+                "x": 2,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 0
-            }
-          },
-          "durationMs": 200
-        }
-      ]
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 3,
+                "h": 2
+              },
+              "base": {
+                "x": 2,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 2,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 2
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 2
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
     }
   },
   {
