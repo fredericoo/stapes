@@ -339,7 +339,8 @@ than in either town.
 - **Where**: the camp, at its south edge, by the fire.
 - **What she does**: the camp's archer. She stands at the camp's edge and
   shoots anything with teeth that comes too close, and tells new players how to
-  learn the bow.
+  learn the bow. She sells her old `simple-bow` once, for 10 gold, and sends
+  the buyer after the deer and rabbits round the camp (tag `runa-old-bow`).
 - **Before Wyrd**: her dialog says she walked off a wreck "three winters back"
   and that Tove put a bow in her hands. That makes her a castaway, which breaks
   the first ground rule above; see *Open points against the canon*.

@@ -220859,6 +220859,72 @@
                 ]
               },
               {
+                "label": "Your old bow?",
+                "then": [
+                  {
+                    "kind": "if",
+                    "when": {
+                      "cond": "tagged",
+                      "tag": "runa-old-bow"
+                    },
+                    "then": [
+                      {
+                        "kind": "say",
+                        "text": "You've got it already. That was my only spare. Selin in the warriors' town sells new ones."
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "else": [
+                      {
+                        "kind": "say",
+                        "text": "The one I learned on. It's yours for ten gold. Take it after the deer and rabbits round the camp: they run, they don't bite back, and you'll learn your distance."
+                      },
+                      {
+                        "kind": "request_trade",
+                        "take": [],
+                        "give": [
+                          {
+                            "tileId": "simple-bow",
+                            "count": 1
+                          }
+                        ],
+                        "takeCash": 10,
+                        "min": 1,
+                        "max": 1,
+                        "default": 1,
+                        "traded": [
+                          {
+                            "kind": "tag",
+                            "tag": "runa-old-bow"
+                          },
+                          {
+                            "kind": "say",
+                            "text": "Look after it. Two cells back, and let the rabbit come to you."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ],
+                        "cancel": [
+                          {
+                            "kind": "say",
+                            "text": "It'll be here. Nobody else wants it."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
                 "label": "Goodbye",
                 "then": [
                   {
