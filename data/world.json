@@ -1686,6 +1686,7 @@
             "key": "wreck-tove-bedroll",
             "props": {
               "tile": "bedroll",
+              "facing": "e",
               "at": {
                 "x": 460,
                 "y": 824
@@ -3302,6 +3303,7 @@
                 "key": "camp-ifeoma-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 13,
                     "y": 7
@@ -3362,6 +3364,7 @@
                 "key": "camp-peregrine-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 19,
                     "y": 7
@@ -3406,6 +3409,7 @@
                 "key": "camp-jory-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 24,
                     "y": 12
@@ -3439,6 +3443,7 @@
                 "key": "camp-wenna-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 24,
                     "y": 17
@@ -3483,6 +3488,7 @@
                 "key": "camp-idris-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 4,
                     "y": 16
@@ -3527,6 +3533,7 @@
                 "key": "camp-runa-bedroll",
                 "props": {
                   "tile": "bedroll",
+                  "facing": "e",
                   "at": {
                     "x": 11,
                     "y": 17
