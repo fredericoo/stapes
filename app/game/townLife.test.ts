@@ -61,6 +61,7 @@ const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 function strike(session: GameSession, tileId: string) {
+  session.setPvp(true);
   session.setTarget(body(session, tileId).id);
   session.setAttackMode(true);
   run(session, 1_500);

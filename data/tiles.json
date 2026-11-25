@@ -17382,6 +17382,15 @@
         ],
         "traits": [
           {
+            "trait": "defends-its-own",
+            "with": {
+              "ward": [
+                "cat-biscuit"
+              ],
+              "cry": "Get away from my Biscuit!"
+            }
+          },
+          {
             "trait": "raises-the-alarm",
             "with": {
               "town": [
@@ -57475,7 +57484,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -58068,7 +58078,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -58661,7 +58672,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -59254,7 +59266,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -59847,7 +59860,8 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "pvp": true
       },
       "respawn": {
         "fromMs": 1800000,
@@ -221870,6 +221884,122 @@
             }
           },
           "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "cauldron",
+    "name": "Cauldron",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "anchor": {
+      "tilesetId": "cauldron",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 250
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 250
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 4,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 250
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 250
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 5,
+      "ttlFromMs": 1600,
+      "ttlToMs": 2600,
+      "spawnRadiusCells": 0.2,
+      "spawnElevFrom": 2,
+      "spawnElevTo": 2,
+      "riseFrom": 6,
+      "riseTo": 10,
+      "driftCellsPerSecond": 0.05,
+      "lit": false,
+      "ownDepth": false,
+      "gravity": 0,
+      "offsetX": "0.2 * AGE_SEC + 0.3 * sin(AGE_SEC * 3 + SEED * 2 * PI)",
+      "offsetY": "",
+      "offsetElev": "",
+      "shape": null,
+      "sizeFromPx": 4,
+      "sizeToPx": null,
+      "radiusFromPx": 0.5,
+      "radiusToPx": 1,
+      "alphaFrom": 0.9,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffffff"
+        },
+        {
+          "at": 0.35,
+          "color": "#f2dca8"
+        },
+        {
+          "at": 1,
+          "color": "#c7dcd0"
         }
       ]
     }
