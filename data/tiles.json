@@ -83776,9 +83776,43 @@
                 "action": "hold"
               }
             ]
+          },
+          "mending": {
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
-        "transitions": []
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "health",
+              "atMostPercent": 50
+            },
+            "to": "mending"
+          },
+          {
+            "from": "mending",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 50
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
       },
       "battler": {
         "baseHp": 10000,
@@ -83810,7 +83844,19 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Restuff",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "damage": -999
+            },
+            "cooldownMs": 1000
+          }
+        ]
       }
     },
     "sprite": {
