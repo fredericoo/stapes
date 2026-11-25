@@ -40,7 +40,9 @@ In `data/world.json`:
   and tallest toward the sea. Their tops carry a few trees and pebbles
   (`wreck-hills-trees`, and `rubble` in `wreck-hills-rocks`) and sandy patches
   (`wreck-hills-sand-*`, each ringed by a `grass` rim so its edge is ragged);
-  a patch must sit on one level, or the landscape check finds it in pieces. The west hill
+  a patch must sit on one level, or the landscape check finds it in pieces;
+  a small frame draws its oval mask as a near-square, so patches are 9 to 20
+  cells across with `ragged` 70. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
   stands in the shallows at its foot so that wading along the shore does not
   either. The east side ends at the bay. The valley opens only at its north
