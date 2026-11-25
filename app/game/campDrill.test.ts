@@ -75,6 +75,60 @@ describe("the camp's archer", () => {
   });
 });
 
+describe("the castaways' guide", () => {
+  it("kills a rat that comes near the waking spot, and stays by it", () => {
+    const session = camp([
+      [0, 0, "tove-arnesdatter"],
+      [-5, 0, "rat"],
+    ]);
+    expect(bodyOf(session, "rat")).toBeDefined();
+
+    run(session, 30_000, () => !bodyOf(session, "rat"));
+
+    expect(bodyOf(session, "rat")).toBeUndefined();
+    run(session, 15_000);
+    const tove = bodyOf(session, "tove-arnesdatter")!;
+    expect(Math.max(Math.abs(tove.x), Math.abs(tove.y))).toBeLessThanOrEqual(4);
+  });
+
+  it("greets a player until they have talked to her", () => {
+    const session = camp([[12, -9, "tove-arnesdatter"]]);
+    const heard = (ms: number) => {
+      const said: string[] = [];
+      run(session, ms, () => {
+        said.push(...session.drainSpeech().map((line) => line.text));
+        return false;
+      });
+      return said;
+    };
+
+    expect(heard(30_000)).toContain("Another one off the wreck! Over here, by the fire.");
+
+    const tove = bodyOf(session, "tove-arnesdatter")!;
+    expect(
+      session.talk({
+        kind: "open",
+        ref: { x: tove.x, y: tove.y, z: tove.z, stackIndex: tove.stackIndex },
+      }),
+    ).toBe(true);
+    session.talk({ kind: "close" });
+
+    expect(heard(60_000)).not.toContain("Another one off the wreck! Over here, by the fire.");
+  });
+
+  it("leaves a rabbit alone", () => {
+    const session = camp([
+      [0, 0, "tove-arnesdatter"],
+      [-4, 0, "rabbit"],
+    ]);
+    const full = bodyOf(session, "rabbit")!.hp!;
+
+    run(session, 10_000);
+
+    expect(bodyOf(session, "rabbit")?.hp).toBe(full);
+  });
+});
+
 describe("the training dummy", () => {
   it("restuffs itself before it can be shot down", () => {
     const flimsy = tiles.map((tile) =>
