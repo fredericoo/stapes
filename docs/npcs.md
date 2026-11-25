@@ -31,6 +31,39 @@ are collected in *What the game cannot do yet* at the end.
 - **Gold is the only money.** Towns buy bones, animal skulls, leather and the
   spoils of the hunt. Nobody buys a human skull.
 
+## How the cast talks
+
+Each profile's **Voice** says how the character speaks, the habits that mark
+it, and why they speak that way. The dialog scripts in `data/tiles.json` are
+written to it. Not everybody has a strong voice, on purpose: a town where every
+person has a catchphrase sounds like a pantomime, and the plain voices make the
+strong ones stand out.
+
+- **Strong**: Idris Kaya, Ifeoma Nwachukwu, Wenna Pascoe, Jory Thistlewood,
+  Pell Marrow, Mina Dross, Fen Achterberg, Ragna Holt, Mateo Ferran, Rodrigo
+  Vela, Morwen Teague, Hamid Sarraf, Yeva Kostenko.
+- **Marked**: Tove Arnesdatter, Peregrine Voss, Iolanthe Sarno, Hesper Vaun,
+  Dagny Rook, Amaru Quispe, Noor Halabi, Casimir Wren, Rosalind Peake, Orrin
+  Fask, Absalom Grieve, Selin Arslan, Halina Brzeska, Bertha Oyelaran, Magda
+  Fenwick, Tobiah Marsh, Rukmini Desai, Gideon Okafor, Margit Oslund, Kofi
+  Asante, Anselm Quaye.
+- **Plain**: Suvi Kallio, Taavi Kask, Nadia Ferreira, Brannoc Hale, Edda Kell,
+  Aurelio Benedetti, Sigrun Halde, Liv Sandvik, Runa Hask.
+
+A few rules keep the voices readable:
+
+- **Prices and numbers stay in the line.** A voiced line still says what a
+  trade costs and what an item does; the manner goes round the facts, not in
+  place of them.
+- **The repeated lines are voiced too.** "Anything else?" after a trade is the
+  line a player hears most, so each shopkeeper says it their own way.
+- **Dialect is light.** A word or two of it (Wenna's "my 'andsome", Ifeoma's
+  "o", Jory's "squire") marks a voice; respelling whole sentences makes them
+  hard to read.
+- **Noises are written as the noise.** Gideon's hum is "Mm-mm-hmm", not
+  `*hums*`, and Rodrigo's hiccup is "Hic.", not `*hic*`, by the same rule as
+  creature noises in `docs/notes.md`.
+
 ## The island before Wyrd
 
 What the cast remembers, which a player learns from them a piece at a time.
@@ -65,6 +98,7 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Peregrine Voss | The camp | Trapmaker |
 | Wenna Pascoe | The camp | Salvager of the wrecks |
 | Jory Thistlewood | The camp | Rag-and-bone man; buys small spoils |
+| Runa Hask | The camp | Archer; keeps animals off the camp |
 | Iolanthe Sarno | Druids' town, council house | Speaker of the council; leads the town |
 | Hesper Vaun | Druids' town, rune temple | The runemaster |
 | Dagny Rook | Druids' town, rune temple | Temple clerk; sells neutral runes |
@@ -102,7 +136,7 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Hamid Sarraf | The roads | Pedlar between the towns |
 | Yeva Kostenko | The roads | Courier between the towns |
 
-That is 42 characters: 6 at the camp, 14 in the druids' town, 16 in the
+That is 43 characters: 7 at the camp, 14 in the druids' town, 16 in the
 warriors' town, 3 at the inn, 1 at the witch's house and 3 on the roads. Each
 town has a leader (Iolanthe Sarno and Ragna Holt) and guards (Taavi Kask and
 Nadia Ferreira for the druids; Edda Kell, Gideon Okafor and Liv Sandvik for the
@@ -136,8 +170,13 @@ than in either town.
 - **Ties**: Brannoc Hale is her elder brother; she visits him when she sells
   skins in the warriors' town. Fen Achterberg rowed in her whaleboat and climbed
   the lighthouse with her once. She eats at Ifeoma's fire every evening.
-- **Voice**: short sentences, practical, kind without being soft. She explains
-  dying the way she would explain the tide.
+- **Voice**: short sentences, practical, kind without being soft. She ends most
+  things with an instruction (eat, sit, keep something in your hand), and
+  reaches for the sea when she explains: dying is the tide taking a bit of the
+  beach. She has met every castaway for a century and says the same things to
+  each of them, so her lines are worn smooth, with nothing extra. She no longer
+  remembers how to throw a harpoon, but still talks like the whaleboat crew she
+  threw one with.
   - "You're awake. Good. Eat this first, talk after."
   - "Food is what mends you here. Hungry, you stay hurt. Fed, you heal."
   - "You won't die here. Nobody does. You'll wake up, and it will hurt, and
@@ -169,7 +208,12 @@ than in either town.
   snake. He counts himself lucky.
 - **Ties**: he and Magda Fenwick were partners in the saddlery and fell out over
   money; they do not speak. He buys the skins Tove brings in.
-- **Voice**: a trader's patter, warm, always counting.
+- **Voice**: a trader's patter, warm, always counting. He calls everyone "my
+  friend", doubles his words when he is pleased ("good, good", "as you like, as
+  you like"), states the price inside the pitch, and turns every death count
+  into a boast. He came to the island to sell and never stopped; a bazaar habit
+  of talking a customer round, kept up for a hundred and thirty years with only
+  castaways to practise on.
   - "Five skins and that cap is yours. Not one less, I have to eat too."
   - "Six deaths in a hundred and thirty years. That's a good record here. Ask
     Tove hers."
@@ -195,7 +239,11 @@ than in either town.
 - **Ties**: Biscuit, a ginger cat. Kofi Asante learned to cook in her kitchen,
   and she still thinks his stew is too thin. Tove eats at her fire every
   evening.
-- **Voice**: busy, motherly in manner, teasing. Talks while she works.
+- **Voice**: busy, motherly in manner, teasing. She talks while she works, gives
+  orders about the pot and the heat, calls people "my dear", and ends a warm or
+  scolding line with the West African "o" or "ehn" that never left her speech.
+  She ran a loud eating house full of sailors, and still talks to everybody as
+  if they had sat down at one of her tables.
   - "Sit. Eat. You look like the sea chewed you."
   - "Rats killed me once. Rats! Biscuit was not with me then."
   - "My sister is across the water. She will be old by now, or gone. I am
@@ -219,7 +267,10 @@ than in either town.
   gone; he relies on Margit at the inn to remind him who they were.
 - **Ties**: Margit Oslund and Rodrigo Vela fished from his boat. Wenna brings him
   salvage.
-- **Voice**: slow, dry, self-mocking.
+- **Voice**: slow, dry, self-mocking. He leaves a pause ("...Mm.") before the
+  punchline, which is usually at his own expense. A net-mender's patience, and a
+  man who has walked into his own traps nine times and decided the only
+  dignified answer is to find it funny.
   - "Rope from your own ship, nails from your own ship. Fitting, I think."
   - "Nine times my own traps. I keep making them better, so it keeps hurting
     more."
@@ -242,7 +293,11 @@ than in either town.
   is the worst death that is not a troll.
 - **Ties**: Orrin Fask's niece, the only family he has left on the island. She
   supplies Peregrine.
-- **Voice**: fast, cheerful, slightly greedy.
+- **Voice**: fast, cheerful, slightly greedy. She keeps the harbour's Cornish:
+  "my 'andsome", "proper", "dreckly" (some time, maybe), "see". Everything is a
+  deal, and she makes the deal sound like a favour. She was born in the harbour
+  yards and is the youngest voice at the camp; she talks the way the quay talked
+  before it drowned.
   - "Whatever was in your hold is mine now, unless you want to buy it back."
   - "Drowning's the bad one. Second worst on the island, they tell me."
   - "I was going to build ships. Now I take them apart. Same tools."
@@ -262,7 +317,11 @@ than in either town.
   once.
 - **Ties**: Hamid Sarraf taught him to trade. He is scared of Brannoc and polite
   to him.
-- **Voice**: quick, cheeky, honest about being dishonest.
+- **Voice**: quick, cheeky, honest about being dishonest. He calls the player
+  "squire", says "honest" when he means the opposite, and owns up to the joke
+  before anybody can catch him in it. A harbour pickpocket's patter: keep the
+  mark laughing so they don't watch your hands. He is afraid of exactly one
+  person, and very polite about him.
   - "Rat tails, bat wings, bones. I pay a little. The towns pay more, but the
     towns are a long way off."
   - "Brannoc killed me four times for one stolen knife. Fair, I suppose."
@@ -272,6 +331,22 @@ than in either town.
 - **Game support**: a buy-only shop dialog (player gives spoils, receives gold).
   A line refusing a human skull needs an `if` on whether the player carries one,
   which the dialog `if` cannot ask; see the gaps.
+
+### Runa Hask
+
+- **Where**: the camp, at its south edge, by the fire.
+- **What she does**: the camp's archer. She stands at the camp's edge and
+  shoots anything with teeth that comes too close, and tells new players how to
+  learn the bow.
+- **Before Wyrd**: her dialog says she walked off a wreck "three winters back"
+  and that Tove put a bow in her hands. That makes her a castaway, which breaks
+  the first ground rule above; see *Open points against the canon*.
+- **Voice**: plain, watchful, a little protective. Short instructions with the
+  distance in them ("keep two cells between you"), said while she watches the
+  treeline rather than the player. She learned to shoot from Tove, and talks as
+  Tove does, with fewer words.
+- **Game support**: Edda Kell's brain with a hunting bow (`attack_range`), and a
+  dialog.
 
 ## The druids' town
 
@@ -300,7 +375,11 @@ water; they talk about runes as tools.
   Captain. Hesper Vaun sits on her council. Ragna Holt leads the warriors; the two
   of them meet at the roadside inn twice a year, and Margit keeps the back room
   free for it. Taavi Kask, her day warden, was one of Absalom's watchmen.
-- **Voice**: measured, formal, used to being listened to.
+- **Voice**: measured, formal, used to being listened to. No contractions; she
+  speaks for "the council", says "may" and "may not" like a ruling, and closes
+  with "Is there anything further?" as a magistrate closes a hearing. She was
+  the harbour's magistrate, and she has never stopped sounding like the person
+  who decides.
   - "Welcome to the temple town. Carve what you like. Don't carve it at anyone."
   - "I led these people up from the harbour. I'm still leading them, a hundred
     and thirty years later. Nobody else has had the chance to try."
@@ -334,7 +413,12 @@ water; they talk about runes as tools.
 - **Ties**: she and Edda Kell were friends until the towns split, and no longer
   speak. Dagny Rook is her clerk. Aurelio Benedetti was her best pupil before he
   left.
-- **Voice**: precise, patient, a teacher. She calls Halvard by his name.
+- **Voice**: precise, patient, a teacher. She numbers things (first forge,
+  second, third), tells the player which part to remember, and asks for it to be
+  said back. She calls Halvard by his name when nobody else in the town will.
+  The pupil of the best carver who ever lived, afraid of losing the craft to her
+  next death; she repeats the counts to fix them in other people as much as in
+  herself.
   - "Bring me the blank and the essence. What the mark becomes is not up to
     either of us."
   - "Bone takes the first forge, crystal the second, deep ore the third. Shape it
@@ -364,7 +448,11 @@ water; they talk about runes as tools.
 - **Ties**: she shares a house with Mina Dross. Hesper's clerk. Her father was
   the harbour master, and she will tell anyone who asks that he would have
   hated the lighthouse.
-- **Voice**: brisk, eager, a little superior.
+- **Voice**: brisk, eager, a little superior. Clerk's habits: things are
+  "entered", "noted", "in the book", the rate is the rate, and the next customer
+  is "Next?". She adds "for the record" to anything that makes her look good.
+  The harbour master's daughter and his clerk, impatient to carve and not
+  allowed to; she makes the most of the one desk she does run.
   - "Light and Spark are ready-carved. Anything stronger, bring a blank."
   - "One death in a hundred and thirty years. A bog imp. I'd rather not talk
     about it."
@@ -386,7 +474,11 @@ water; they talk about runes as tools.
   goes for the white moss he dyes with.
 - **Ties**: Halina Brzeska makes the gear that stops his customers' spells, and
   the two of them argue about it whenever they meet at the inn.
-- **Voice**: soft, unhurried, proud of his work.
+- **Voice**: soft, unhurried, proud of his work. He uses diminutives ("a little
+  ring", "the little white moss"), asks people to slow down and to touch the
+  cloth gently, and describes colour by what it was dyed with. He grew up in a
+  mountain country whose speech softens everything it names, and he talks about
+  cloth the way other people talk about animals.
   - "This one holds a spell better. That one is warmer. You can't have both."
   - "The frost caves killed me eight times. The moss is worth it."
   - "Halina makes coats that stop my customers' spells. I tell her she is
@@ -407,7 +499,11 @@ water; they talk about runes as tools.
 - **Ties**: Pell Marrow is her husband. Rosalind Peake keeps a copy of her notes
   in the ledger house. She and Morwen Teague trade bog plants, and neither will
   say so in town.
-- **Voice**: dry, exact, quick to correct.
+- **Voice**: dry, exact, quick to correct. She corrects the player's words ("not
+  'dust'"), gives exact figures ("exactly an hour; I timed it"), and says
+  "please" in the way that means "do it properly". A buyer who could price a
+  cargo by smell, and an apothecary who has poisoned herself nineteen times;
+  being imprecise is how she died.
   - "Jelly from a slime, ash from a fire wisp, dew from a water one. Bring them
     separately, please."
   - "Nineteen deaths and most of them my own fault. A poison you've tasted is a
@@ -430,7 +526,11 @@ water; they talk about runes as tools.
   which he describes in more detail than anybody wants.
 - **Ties**: Noor Halabi's husband. He sends bread to the inn every morning with
   Yeva.
-- **Voice**: cheerful, talkative, loves describing food.
+- **Voice**: cheerful, talkative, loves describing food. His sentences run on
+  with "and" (the slice is generous, and the apples are Suvi's, and the pastry
+  flakes), he reports textures and sounds, and he tells his one bad death in
+  more detail than anybody asked for. He bakes alone before dawn and has nobody
+  to talk to until the first customer, who then gets all of it.
   - "Baked on a Flame rune, not wood. Tastes cleaner. Don't tell the warriors."
   - "A troll killed me on the road once. It took a long time. I don't walk that
     road any more; Yeva carries my bread."
@@ -453,7 +553,10 @@ water; they talk about runes as tools.
   to the edge of the plots from the deep woods.
 - **Ties**: Margit Oslund is her closest friend; she visits the inn on market
   days. Orrin Fask built her house.
-- **Voice**: plain, practical, a bit sharp.
+- **Voice**: plain, practical, a bit sharp. One of the plain voices on purpose:
+  short statements, no greeting, no softening, and an unasked-for fact about
+  wolves. She came from the cold north, where you do not spend words you do not
+  need, and she has had a hundred years of nobody making her.
   - "Apples are a gold. Rabbit feet buy you one free."
   - "I haven't eaten a fish in a hundred years. Good."
   - "The wolves come out of the woods at night. Five times now. They take the
@@ -475,7 +578,11 @@ water; they talk about runes as tools.
 - **Ties**: Tobiah Marsh is the warriors' lamplighter and was his apprentice on
   the quay; they meet at the inn once a month and argue over whose lamps burn
   longer.
-- **Voice**: gentle, a little proud, likes a joke.
+- **Voice**: gentle, a little proud, likes a joke. He calls younger people
+  "young one" (which, to him, is everyone), makes small jokes about light, and
+  blesses Tobiah while telling you he is wrong. The oldest-sounding man in the
+  druids' town; fifty years of lighting a quay and chatting to whoever was on
+  it.
   - "Evening. The lamps don't light themselves. Well, they nearly do."
   - "Tobiah over in the warriors' town uses a taper. I taught him that. I've
     learned better since."
@@ -497,7 +604,11 @@ water; they talk about runes as tools.
   makes her an oddity, and she is anxious about the first time.
 - **Ties**: Soot, a black cat. She shares a house with Dagny Rook. She sends flour
   to Pell Marrow.
-- **Voice**: nervous, kind, asks the player questions.
+- **Voice**: nervous, kind, asks the player questions. Nearly every line ends in
+  a question, often several, and she asks for reassurance ("Is that all right?",
+  "Promise?"). She talks to her cat. She has never died, so she is the only
+  person on the island for whom it is still an unknown, and she asks every new
+  face what it is like.
   - "You've died? What was it like? Everyone says it's bad but nobody says how."
   - "Soot does the rats. I pay you a copper for each tail you bring me anyway."
   - "A hundred and thirty years and not once. I keep thinking it is going to be
@@ -520,7 +631,10 @@ water; they talk about runes as tools.
   twenty-eight times, and reads her own entry every morning.
 - **Ties**: Anselm Quaye is her brother. Noor Halabi's notes are kept on her
   shelves. Fen Achterberg visits every week to read about himself.
-- **Voice**: calm, careful, asks people to repeat details.
+- **Voice**: calm, careful, asks people to repeat details. She speaks as if
+  dictating: one fact to a sentence, then a read-back ("I'll read it back: is
+  that right?"). She has died twenty-eight times and reads her own entry every
+  morning; she checks every detail because she knows she will not remember it.
   - "Tell me how it happened. Slowly. I'll read it back to you."
   - "Twenty-eight deaths. I have read about every one of them, and remember
     almost none."
@@ -542,7 +656,10 @@ water; they talk about runes as tools.
   died sixteen times; a fall from a roof accounts for half of them.
 - **Ties**: Wenna Pascoe is his niece. He is on good terms with both towns and
   with Morwen Teague. He built Suvi Kallio's house.
-- **Voice**: slow, warm, given to long memories.
+- **Voice**: slow, warm, given to long memories. He opens with "Now then", and a
+  question about the present turns into a memory of his father, the scaffolding,
+  or Maren. A mason who built the lighthouse's lower floors and does not know
+  how he feels about it; he prefers to talk about the summer they built it.
   - "I laid the stones of the lighthouse's first floor. I didn't know what it
     would be for. Nobody did."
   - "Maren used to bring us bread and sit on the stones while we ate. She laughed
@@ -567,6 +684,10 @@ water; they talk about runes as tools.
 - **Ties**: Tove's old crewmate. He reads his own life at Rosalind's ledger every
   week. Rodrigo Vela at the inn climbed with him.
 - **Voice**: friendly, scattered, repeats himself, clear about the lighthouse.
+  He asks whether he has already told you, loses the end of a thought, repeats a
+  number to make sure ("Four. Did I say four? Four."), and accepts what other
+  people tell him about his own life. More than three hundred deaths have taken
+  nearly everything except the climb; that part is still sharp.
   - "Have I told you about Maren? I've told someone. Probably you."
   - "Three hundred and some. I lost count, and then I lost the count."
   - "You can't climb it alone. The upper floors need four of you, and four who
@@ -594,7 +715,9 @@ water; they talk about runes as tools.
 - **Ties**: Iolanthe Sarno's warden. He served with Mateo Ferran and Tobiah Marsh
   under Absalom; Tobiah still talks to him at the inn, Mateo does not.
   Nadia Ferreira takes the town from him at dusk.
-- **Voice**: steady, polite, a little sad.
+- **Voice**: steady, polite, a little sad. A plain voice: directions first, then
+  the facts of the split, said without complaint. He was a watchman, and he
+  still reports rather than talks.
   - "Temple's open. Forges are inside, the runemaster's at the back."
   - "I was in the watch with half the men in the warriors' town. I chose the
     runes. They chose the drill yard."
@@ -622,7 +745,10 @@ water; they talk about runes as tools.
 - **Ties**: she and Casimir Wren cross paths every dusk and dawn; he lights the
   lamps she walks past. She guards Suvi Kallio's plots. She takes the town from
   Taavi at dusk.
-- **Voice**: quiet, wry, wide awake.
+- **Voice**: quiet, wry, wide awake. Few words, and a dry answer at the end of
+  them. She uses a sailor's sense of the night ("middle watch"), because the
+  night boats are where she learned to stay awake, and she never learned to
+  stop.
   - "Late to be walking. Stay under the lamps."
   - "I carry my own light. Casimir says it makes his lamps look bad."
   - "The wolves come to the plots after midnight. Eighteen deaths, and they
@@ -659,7 +785,11 @@ holds off magic.
 - **Ties**: Absalom Grieve is her drillmaster and second. Edda Kell sits at her
   table every night. She meets Iolanthe Sarno at the roadside inn twice a year.
   Gideon Okafor worked in her ropewalk.
-- **Voice**: loud, direct, warm with her own people.
+- **Voice**: loud, direct, warm with her own people. She laughs ("Ha!") before
+  she answers, uses exclamations, says "nobody" twice, and remembers a name the
+  first time she hears it. She ran a ropewalk of forty people by shouting down
+  its length, and she talks about the town and the tower as a rope: many strands
+  pulling the same way.
   - "You want the tower? Good. You can't climb it alone. Nobody can. Give me your
     name and I'll find you three more."
   - "Absalom brought us here. I built the walls. We each did the part we were good
@@ -688,7 +818,10 @@ holds off magic.
   his magistrate. Mateo Ferran and Tobiah Marsh served in his watch, and so did
   Taavi Kask, who stayed with the temple. Edda Kell is his
   sister. He dislikes that the inn's cat is called Captain.
-- **Voice**: clipped, formal, never raises his voice.
+- **Voice**: clipped, formal, never raises his voice. No contractions, orders in
+  two or three words ("Dawn. Drill yard."), and "That is the arrangement" for
+  anything settled. A captain of the watch who has died forty-four times on
+  purpose to learn something; he speaks as he drills.
   - "Up at dawn. A body is the one thing on this island no rune made. Train it."
   - "Forty-four times. I learn something every time. Mostly what not to do."
   - "Break the rune at the top of the tower and we all go back to dying once.
@@ -711,7 +844,10 @@ holds off magic.
   mostly on the road to the ember deeps hauling ore. He has killed Jory
   Thistlewood four times for one stolen knife, and does not regret it.
 - **Ties**: Tove Arnesdatter's elder brother. He buys charcoal from Aurelio.
-- **Voice**: few words, heavy, sincere.
+- **Voice**: few words, heavy, sincere. A grunt ("Hm.") where other people say
+  hello, and short descriptions of his weapons that are all fact. One of the
+  plain voices: a smith who says what the iron does and nothing about himself
+  unless asked twice.
   - "Swords there. Axes there. Don't touch the hot ones."
   - "Iron doesn't care what you believe. That's why I like it."
   - "Jory? He knows. He's very polite now."
@@ -732,7 +868,11 @@ holds off magic.
   three times in one week, and she is still angry about it.
 - **Ties**: Halina Brzeska's closest friend in town. She and Mateo Ferran argue
   over whether a spear or a bow is the better first weapon.
-- **Voice**: direct, competitive, enjoys a challenge.
+- **Voice**: direct, competitive, enjoys a challenge. She turns anything into a
+  contest or a bet ("Want to bet on which time this is?", "Go on, ask him"), and
+  every death story ends with how the next attempt will go. A merchant's guard
+  from a horse country who measured herself against every rider she met; now it
+  is a cyclops and Mateo.
   - "If you can see it you can hit it. Most of the time."
   - "A cyclops, three times in a week. The third time I nearly had it."
   - "Mateo says start with a spear. Mateo is wrong."
@@ -751,7 +891,11 @@ holds off magic.
   thirty-one times and has lost his first language; he speaks only the
   island's.
 - **Ties**: served under Absalom in the watch, with Tobiah. Rival of Selin.
-- **Voice**: loud, friendly, haggles for fun.
+- **Voice**: loud, friendly, haggles for fun. He performs the haggle ("You wound
+  me!", "You robbed me!"), says "Hey!" and "Ay" from a language he no longer
+  has, and stops mid-sentence when he reaches for a word in it that is gone. He
+  has lost his first language to his deaths, and makes up for it by using the
+  second one as loudly as he can.
   - "Old sword? I'll give you something for it. Not much. Something."
   - "I used to dream in another language. Lost it about my twentieth death."
   - "A spear keeps them a step away. Out here a step is everything."
@@ -772,7 +916,10 @@ holds off magic.
   of them to druid spells in those tests. She says it was worth it.
 - **Ties**: she argues with Amaru at the inn, and buys him a drink afterwards.
   Selin's closest friend.
-- **Voice**: technical, confident, slightly amused.
+- **Voice**: technical, confident, slightly amused. She gives the numbers first,
+  names what each piece is good and bad against, and mentions that she tested it
+  on herself. A sailmaker who learned armour by paying druids to burn her; she
+  finds that funnier than anyone else does.
   - "This coat takes a fire spell and gives back half of it as heat. You'll be
     warm and alive."
   - "Six times the druids burned me to test a lining. I paid them for it."
@@ -794,7 +941,10 @@ holds off magic.
   hour of her life, and once by choking, which she considers embarrassing.
 - **Ties**: she sells smoked meat to Margit at the inn. Sigrun Halde lodges with
   her.
-- **Voice**: hearty, blunt, bossy.
+- **Voice**: hearty, blunt, bossy. Orders before greetings ("shut that door"),
+  food as something you take before work rather than enjoy, and a "Hmph" for
+  anyone who refuses. A ship's provisioner who fed crews before they sailed; she
+  still sends people into the waste the way she sent ships out.
   - "Raw meat in, smoked meat out. Two gold a slab."
   - "A troll. It held me down and took its time. Ask anyone. Nothing worse."
   - "Eat before you go into the waste. A full belly mends you on the way."
@@ -814,7 +964,10 @@ holds off magic.
   times, twice to bears she was skinning that were not as dead as she thought.
 - **Ties**: she and Idris do not speak; she says he cheated her. She sells furs to
   Halina.
-- **Voice**: sharp, businesslike, a dark sense of humour.
+- **Voice**: sharp, businesslike, a dark sense of humour. Jokes about the dead
+  and the not-quite-dead ("Rest in pieces", "if it twitches, tell me first"),
+  and real anger only for a human skull. A former grave robber in a world where
+  the dead get up again; the joke is on her, and she tells it first.
   - "Bear claw, troll tusk, yeti fur. Whatever you killed, I'll buy a piece."
   - "That's a person's skull. Take it back to where they woke up and give it to
     them."
@@ -834,7 +987,10 @@ holds off magic.
   five times, twice falling from a lamp post, which he finds funny.
 - **Ties**: Casimir Wren is his old master, his rival and his friend; they meet
   at the inn once a month. Served under Absalom.
-- **Voice**: cheerful, quick, proud of doing it by hand.
+- **Voice**: cheerful, quick, proud of doing it by hand. Exclamation marks,
+  boasts about his lamps, and jibes at Casimir that he takes back and then
+  doesn't. He looks nineteen and has for a century, and he talks a little louder
+  so that somebody will take him seriously.
   - "Every lamp in this town lit with a real flame. Casimir uses a rune. Cheat."
   - "Fell off a lamp post twice. Woke up at the bottom of it both times."
   - "A hundred and thirty years and I still look nineteen. Nobody takes me
@@ -854,7 +1010,10 @@ holds off magic.
   pays Yeva to walk the road for her.
 - **Ties**: Ghee, a fat cream-coloured cat. She writes to Mina Dross weekly by
   Yeva.
-- **Voice**: precise, orderly, polite.
+- **Voice**: precise, orderly, polite. She thanks people for coming in,
+  describes stock as counted, labelled and shelved, and tells you what a sack is
+  for in exactly one sentence. A ship's chandler who chose the warriors' town
+  because she trusts what she can count; her courtesy is part of the order.
   - "Rope, flint, oil, torches. Everything you need and nothing you don't."
   - "Ghee caught nine rats last week. He gets a share of the bounty."
   - "Two deaths, both wolves, both on that road. I don't walk it now."
@@ -874,7 +1033,10 @@ holds off magic.
   died fifty-three times.
 - **Ties**: Absalom Grieve's sister. She has not spoken to Hesper in a hundred
   years.
-- **Voice**: hard, steady, does not waste words.
+- **Voice**: hard, steady, does not waste words. One of the plain voices, and
+  the hardest: rules, then a reason only if asked, then nothing. She kept
+  Halvard's door and watched the island stop from the bottom of his stairs, and
+  she has been saying no at a gate ever since.
   - "No runes past this gate. Not in your pack, not in your pocket."
   - "I kept Halvard's door. I watched the island stop from the bottom of his
     stairs."
@@ -898,7 +1060,10 @@ holds off magic.
   times, and says the death that took his carving is the one he is gladdest of.
 - **Ties**: Noor Halabi still writes to him. Hesper does not mention him. Edda
   Kell vouched for him at the gate.
-- **Voice**: quiet, regretful, careful with words.
+- **Voice**: quiet, regretful, careful with words. He stops himself when he has
+  said too much, and apologises for it. A plain voice with one crack in it: he
+  left the temple because of what a rune did in his hand, and he talks as
+  carefully as he once carved.
   - "I can still tell you how a mark is cut. I can't do it any more. I'm glad."
   - "The druids aren't wrong. I just found out I couldn't be trusted with it."
   - "Barrels don't burst."
@@ -917,7 +1082,9 @@ holds off magic.
   about a hundred times in total.
 - **Ties**: she and Tove do not agree about whether the lighthouse is worth
   climbing. She lodges with Bertha.
-- **Voice**: slow, grim, generous.
+- **Voice**: slow, grim, generous. A plain voice: short advice, repeated, and no
+  stories she has not been asked for. She was a lookout before she was a troll
+  hunter, and she still reports only what matters.
   - "Nine trolls. Every one of them took longer than you'd think."
   - "Keep your feet under you. It's the only thing out there you can trust."
   - "They say you get used to dying. You don't. You just get used to being
@@ -942,7 +1109,10 @@ holds off magic.
 - **Ties**: worked for Ragna in the ropewalk. Selin Arslan's shop is beside his
   gate, and she shoots at whatever he is fighting. Edda Kell keeps the north
   gate.
-- **Voice**: calm, big-voiced, unhurried.
+- **Voice**: calm, big-voiced, unhurried. He hums before he speaks and laughs
+  after a joke at his own expense; his goodbye promises that he will be singing.
+  He has lost most of the language he grew up in and sings in what is left of
+  it, and the humming is the tune without the words he has lost.
   - "Waste is quiet today. That means nothing."
   - "Forty-one. Six trolls. You never stop hearing the troll ones."
   - "Selin shoots past my ear. She hasn't hit me yet. Twice."
@@ -966,7 +1136,9 @@ holds off magic.
 - **Ties**: Halina's old apprentice, and still close to her. She walks the walls
   with Absalom on the nights he takes a turn. Tobiah Marsh lights her lantern
   at dusk.
-- **Voice**: alert, short, a little dry.
+- **Voice**: alert, short, a little dry. A plain voice: a challenge in the dark,
+  then the facts. She learned on the walls that talking makes you look away from
+  your feet.
   - "Who's that? Oh. Go on, then."
   - "Fifteen. Three of them were the walls. Watch your step up here."
   - "From up here you can see the light on the lighthouse all night. I don't look
@@ -995,7 +1167,11 @@ the night.
 - **Ties**: Captain, a grey tabby. Suvi Kallio is her closest friend. She reminds
   Peregrine who his crew were. Kofi is her brewer. Bertha sells her meat and
   Pell sends her bread.
-- **Voice**: warm, tired, firm.
+- **Voice**: warm, tired, firm. She calls everyone "love", tells you where the
+  food comes from (Bertha's meat, Pell's bread, Kofi's ale), and repeats the
+  house rule about fighting. An innkeeper who built one room for two towns to
+  drink in; she knows everyone, and she has had a long night every night for a
+  century.
   - "Ale's a gold. A bed's five. Fight outside."
   - "Druids at that end, warriors at this end. Everybody drinks the same ale."
   - "A hundred and thirty years, and I've buried nobody. I've just watched them
@@ -1016,7 +1192,10 @@ the night.
   from wild grain. He has died eleven times; the last was a wolf at the inn
   door, which he has not forgiven the wolves for.
 - **Ties**: Ifeoma taught him to cook. He buys Mina's grain.
-- **Voice**: easy-going, funny.
+- **Voice**: easy-going, funny. He jokes against his own prices, says "Cheers!"
+  when he is paid, and is still indignant about the wolf that got him at the
+  door. He learned to cook in Ifeoma's loud kitchen, and kept her habit of
+  talking to customers as friends.
   - "Best ale on the island. Only ale on the island, but still."
   - "Eleven times. A wolf at the door, last. At the door!"
   - "Druids heat my ale with a rune if I let them. I don't let them."
@@ -1037,7 +1216,11 @@ the night.
   bear caves, and has died a hundred and sixty times. He stopped when he noticed
   he had forgotten the names of the people he climbed with.
 - **Ties**: crewed with Margit for Peregrine. Climbed with Fen.
-- **Voice**: expansive, sentimental, slightly drunk.
+- **Voice**: expansive, sentimental, slightly drunk. He hiccups ("Hic."),
+  toasts the person he is talking to, blesses his old maps, and loses the names
+  of the people he climbed with in the middle of the sentence about them. He
+  stopped climbing when he noticed the names were going, and drinks so that he
+  does not notice what else is.
   - "Buy me an ale and I'll tell you how I got past the first floor."
   - "A hundred and sixty. Each map has a little cross where it happened."
   - "Maren looked at me. That was the worst of it. Not the dying."
@@ -1067,7 +1250,11 @@ and from the road.
   itself.
 - **Ties**: Nettle, a thin black and white cat. Orrin Fask visits her. Noor
   Halabi buys her plants in secret. She will not let Anselm Quaye in.
-- **Voice**: old-fashioned, blunt, unnerving, not unkind.
+- **Voice**: old-fashioned, blunt, unnerving, not unkind. She calls the player
+  "child", says "anything more" instead of "anything else", talks of the bog as
+  "she", and of mending "the old way", before runes. The island's healer before
+  runes, seventy, alone in the bog since Maren died; she speaks as the island
+  spoke before Halvard.
   - "I sat with Maren while she went. She went well. Then he brought her back."
   - "No runes in this house. Wipe your feet."
   - "Thirty times the bog has had me. It gives me back every time, a bit less."
@@ -1093,7 +1280,11 @@ lighthouse. Each walks a fixed route.
   once to the cyclops when he walked into the waste to pray for it. He wants to
   climb the lighthouse to pray for Maren, and nobody will take him.
 - **Ties**: Rosalind Peake's brother. Morwen Teague will not let him in.
-- **Voice**: mild, sincere, unhurried.
+- **Voice**: mild, sincere, unhurried. Blessings and the cadence of the chapel
+  ("Go in peace", "May the road be kind"), and a promise to say your name at the
+  next stop. A lay brother whose chapel flooded; he decided the whole island is
+  his chapel, so he talks on the road as he talked in it, and prays for every
+  stranger.
   - "Which ship was yours? I'll pray for her."
   - "Sixty times on these roads. I keep walking them."
   - "I married Halvard and Maren, in the old chapel. Somebody should pray for
@@ -1113,7 +1304,10 @@ lighthouse. Each walks a fixed route.
   waits.
 - **Ties**: he taught Jory Thistlewood to trade. He and Yeva share the road and
   the gossip.
-- **Voice**: smooth, gossipy, a salesman.
+- **Voice**: smooth, gossipy, a salesman. He greets a new face like an old
+  friend, drops a piece of gossip into every price ("between you and me"), and
+  asks you to bring him news. A market trader who chose the road so as to belong
+  to neither town; gossip is the other thing he carries between them.
   - "Honey cakes from the druids. Flint from the warriors. Same price either
     way."
   - "Twenty-five times on this road. There's a bend after the lake. Walk wide."
@@ -1132,7 +1326,10 @@ lighthouse. Each walks a fixed route.
   come out of the bear caves, and she runs faster since.
 - **Ties**: she carries letters between Rukmini and Mina. Shares the road with
   Hamid.
-- **Voice**: breathless, quick, cheerful.
+- **Voice**: breathless, quick, cheerful. Run-on lines with the commas left out,
+  apologies for not standing still, and an exit before you have finished saying
+  goodbye. A courier who has run since the mail packet and runs faster since the
+  troll; she talks at the pace she runs.
   - "Letter for the druids? Give it here, I'm going that way."
   - "A troll, on the road. I've run faster ever since."
   - "A hundred and thirty years and my legs still think they're twenty-two.
@@ -1191,5 +1388,9 @@ each would need.
   building the lower floors, Edda Kell keeping the door, Morwen Teague nursing
   Maren and Anselm Quaye marrying them are new facts. Whether Halvard was born
   on the island is left open.
+- **Runa Hask is a castaway.** Her dialog says she walked off a wreck three
+  winters ago, which breaks the rule that nobody in the cast is a castaway,
+  and "three winters" sits oddly in a world where nobody ages. Either the rule
+  gets an exception for her, or her line changes.
 - **Nobody was a child when Wyrd took hold.** The cast assumes this so that the
   canon's "no children on the island" holds.
