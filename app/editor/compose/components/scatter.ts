@@ -17,6 +17,8 @@ const ScatterSchema = v.object({
   clumpSize: v.optional(v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(32)), 6),
   spacing: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(6)), 0),
   onlyOn: v.optional(field.tiles(TILES.ground), ["sand", "grass", "grass-2"]),
+  among: v.optional(field.tiles(TILES.standing), []),
+  amongAtLeast: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(24)), 1),
 });
 
 export type ScatterProps = v.InferOutput<typeof ScatterSchema>;
@@ -24,6 +26,9 @@ export type ScatterProps = v.InferOutput<typeof ScatterSchema>;
 const CLUMP_OCTAVES = 2;
 const PICK_SALT = 0x5ca7;
 const UINT32 = 4294967296;
+
+/** How many steps from a cell `among` looks. */
+const AMONG_REACH = 2;
 
 function pick(entries: ReadonlyArray<{ tile: string; weight: number }>, hash: number) {
   const total = entries.reduce((sum, e) => sum + e.weight, 0);
@@ -45,7 +50,9 @@ function pick(entries: ReadonlyArray<{ tile: string; weight: number }>, hash: nu
  * same however it is masked. A tile wider than a cell grows south and east
  * of the cell that was taken, and only where every cell it covers is free.
  * A tile that stands in the way is never put at the foot of a cliff
- * (`atCliffFoot`).
+ * (`atCliffFoot`). With `among`, a cell is taken only when at least
+ * `amongAtLeast` of the 24 cells within two steps of it hold one of those
+ * tiles, which keeps a creature to the thick of a wood.
  */
 export const scatter: Component<ScatterProps> = {
   type: "scatter",
@@ -68,6 +75,16 @@ export const scatter: Component<ScatterProps> = {
       }
       return false;
     };
+    const among = new Set(props.among);
+    const amid = (x: number, y: number) => {
+      let found = 0;
+      for (let dy = -AMONG_REACH; dy <= AMONG_REACH; dy++) {
+        for (let dx = -AMONG_REACH; dx <= AMONG_REACH; dx++) {
+          if ((dx || dy) && ctx.stackAt(x + dx, y + dy).some((p) => among.has(p.tileId))) found++;
+        }
+      }
+      return found >= props.amongAtLeast;
+    };
     const placing = placer(ctx);
     const grows = (stack: readonly { tileId: string }[]) =>
       onlyOn.size === 0 || onlyOn.has(stack.at(-1)!.tileId);
@@ -79,6 +96,7 @@ export const scatter: Component<ScatterProps> = {
         const chance = (props.density / 100) * (1 + swing * (props.clumping / 100));
         if (randomAt(x, y, ctx.seed) >= chance) continue;
         if (props.spacing > 0 && near(x, y)) continue;
+        if (among.size > 0 && !amid(x, y)) continue;
         const tile = pick(props.tiles, hashCell(x, y, ctx.seed ^ PICK_SALT));
         const def = tile ? ctx.tilesById[tile] : undefined;
         if (!tile || !def) continue;

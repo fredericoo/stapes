@@ -646,8 +646,8 @@
             },
             "props": {
               "levels": 3,
-              "terrace": 0,
-              "roughness": 20
+              "terrace": 3,
+              "roughness": 70
             },
             "children": [
               {
@@ -678,8 +678,8 @@
             },
             "props": {
               "levels": 2,
-              "terrace": 0,
-              "roughness": 20
+              "terrace": 3,
+              "roughness": 70
             },
             "children": [
               {
@@ -6463,6 +6463,215 @@
             ]
           },
           {
+            "type": "forest",
+            "key": "wreck-valley-wood",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "onlyOn": [
+                "grass"
+              ],
+              "trees": [
+                {
+                  "tile": "tree",
+                  "weight": 1
+                }
+              ],
+              "density": 25,
+              "edge": 20,
+              "outliers": 2,
+              "opensTo": [
+                "dirt",
+                "sand",
+                "moss-flagstone"
+              ],
+              "path": null,
+              "undergrowthDensity": 0
+            }
+          },
+          {
+            "type": "fill",
+            "key": "wreck-hills-sand-1",
+            "frame": {
+              "x": 326,
+              "y": 757,
+              "w": 20,
+              "h": 12
+            },
+            "props": {
+              "tiles": [
+                "sand"
+              ],
+              "mode": "ground",
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
+              "onlyOn": [
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wreck-hills-sand-1-a-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 20,
+                  "h": 12
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 90,
+                  "raggedScale": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "wreck-hills-sand-2",
+            "frame": {
+              "x": 344,
+              "y": 774,
+              "w": 16,
+              "h": 14
+            },
+            "props": {
+              "tiles": [
+                "sand"
+              ],
+              "mode": "ground",
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
+              "onlyOn": [
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wreck-hills-sand-2-a-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 16,
+                  "h": 14
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 90,
+                  "raggedScale": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "fill",
+            "key": "wreck-hills-sand-3",
+            "frame": {
+              "x": 470,
+              "y": 780,
+              "w": 7,
+              "h": 15
+            },
+            "props": {
+              "tiles": [
+                "sand"
+              ],
+              "mode": "ground",
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
+              "onlyOn": [
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "wreck-hills-sand-3-a-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 7,
+                  "h": 15
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 90,
+                  "raggedScale": 3
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "wreck-hills-rocks",
+            "frame": {
+              "x": 250,
+              "y": 700,
+              "w": 270,
+              "h": 140
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rubble",
+                  "weight": 1
+                },
+                {
+                  "tile": "tuft",
+                  "weight": 4
+                }
+              ],
+              "density": 2.5,
+              "clumping": 50,
+              "onlyOn": [
+                "grass-2",
+                "sand"
+              ]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "wreck-hills-trees",
+            "frame": {
+              "x": 250,
+              "y": 700,
+              "w": 270,
+              "h": 140
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "tree",
+                  "weight": 1
+                }
+              ],
+              "density": 3,
+              "clumping": 70,
+              "clumpSize": 8,
+              "onlyOn": [
+                "grass-2"
+              ]
+            }
+          },
+          {
             "type": "scatter",
             "key": "meadow-flowers",
             "frame": {
@@ -6475,15 +6684,15 @@
               "tiles": [
                 {
                   "tile": "red-flowers",
-                  "weight": 2
+                  "weight": 4
                 },
                 {
                   "tile": "yellow-flowers",
-                  "weight": 2
+                  "weight": 4
                 },
                 {
                   "tile": "tuft",
-                  "weight": 4
+                  "weight": 8
                 },
                 {
                   "tile": "bush",
@@ -6529,6 +6738,21 @@
             ]
           },
           {
+            "type": "clear",
+            "key": "wreck-valley-wood-weeding",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "remove": [
+                "bush"
+              ]
+            }
+          },
+          {
             "type": "scatter",
             "key": "wreck-valley-game",
             "frame": {
@@ -6542,10 +6766,6 @@
                 {
                   "tile": "rat",
                   "weight": 5
-                },
-                {
-                  "tile": "small-nature-slime",
-                  "weight": 3
                 },
                 {
                   "tile": "rabbit",
@@ -6565,6 +6785,34 @@
             }
           },
           {
+            "type": "scatter",
+            "key": "wreck-valley-slimes",
+            "frame": {
+              "x": 370,
+              "y": 730,
+              "w": 102,
+              "h": 88
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "small-nature-slime",
+                  "weight": 1
+                }
+              ],
+              "density": 6,
+              "clumping": 0,
+              "spacing": 6,
+              "onlyOn": [
+                "grass"
+              ],
+              "among": [
+                "tree"
+              ],
+              "amongAtLeast": 6
+            }
+          },
+          {
             "type": "tile",
             "key": "wreck-valley-snake-0",
             "props": {
@@ -6581,7 +6829,7 @@
             "props": {
               "tile": "snake",
               "at": {
-                "x": 406,
+                "x": 405,
                 "y": 755
               }
             }
@@ -6870,6 +7118,51 @@
                   "y": -40,
                   "w": 80,
                   "h": 110
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-1",
+                "frame": {
+                  "x": 85,
+                  "y": -4,
+                  "w": 22,
+                  "h": 14
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-2",
+                "frame": {
+                  "x": 103,
+                  "y": 13,
+                  "w": 18,
+                  "h": 16
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-3",
+                "frame": {
+                  "x": 229,
+                  "y": 19,
+                  "w": 9,
+                  "h": 17
                 },
                 "props": {
                   "shape": "rect",
