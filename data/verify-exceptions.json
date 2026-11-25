@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "check": "stranded",
+    "kind": "stranded",
+    "areas": [{ "from": [594, 146, 7], "to": [695, 219, 8] }],
+    "reason": "The white peak's ring and crevasse are reached only by dropping from the summit, and a lip one level high rings them. The way out is the Glacier rune in the ring's cache: its ice cube is half a level, enough to climb the lip."
+  }
+]

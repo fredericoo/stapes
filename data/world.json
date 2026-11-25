@@ -381,6 +381,59 @@
           },
           {
             "type": "hill",
+            "key": "mtn-ring-lip",
+            "frame": {
+              "x": 540,
+              "y": 100,
+              "w": 124,
+              "h": 92
+            },
+            "props": {
+              "levels": 1,
+              "terrace": 0,
+              "roughness": 0,
+              "ground": "snow",
+              "brink": "snow-brink",
+              "wall": "hill-wall-frost",
+              "ramp": "snowy-ramp",
+              "rampBlock": "frosted-half-stone"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "mtn-ring-lip-rim",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 124,
+                  "h": 92
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "intersect",
+                  "from": "mtn-crown-base"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "mtn-ring-lip-inside",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 124,
+                  "h": 92
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "from": "mtn-crown-base",
+                  "grow": -5
+                }
+              }
+            ]
+          },
+          {
+            "type": "hill",
             "key": "mtn-crown-top",
             "frame": {
               "x": 546,
@@ -467,6 +520,17 @@
                 }
               }
             ]
+          },
+          {
+            "type": "tile",
+            "key": "mtn-ring-lip-notch",
+            "props": {
+              "tile": "hill-wall-frost",
+              "at": {
+                "x": 603,
+                "y": 105
+              }
+            }
           },
           {
             "type": "dungeon",
@@ -8200,7 +8264,7 @@
               "at": {
                 "x": 577,
                 "y": 110,
-                "z": -5
+                "z": -6
               }
             }
           },
@@ -8356,7 +8420,7 @@
               "at": {
                 "x": 587,
                 "y": 108,
-                "z": -3
+                "z": -4
               }
             }
           },
@@ -8368,7 +8432,7 @@
               "at": {
                 "x": 620,
                 "y": 108,
-                "z": -3
+                "z": -4
               }
             }
           },
@@ -8380,7 +8444,7 @@
               "at": {
                 "x": 557,
                 "y": 125,
-                "z": -3
+                "z": -4
               }
             }
           },
@@ -8750,7 +8814,7 @@
               "placement": {
                 "engraved": "Torvald Berg",
                 "inscription": "Torvald's last page",
-                "description": "The summit split under my feet and I fell into the ice. Broke my leg on the ledge. There is a way out east onto the crown's shelf, but no way back up, only down. I left what we carried in the chest on the shelf. Tell Edvard I found the top."
+                "description": "The summit split under my feet and I fell into the ice. Broke my leg on the ledge. There is a way out east onto the crown's shelf, but a lip of ice rings it, a full storey high, and nobody climbs that. I left Sigrid's Glacier rune in the chest on the shelf. Set it in a slot and it raises a block of ice to stand on; climb it before it melts. My leg will not take me up. Tell Edvard I found the top."
               }
             }
           },
@@ -8814,12 +8878,13 @@
             "props": {
               "tile": "quest-chest",
               "at": {
-                "x": 655,
+                "x": 648,
                 "y": 139
               },
               "placement": {
                 "rewardTag": "white-peak-shelf",
                 "rewardTileIds": [
+                  "rune-glacier",
                   "gold",
                   "essence-water"
                 ],
@@ -8836,7 +8901,7 @@
             "props": {
               "tile": "rope-coil",
               "at": {
-                "x": 654,
+                "x": 647,
                 "y": 141
               }
             }
