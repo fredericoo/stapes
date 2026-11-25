@@ -64,4 +64,36 @@ describe("scatter", () => {
     expect(walks(cut, WEST, EAST), sketch(cut)).toBe(true);
     expect(cutFootprints(cut), sketch(cut)).toEqual([]);
   });
+
+  it.each([1, 2, 3])("puts a tile only where its `among` tiles stand thick, seed %i", (seed) => {
+    const AT_LEAST = 12;
+    const built = buildTree(
+      land({ w: 40, h: 24 }, [
+        node(
+          "forest",
+          { density: 100, edge: 2, path: null, undergrowthDensity: 0 },
+          { frame: frame(0, 0, 20, 24) },
+        ),
+        node("scatter", {
+          tiles: [{ tile: "tuft", weight: 1 }],
+          density: 40,
+          clumping: 0,
+          onlyOn: ["grass"],
+          among: ["tree"],
+          amongAtLeast: AT_LEAST,
+        }),
+      ]),
+      { seed },
+    );
+    const trees = new Set(stands(built, "tree").map((c) => `${c.x},${c.y}`));
+    const placed = stands(built, "tuft");
+    expect(placed.length, sketch(built)).toBeGreaterThan(0);
+    for (const { x, y } of placed) {
+      let around = 0;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) if (trees.has(`${x + dx},${y + dy}`)) around++;
+      }
+      expect(around, `${x},${y}\n${sketch(built)}`).toBeGreaterThanOrEqual(AT_LEAST);
+    }
+  });
 });
