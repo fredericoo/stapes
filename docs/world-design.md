@@ -39,10 +39,16 @@ In `data/world.json`:
   stepped in ragged terraces three cells wide (`terrace` 3, `roughness` 70)
   and tallest toward the sea. Their tops carry a few trees and pebbles
   (`wreck-hills-trees`, and `rubble` in `wreck-hills-rocks`) and sandy patches
-  (`wreck-hills-sand-*`, each ringed by a `grass` rim so its edge is ragged);
-  a patch must sit on one level, or the landscape check finds it in pieces;
-  a small frame draws its oval mask as a near-square, so patches are 9 to 20
-  cells across with `ragged` 70. The west hill
+  (`wreck-hills-sand-*`, whose fill lays `sand` with `grass` on it along its
+  `edge`, so grass fades into the sand on every side). A ring of `grass` laid
+  by a separate layer through an inner mask comes apart into small pieces,
+  and the `grass` component drops pieces under 16 cells, so the rim belongs
+  to the fill. A patch must sit on one level and keep a cell off any brink,
+  or the landscape check finds it in pieces or the sand meets the brink with
+  no rim; a small frame draws its oval mask as a near-square unless
+  `raggedScale` is small, so the masks use `ragged` 90 and `raggedScale` 3.
+  The patches are masked out of `shore-slimes`, which reads any sand as
+  shore. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
   stands in the shallows at its foot so that wading along the shore does not
   either. The east side ends at the bay. The valley opens only at its north

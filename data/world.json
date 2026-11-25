@@ -6507,8 +6507,11 @@
                 "sand"
               ],
               "mode": "ground",
-              "edge": [],
-              "edgeWidth": 0,
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
               "onlyOn": [
                 "grass-2"
               ]
@@ -6526,39 +6529,8 @@
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 70
-                }
-              }
-            ]
-          },
-          {
-            "type": "grass",
-            "key": "wreck-hills-sand-1-rim",
-            "frame": {
-              "x": 326,
-              "y": 757,
-              "w": 20,
-              "h": 12
-            },
-            "props": {
-              "onlyOn": [
-                "sand"
-              ]
-            },
-            "children": [
-              {
-                "type": "mask",
-                "key": "wreck-hills-sand-1-rim-a",
-                "frame": {
-                  "x": 2,
-                  "y": 1,
-                  "w": 16,
-                  "h": 9
-                },
-                "props": {
-                  "shape": "oval",
-                  "op": "subtract",
-                  "ragged": 70
+                  "ragged": 90,
+                  "raggedScale": 3
                 }
               }
             ]
@@ -6577,8 +6549,11 @@
                 "sand"
               ],
               "mode": "ground",
-              "edge": [],
-              "edgeWidth": 0,
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
               "onlyOn": [
                 "grass-2"
               ]
@@ -6596,39 +6571,8 @@
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 70
-                }
-              }
-            ]
-          },
-          {
-            "type": "grass",
-            "key": "wreck-hills-sand-2-rim",
-            "frame": {
-              "x": 344,
-              "y": 774,
-              "w": 16,
-              "h": 14
-            },
-            "props": {
-              "onlyOn": [
-                "sand"
-              ]
-            },
-            "children": [
-              {
-                "type": "mask",
-                "key": "wreck-hills-sand-2-rim-a",
-                "frame": {
-                  "x": 2,
-                  "y": 1,
-                  "w": 12,
-                  "h": 11
-                },
-                "props": {
-                  "shape": "oval",
-                  "op": "subtract",
-                  "ragged": 70
+                  "ragged": 90,
+                  "raggedScale": 3
                 }
               }
             ]
@@ -6637,9 +6581,9 @@
             "type": "fill",
             "key": "wreck-hills-sand-3",
             "frame": {
-              "x": 468,
+              "x": 470,
               "y": 780,
-              "w": 9,
+              "w": 7,
               "h": 15
             },
             "props": {
@@ -6647,8 +6591,11 @@
                 "sand"
               ],
               "mode": "ground",
-              "edge": [],
-              "edgeWidth": 0,
+              "edge": [
+                "sand",
+                "grass"
+              ],
+              "edgeWidth": 1,
               "onlyOn": [
                 "grass-2"
               ]
@@ -6660,45 +6607,14 @@
                 "frame": {
                   "x": 0,
                   "y": 0,
-                  "w": 9,
+                  "w": 7,
                   "h": 15
                 },
                 "props": {
                   "shape": "oval",
                   "op": "intersect",
-                  "ragged": 70
-                }
-              }
-            ]
-          },
-          {
-            "type": "grass",
-            "key": "wreck-hills-sand-3-rim",
-            "frame": {
-              "x": 468,
-              "y": 780,
-              "w": 9,
-              "h": 15
-            },
-            "props": {
-              "onlyOn": [
-                "sand"
-              ]
-            },
-            "children": [
-              {
-                "type": "mask",
-                "key": "wreck-hills-sand-3-rim-a",
-                "frame": {
-                  "x": 2,
-                  "y": 1,
-                  "w": 5,
-                  "h": 12
-                },
-                "props": {
-                  "shape": "oval",
-                  "op": "subtract",
-                  "ragged": 70
+                  "ragged": 90,
+                  "raggedScale": 3
                 }
               }
             ]
@@ -7202,6 +7118,51 @@
                   "y": -40,
                   "w": 80,
                   "h": 110
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-1",
+                "frame": {
+                  "x": 85,
+                  "y": -4,
+                  "w": 22,
+                  "h": 14
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-2",
+                "frame": {
+                  "x": 103,
+                  "y": 13,
+                  "w": 18,
+                  "h": 16
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract",
+                  "ragged": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "slimes-off-sand-3",
+                "frame": {
+                  "x": 229,
+                  "y": 19,
+                  "w": 9,
+                  "h": 17
                 },
                 "props": {
                   "shape": "rect",
