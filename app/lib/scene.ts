@@ -29,6 +29,8 @@ export type Scene = {
   weather?: WeatherKind;
   /** Where rain and fog stop; see `WeatherArea`. */
   weatherAreas?: WeatherArea[];
+  /** The animation clock in ms, which picks each animation's frame; zero when absent. */
+  clockMs?: number;
 };
 
 export type BuiltScene = {
@@ -39,6 +41,7 @@ export type BuiltScene = {
   lighting: boolean;
   weather: WeatherKind;
   weatherAreas: WeatherArea[];
+  clockMs: number;
 };
 
 export const DEFAULT_SCENE_ZOOM = 6;
@@ -78,6 +81,7 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
     lighting: scene.lighting ?? true,
     weather: scene.weather ?? "clear",
     weatherAreas: parseWeatherAreas(scene.weatherAreas ?? []),
+    clockMs: scene.clockMs ?? 0,
   };
 }
 

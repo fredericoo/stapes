@@ -1501,6 +1501,12 @@ export class WorldRenderer {
     this.onNextFrame = cb;
   }
 
+  /** Moves the animation clock of a renderer that is never started, as the scene page's is. */
+  setAnimClock(ms: number) {
+    this.animClock = ms;
+    this.updateAnimations();
+  }
+
   renderOnce() {
     if (this.disposed) return;
     if (!this.assetsReady) return;
