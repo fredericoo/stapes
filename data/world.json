@@ -3191,13 +3191,10 @@
                 "type": "house",
                 "key": "camp-pub",
                 "frame": {
-                  "x": 1,
-                  "y": 2,
-                  "w": 8,
-                  "h": 7
-                },
-                "props": {
-                  "wall": "half-wall"
+                  "x": 0,
+                  "y": 0,
+                  "w": 10,
+                  "h": 9
                 },
                 "children": [
                   {
@@ -3213,6 +3210,16 @@
                           "pinY": "center"
                         }
                       ],
+                      "foodOnly": true,
+                      "stockPercent": 20
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "camp-pub-f1",
+                    "props": {
+                      "use": "inn",
+                      "rooms": 2,
                       "foodOnly": true,
                       "stockPercent": 20
                     }
@@ -3512,6 +3519,17 @@
               },
               {
                 "type": "tile",
+                "key": "camp-idris-tanning-rack",
+                "props": {
+                  "tile": "tanning-rack",
+                  "at": {
+                    "x": 7,
+                    "y": 12
+                  }
+                }
+              },
+              {
+                "type": "tile",
                 "key": "camp-runa-tent",
                 "props": {
                   "tile": "tent-2",
@@ -3541,6 +3559,17 @@
                   "at": {
                     "x": 12,
                     "y": 16
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "camp-training-dummy",
+                "props": {
+                  "tile": "training-dummy",
+                  "at": {
+                    "x": 18,
+                    "y": 17
                   }
                 }
               },

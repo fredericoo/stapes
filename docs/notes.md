@@ -5969,7 +5969,13 @@ on the curve, and no exchange rate is tuned. `computedRating` is that reading.
 - **A body that cannot hurt anybody is rated on its masteries alone**
   (`hurtsAnybody`, which bots' `canHurt` also reads). The training dummy is
   born with 10,000 hit points so it never dies; counted, they rate it 286, and
-  experience against it would pay double to every player in the game.
+  experience against it would pay double to every player in the game. A spell
+  whose only effect is a bolt on the caster does not count as hurting anybody,
+  so the dummy's `Restuff` leaves its rating where it was.
+- **The dummy restuffs itself below half health.** Its brain casts `Restuff`
+  (999 hit points on itself, once a second) until it is above half again, so an
+  archer shooting it all day, as Runa Hask does at the first camp, never brings
+  it down.
 - **Above a player's ceiling, it keeps climbing.** The cyclops's 2,000 hit
   points rate it 165, past the 150 no player reaches, because the curve is not
   clamped at `MAX_MASTERY`. Experience stops paying more at `MAX_XP_MULTIPLIER`
