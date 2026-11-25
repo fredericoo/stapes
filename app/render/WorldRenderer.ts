@@ -85,6 +85,7 @@ import type {
   PlacedTile,
   SpriteAnchor,
   SpriteState,
+  TileColorCycle,
   TileDef,
   TilesetDef,
 } from "../lib/types";
@@ -164,6 +165,16 @@ import {
   writeWadeAttr,
 } from "./worldQuads";
 import { AnimationTable, tableCanHold } from "./animTable";
+import {
+  type ColorCycleUniforms,
+  type CycleCorners,
+  FULL_COVER,
+  colorCycleUniforms,
+  coverCorners,
+  cyclePhaseAt,
+  currentCorners,
+} from "./colorCycle";
+import { colorCycleTileIds, driftFlow, placedBank } from "../lib/waterFlow";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
@@ -762,6 +773,13 @@ export class WorldRenderer {
   private readonly weatherUniforms = weatherUniforms();
   /** Shared by every world material, so setting a define and recompiling them switches the weather code on or off. */
   private readonly weatherDefines: WeatherDefines = {};
+  /** The weather defines plus `COLOR_CYCLE`, for the sheets of colour-cycled tiles; kept in step with `weatherDefines`. */
+  private readonly cycleDefines: WeatherDefines & { COLOR_CYCLE?: "" } = { COLOR_CYCLE: "" };
+  private colorCycles: {
+    for: Record<string, TileDef>;
+    tileIds: ReadonlySet<string>;
+    byTileset: Map<string, { cycle: TileColorCycle; uniforms: ColorCycleUniforms }>;
+  } | null = null;
   /** False until the first view's weather has been shown, so a player who joins in the rain sees rain at once. */
   private weatherSnapped = false;
   private sheltered: ReadonlySet<string> = new Set();
@@ -1394,6 +1412,7 @@ export class WorldRenderer {
     u.uRain.value = rain;
     u.uFog.value = fog;
     if (setWeatherDefines(this.weatherDefines, rain > 0, fog > 0)) {
+      setWeatherDefines(this.cycleDefines, rain > 0, fog > 0);
       for (const mat of this.materials.values()) mat.needsUpdate = true;
       this.particles.recompile();
     }
@@ -1499,6 +1518,12 @@ export class WorldRenderer {
 
   setOnNextFrame(cb: (() => void) | null) {
     this.onNextFrame = cb;
+  }
+
+  /** Moves the animation clock of a renderer that is never started, as the scene page's is. */
+  setAnimClock(ms: number) {
+    this.animClock = ms;
+    this.updateAnimations();
   }
 
   renderOnce() {
@@ -1911,6 +1936,7 @@ export class WorldRenderer {
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.flipY = true;
           tex.userData.translucent = ts.translucent === true;
+          tex.userData.tilesetId = ts.id;
           tex.needsUpdate = true;
           this.textures.set(ts.id, tex);
         } catch (err) {
@@ -1992,6 +2018,9 @@ export class WorldRenderer {
     const key = `${texture.uuid}:${z}:${tintCacheKey(tint)}`;
     let mat = this.materials.get(key);
     if (!mat) {
+      const cycle =
+        this.colorCycleState().byTileset.get(texture.userData.tilesetId as string)?.uniforms ??
+        null;
       const lightUniforms = this.ensureLightUniforms(z);
       const cutUniforms = this.ensureCutUniforms(z);
       const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
@@ -2010,10 +2039,11 @@ export class WorldRenderer {
           undefined,
           this.reflectionUniforms,
           this.weatherUniforms,
+          cycle,
         );
       };
       mat.customProgramCacheKey = () => REFLECTING_WORLD_SHADER_CACHE_KEY;
-      mat.defines = this.weatherDefines;
+      mat.defines = cycle ? this.cycleDefines : this.weatherDefines;
       this.materials.set(key, mat);
     }
     mat.transparent = true;
@@ -2424,7 +2454,7 @@ export class WorldRenderer {
       if (item.anim || item.tileKey) continue;
       const b = item.box;
       const a = item.mergedAnim;
-      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}~`;
+      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}|${item.cycle ? `${item.cycle.flow.join(",")};${item.cycle.waves.join(",")};${item.cycle.bank.join(",")};${item.cycle.cover.join(",")}` : ""}~`;
     }
     return sig;
   }
@@ -2628,6 +2658,9 @@ export class WorldRenderer {
           standsOnFeet,
           mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
           reflect: this.reflective().index.get(def.id),
+          cycle: def.colorCycle
+            ? this.cycleCornersAt(map, x, y, z, placed, tileset.translucent === true)
+            : undefined,
           lightX0: x,
           lightY0: y,
           lightX1: x + 1,
@@ -3003,6 +3036,53 @@ export class WorldRenderer {
     }
   }
 
+  private colorCycleState() {
+    if (this.colorCycles?.for !== this.tilesById) {
+      const byTileset = new Map<string, { cycle: TileColorCycle; uniforms: ColorCycleUniforms }>();
+      for (const def of Object.values(this.tilesById)) {
+        if (!def.colorCycle || byTileset.has(def.anchor.tilesetId)) continue;
+        byTileset.set(def.anchor.tilesetId, {
+          cycle: def.colorCycle,
+          uniforms: colorCycleUniforms(def.colorCycle),
+        });
+      }
+      this.colorCycles = {
+        for: this.tilesById,
+        tileIds: colorCycleTileIds(this.tilesById),
+        byTileset,
+      };
+    }
+    return this.colorCycles;
+  }
+
+  private cycleCornersAt(
+    map: MapFile,
+    x: number,
+    y: number,
+    z: number,
+    placed: PlacedTile,
+    laidOver: boolean,
+  ): CycleCorners {
+    const { tileIds } = this.colorCycleState();
+    const own = placed.flow ?? driftFlow(y);
+    return {
+      ...currentCorners(map, x, y, z, own, placed.waves ?? 1, placedBank(placed), tileIds),
+      cover: laidOver ? coverCorners(map, x, y, z, placed.tileId) : FULL_COVER,
+    };
+  }
+
+  /** Turns every colour cycle to the clock, and says whether any moved on a step. */
+  private updateColorCycles(): boolean {
+    let changed = false;
+    for (const { cycle, uniforms } of this.colorCycleState().byTileset.values()) {
+      const phase = cyclePhaseAt(cycle, this.animClock);
+      if (phase === uniforms.uCyclePhase.value) continue;
+      uniforms.uCyclePhase.value = phase;
+      changed = true;
+    }
+    return changed;
+  }
+
   private reflective() {
     if (this.reflectiveState?.for !== this.tilesById) {
       const index = reflectiveTileIndex(this.tilesById);
@@ -3161,7 +3241,7 @@ export class WorldRenderer {
   }
 
   private updateAnimations(): boolean {
-    let changed = false;
+    let changed = this.updateColorCycles();
     for (const [z, u] of this.animUniformsByZ) {
       if (u.uAnimEnabled.value === 0) continue;
       const table = this.animTablesByZ.get(z);

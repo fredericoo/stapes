@@ -40,6 +40,7 @@ const GENERATED_KEYS = [
   "slices",
   "scatter",
   "autotileMask",
+  "colorCycle",
 ] as const;
 
 /**

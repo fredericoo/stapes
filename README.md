@@ -129,9 +129,10 @@ an agent drives", lists every call.
   another block of the same sheet: each cell gets the source block's full cell
   wherever the source cell is transparent. Which blocks, on which sheet, is the `JOBS`
   list at the top of the script
-- `bun run generate:water` — rebuild the water autotile from two masks: the wave
-  frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
-  Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:water` — redraw `data/tilesets/water.png` and the `water`
+  tile's 256 slices: a sandy bank round water painted in one key colour, which
+  the world shader replaces with the tile's `colorCycle` ramp. Writes the
+  `colorCycle` with the sheet, since the key is baked into it
 - `bun run generate:camp` — copy the two canvas tents out of the tiny-ranch
   sheet onto the cell grid of `data/tilesets/camp.png` and cast the bedroll in
   its four facings below them; writes the `tent`, `tent-2` and `bedroll` tiles.
@@ -203,7 +204,7 @@ an agent drives", lists every call.
   over eight frames, one frame apart per cell so the wave runs along the shore
 - `bun run generate:swamp` — redraw `data/tilesets/deep-water.png`,
   `swamp.png` and `swamp-plants.png`. `deep-water` and `swamp` are
-  `water.png`'s open-water frames recoloured, faded out in opacity towards
+  each painted in its `colorCycle` key colour, faded out in opacity towards
   every side they do not connect on, on sheets marked `translucent`. `reeds`,
   `cattails`, `duckweed` and `swamp-lily` are cast through the game's
   projection with the hats' caster, each with a `-trodden` twin it swaps
@@ -253,8 +254,8 @@ an agent drives", lists every call.
   also writes `sand.png` there, a field of the sand faces picked the way
   the renderer picks them
 - `bun run generate:lava` — redraw `data/tilesets/lava.png` and its tiles. All
-  three are autotiles with `dirt`'s rounded outline, read from `floors.png` as
-  `generate:water` does, and are meant to be stacked: sand, `basalt`,
+  three are autotiles with `dirt`'s rounded outline, read from `floors.png`,
+  and are meant to be stacked: sand, `basalt`,
   `lava-crust`, `lava`, each with its own edge over the layer beneath.
   `lava` is 16 frames of a sum of waves, each with a spatial frequency chosen
   so that the per-cell frame offset (`phase`) carries it across the cell border

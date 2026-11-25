@@ -25,6 +25,14 @@ import {
 import { FOG_EDGE_CELLS, FOG_EDGE_WOBBLE_CELLS } from "../lib/weatherAreas";
 import { ANIM_GLSL_FUNCTION, NO_ANIMATION } from "./animTable";
 import {
+  COLOR_CYCLE_GLSL_COMMON,
+  COLOR_CYCLE_GLSL_FRAGMENT,
+  COLOR_CYCLE_GLSL_VERTEX,
+  COLOR_CYCLE_GLSL_VERTEX_COMMON,
+  type ColorCycleUniforms,
+  type CycleCorners,
+} from "./colorCycle";
+import {
   NO_REFLECTION_UNIFORMS,
   REFLECT_GLSL_COMMON,
   REFLECT_GLSL_FRAGMENT,
@@ -64,6 +72,8 @@ export type Quad = {
   unlit: boolean;
   /** One-based reflective tile slot, or absent; see `reflectiveTileIndex`. */
   reflect?: number;
+  /** The current, wave count and cover at the cell's corners, on a colour-cycled tile. */
+  cycle?: CycleCorners;
 };
 
 export type LevelLightUniforms = {
@@ -231,7 +241,7 @@ const SPLASH_STEPS = 3;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v18-weather-areas-6";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v21-color-cycle-calm";
 
 /** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
 export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
@@ -325,6 +335,11 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
   const reflects = new Float32Array(n * VERTS_PER_QUAD);
+  const cycled = quads.some((q) => q.cycle);
+  const cycles = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
+  const cycleWaves = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
+  const cycleCovers = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
+  const cycleBanks = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
   const indices = quadIndexArray(n);
 
   for (let i = 0; i < n; i++) {
@@ -369,6 +384,14 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     unlit[vb + 2] = u;
     unlit[vb + 3] = u;
     reflects.fill(q.reflect ?? 0, vb, vb + VERTS_PER_QUAD);
+    if (cycles && cycleWaves && cycleCovers && cycleBanks && q.cycle) {
+      for (let v = 0; v < VERTS_PER_QUAD; v++) {
+        cycles.set(q.cycle.flow, (vb + v) * 4);
+        cycleBanks.set(q.cycle.bank, (vb + v) * 4);
+        cycleWaves.set(q.cycle.waves, (vb + v) * 4);
+        cycleCovers.set(q.cycle.cover, (vb + v) * 4);
+      }
+    }
 
     writeQuadBox(boxes, stacks, spans, i, q.box, q.stackBias);
 
@@ -394,6 +417,12 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setAttribute("aReflect", new THREE.BufferAttribute(reflects, 1));
+  if (cycles && cycleWaves && cycleCovers && cycleBanks) {
+    geo.setAttribute("aCycle", new THREE.BufferAttribute(cycles, 4));
+    geo.setAttribute("aCycleBank", new THREE.BufferAttribute(cycleBanks, 4));
+    geo.setAttribute("aCycleWaves", new THREE.BufferAttribute(cycleWaves, 4));
+    geo.setAttribute("aCycleCover", new THREE.BufferAttribute(cycleCovers, 4));
+  }
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -550,6 +579,7 @@ export function injectWorldShader(
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
   reflect: ReflectionUniforms = NO_REFLECTION_UNIFORMS,
   weather: WeatherUniforms = NO_WEATHER_UNIFORMS,
+  cycle: ColorCycleUniforms | null = null,
 ) {
   Object.assign(
     shader.uniforms,
@@ -561,6 +591,7 @@ export function injectWorldShader(
     transition,
     reflect,
     weather,
+    cycle ?? {},
   );
   const reflectGlsl = (snippet: string) => (reflect === NO_REFLECTION_UNIFORMS ? "" : snippet);
   shader.vertexShader = shader.vertexShader
@@ -585,6 +616,7 @@ varying vec2 vLightScale;
 varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 ${reflectGlsl(REFLECT_GLSL_VERTEX_COMMON)}
+${COLOR_CYCLE_GLSL_VERTEX_COMMON}
 
 ${ANIM_GLSL_FUNCTION}`,
     )
@@ -601,6 +633,7 @@ vWade = aWade;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
 ${reflectGlsl(REFLECT_GLSL_VERTEX)}
+${COLOR_CYCLE_GLSL_VERTEX}
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
   vMapUv += animFrameOffset(aAnim.x, uAnimClockMs + aAnim.y);
@@ -648,6 +681,7 @@ varying vec2 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
 ${reflectGlsl(REFLECT_GLSL_COMMON)}
+${COLOR_CYCLE_GLSL_COMMON}
 float weatherHash(vec2 p) {
   vec3 q = fract(vec3(p.xyx) * 0.1031);
   q += dot(q, q.yzx + 33.33);
@@ -696,6 +730,7 @@ float sunThrough(vec2 uv) {
     .replace(
       "#include <map_fragment>",
       `#include <map_fragment>
+${COLOR_CYCLE_GLSL_FRAGMENT}
 ${TRANSITION_GLSL_SNAP}
 // vBox.xy is this quad's unshifted base cell, constant across the quad
 // however tall the sprite is, so a tall wall is cut with the cell it stands on.

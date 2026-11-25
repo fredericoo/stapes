@@ -307,6 +307,33 @@ const FAULTS: {
     found: { severity: "warn", file: "map.json", id: "water", path: "" },
   },
   {
+    fault: "a liquid that fades at the edge of its pool with nothing under it",
+    seed: (c) => {
+      c.tilesets.push({
+        id: "liquid",
+        name: "Liquid",
+        file: "sheet.png",
+        width: 16,
+        height: 16,
+        translucent: true,
+      });
+      c.tiles.push({
+        ...autotile("deep-water"),
+        anchor: { tilesetId: "liquid", x: 0, y: 0 },
+        colorCycle: {
+          key: "#323353",
+          ramp: ["#323353", "#484a77"],
+          cellsPerCycle: 4,
+          msPerCycle: 1600,
+          ripple: 0,
+          gaps: 0,
+        },
+      });
+      c.map = replaceStack(c.map, 3, 0, 0, [{ tileId: "deep-water" }]);
+    },
+    found: { severity: "warn", file: "map.json", id: "deep-water", path: "" },
+  },
+  {
     fault: "a map with a second player tile",
     seed: (c) => {
       c.map = replaceStack(c.map, 5, 0, 0, [{ tileId: "player" }]);
