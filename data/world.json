@@ -3260,8 +3260,11 @@
                 "props": {
                   "tile": "cauldron",
                   "at": {
-                    "x": 17,
+                    "x": 15,
                     "y": 10
+                  },
+                  "placement": {
+                    "foot": 2
                   }
                 }
               },
