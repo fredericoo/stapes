@@ -14,9 +14,10 @@ Two consequences for anyone editing the map:
 - **The start is short and the adventure comes after it.** The walk from the
   wreck to the first camp is a minute or two. The long walks are from the camp
   to the towns, the dungeons and the coast.
-- **A barrier is terrain a player can see.** A hill the player is meant not to
-  climb is a steep hill (`terrace` 0 or 1, no `ramps`), not a gentle one with
-  its ramps left out.
+- **A barrier is terrain a player can see.** A player cannot climb even one
+  level without a ramp, so a hill with no `ramps` is a barrier however its
+  levels are stepped: sheer (`terrace` 0 or 1) or in ragged terraces like the
+  valley's hills.
 
 ## The guided start
 
@@ -29,8 +30,13 @@ In `data/world.json`:
   follow the road. She has no `keeps-hours`, so she is awake at every hour:
   a player who joins at night still gets the guided start. Her trades sit behind one Trade option so a new player's
   first conversation is about the island, not a price list.
-- **The valley.** `wreck-west-hill` and `wreck-east-hill` are steep hills either
-  side of the road (`beach-path`) from the wreck to the camp. The west hill
+- **The valley.** `wreck-west-hill` and `wreck-east-hill` are hills with no
+  ramps either side of the road (`beach-path`) from the wreck to the camp,
+  stepped in ragged terraces three cells wide (`terrace` 3, `roughness` 70)
+  and tallest toward the sea. Their tops carry a few trees and rocks
+  (`wreck-hills-trees`, `wreck-hills-rocks`) and sandy patches
+  (`wreck-hills-sand-*`, each ringed by a `grass` rim so its edge is ragged);
+  a patch must sit on one level, or the landscape check finds it in pieces. The west hill
   runs down to the sea, so the beach does not lead west; `wreck-shallows-ribs`
   stands in the shallows at its foot so that wading along the shore does not
   either. The east side ends at the bay. The valley opens only at its north
