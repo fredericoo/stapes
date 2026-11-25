@@ -14405,6 +14405,37 @@
                 "action": "hold"
               }
             ]
+          },
+          "guarding": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Off my beach, {beast}."
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "beast"
+                  }
+                }
+              },
+              {
+                "action": "attack_range",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "beast"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -14485,6 +14516,41 @@
                 "yeva-kostenko",
                 "runa-hask"
               ]
+            }
+          },
+          {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "wolf",
+                "rat",
+                "snake",
+                "bat",
+                "bog-imp",
+                "cave-troll",
+                "cyclops",
+                "skeleton",
+                "water-slime",
+                "small-water-slime",
+                "fire-slime",
+                "small-fire-slime",
+                "nature-slime",
+                "small-nature-slime",
+                "ember-wisp",
+                "tide-wisp",
+                "moss-wisp"
+              ],
+              "within": 7,
+              "fight": "guarding",
+              "target": "beast",
+              "calm": 10,
+              "when": {
+                "cond": "in_range",
+                "of": {
+                  "type": "home"
+                },
+                "cells": 8
+              }
             }
           },
           {
