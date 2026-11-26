@@ -1,3 +1,5 @@
+import { growTallTree, TALL_TREES } from "../../app/editor/compose/tallTrees";
+import { physicalHeight } from "../../app/lib/types";
 import { tile } from "./board";
 import type { Builder } from "./build";
 import { footprint } from "./landmarks";
@@ -76,6 +78,8 @@ export const GROWN = new Set<string>([
   ...SWAMP_GROWTH.map(([id]) => id),
   ...DUNES.map((dune) => dune.id),
   "old-tree",
+  "old-tree-trunk",
+  "old-tree-crown",
 ]);
 
 const hash = (x: number, y: number, salt: number) => {
@@ -131,17 +135,24 @@ export function plant(b: Builder, wild: Uint8Array) {
         (stack.length === 2 && stack[1]!.tileId === "mud" && g === Ground.Bog);
       if (!bare) continue;
       if (g === Ground.Desert && placeDune(b, x, y, z, clear)) continue;
-      if (g === Ground.DeepWoods && roll < 0.012 && fits2x2(b, x, y, z, clear)) {
-        footprint(b, { x, y }, z, "old-tree", 2, 2);
-        for (const [dx, dy] of [
-          [0, 0],
-          [1, 0],
-          [0, 1],
-          [1, 1],
-        ] as const) {
-          clear[(y + dy) * w + x + dx] = 1;
+      if (
+        g === Ground.DeepWoods &&
+        roll < 0.012 &&
+        fits(b, x, y, z, 1, 1, Ground.DeepWoods, clear)
+      ) {
+        const above = growTallTree(
+          TALL_TREES["old-tree"]!,
+          Math.floor(hash(x, y, 3) * 4294967296),
+          (id) => physicalHeight(b.tilesById[id]!),
+          (level) => !b.board.get(x, y, level)?.length,
+          z,
+        );
+        if (above) {
+          stack.push(tile("old-tree"));
+          above.forEach((pieces, i) => b.board.set(x, y, z + i + 1, pieces));
+          clear[i] = 1;
+          continue;
         }
-        continue;
       }
       const chances = GROWTH[g];
       if (!chances) continue;
@@ -162,10 +173,6 @@ function besideDrop(b: Builder, x: number, y: number, z: number): boolean {
     }
   }
   return false;
-}
-
-function fits2x2(b: Builder, x: number, y: number, z: number, clear: Uint8Array): boolean {
-  return fits(b, x, y, z, 2, 2, Ground.DeepWoods, clear);
 }
 
 /** Whether a `w` × `d` footprint from `x`, `y` lies on bare `ground`, on one level, away from any drop. */

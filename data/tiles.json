@@ -183247,11 +183247,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 0,
-      "y": 0
-    },
-    "footprint": {
-      "w": 2,
-      "d": 2
+      "y": 6
     },
     "walkable": false,
     "sprite": {
@@ -183261,12 +183257,12 @@
             "rect": {
               "x": 0,
               "y": 0,
-              "w": 6,
-              "h": 6
+              "w": 4,
+              "h": 4
             },
             "base": {
-              "x": 5,
-              "y": 5
+              "x": 2,
+              "y": 2
             }
           },
           "durationMs": 200
@@ -183299,7 +183295,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 6,
-      "y": 0
+      "y": 6
     },
     "footprint": {
       "w": 2,
@@ -183348,7 +183344,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 9,
-      "y": 0
+      "y": 6
     },
     "walkable": false,
     "lightPassing": true,
@@ -183393,7 +183389,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 0,
-      "y": 6
+      "y": 10
     },
     "lightPassing": true,
     "intangible": true,
@@ -183455,7 +183451,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 4,
-      "y": 6
+      "y": 10
     },
     "lightPassing": true,
     "intangible": true,
@@ -183518,7 +183514,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 8,
-      "y": 6
+      "y": 10
     },
     "lightPassing": true,
     "walkable": true,
@@ -183574,7 +183570,7 @@
     "anchor": {
       "tilesetId": "deep-woods",
       "x": 12,
-      "y": 6
+      "y": 10
     },
     "lightPassing": true,
     "walkable": true,
@@ -201830,6 +201826,135 @@
         {
           "at": 1,
           "color": "#c7dcd0"
+        }
+      ]
+    }
+  },
+  {
+    "id": "old-tree-crown",
+    "name": "Old tree crown",
+    "height": 2,
+    "type": "scatter",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "deep-woods",
+      "x": 0,
+      "y": 0
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "cutAlone": true,
+    "scatter": [
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 6,
+                "h": 6
+              },
+              "base": {
+                "x": 4,
+                "y": 4
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 6,
+                "h": 6
+              },
+              "base": {
+                "x": 4,
+                "y": 4
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 12,
+                "y": 0,
+                "w": 6,
+                "h": 6
+              },
+              "base": {
+                "x": 4,
+                "y": 4
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 18,
+                "y": 0,
+                "w": 6,
+                "h": 6
+              },
+              "base": {
+                "x": 4,
+                "y": 4
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "old-tree-trunk",
+    "name": "Old tree trunk",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "deep-woods",
+      "x": 4,
+      "y": 6
+    },
+    "walkable": false,
+    "lightPassing": true,
+    "cutAlone": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
         }
       ]
     }

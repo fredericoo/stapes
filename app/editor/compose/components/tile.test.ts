@@ -10,29 +10,29 @@ describe("tile", () => {
   it("stands a tile wider than a cell in every cell it covers", () => {
     const narrow = buildTree(land(LANE, [node("tile", { tile: "tree", at: at(6, 1) })]));
     expect(walks(narrow, WEST, EAST), sketch(narrow)).toBe(true);
-    const wide = buildTree(land(LANE, [node("tile", { tile: "old-tree", at: at(6, 1) })]));
+    const wide = buildTree(land(LANE, [node("tile", { tile: "tent", at: at(6, 1) })]));
     expect(walks(wide, WEST, EAST), sketch(wide)).toBe(false);
     expect(cutFootprints(wide)).toEqual([]);
   });
 
   it("refuses a wide tile with a cell off the ground rather than placing part of it", () => {
-    const built = buildTree(land(LANE, [node("tile", { tile: "old-tree", at: at(0, 1) })]), {
+    const built = buildTree(land(LANE, [node("tile", { tile: "tent", at: at(0, 1) })]), {
       problems: "returned",
     });
     expect(built.problems.map((p) => p.reason)).toEqual(["There is no ground at -1,1"]);
-    expect(stands(built, "old-tree")).toEqual([]);
+    expect(stands(built, "tent")).toEqual([]);
   });
 
   it("refuses a wide tile where something already stands under part of it", () => {
     const built = buildTree(
       land(LANE, [
         node("tile", { tile: "tree", at: at(5, 0) }),
-        node("tile", { tile: "old-tree", at: at(6, 1) }),
+        node("tile", { tile: "tent", at: at(6, 1) }),
       ]),
       { problems: "returned" },
     );
     expect(built.problems.map((p) => p.reason)).toEqual(["Nothing can stand on the Tree at 5,0"]);
-    expect(stands(built, "old-tree")).toEqual([]);
+    expect(stands(built, "tent")).toEqual([]);
   });
 
   it("stands a tile taller than a level where the level above it is clear, and not under a floor", () => {
