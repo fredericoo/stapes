@@ -6275,7 +6275,8 @@ all read the same figure. `weaponHandling` is applied separately inside
 ### Gear can add to a mastery, for what the mastery does and never for what it allows
 
 Any item that is worn or held (weapon, armour, shield, stone, charm) can carry
-`masteryBonus`, a `Masteries` block. There is no set concept: the
+`masteryBonus`, a `Masteries` block. The Wolfskin Hood, Coat and Boots give
+Nature 1, 2 and 1, so the whole set is Nature +4. There is no set concept: the
 bonuses add up piece by piece, the way `armorResistances` adds up resists, and a
 set bonus is just several pieces that raise the same mastery.
 
