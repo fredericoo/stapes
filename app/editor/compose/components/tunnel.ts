@@ -20,7 +20,8 @@ export type TunnelGround = {
   tilesById: Readonly<Record<string, TileDef>>;
 };
 
-export type TunnelStyle = { floor: string; mouth: string };
+/** `road` is the road's own tile, laid under each mouth so the road runs onto it; none for a road with no tile. */
+export type TunnelStyle = { floor: string; mouth: string; road: string | null };
 
 /** How far from where the route meets a cliff it looks for a straight stretch to open a mouth in. */
 const MOUTH_REACH = 8;
@@ -255,7 +256,7 @@ function digThrough(
  * hill's. Rock left bare beside the new floor is stood on that floor, as a
  * cave stands its walls, unless it is on the hill's face, which keeps the
  * ground it shows. Each mouth is the hill wall's own mouth, on the ground
- * outside it.
+ * outside it, with the road's tile over that ground.
  */
 function carve(
   ground: TunnelGround,
@@ -308,6 +309,7 @@ function carve(
       level,
       stack: [
         ...outside.map((p) => ({ ...p })),
+        ...(style.road && outside.at(-1)?.tileId !== style.road ? [tile(style.road)] : []),
         tile(mouthIn(style.mouth, wall, tilesById), mouth.facing),
       ],
     });

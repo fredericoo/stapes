@@ -160,6 +160,10 @@ describe("a road through a hill too high to climb", () => {
     expect(walks(built, WEST_FOOT, EAST_FOOT), sketch(built)).toBe(true);
     expect(walks(built, EAST_FOOT, WEST_FOOT), sketch(built)).toBe(true);
     expect(stands(built, "hill-cave-mouth").length, sketch(built)).toBe(2);
+    for (const mouth of stands(built, "hill-cave-mouth")) {
+      const ids = getStack(built.map, mouth.x, mouth.y, mouth.z).map((p) => p.tileId);
+      expect(ids.at(-2), `the road runs onto the mouth at ${mouth.x},${mouth.y}`).toBe("dirt");
+    }
     for (const c of dug(built)) {
       expect(built.elevation.get(`${c.x},${c.y}`), `${c.x},${c.y} has rock over it`).toBe(3);
     }

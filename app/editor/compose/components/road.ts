@@ -352,7 +352,7 @@ export const road: Component<RoadProps> = {
             rampGround: (x, y) => ctx.rampAt(x, y)?.ground,
             tilesById: ctx.tilesById,
           },
-          { floor: props.tile ?? "dirt", mouth: props.mouth },
+          { floor: props.tile ?? "dirt", mouth: props.mouth, road: props.tile },
           (stretch) => {
             const dug = new Map(
               stretch.flatMap((c) => (c.under === undefined ? [] : [[at(c.x, c.y), c.under]])),
