@@ -978,7 +978,7 @@
         "#24436b"
       ],
       "opacity": 0.4,
-      "fadePx": 24,
+      "fadePx": 48,
       "turbulence": 1
     },
     "interactions": {
