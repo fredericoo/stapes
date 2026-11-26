@@ -224,32 +224,41 @@ export const DEFAULT_BATTLER: BattlerDef = {
   kit: [],
 };
 
-export function bodyDefence(battler: BattlerDef): number {
-  return defFrom(masteryLevel(battler.masteries, "toughness"));
+export function bodyDefence(masteries: Masteries): number {
+  return defFrom(masteryLevel(masteries, "toughness"));
 }
 
-export function fightingStats(battler: BattlerDef, weapon: WeaponItem): FightingStats {
+/**
+ * `boosted` is the trained masteries with what is worn added (`boostedMasteries`):
+ * it drives every figure here except handling, which asks whether the weapon's
+ * requirements were met by training alone.
+ */
+export function fightingStats(
+  battler: BattlerDef,
+  weapon: WeaponItem,
+  boosted: Masteries = battler.masteries,
+): FightingStats {
   const handling = weaponHandling(requirementShortfall(battler.masteries, weapon.requirements));
 
-  const skill = masteryLevel(battler.masteries, weapon.mastery) / MAX_MASTERY;
+  const skill = masteryLevel(boosted, weapon.mastery) / MAX_MASTERY;
 
-  const damage = damageAtMastery(weapon, masteryLevel(battler.masteries, weapon.mastery));
+  const damage = damageAtMastery(weapon, masteryLevel(boosted, weapon.mastery));
   const accuracy =
     handling *
     (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) + skill * ACCURACY_AT_MAX_MASTERY);
 
   return {
-    maxHp: maxHpFrom(battler.baseHp, masteryLevel(battler.masteries, "toughness")),
-    flee: fleeFrom(masteryLevel(battler.masteries, "agility")),
+    maxHp: maxHpFrom(battler.baseHp, masteryLevel(boosted, "toughness")),
+    flee: fleeFrom(masteryLevel(boosted, "agility")),
     canDodge: true,
     damage: Math.round(damage),
-    def: weapon.def + bodyDefence(battler),
+    def: weapon.def + bodyDefence(boosted),
     resist: NO_RESISTANCES,
     mastery: weapon.mastery,
     accuracy: Math.round(accuracy),
     hitChance: hitChanceFrom(accuracy),
     variance: weapon.variance,
-    haste: hasteFrom(masteryLevel(battler.masteries, "agility")) * handling,
+    haste: hasteFrom(masteryLevel(boosted, "agility")) * handling,
     spd: weapon.spd,
     reach: weapon.reach,
     projectile: weapon.projectile ?? null,
@@ -274,14 +283,16 @@ export function castingSkill(
   return total / ((1 + elements.length) * MAX_MASTERY);
 }
 
+/** `requirementShare` reads the trained `masteries`, so what `boosted` adds is power and never makes up a shortfall. */
 export function spellPower(
   damage: number,
   requirements: Masteries | undefined,
   masteries: Masteries,
   physical?: PhysicalBlow,
+  boosted: Masteries = masteries,
 ): number {
   if (damage === 0) return 0;
-  const skill = castingSkill(masteries, requirements, physical);
+  const skill = castingSkill(boosted, requirements, physical);
   const magnitude =
     (Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY) *
     requirementShare(masteries, requirements);

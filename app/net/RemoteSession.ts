@@ -69,7 +69,7 @@ import {
 import { canBeginExtract, type Extraction, type ExtractionProgress } from "../game/extract";
 import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
-import { type Equipment, emptyEquipment } from "../game/equipment";
+import { boostedMasteries, type Equipment, emptyEquipment } from "../game/equipment";
 import type { DeathCost } from "../game/deathCost";
 import { type Attributes, attributesOf } from "../game/attributes";
 import {
@@ -1610,11 +1610,13 @@ export class RemoteSession implements PlaySession {
     const targetMotion = this.targetId ? this.motions.get(this.targetId) : undefined;
     const to = this.targetId && targetMotion ? this.locate(this.targetId, targetMotion) : null;
 
+    const masteries = masteriesFromXp(this.masteryXp);
     return {
       map: this.map,
       tilesById: this.tilesById,
       equipment: this.equipment,
-      masteries: masteriesFromXp(this.masteryXp),
+      masteries,
+      boosted: boostedMasteries(masteries, this.equipment, this.tilesById),
       caster: this.casterPoint(from, motion.walk?.to ?? null),
       casting: this.castingsById.get(this.selfId) ?? null,
       spells: this.naturalSpells(from.placed.tileId),

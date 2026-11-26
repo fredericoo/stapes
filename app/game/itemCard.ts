@@ -83,6 +83,11 @@ export type ItemCardEffect = {
   duration: string;
 };
 
+export type ItemCardBonus = {
+  mastery: Mastery;
+  extra: number;
+};
+
 export type ItemCardResist = {
   mastery: PhysicalBlow;
   extra: number;
@@ -97,6 +102,7 @@ export type ItemCard = {
   description: string | null;
   stats: ItemCardStat[];
   requirements: ItemCardRequirement[];
+  bonuses: ItemCardBonus[];
   dormant: string | null;
   effects: ItemCardEffect[];
   effectsTitle: string;
@@ -384,6 +390,18 @@ function requirementsTitleFor(item: ItemDef): string {
   return item.type === "stone" ? HEADINGS.requires : HEADINGS.toMaster;
 }
 
+function bonusesOf(item: ItemDef): ItemCardBonus[] {
+  if (item.type === "consumable" || item.type === "container" || item.type === "artifact") {
+    return [];
+  }
+  const bonus = item.masteryBonus;
+  if (!bonus) return [];
+  return MASTERIES.filter((mastery) => (bonus[mastery] ?? 0) > 0).map((mastery) => ({
+    mastery,
+    extra: bonus[mastery]!,
+  }));
+}
+
 function demandsOf(item: ItemDef): Masteries | undefined {
   if (item.type === "consumable" || item.type === "container" || item.type === "artifact") {
     return undefined;
@@ -553,6 +571,7 @@ export function itemCard(
     description: instance?.description?.trim() || def.description?.trim() || null,
     stats: statsFor(item, instance, masteries, statusDefs),
     requirements: requirementsFrom(demandsOf(item), masteries),
+    bonuses: bonusesOf(item),
     dormant: dormancyOf(item, masteries),
     effects: effectsFrom(grantsOn(item), statusDefs),
     effectsTitle: effectsTitleFor(item),
@@ -611,6 +630,9 @@ function speak(card: ItemCard): string {
     for (const row of stat.against ?? []) {
       lines.push(`${row.extra} more against ${MASTERY_LABELS[row.mastery].toLowerCase()} blows`);
     }
+  }
+  for (const row of card.bonuses) {
+    lines.push(`${HEADINGS.bonuses}: ${MASTERY_LABELS[row.mastery]} +${row.extra}`);
   }
   for (const row of card.requirements) {
     lines.push(

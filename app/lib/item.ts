@@ -53,6 +53,7 @@ export type WeaponItem = {
   mastery: WeaponMastery;
   projectile?: string;
   requirements?: Masteries;
+  masteryBonus?: Masteries;
   statuses?: WeaponStatus[];
   elements?: Element[];
   /** The human part it is drawn as in a hand; see `heldPartOf`. */
@@ -101,6 +102,7 @@ export type ArmorItem = {
   def: number;
   resist?: WeaponResistances;
   requirements?: Masteries;
+  masteryBonus?: Masteries;
   elements?: Element[];
   /** The human part it is drawn as when worn; see `wornPartOf`. */
   humanPart?: string;
@@ -126,6 +128,7 @@ export type ShieldItem = {
   type: "shield";
   def: number;
   requirements?: Masteries;
+  masteryBonus?: Masteries;
   elements?: Element[];
   humanPart?: string;
 };
@@ -206,6 +209,7 @@ export type ArcaneStoneItem = {
   sound?: string;
   soundStyle?: NoiseStyle;
   requirements?: Masteries;
+  masteryBonus?: Masteries;
   reach?: Reach;
   elements?: Element[];
   casterEffect?: Transition;
@@ -217,6 +221,7 @@ export type CharmItem = {
   hp?: number;
   statuses?: StatusGrant[];
   requirements?: Masteries;
+  masteryBonus?: Masteries;
   elements?: Element[];
 };
 
@@ -417,6 +422,7 @@ export const weaponSchema = v.object({
   mastery: v.picklist(WEAPON_MASTERIES),
   projectile: v.optional(projectileSchema),
   requirements: v.optional(masteriesSchema),
+  masteryBonus: v.optional(masteriesSchema),
   statuses: v.optional(v.array(weaponStatusSchema)),
   elements: v.optional(elementsSchema),
   humanPart: v.optional(v.string()),
@@ -472,6 +478,7 @@ const armorSchema = v.object({
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   resist: v.optional(weaponResistancesSchema),
   requirements: v.optional(masteriesSchema),
+  masteryBonus: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
   humanPart: v.optional(v.string()),
 });
@@ -485,6 +492,7 @@ const shieldSchema = v.object({
   type: v.literal("shield"),
   def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   requirements: v.optional(masteriesSchema),
+  masteryBonus: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
   humanPart: v.optional(v.string()),
 });
@@ -596,6 +604,7 @@ export const stoneSchema = v.object({
   sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
   soundStyle: v.optional(noiseStyleSchema),
   requirements: v.optional(masteriesSchema),
+  masteryBonus: v.optional(masteriesSchema),
   reach: v.optional(reachEntries),
   elements: v.optional(elementsSchema),
   casterEffect: v.optional(transitionSchema),
@@ -612,6 +621,7 @@ const charmSchema = v.object({
   hp: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP))),
   statuses: v.optional(v.array(statusGrantSchema)),
   requirements: v.optional(masteriesSchema),
+  masteryBonus: v.optional(masteriesSchema),
   elements: v.optional(elementsSchema),
 });
 
@@ -699,6 +709,12 @@ export function itemRequirements(def: TileDef): Masteries | undefined {
   return item.requirements;
 }
 
+export function itemMasteryBonus(def: TileDef): Masteries | undefined {
+  const item = resolveItem(def);
+  if (!item || !("masteryBonus" in item)) return undefined;
+  return item.masteryBonus;
+}
+
 export function isRanged(weapon: { projectile?: string | null }): boolean {
   return weapon.projectile != null;
 }
@@ -740,6 +756,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     ...(weapon.projectile?.trim() ? { projectile: weapon.projectile.trim() } : {}),
     ...(weapon.twoHanded ? { twoHanded: true } : {}),
     ...requirementsForSave(weapon.requirements),
+    ...masteryBonusForSave(weapon.masteryBonus),
     ...(statuses ? { statuses } : {}),
     ...elementsForSave(weapon.elements),
     ...(weapon.humanPart ? { humanPart: weapon.humanPart } : {}),
@@ -780,6 +797,7 @@ function armorForSave(armor: ArmorItem): ArmorItem {
     def: armor.def,
     ...(Object.keys(resist).length > 0 ? { resist } : {}),
     ...requirementsForSave(armor.requirements),
+    ...masteryBonusForSave(armor.masteryBonus),
     ...elementsForSave(armor.elements),
     ...(armor.humanPart ? { humanPart: armor.humanPart } : {}),
   };
@@ -820,6 +838,7 @@ function itemFieldsForSave(item: ItemDef): ItemDef {
       type: "shield",
       def: item.def,
       ...requirementsForSave(item.requirements),
+      ...masteryBonusForSave(item.masteryBonus),
       ...elementsForSave(item.elements),
       ...(item.humanPart ? { humanPart: item.humanPart } : {}),
     };
@@ -840,18 +859,29 @@ function charmForSave(charm: CharmItem): CharmItem {
     ...(charm.hp ? { hp: Math.round(charm.hp) } : {}),
     ...(charm.statuses?.length ? { statuses: statusGrantsForSave(charm.statuses) } : {}),
     ...requirementsForSave(charm.requirements),
+    ...masteryBonusForSave(charm.masteryBonus),
     ...elementsForSave(charm.elements),
   };
 }
 
 function requirementsForSave(requirements: Masteries | undefined): { requirements?: Masteries } {
+  const kept = positiveMasteries(requirements);
+  return kept ? { requirements: kept } : {};
+}
+
+function masteryBonusForSave(bonus: Masteries | undefined): { masteryBonus?: Masteries } {
+  const kept = positiveMasteries(bonus);
+  return kept ? { masteryBonus: kept } : {};
+}
+
+function positiveMasteries(masteries: Masteries | undefined): Masteries | undefined {
   const kept = Object.fromEntries(
-    MASTERIES.filter((mastery) => (requirements?.[mastery] ?? 0) > 0).map((mastery) => [
+    MASTERIES.filter((mastery) => (masteries?.[mastery] ?? 0) > 0).map((mastery) => [
       mastery,
-      requirements?.[mastery],
+      masteries?.[mastery],
     ]),
   );
-  return Object.keys(kept).length > 0 ? { requirements: kept } : {};
+  return Object.keys(kept).length > 0 ? kept : undefined;
 }
 
 function elementsForSave(elements: Element[] | undefined) {
@@ -874,6 +904,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ...(sound ? { sound } : {}),
     ...(sound && stone.soundStyle ? { soundStyle: stone.soundStyle } : {}),
     ...requirementsForSave(stone.requirements),
+    ...masteryBonusForSave(stone.masteryBonus),
     ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),
     ...elementsForSave(stone.elements),
     ...(stone.casterEffect ? { casterEffect: stone.casterEffect } : {}),

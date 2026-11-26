@@ -6,6 +6,7 @@ import {
   type Masteries,
   type MasteryXp,
   masteriesFromXp,
+  NO_MASTERY_BONUS,
   PHYSICAL_MASTERIES,
   progressToNextLevel,
   rating,
@@ -72,6 +73,7 @@ export function StatsPanel({
             group={group}
             masteryXp={masteryXp}
             masteries={masteries}
+            bonus={vitals.attributes?.masteryBonus ?? NO_MASTERY_BONUS}
           />
         ))}
 
@@ -102,10 +104,12 @@ function MasteryGroup({
   group,
   masteryXp,
   masteries,
+  bonus,
 }: {
   group: { label: string; masteries: Mastery[] };
   masteryXp: MasteryXp;
   masteries: Masteries;
+  bonus: Masteries;
 }) {
   return (
     <div className="flex flex-col gap-0.5" role="group" aria-label={`${group.label} masteries`}>
@@ -114,11 +118,21 @@ function MasteryGroup({
         {group.masteries.map((mastery) => {
           const xp = masteryXp[mastery] ?? 0;
           const level = levelForXp(xp);
+          const extra = bonus[mastery] ?? 0;
           return (
             <li key={mastery} className="flex min-w-0 flex-col gap-0.5">
               <span className="flex items-baseline gap-1 text-xs">
                 <MasteryLabel mastery={mastery} weight={ratingWeight(masteries, mastery)} />
-                <span className="ml-auto tabular-nums text-paper">{level}</span>
+                <span className="ml-auto tabular-nums text-paper">
+                  {level}
+                  {extra > 0 ? (
+                    <span className="text-mend">
+                      {" "}
+                      +{extra}
+                      <span className="sr-only"> from what you have on</span>
+                    </span>
+                  ) : null}
+                </span>
               </span>
               <MasteryProgress mastery={mastery} level={level} progress={progressToNextLevel(xp)} />
             </li>

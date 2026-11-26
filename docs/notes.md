@@ -6272,6 +6272,49 @@ It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
 all read the same figure. `weaponHandling` is applied separately inside
 `fightingStats`; the two multiply.
 
+### Gear can add to a mastery, for what the mastery does and never for what it allows
+
+Any item that is worn or held (weapon, armour, shield, stone, charm) can carry
+`masteryBonus`, a `Masteries` block. The Wolfskin Hood, Coat and Boots give
+Nature 1, 2 and 1, so the whole set is Nature +4. There is no set concept: the
+bonuses add up piece by piece, the way `armorResistances` adds up resists, and a
+set bonus is just several pieces that raise the same mastery.
+
+**Two sets of masteries, and every formula reads one of them.**
+`wornMasteryBonus` adds up what is in the worn squares (never the bag), and
+`boostedMasteries` adds it to the trained levels, capped at `MAX_MASTERY`. The
+boosted set drives what a level *does*:
+
+- weapon damage and accuracy, `maxHp` and body defence from Toughness, haste and
+  flee from Agility (`fightingStats`, `bodyDefence`, via `effectiveBattler`);
+- spell power and mend size (`castingSkill` inside `spellPower`), and a physical
+  stone's hit chance (`stoneHitChance`);
+- arcane resist (`arcaneResist`, through `spellGuard` and the stats panel);
+- the cast time saved past a stone's requirements (`castDurationMs`'s
+  `requirementCoverage`), and extraction speed (`extractDurationMs`).
+
+The trained set answers every question about what a body *may* do: weapon
+handling, encumbrance, magic going dormant, whether a natural spell may be cast,
+the shortfall share `spellPower` pays and the cast time a shortfall adds, which
+hand swings, rating, and all experience. So a +30 Sharp blade hits harder but
+does not stop a heavier sword held in the other hand from being held short of
+its requirements, and a bonus never makes up a shortfall on a stone.
+
+**A piece gives its bonus only when the trained masteries meet all of its
+requirements.** That is stricter than encumbrance, where physical gear still
+works short. Without the rule, a bonus could seem to lift its wearer into gear
+they have not earned, and an author would have to check two figures to know
+whether a bonus counts.
+
+**Toughness is deliberate.** A Toughness bonus raises `maxHp`, and taking the
+piece off lowers it again. `hpOf` already clamps on read rather than on write,
+so somebody who takes off a tough coat is not left overfull.
+
+Bots do not see bonuses yet: their odds and gear choices (`bots/odds.ts`,
+`bots/arcane.ts`, `bots/gear.ts`) read the trained masteries, so they slightly
+underrate a bot wearing a bonus and do not seek bonus gear out. The server
+resolves the blows with the boosted figures either way.
+
 ### Armour is a draw, and a blow is weighed against it
 
 `defenceAgainst` says how deep a body's guard is; **what a blow actually meets is
