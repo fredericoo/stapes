@@ -97,3 +97,13 @@ hill's height there; with `z: 0` it lands on the hilltop.
 Moving the camp, the road or either hill changes all of this at once; check
 from the castaway's cell that the only dry way out of the valley is past the
 camp.
+
+## The lake
+
+`mountain-road` crosses `mirror-lake` from the inn to the frost caves by way
+of `lake-islet-south`, `lake-isle` and `lake-islet-north`, which it names as
+`via` points. A road lays one straight bridge per stretch of water and gives
+up on one longer than 48 cells, so every gap between islets has to stay under
+that, and each islet has to sit across the line the bridge runs on. Moving an
+islet or the road can leave a bridge that misses the islet beside it, or a
+road that stops on an island.

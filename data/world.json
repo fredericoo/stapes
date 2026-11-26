@@ -900,6 +900,36 @@
                   "op": "subtract",
                   "ragged": 20
                 }
+              },
+              {
+                "type": "mask",
+                "key": "lake-islet-south",
+                "frame": {
+                  "x": 105,
+                  "y": 72,
+                  "w": 14,
+                  "h": 9
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
+              },
+              {
+                "type": "mask",
+                "key": "lake-islet-north",
+                "frame": {
+                  "x": 98,
+                  "y": 10,
+                  "w": 12,
+                  "h": 8
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
               }
             ]
           },
@@ -6105,6 +6135,29 @@
                 "pinX": "left",
                 "pinY": "top"
               },
+              "via": [
+                {
+                  "in": "lake-islet-south",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                },
+                {
+                  "in": "lake-isle",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                },
+                {
+                  "in": "lake-islet-north",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                }
+              ],
               "to": {
                 "in": "ice-caves",
                 "x": 0.5,
