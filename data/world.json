@@ -6615,6 +6615,21 @@
             ]
           },
           {
+            "type": "clear",
+            "key": "wreck-hills-grass-specks",
+            "frame": {
+              "x": 346,
+              "y": 783,
+              "w": 1,
+              "h": 2
+            },
+            "props": {
+              "remove": [
+                "grass"
+              ]
+            }
+          },
+          {
             "type": "scatter",
             "key": "wreck-hills-rocks",
             "frame": {
