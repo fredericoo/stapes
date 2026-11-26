@@ -15970,7 +15970,7 @@ builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is stil
 **A tile wider than a cell is placed whole or not at all.** `placer`
 (`app/editor/compose/placing.ts`) is what `tile`, `scatter`, `forest` and
 `shipwreck` stand tiles on the ground with. For a tile with a `footprint`
-(old trees, dunes, fallen logs, the wreck pieces) it writes the anchor in the
+(dunes, fallen logs, tents, the wreck pieces) it writes the anchor in the
 south-east cell and a part carrying `span` in each other one, and refuses the
 spot unless every cell has ground at one height and level and room under the
 next level. The span id is hashed from the anchor and the tile, not minted, so
@@ -16261,6 +16261,45 @@ default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
 grass and, in stands, reads as a hole in the map. A tree wider than a cell
 that does not fit falls back to the commonest one-cell kind. A saved forest
 with the old single `tree` prop is read as a mix of one (`migrateDoc`).
+
+### An old tree is a stack of tiles over several levels
+
+`old-tree` used to be one 2×2 prop a level tall with a crown drawn three
+levels high, so it was drawn over anybody behind it and nothing could lift
+it: the roof-cut only takes cells on levels above the viewer. It is now
+three tiles (`app/editor/compose/tallTrees.ts`): `old-tree`, one cell and a
+whole level tall, then 0 to 3 `old-tree-trunk`s of half a level each, then an
+`old-tree-crown`, a scatter tile with four crowns. The trunks and crown start
+on the level above the base and go on to the next level whenever one fills,
+so the crown always has a level of its own. The crown is two units tall in
+the catalogue, so a crown on a trunk fills a level and never overflows into
+the next; its art rises well past that.
+
+- **The placer grows them.** `placer.put` of a base stacks the rest from a
+  hash of the cell, fewer trunks where a level above is not empty, and
+  refuses the tree where not even a crown fits or where the base would not
+  end at the top of its level. So `forest`, `scatter` and `tile` all plant
+  whole trees without knowing about them.
+- **`forest` keeps them two cells apart.** One takes a cell and its crown
+  spreads over the cells round it, so a stand of them packed cell to cell
+  draws as one dark mass. An old tree within `TALL_SPACING` of another gives
+  way to the commonest one-cell tree, and the big trees stand out of a wood
+  of small ones.
+- **Whatever takes the base away takes the rest.** `fellAbove` runs on every
+  node's edits in `buildMap`, against the map the node made, so a road, a
+  clearing or a hill raised over a tree leaves nothing in the air. A hill
+  does not count a tree's trunk on the level above as something built there.
+- **The trunks and crown are `cutAlone`.** The roof-cut seeds them from a
+  window round the viewer's south-east diagonal on each level (a crown spreads
+  past its own cell and rises above it, so the plain diagonal seed misses
+  most of the places it covers somebody), and the flood fill takes only the
+  column such a cell is in. Without that, a wood's crowns touch each other
+  and the hills round them, so walking behind one tree would lift the whole
+  wood, or every storey once the fill ran past `MAX_CUT_CELLS`.
+- **The trunks and crown pass light.** A crown that did not would shade the
+  ground under it as a roof does. The base blocks light, as the old tree did.
+- **What is not handled:** burning the base leaves the trunks and crown
+  standing until the base respawns, since only the map build fells them.
 
 ### A hill and a river declare; a road builds
 
@@ -17138,6 +17177,18 @@ heap of bubbles south out of the foot of the fall, each living one cycle, so
 the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
+
+**Water joins a fall across the cliff** (`fallsInto` on `water`,
+`joinsOverFall` in `app/lib/autotile.ts`). An autotile reads its neighbours on
+its own level, and a fall's top and its pool are a level apart: the water on
+the cliff found open air where the fall rises and the pool found the cliff
+behind it, so each drew its sandy bank at the drop and the river looked
+dammed by dirt on both sides of every fall. Water on a cliff now counts the
+open cell over a fall as joined when that fall's cliff top is a cell of the
+same water, and water at a fall's foot counts the cliff behind the fall as
+joined, and the corner along the cliff where the next cell falls too. A
+fall put down at runtime does not rebuild the water a level above it, since
+the incremental rebuild only restyles neighbours on one level.
 
 `waterfall-east-top`, `-middle` and `-base` are the same fall down a cliff's
 east face, for a river that flows east off a cliff: they go in the cell east

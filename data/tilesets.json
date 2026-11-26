@@ -310,8 +310,8 @@
     "id": "deep-woods",
     "name": "Deep Woods",
     "file": "deep-woods.png",
-    "width": 128,
-    "height": 64
+    "width": 192,
+    "height": 96
   },
   {
     "id": "gold",

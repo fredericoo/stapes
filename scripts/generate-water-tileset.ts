@@ -5,6 +5,7 @@ import {
   FULL_AUTOTILE_SLICE_COUNT,
   type TileColorCycle,
   type TileDef,
+  type TileFalls,
   type TileSprite,
 } from "../app/lib/types";
 import { joinedByMask, outlineCoverage, type RoundedEdge } from "./rounded-edge";
@@ -63,6 +64,12 @@ export const WATER_CYCLE: TileColorCycle = {
 /** One still frame: the shader moves the water. 200 is what every other one-frame tile in the catalogue lasts. */
 const STILL_MS = 200;
 
+/** The falls `generate:waterfall` draws, which carry the river over a cliff. */
+const FALLS: TileFalls = {
+  south: ["waterfall-base", "waterfall-middle", "waterfall-top"],
+  east: ["waterfall-east-base", "waterfall-east-middle", "waterfall-east-top"],
+};
+
 const TILESET_ID = "water";
 const TILE_ID = "water";
 
@@ -101,6 +108,7 @@ async function main() {
   water.type = "autotile";
   water.autotileMask = "full";
   water.colorCycle = WATER_CYCLE;
+  water.fallsInto = FALLS;
   delete water.sprite;
   water.slices = Object.fromEntries(
     slices.map((slice, row): [number, TileSprite] => [

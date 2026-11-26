@@ -217,12 +217,16 @@ an agent drives", lists every call.
   trees grown from a seed per species and cast through the game's projection.
   The growth settings and seeds are constants in the script
 - `bun run generate:deep-woods` — redraw `data/tilesets/deep-woods.png`:
-  `old-tree` (a 2×2 footprint with a wide dark crown and buttress roots),
+  the old tree as stacked pieces: `old-tree` (a level of trunk on buttress
+  roots), `old-tree-trunk` (half a level) and `old-tree-crown` (four
+  crowns, picked per cell), with growth rings on the cut top of the base
+  and the trunk,
   `fallen-log` (2×1, an uprooted trunk with its root plate on edge),
   `tree-stump`, and the ground cover `fern` with its `fern-trodden`
   twin, `undergrowth` and `tree-roots`, all cast through the game's projection
   with `limb-caster` and `model-caster`. `bun run scene scripts/scenes/deep-woods.json`
-  draws them beside the forest and swamp tiles
+  draws them beside the forest and swamp tiles, and `scripts/scenes/old-trees.json`
+  draws old trees of every height
 - `bun run generate:apple-trees` — redraw `data/tilesets/apple-trees.png`:
   `apple-tree`, a low trunk forking under a wide crown, ray-traced in the
   game's projection. The crown is a dark core under a shell of evenly spaced

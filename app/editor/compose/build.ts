@@ -23,6 +23,7 @@ import {
 } from "./components/mask";
 import { isWet } from "./components/line";
 import { TILES, wrongTile } from "./field";
+import { fellAbove } from "./tallTrees";
 import { layOut, pointFrame, pointIn, type Layout, type Placement } from "./layout";
 import type { StackPool } from "../../lib/stackPool";
 
@@ -540,8 +541,15 @@ export function buildMap(
             stackAt,
             tilesById,
           ).map((e) => (lift(e.x, e.y) ? { ...e, z: e.z + lift(e.x, e.y) } : e));
-          const shared = pool ? kept.map((e) => ({ ...e, stack: pool.share(e.stack) })) : kept;
-          map = settleSpans(current, setStacks(map, shared), tilesById);
+          const share = (edits: StackEdit[]) =>
+            pool ? edits.map((e) => ({ ...e, stack: pool.share(e.stack) })) : edits;
+          const made = setStacks(map, share(kept));
+          const felled = fellAbove(
+            kept,
+            (x, y, z) => getStack(map, x, y, z),
+            (x, y, z) => getStack(made, x, y, z),
+          );
+          map = settleSpans(current, setStacks(made, share(felled)), tilesById);
           const within = <T extends { x: number; y: number }>(cells: readonly T[]) =>
             cells.filter((c) => inside(placement.clip, c.x, c.y));
           if ("raised" in plan && plan.raised) {

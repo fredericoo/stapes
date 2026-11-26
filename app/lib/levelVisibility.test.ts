@@ -61,6 +61,8 @@ const half = tile({ id: "half", height: 2 });
 const wall = tile({ id: "wall", height: 4 });
 const window = tile({ id: "window", height: 4, lightPassing: true });
 const roof = tile({ id: "roof", height: 0 });
+const trunk = tile({ id: "trunk", height: 4, lightPassing: true, cutAlone: true });
+const crown = tile({ id: "crown", height: 4, lightPassing: true, cutAlone: true });
 
 const tilesById: Record<string, TileDef> = {
   floor,
@@ -68,6 +70,8 @@ const tilesById: Record<string, TileDef> = {
   wall,
   window,
   roof,
+  trunk,
+  crown,
 };
 
 describe("viewAnchorFor", () => {
@@ -442,5 +446,61 @@ describe("roofCutFor falls back to the whole storey", () => {
     expect(cutHidesWholeLevel(cut, 0)).toBe(false);
     expect(cutHidesWholeLevel({ floor: 0, cells: new Map() }, 1)).toBe(false);
     expect(cutHidesWholeLevel(undefined, 1)).toBe(false);
+  });
+});
+
+describe("roofCutFor and a tree standing over several levels", () => {
+  const tree = (x: number, y: number) => [
+    { x, y, tiles: ["floor", "wall"] },
+    { x, y, z: 1, tiles: ["trunk"] },
+    { x, y, z: 2, tiles: ["trunk"] },
+    { x, y, z: 3, tiles: ["crown"] },
+  ];
+  const ground = (x0: number, x1: number) =>
+    Array.from({ length: (x1 - x0 + 1) ** 2 }, (_, i) => ({
+      x: x0 + (i % (x1 - x0 + 1)),
+      y: x0 + Math.floor(i / (x1 - x0 + 1)),
+      tiles: ["floor"],
+    }));
+  const short = (x: number, y: number) => [
+    { x, y, tiles: ["floor", "wall"] },
+    { x, y, z: 1, tiles: ["crown"] },
+  ];
+  const forest = mapAt([...ground(-4, 14), ...tree(6, 6), ...short(7, 5), ...short(5, 7)]);
+  const lifted = (cut: RoofCut | undefined, x: number, y: number) =>
+    [1, 2, 3].filter((z) => cutHides(cut, x, y, z));
+
+  it("lifts the trunks and crown of a tree whose crown is drawn over the viewer", () => {
+    const cut = roofCutFor(forest, tilesById, { x: 3, y: 3, z: 0 });
+    expect(lifted(cut, 6, 6)).toEqual([1, 2, 3]);
+    expect(cutHides(cut, 6, 6, 0)).toBe(false);
+  });
+
+  it("lifts it from a cell beside the diagonal, where the crown still spreads", () => {
+    const cut = roofCutFor(forest, tilesById, { x: 2, y: 4, z: 0 });
+    expect(lifted(cut, 6, 6)).toEqual([1, 2, 3]);
+  });
+
+  it("lifts nothing for a viewer in front of the tree", () => {
+    expect(roofCutFor(forest, tilesById, { x: 9, y: 9, z: 0 })).toBeUndefined();
+  });
+
+  it("leaves the trees touching it standing", () => {
+    const cut = roofCutFor(forest, tilesById, { x: 3, y: 3, z: 0 });
+    expect(lifted(cut, 6, 6)).toEqual([1, 2, 3]);
+    expect(lifted(cut, 7, 5)).toEqual([]);
+    expect(lifted(cut, 5, 7)).toEqual([]);
+  });
+
+  it("is not lifted with a roof that touches it", () => {
+    const roofed = mapAt([
+      ...ground(-4, 14),
+      ...tree(6, 6),
+      { x: 4, y: 8, z: 1, tiles: ["roof"] },
+      { x: 5, y: 7, z: 1, tiles: ["roof"] },
+    ]);
+    const cut = roofCutFor(roofed, tilesById, { x: 4, y: 8, z: 0 });
+    expect(cutHides(cut, 5, 7, 1)).toBe(true);
+    expect(lifted(cut, 6, 6)).toEqual([]);
   });
 });

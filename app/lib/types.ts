@@ -190,6 +190,13 @@ export type TileColorCycle = {
   fades?: boolean;
 };
 
+/**
+ * Waterfall tiles an autotile liquid carries on into over a cliff, by the
+ * face of the cliff they come down: a `south` fall stands in the cell south
+ * of the cliff, an `east` one in the cell east of it.
+ */
+export type TileFalls = { south: string[]; east: string[] };
+
 export type TileDef = StateSprites & {
   id: string;
   name: string;
@@ -225,9 +232,22 @@ export type TileDef = StateSprites & {
    * can curve through the corner of the cell.
    */
   autotileMask?: "full";
+  /**
+   * Falls this autotile joins across the cliff they come down, so neither the
+   * water above a fall nor the pool under it draws a bank at the drop; see
+   * `joinsOverFall`.
+   */
+  fallsInto?: TileFalls;
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;
+  /**
+   * The roof-cut lifts a cell of this tile when it is drawn over the viewer or
+   * beside them, and takes only the column it stands in with it, never what
+   * touches it; see `levelVisibility`. A tree standing over several levels is
+   * made of these, so walking behind one lifts that tree and not the wood.
+   */
+  cutAlone?: boolean;
   intangible?: boolean;
   affectedByGravity?: boolean;
   walkable?: boolean;

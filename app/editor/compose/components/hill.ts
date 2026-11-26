@@ -17,6 +17,7 @@ import { brinkOf, isFlat } from "../brinks";
 import { distanceTo } from "../distance";
 import { isWet } from "./line";
 import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } from "./ramp";
+import { isTallTreePiece } from "../tallTrees";
 
 const HillSchema = v.object({
   levels: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
@@ -336,7 +337,7 @@ export const hill: Component<HillProps> = {
     const stackOn = (x: number, y: number) => ctx.stackAt(x, y, z0);
     const before = (i: number) => stackOn(gridX(g, i), gridY(g, i));
     const built = (x: number, y: number) =>
-      ctx.stackAt(x, y, z0 + 1).length > 0 ||
+      ctx.stackAt(x, y, z0 + 1).some((p) => !isTallTreePiece(p.tileId)) ||
       stackOn(x, y)
         .slice(1)
         .some((p) => {

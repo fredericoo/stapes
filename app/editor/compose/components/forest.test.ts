@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
 import { MAP_DOC_VERSION, parseMapDoc } from "../doc";
-import { buildTree, cutFootprints, frame, land, node, reach, sketch, stands } from "../testTree";
+import {
+  brokenTallTrees,
+  buildTree,
+  cutFootprints,
+  frame,
+  land,
+  node,
+  reach,
+  sketch,
+  stands,
+  tallTreeAt,
+} from "../testTree";
 
 const SIZE = { w: 30, h: 20 };
 
@@ -29,7 +40,7 @@ describe("forest", () => {
   );
 
   it.each([1, 2, 3])(
-    "grows old trees and fallen logs whole and keeps the path open through them, seed %i",
+    "grows old trees whole and apart, and fallen logs whole, and keeps the path open through them, seed %i",
     (seed) => {
       const built = buildTree(
         land(SIZE, [
@@ -45,6 +56,14 @@ describe("forest", () => {
       );
       expect(stands(built, "old-tree").length, sketch(built)).toBeGreaterThan(0);
       expect(cutFootprints(built), sketch(built)).toEqual([]);
+      expect(brokenTallTrees(built), sketch(built)).toEqual([]);
+      const trunks = new Set(stands(built, "old-tree").map((b) => tallTreeAt(built, b)?.trunks));
+      expect([...trunks].sort()).toEqual([0, 1, 2, 3]);
+      const bases = stands(built, "old-tree");
+      const close = bases.filter((a) =>
+        bases.some((b) => a !== b && Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 2),
+      );
+      expect(close, sketch(built)).toEqual([]);
       const path = stands(built, "dirt");
       const walked = reach(built, path[0]!);
       expect(

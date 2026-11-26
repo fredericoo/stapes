@@ -1,0 +1,13 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [8, 9],
+  "cells": [
+    { "from": [-4, -4], "to": [20, 22], "tiles": ["grass-2"] },
+    { "from": [-4, -4], "to": [20, 8], "tiles": ["grass-2", "hill-wall"] },
+    { "from": [-4, -4], "to": [20, 8], "z": 1, "tiles": ["grass-2"] },
+    { "from": [7, -4], "to": [8, 8], "z": 1, "tiles": ["dirt", "water"] },
+    { "from": [6, 10], "to": [9, 22], "tiles": ["dirt", "water"] },
+    { "from": [7, 9], "to": [8, 9], "tiles": ["dirt", "water", "waterfall-base", "waterfall-top"] }
+  ]
+}

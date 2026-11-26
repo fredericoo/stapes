@@ -17,6 +17,7 @@ import { tilesByIdFromList } from "../../lib/validation";
 import { buildMap, type BuildResult, type ComponentRegistry } from "./build";
 import { COMPONENTS } from "./components";
 import { MAP_DOC_VERSION, type Frame, type MapNode } from "./doc";
+import { TALL_TREES } from "./tallTrees";
 
 export const tilesById = tilesByIdFromList(normalizeTiles(tilesRaw as unknown[]));
 
@@ -226,6 +227,53 @@ export function cutFootprints(built: BuildResult): Stood[] {
     }
   });
   return out;
+}
+
+/**
+ * Every piece of a tall tree (`TALL_TREES`) that is not part of a whole one:
+ * a base without its trunks and crown over it, a trunk or a crown with no
+ * base under it, and a tree with more or fewer trunks than it may have.
+ */
+export function brokenTallTrees(built: BuildResult): Stood[] {
+  const out: Stood[] = [];
+  const has = (x: number, y: number, z: number, id: string) =>
+    getStack(built.map, x, y, z).some((p) => p.tileId === id);
+  eachPlaced(built, (at, p) => {
+    const tree = TALL_TREES[p.tileId];
+    if (tree) {
+      const shape = tallTreeAt(built, at);
+      if (!shape || shape.trunks < tree.trunks.min || shape.trunks > tree.trunks.max) out.push(at);
+      return;
+    }
+    const base = Object.entries(TALL_TREES).find(
+      ([, t]) => t.trunk === p.tileId || t.crown === p.tileId,
+    )?.[0];
+    if (!base) return;
+    const pieces = new Set([TALL_TREES[base]!.trunk, TALL_TREES[base]!.crown]);
+    let z = at.z - 1;
+    while (getStack(built.map, at.x, at.y, z).some((q) => pieces.has(q.tileId))) z--;
+    if (!has(at.x, at.y, z, base)) out.push(at);
+  });
+  return out;
+}
+
+/** How many trunks the tall tree whose base is at `at` has, and the level of its crown; null where it has no crown. */
+export function tallTreeAt(
+  built: BuildResult,
+  at: Stood,
+): { trunks: number; crownZ: number } | null {
+  const tree = TALL_TREES[at.tileId];
+  if (!tree) return null;
+  let trunks = 0;
+  for (let z = at.z + 1; ; z++) {
+    const stack = getStack(built.map, at.x, at.y, z);
+    const mine = stack.filter((p) => p.tileId === tree.trunk || p.tileId === tree.crown);
+    if (mine.length === 0) return null;
+    for (const p of mine) {
+      if (p.tileId === tree.crown) return { trunks, crownZ: z };
+      trunks++;
+    }
+  }
 }
 
 /**

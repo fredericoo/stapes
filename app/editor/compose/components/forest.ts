@@ -5,6 +5,7 @@ import { fbm, gridIndex, gridX, gridY, hashCell, inGrid, newGrid, randomAt } fro
 import type { Component } from "../build";
 import { TILES, field } from "../field";
 import { anchorFrom, atCliffFoot, placer } from "../placing";
+import { TALL_TREES } from "../tallTrees";
 import { OPEN, OUTSIDE, TREE, growWoodland } from "../woodland";
 
 const ForestSchema = v.object({
@@ -54,6 +55,14 @@ const UINT32 = 4294967296;
 /** How many cells across a stand of one kind of tree is. */
 const STAND_SCALE = 13;
 
+/**
+ * How many cells clear of each other two tall trees (`TALL_TREES`) stand. A
+ * tall tree takes one cell and its crown spreads over the cells round it, so
+ * a stand of them packed cell to cell draws as one dark mass; the commonest
+ * one-cell tree grows in between instead.
+ */
+const TALL_SPACING = 2;
+
 /** How strongly a stand favours its kind: at the noise's usual spread, about eight to one. */
 const STAND_CONTRAST = 7;
 
@@ -83,7 +92,8 @@ function pickWeighted(entries: Weighted, hash: number, scale?: (index: number) =
  * mix comes in stands rather than evenly salted. A tree or a plant wider than
  * a cell grows south and east of the cell it starts in, and only where every
  * cell it covers is its own kind of ground; where it does not fit, the
- * commonest one-cell tree stands there instead. Nothing grows at the foot of
+ * commonest one-cell tree stands there instead, as it does where a tall tree
+ * would stand within `TALL_SPACING` of another. Nothing grows at the foot of
  * a cliff (`atCliffFoot`). With `opensTo`, the wood thins toward the ground
  * tiles named there, such as a road's, and toward its frame and masks, and is
  * thickest where other ground, such as a hill's foot, ends it.
@@ -123,7 +133,7 @@ export const forest: Component<ForestProps> = {
     const cellAt = (x: number, y: number) =>
       inGrid(grid, x, y) ? wood.cells[gridIndex(grid, x, y)]! : OUTSIDE;
     const single = [...props.trees]
-      .filter((t) => !coversCells(footprintOf(ctx.tilesById[t.tile])))
+      .filter((t) => !coversCells(footprintOf(ctx.tilesById[t.tile])) && !TALL_TREES[t.tile])
       .sort((a, b) => b.weight - a.weight)[0]?.tile;
     const placing = placer(ctx);
     const wooded = (stack: readonly PlacedTile[], x: number, y: number) =>
@@ -137,6 +147,15 @@ export const forest: Component<ForestProps> = {
       const swing = fbm(x, y, ctx.seed ^ (STAND_SALT + n * 0x9e37), STAND_SCALE, 2);
       return Math.exp(STAND_CONTRAST * (swing - 0.5));
     };
+    const tall = new Set<string>();
+    const crowded = (x: number, y: number) => {
+      for (let dy = -TALL_SPACING; dy <= TALL_SPACING; dy++) {
+        for (let dx = -TALL_SPACING; dx <= TALL_SPACING; dx++) {
+          if (tall.has(`${x + dx},${y + dy}`)) return true;
+        }
+      }
+      return false;
+    };
     for (let y = ctx.bounds.minY; y <= ctx.bounds.maxY; y++) {
       for (let x = ctx.bounds.minX; x <= ctx.bounds.maxX; x++) {
         if (placing.taken(x, y)) continue;
@@ -146,9 +165,11 @@ export const forest: Component<ForestProps> = {
         if (ours.has(i)) {
           if (props.path) placing.put(props.path, { x, y });
         } else if (cell === TREE) {
-          const tree = pickWeighted(props.trees, hashCell(x, y, ctx.seed ^ PICK_SALT), stand(x, y));
+          let tree = pickWeighted(props.trees, hashCell(x, y, ctx.seed ^ PICK_SALT), stand(x, y));
+          if (tree && TALL_TREES[tree] && crowded(x, y)) tree = single ?? null;
           const def = tree ? ctx.tilesById[tree] : undefined;
           const put = tree ? placing.put(tree, anchorFrom(def, { x, y }), { on: wooded }) : null;
+          if (put?.ok && TALL_TREES[tree!]) tall.add(`${x},${y}`);
           if ((!put || !put.ok) && single && single !== tree) {
             placing.put(single, { x, y }, { on: wooded });
           }
