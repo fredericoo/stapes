@@ -9,6 +9,7 @@ import type { CharacterSheet } from "../../server/GameServer";
 import type { TileDef, TilesetDef } from "./types";
 import { TILESET_VERSION_PARAM } from "./dataStore";
 import { BOARD_CHUNK_SEPARATOR, type BoardOutline } from "./boardView";
+import type { LevelRange } from "./view";
 import type { ChangedChunk } from "./mapData";
 
 /**
@@ -77,8 +78,11 @@ export async function fetchBoardOutline(): Promise<BoardOutline> {
   return unwrap(await client.api.board.get());
 }
 
-export async function fetchBoardChunks(chunkKeys: readonly string[]): Promise<ChangedChunk[]> {
-  const query = { chunks: chunkKeys.join(BOARD_CHUNK_SEPARATOR) };
+export async function fetchBoardChunks(
+  chunkKeys: readonly string[],
+  levels: LevelRange,
+): Promise<ChangedChunk[]> {
+  const query = { chunks: chunkKeys.join(BOARD_CHUNK_SEPARATOR), from: levels.z0, to: levels.z1 };
   return unwrap(await client.api.board.chunks.get({ query })).chunks;
 }
 
