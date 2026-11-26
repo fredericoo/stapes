@@ -6939,11 +6939,13 @@
                   "weight": 1
                 }
               ],
-              "density": 1,
+              "density": 0.15,
               "onlyOn": [
                 "grass",
                 "grass-2"
-              ]
+              ],
+              "clumping": 100,
+              "clumpSize": 10
             },
             "children": [
               {
@@ -6958,6 +6960,66 @@
                 "props": {
                   "shape": "rect",
                   "op": "subtract"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "wolves-off-camp-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "camp-to-druids",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "wolves-off-inn-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "druids-to-inn",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "wolves-off-hamlet-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "hamlet-road",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "wolves-off-druid-town",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "druid-town",
+                  "grow": 24
                 }
               }
             ]
@@ -6982,12 +7044,29 @@
                   "weight": 1
                 }
               ],
-              "density": 2,
+              "density": 0.6,
               "onlyOn": [
                 "mud",
                 "swamp"
               ]
-            }
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "imps-off-witch-path",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "witch-path",
+                  "grow": 24
+                }
+              }
+            ]
           },
           {
             "type": "scatter",
@@ -7013,7 +7092,7 @@
                   "weight": 1
                 }
               ],
-              "density": 1,
+              "density": 0.3,
               "onlyOn": [
                 "sand"
               ]
@@ -7051,10 +7130,12 @@
                   "weight": 1
                 }
               ],
-              "density": 2,
+              "density": 0.3,
               "onlyOn": [
                 "snow"
-              ]
+              ],
+              "clumping": 100,
+              "clumpSize": 10
             }
           },
           {
