@@ -177,6 +177,8 @@ export type TileReflective = {
  * `msPerCycle`. `ripple` is how many ramp steps a pixel's colour may be moved
  * by fixed noise, which bends the bands, and `gaps` is the share of each band
  * (0 to 1) shown as the ramp's first colour, which breaks it into dashes.
+ * A liquid laid over water `fades` out towards the edge of its pool, so the
+ * water under it shows through (`coverCorners`).
  */
 export type TileColorCycle = {
   key: string;
@@ -185,6 +187,7 @@ export type TileColorCycle = {
   msPerCycle: number;
   ripple: number;
   gaps: number;
+  fades?: boolean;
 };
 
 export type TileDef = StateSprites & {

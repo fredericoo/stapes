@@ -3060,10 +3060,25 @@ keys the slices by the raw eight-neighbour mask instead, 256 of them, and
   different rings of cells two away. `outerRound` 4 and `blend` 6 is the most
   that passes with a 2px inset: a larger blend lets a cell two away pull the
   fillet, and so the same mask would need two drawings.
-- **Water draws its own bank.** Every water cell is opaque: water, a 1px line
-  of wet sand, then `sand`'s own colour out to the cell's sides, so a river
-  meets the sand under the grass beside it without a seam, and the `dirt`
-  under a river is no longer seen.
+- **Water leaves its bank out.** Past the water's outline a cell's art is a
+  1px wet line of black at 30% and then nothing, so the ground under the
+  water is its bank: sand where a river crosses grass, snow on a peak, mud in
+  the bog. The palette pass snaps the wet line to that ground's own darker
+  shade, as it does `grass`'s shadow. The sheet used to draw a sand bank out
+  to the cell's sides, which read as a strip of dirt on snow and in the bog.
+  - **The water sheet is `translucent`**, for the wet line's blend, so it
+    writes no depth and is drawn after the level. Merged translucent batches
+    are drawn bottom up a step apart (`TRANSLUCENT_LAYER_STEP` in
+    `WorldRenderer`): other ground such as `grass`, then water, then a
+    liquid that `fades` over water. Without the steps, which of water and
+    deep water came first in a chunk depended on which the chunk met first.
+  - **A river lays no bed on sand or snow.** Its `bed` (`sand`) goes only on
+    the grounds in `bedOn`, the full green `grass-2` of a hill's top by
+    default, so a river through grass always has a bank of sand and one on
+    snow has a bank of snow. The `dirt` bed every river used to lay showed
+    through the bank as a square-cornered strip: `dirt` is a blob autotile,
+    which cannot round a corner. `mud` is too, which is why the bog's edge is
+    square.
 - **Grass lobes fade out towards grass.** Each of the six columns adds its own
   waves to the inset, scaled to nothing within 3px of any neighbour that is
   grass, so where the edge crosses into the next cell it is where the outline

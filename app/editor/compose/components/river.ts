@@ -10,7 +10,8 @@ import { DEFAULT_BRIDGE, MAX_ARC, ROUTE_PROPS, bandOffsets, isWet, routeOf } fro
 const RiverSchema = v.object({
   ...ROUTE_PROPS,
   width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
-  bed: v.optional(field.tile(TILES.ground), "dirt"),
+  bed: v.optional(field.tile(TILES.ground), "sand"),
+  bedOn: v.optional(field.tiles(TILES.ground), ["grass-2"]),
   bridged: v.optional(v.boolean(), true),
   deck: v.optional(field.tile(TILES.ground), DEFAULT_BRIDGE.deck),
   rail: v.optional(v.nullable(field.tile(TILES.wall)), DEFAULT_BRIDGE.rail),
@@ -42,8 +43,12 @@ const isFall = (p: PlacedTile) => p.tileId.startsWith("waterfall");
 
 /**
  * Keeps the bottom tile of every dry cell it crosses and replaces the rest
- * with a bed and `water`, so a road or a tree in its way is washed out. Cells
- * that are already water, a bridge's among them, are left alone.
+ * with `water`, so a road or a tree in its way is washed out. The water's art
+ * leaves its bank out, so the bank is the ground the river runs on: the sand
+ * under a field of grass, or snow. On a ground in `bedOn`, the full green
+ * `grass-2` of a hill's top by default, it lays its `bed` under the water
+ * first, so a river through grass always has a bank of sand. Cells that are
+ * already water, a bridge's among them, are left alone.
  *
  * Laid after a hill it runs over the hill's top, and wherever its water
  * stands above open water to the south or east it draws a waterfall down the
@@ -83,7 +88,7 @@ export const river: Component<RiverProps> = {
         wet.push({ x, y });
         if (isWet(stack)) continue;
         /** A brink draws a cliff's edge in place of every cover on it, so a bed laid on one shows as a gap. */
-        const bare = ground.tileId === props.bed || isBrink(ground.tileId);
+        const bare = !props.bedOn.includes(ground.tileId) || isBrink(ground.tileId);
         const bed = bare ? [ground] : [ground, placed(props.bed, ctx.tilesById)];
         pools.set(`${x},${y}`, {
           x,
