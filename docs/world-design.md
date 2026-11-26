@@ -61,6 +61,20 @@ In `data/world.json`:
   falls back to the nearest bedroll. The pub stocks a fifth of the usual
   food and nothing else (`foodOnly`, `stockPercent: 20`), and the loose
   barrel and box hold a bite each: gear is found or bought further on.
+- **The camp crossroads** (`camp-crossroads`) is a few cells north of the
+  camp, and `camp-lane` joins the camp to it. The road to the druids' town,
+  the road to the inn and the `west-stones-trail` all start there, so a
+  player who leaves the camp meets every way on at one place. One sign
+  stands there listing every direction, a line each, and the sign at the
+  roadside inn lists its directions the same way. The directions are written
+  in the inscription by hand, so moving a place or a road can leave them
+  wrong.
+- **Every place a road leads to has a sign with its name** where the road
+  arrives, in `road-signs`. The text is the sign's `inscription`, which the
+  game shows as a label to a player standing near it, keeping its line
+  breaks. `road-signs` is the last node on the island so that no later layer
+  builds over a sign; three signs went missing when they sat inside
+  `camp-crossroads`.
 - **A safe haven.** Runa Hask stands at the camp's south edge, where the
   road comes up, and shoots any hostile creature that comes within nine
   cells of her post. Rabbits and deer are left for players.
@@ -97,6 +111,16 @@ hill's height there; with `z: 0` it lands on the hilltop.
 Moving the camp, the road or either hill changes all of this at once; check
 from the castaway's cell that the only dry way out of the valley is past the
 camp.
+
+## The lake
+
+`mountain-road` crosses `mirror-lake` from the inn to the frost caves by way
+of `lake-islet-south`, `lake-isle` and `lake-islet-north`, which it names as
+`via` points. A road lays one straight bridge per stretch of water and gives
+up on one longer than 48 cells, so every gap between islets has to stay under
+that, and each islet has to sit across the line the bridge runs on. Moving an
+islet or the road can leave a bridge that misses the islet beside it, or a
+road that stops on an island.
 
 ## Rating zones
 

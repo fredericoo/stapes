@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cellKey } from "../../../game/pressurePlates";
-import { getStack } from "../../../lib/mapData";
+import { getStack, serializeMap } from "../../../lib/mapData";
 import type { BuildResult } from "../build";
 import { buildTree, frame, land, node, reach, sketch, walks, type Spot } from "../testTree";
 
@@ -59,6 +59,46 @@ describe("a closed castle wall", () => {
   it("lets a player in through a gate", () => {
     const built = buildTree(land(SIZE, [ring({ gates: [SOUTH_GATE] })]));
     expect(walks(built, OUTSIDE, COURTYARD), sketch(built)).toBe(true);
+  });
+
+  it("opens a gate where a road runs through it", () => {
+    const road = node("road", { from: OUTSIDE, to: COURTYARD });
+    const built = buildTree(land(SIZE, [ring(), road]));
+    expect(walks(built, OUTSIDE, COURTYARD), sketch(built)).toBe(true);
+  });
+
+  it("opens a gate as wide as the road, on the cells the road is laid on", () => {
+    const road = node("road", { from: { x: 2, y: 15 }, to: COURTYARD, width: 2, wander: 0 });
+    const built = buildTree(land(SIZE, [ring(), road]));
+    const walled = (y: number) =>
+      getStack(built.map, 9, y, 0).some((p) => p.tileId === "brick-wall");
+    expect([walled(14), walled(15), walled(16), walled(17)], sketch(built)).toEqual([
+      true,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it("opens no second gate for a road that passes beside a gate it names", () => {
+    const wallCells = (built: BuildResult) =>
+      Array.from({ length: SIZE.w * SIZE.h }).filter((_, i) =>
+        getStack(built.map, i % SIZE.w, Math.floor(i / SIZE.w), 0).some(
+          (p) => p.tileId === "brick-wall",
+        ),
+      ).length;
+    const gated = ring({ gates: [SOUTH_GATE] });
+    const road = node("road", { from: OUTSIDE, to: COURTYARD, wander: 0 });
+    expect(wallCells(buildTree(land(SIZE, [gated, road])))).toBe(
+      wallCells(buildTree(land(SIZE, [gated]))),
+    );
+  });
+
+  it("moves a road's gate when the road after it in the tree moves", () => {
+    const tree = (x: number) =>
+      land(SIZE, [ring(), node("road", { from: { x, y: 27 }, to: { x, y: 15 }, wander: 0 })]);
+    const resumed = buildTree(tree(16), { previous: buildTree(tree(24)) });
+    expect(serializeMap(resumed.map)).toBe(serializeMap(buildTree(tree(16)).map));
   });
 
   it("lets a player through a gate that has a door", () => {
@@ -149,6 +189,11 @@ describe("a castle wall that cannot be built", () => {
 
   it("refuses a gate on a corner", () => {
     expect(refused(ring({ gates: [{ x: 1, y: 1 }] }))[0]).toMatch(/straight stretch/);
+  });
+
+  it("refuses a road that meets it on a corner", () => {
+    const road = node("road", { from: { x: 2, y: 2 }, to: { x: 12, y: 10 } });
+    expect(refused(ring(), [road])[0]).toMatch(/A road meets this wall/);
   });
 
   it("refuses stairs with nowhere to stand", () => {

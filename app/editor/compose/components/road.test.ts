@@ -39,6 +39,32 @@ describe("a road over a river and up a hill", () => {
   });
 });
 
+describe("a road that crosses a river at a slant", () => {
+  const TALL = { w: 40, h: 40 };
+  const FROM = { x: 6, y: 6 };
+  const TO = { x: 30, y: 34 };
+  const built = () =>
+    buildTree(
+      land(TALL, [
+        node("river", { from: { x: 12, y: 0 }, to: { x: 24, y: 39 }, width: 3 }),
+        node("road", { from: FROM, to: TO, wander: 0 }),
+      ]),
+    );
+
+  it("bridges it once, from bank to bank, and walks round where it only dips into it", () => {
+    const map = built();
+    const deck = new Set<number>();
+    for (let y = 0; y < TALL.h; y++) {
+      for (let x = 0; x < TALL.w; x++) {
+        if (getStack(map.map, x, y, 0).some((p) => p.tileId === "wooden-floor")) deck.add(y);
+      }
+    }
+    expect(deck.size, sketch(map)).toBeGreaterThan(0);
+    expect(deck.size, sketch(map)).toBeLessThanOrEqual(3);
+    expect(walks(map, FROM, TO), sketch(map)).toBe(true);
+  });
+});
+
 describe("a road over what no layer declared a crossing for", () => {
   const FIELD = { w: 30, h: 12 };
   const LEFT = { x: 3, y: 6 };

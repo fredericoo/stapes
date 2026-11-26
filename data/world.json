@@ -918,6 +918,36 @@
                   "op": "subtract",
                   "ragged": 20
                 }
+              },
+              {
+                "type": "mask",
+                "key": "lake-islet-south",
+                "frame": {
+                  "x": 105,
+                  "y": 72,
+                  "w": 14,
+                  "h": 9
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
+              },
+              {
+                "type": "mask",
+                "key": "lake-islet-north",
+                "frame": {
+                  "x": 98,
+                  "y": 10,
+                  "w": 12,
+                  "h": 8
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "subtract",
+                  "ragged": 20
+                }
               }
             ]
           },
@@ -2212,6 +2242,23 @@
                   },
                   "tile": "moss-flagstone",
                   "width": 2
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-west-street",
+                "props": {
+                  "from": {
+                    "x": -1,
+                    "y": 25
+                  },
+                  "to": {
+                    "x": 16,
+                    "y": 25
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
                 }
               },
               {
@@ -3729,6 +3776,34 @@
           },
           {
             "type": "group",
+            "key": "camp-crossroads",
+            "frame": {
+              "x": 437,
+              "y": 697,
+              "w": 7,
+              "h": 7
+            },
+            "children": [
+              {
+                "type": "clear",
+                "key": "camp-crossroads-clearing",
+                "props": {
+                  "remove": [
+                    "tree",
+                    "old-tree",
+                    "dead-tree",
+                    "apple-tree",
+                    "small-bush",
+                    "bush",
+                    "fallen-log",
+                    "tree-stump"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "group",
             "key": "crossroads",
             "frame": {
               "x": 648,
@@ -3827,6 +3902,9 @@
                   "at": {
                     "x": 20,
                     "y": 17
+                  },
+                  "placement": {
+                    "inscription": "Roadside inn\nN  Frost caves\nE  The warriors' town\nS  The colonnade\nSW  The camp\nW  The druids' town"
                   }
                 }
               },
@@ -5960,14 +6038,37 @@
           },
           {
             "type": "road",
-            "key": "camp-to-druids",
+            "key": "camp-lane",
             "props": {
               "from": {
                 "in": "camp",
-                "x": 0.5,
+                "x": 0.6,
                 "y": 0.4,
                 "pinX": "scale",
                 "pinY": "scale"
+              },
+              "to": {
+                "in": "camp-crossroads",
+                "x": 0,
+                "y": 0,
+                "pinX": "center",
+                "pinY": "center"
+              },
+              "tile": "dirt",
+              "width": 1,
+              "wander": 0
+            }
+          },
+          {
+            "type": "road",
+            "key": "camp-to-druids",
+            "props": {
+              "from": {
+                "in": "camp-crossroads",
+                "x": 0,
+                "y": 0,
+                "pinX": "center",
+                "pinY": "center"
               },
               "to": {
                 "in": "druid-town",
@@ -6035,11 +6136,11 @@
             "key": "camp-to-inn",
             "props": {
               "from": {
-                "in": "camp",
-                "x": 1,
-                "y": 0.4,
-                "pinX": "scale",
-                "pinY": "scale"
+                "in": "camp-crossroads",
+                "x": 0,
+                "y": 0,
+                "pinX": "center",
+                "pinY": "center"
               },
               "to": {
                 "in": "crossroads",
@@ -6110,6 +6211,29 @@
                 "pinX": "left",
                 "pinY": "top"
               },
+              "via": [
+                {
+                  "in": "lake-islet-south",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                },
+                {
+                  "in": "lake-isle",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                },
+                {
+                  "in": "lake-islet-north",
+                  "x": 0.5,
+                  "y": 0.5,
+                  "pinX": "scale",
+                  "pinY": "scale"
+                }
+              ],
               "to": {
                 "in": "ice-caves",
                 "x": 0.5,
@@ -6153,10 +6277,10 @@
             "props": {
               "from": {
                 "in": "warrior-town",
-                "x": 1,
-                "y": 0.3,
-                "pinX": "scale",
-                "pinY": "scale"
+                "x": 0,
+                "y": 22,
+                "pinX": "right",
+                "pinY": "top"
               },
               "to": {
                 "in": "obsidian-deeps",
@@ -6168,7 +6292,8 @@
               "tile": null,
               "width": 1,
               "wander": 40,
-              "bendLength": 48
+              "bendLength": 48,
+              "cuts": []
             }
           },
           {
@@ -6184,8 +6309,8 @@
               },
               "to": {
                 "in": "druid-town",
-                "x": 0,
-                "y": 22,
+                "x": -1,
+                "y": 25,
                 "pinX": "left",
                 "pinY": "top"
               },
@@ -6272,11 +6397,11 @@
             "key": "west-stones-trail",
             "props": {
               "from": {
-                "in": "camp",
+                "in": "camp-crossroads",
                 "x": 0,
-                "y": 0.5,
-                "pinX": "scale",
-                "pinY": "scale"
+                "y": 0,
+                "pinX": "center",
+                "pinY": "center"
               },
               "to": {
                 "in": "west-stones",
@@ -8338,6 +8463,252 @@
                 "z": -5
               }
             }
+          },
+          {
+            "type": "group",
+            "key": "road-signs",
+            "children": [
+              {
+                "type": "tile",
+                "key": "camp-crossroads-sign",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 6,
+                    "y": 6,
+                    "in": "camp-crossroads"
+                  },
+                  "placement": {
+                    "inscription": "NW  The druids' town\nNE  Roadside inn\nW  The west stones\nS  The camp"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-druid-town",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "druid-town",
+                    "x": 32,
+                    "y": 47
+                  },
+                  "placement": {
+                    "inscription": "The druids' town"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-warrior-town",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "warrior-town",
+                    "x": -1,
+                    "y": 27
+                  },
+                  "placement": {
+                    "inscription": "The warriors' town"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-ice-caves",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "ice-caves",
+                    "x": 122,
+                    "y": 183
+                  },
+                  "placement": {
+                    "inscription": "Frost caves"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-crypt-shrine",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "crypt-shrine",
+                    "x": 3,
+                    "y": 12
+                  },
+                  "placement": {
+                    "inscription": "The sunken crypt"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-obsidian-deeps",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "obsidian-deeps",
+                    "x": -10,
+                    "y": 76
+                  },
+                  "placement": {
+                    "inscription": "Ember deeps"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-west-hamlet",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "west-hamlet",
+                    "x": 39,
+                    "y": 10
+                  },
+                  "placement": {
+                    "inscription": "The fishing hamlet"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-north-watch",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "north-watch",
+                    "x": 7,
+                    "y": 12
+                  },
+                  "placement": {
+                    "inscription": "The north watch"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-south-colonnade",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "south-colonnade",
+                    "x": 2,
+                    "y": 10
+                  },
+                  "placement": {
+                    "inscription": "The colonnade"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-east-ruin",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "east-ruin",
+                    "x": -2,
+                    "y": 7
+                  },
+                  "placement": {
+                    "inscription": "The east ruin"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-farmsteads",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "farmsteads",
+                    "x": 33,
+                    "y": 7
+                  },
+                  "placement": {
+                    "inscription": "The farmsteads"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-west-stones",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "west-stones",
+                    "x": 21,
+                    "y": 6
+                  },
+                  "placement": {
+                    "inscription": "The west stones"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-woodland-shrine",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "woodland-shrine",
+                    "x": 3,
+                    "y": 11
+                  },
+                  "placement": {
+                    "inscription": "The woodland shrine"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-tower-hill",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "tower-hill",
+                    "x": 62,
+                    "y": 114
+                  },
+                  "placement": {
+                    "inscription": "The old tower"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-witch-hut",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "witch-hut",
+                    "x": 10,
+                    "y": 1
+                  },
+                  "placement": {
+                    "inscription": "The witch's house"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "sign-camp",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "in": "camp",
+                    "x": 17,
+                    "y": 19
+                  },
+                  "placement": {
+                    "inscription": "The camp"
+                  }
+                }
+              }
+            ]
           }
         ]
       },
