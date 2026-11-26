@@ -16678,7 +16678,9 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
   than `UNLOAD_MARGIN_CHUNKS` outside what the view asks for, and the levels
   outside `viewLevels`, so a long pan never piles up the island in the tab.
 - **Isolating a level leaves every level above it out of the map handed to
-  the renderer**, and out of what is read. A link can open the viewer on a
+  the renderer**, and out of what is read. Below ground, level 0 and up are
+  left out even without isolating (`topLevelShown`): the surface sits right
+  above a cave and would hide all of it. A link can open the viewer on a
   place with `?x=…&y=…&level=…`.
 - A dev server, which takes saves, still gets the editor, which builds the
   whole tree in the tab.

@@ -7,6 +7,7 @@ import {
   BoardChunks,
   chunksInView,
   drawnLevels,
+  topLevelShown,
   type BoardOutline,
   type CameraRect,
 } from "../../lib/boardView";
@@ -87,7 +88,7 @@ export function BoardViewer({
   const [readCount, setReadCount] = useState(0);
   const [reading, setReading] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const topLevel = isolated ? level : Number.POSITIVE_INFINITY;
+  const topLevel = topLevelShown(level, isolated);
 
   const wanted = useMemo(() => {
     const drawn = drawnLevels(level, outline.levels, topLevel);
@@ -194,7 +195,7 @@ export function BoardViewer({
               </Button>
             </Tooltip>
           </div>
-          <Tooltip content="Isolate this level (I): leave out every level above it.">
+          <Tooltip content="Isolate this level (I): leave out every level above it. Below ground, the surface is always left out.">
             <Toggle pressed={isolated} onPressedChange={setIsolated} ariaLabel="Isolate this level">
               <IconStackBackward size={16} stroke={2} aria-hidden="true" />
             </Toggle>

@@ -30,6 +30,16 @@ export type CameraRect = { left: number; top: number; width: number; height: num
  */
 const MARGIN_CHUNKS = 1;
 
+/**
+ * The highest level drawn round `level`. Below ground the surface is left out
+ * even when no level is isolated, because the ground directly above a cave
+ * hides all of it.
+ */
+export function topLevelShown(level: number, isolated: boolean): number {
+  if (isolated) return level;
+  return level < 0 ? -1 : Number.POSITIVE_INFINITY;
+}
+
 /** The levels the board has that the renderer draws round `level`, none above `topLevel`. */
 export function drawnLevels(
   level: number,

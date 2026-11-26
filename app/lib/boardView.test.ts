@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BoardChunks, chunksInView, drawnLevels } from "./boardView";
+import { BoardChunks, chunksInView, drawnLevels, topLevelShown } from "./boardView";
 import type { ChangedChunk } from "./mapData";
 
 /** A screen that shows only chunk 0,0 of the ground level. */
@@ -32,6 +32,17 @@ describe("drawnLevels", () => {
 
   it("leaves out every level above the top one shown", () => {
     expect(drawnLevels(0, [0, 8], 0)).toEqual([0]);
+  });
+});
+
+describe("topLevelShown", () => {
+  it("hides the surface from a view below ground, isolated or not", () => {
+    expect(drawnLevels(-3, [-4, -3, -1, 0, 2], topLevelShown(-3, false))).toEqual([-4, -3, -1]);
+  });
+
+  it("hides nothing above ground unless a level is isolated", () => {
+    expect(topLevelShown(0, false)).toBe(Number.POSITIVE_INFINITY);
+    expect(topLevelShown(-3, true)).toBe(-3);
   });
 });
 
