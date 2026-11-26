@@ -474,6 +474,12 @@ an agent drives", lists every call.
   one player and let them leave, then print how many ticks the empty world
   runs over `--seconds <n>` (20) and the CPU they cost. A world at rest runs
   none
+- `bun run bench:walk` — build the world from `data/world.json` into a real
+  ticking `GameServer`, seat one player at the spawn and move them a cell
+  every 200ms along a line (`--cells` 150, `--dx` 0, `--dy` -1, north), then
+  print what a tick cost, how much of the slowest was putting chunks back on
+  the board, and how late ticks started. Runs differ by several milliseconds
+  at the tail, so compare a few of each
 - `bun run bench:crowd` — seat a crowd of walking players on a real
   `GameServer` against `data/map.json`, and print the tick rate the world
   keeps, what a tick costs and which parts of it cost that. `--players <n>`
