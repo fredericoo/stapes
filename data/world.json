@@ -2193,6 +2193,23 @@
                 }
               },
               {
+                "type": "road",
+                "key": "druid-west-street",
+                "props": {
+                  "from": {
+                    "x": -1,
+                    "y": 25
+                  },
+                  "to": {
+                    "x": 16,
+                    "y": 25
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
+                }
+              },
+              {
                 "type": "tile",
                 "key": "druid-lamp-n1",
                 "props": {
@@ -6163,8 +6180,8 @@
               },
               "to": {
                 "in": "druid-town",
-                "x": 0,
-                "y": 22,
+                "x": -1,
+                "y": 25,
                 "pinX": "left",
                 "pinY": "top"
               },
