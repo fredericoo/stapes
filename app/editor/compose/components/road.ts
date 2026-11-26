@@ -12,6 +12,7 @@ import {
   bandOffsets,
   isWet,
   lineCells,
+  pathTo,
   routeOf,
   type RouteCell,
 } from "./line";
@@ -49,40 +50,6 @@ const OPPOSITE: Record<Direction, Direction> = { n: "s", s: "n", e: "w", w: "e" 
 
 const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-
-/**
- * The shortest way from `start` over cells that are `open`, stepping to four
- * neighbours, to the first cell `goal` gives an index for. It is how a road
- * finds its way round a hill to a ramp: a straight line to the ramp's foot
- * would as often cut the corner of the cliff it is trying to climb.
- */
-function pathTo(
-  start: { x: number; y: number },
-  open: (c: { x: number; y: number }) => boolean,
-  goal: (c: { x: number; y: number }) => number | undefined,
-): { cells: Array<{ x: number; y: number }>; index: number } | null {
-  const key = (c: { x: number; y: number }) => `${c.x},${c.y}`;
-  const from = new Map<string, { x: number; y: number } | null>([[key(start), null]]);
-  const queue = [start];
-  for (let head = 0; head < queue.length; head++) {
-    const c = queue[head]!;
-    const index = goal(c);
-    if (index !== undefined) {
-      const cells = [];
-      for (let k: { x: number; y: number } | null = c; k; k = from.get(key(k)) ?? null)
-        cells.push(k);
-      return { cells: cells.reverse(), index };
-    }
-    for (const d of DIRECTIONS) {
-      const next = { x: c.x + STEP[d].x, y: c.y + STEP[d].y };
-      if (from.has(key(next))) continue;
-      if (goal(next) === undefined && !open(next)) continue;
-      from.set(key(next), c);
-      queue.push(next);
-    }
-  }
-  return null;
-}
 
 /**
  * Takes the route up and down cliffs by ramps. Where two cells in a row are
