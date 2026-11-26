@@ -16283,11 +16283,19 @@ shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
   would leave a jump in it: a cliff two or more levels high, or a shelf too
   narrow for a ramp. A stretch that ends on the hill is left to the ramps, as
   is one where `tunnels` is off.
-- **A route that only clips a hill goes round its foot instead.** Before
-  digging, the road looks for a way over clear ground on its own level to the
-  route past the hill, at most twice the stretch's length plus
-  `MOUTH_REACH`. Without it a road that cut the corner of a hill dug in and
-  came back out of the same face a few cells along.
+- **Each tier the route climbs onto is tried in turn.** Where no tunnel fits
+  from the level a stretch starts on, the route goes on into it a cell at a
+  time, so a road that ramps onto a low shelf digs into the cliff above the
+  shelf. `bat-crag` in `world.json` is that case: `camp-to-inn` ramps onto
+  `bat-hill` and runs through `bat-cave` on level 1.
+- **A tunnel that joins a cave or a dungeon is always taken; one through bare
+  rock gives way to a short way round** (`aroundTheFoot`: over clear ground
+  on the stretch's level, at most twice the stretch's length plus
+  `MOUTH_REACH`). A stretch no tunnel fits is taken round the same way where
+  it can be. Without this, `mountain-road`, which clips the corner of a hill,
+  dug in under the rim and came straight back out.
+- **The two mouths face different ways.** A tunnel in and out of the same
+  face is a detour under the rim, and is not dug.
 - **A tunnel is dug the way a cave is.** A mouth goes on a straight stretch of
   cliff with a full block over it, nearest the route on each side, south and
   east faces first. The two are joined on the road's level by the cheapest way

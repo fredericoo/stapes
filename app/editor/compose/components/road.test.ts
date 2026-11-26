@@ -196,3 +196,41 @@ describe("a road through a hill too high to climb", () => {
     expect(dug(built).length).toBeLessThan(dug(plain).length);
   });
 });
+
+describe("a road onto a shelf under a crag with a cave in it", () => {
+  const FIELD = { w: 72, h: 36 };
+  const WEST_FOOT = { x: 3, y: 18 };
+  const EAST_FOOT = { x: 68, y: 18 };
+  const across = (withCave: boolean) =>
+    buildTree(
+      land(FIELD, [
+        node("hill", { levels: 1, terrace: 6, roughness: 0 }, { frame: frame(8, -14, 56, 64) }),
+        node("hill", { levels: 3, terrace: 0, roughness: 0 }, { frame: frame(20, 3, 32, 30) }),
+        ...(withCave
+          ? [
+              node(
+                "cave",
+                { mouths: [{ x: 0, y: 0, pinX: "center", pinY: "bottom" }] },
+                { frame: { ...frame(23, 6, 26, 24), z: 1 } },
+              ),
+            ]
+          : []),
+        node("road", { from: WEST_FOOT, to: EAST_FOOT, tile: "dirt", wander: 0 }),
+      ]),
+    );
+  const mouthsOn = (built: ReturnType<typeof buildTree>, z: number) =>
+    stands(built, "hill-cave-mouth").filter((c) => c.z === z);
+
+  it("ramps onto the shelf and runs through the cave, opening a mouth on each side", () => {
+    const built = across(true);
+    expect(walks(built, WEST_FOOT, EAST_FOOT), sketch(built)).toBe(true);
+    expect(walks(built, EAST_FOOT, WEST_FOOT), sketch(built)).toBe(true);
+    expect(mouthsOn(built, 1).length, sketch(built)).toBe(3);
+  });
+
+  it("goes round the crag on the shelf when there is no cave to join", () => {
+    const built = across(false);
+    expect(walks(built, WEST_FOOT, EAST_FOOT), sketch(built)).toBe(true);
+    expect(mouthsOn(built, 1), sketch(built)).toEqual([]);
+  });
+});

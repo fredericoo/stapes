@@ -353,7 +353,16 @@ export const road: Component<RoadProps> = {
             tilesById: ctx.tilesById,
           },
           { floor: props.tile ?? "dirt", mouth: props.mouth },
-          (stretch) => climbs(withRamps(stretch, ground).cells, ground),
+          (stretch) => {
+            const dug = new Map(
+              stretch.flatMap((c) => (c.under === undefined ? [] : [[at(c.x, c.y), c.under]])),
+            );
+            const on: RampGround = {
+              level: (x, y) => dug.get(at(x, y)) ?? ctx.raisedAt(x, y),
+              clear: (x, y) => !dug.has(at(x, y)) && ground.clear(x, y),
+            };
+            return climbs(withRamps(stretch, on).cells, on);
+          },
         )
       : { cells: route as Tunnelled[], edits: [] };
     const under = new Map(

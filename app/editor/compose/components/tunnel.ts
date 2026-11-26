@@ -172,7 +172,8 @@ function cheapestFrom(
   return pathFrom;
 }
 
-type Dug = { from: number; to: number; laid: Tunnelled[]; edits: LevelEdit[] };
+/** `joins` is whether the tunnel runs along a passage that was already in the hill. */
+type Dug = { from: number; to: number; laid: Tunnelled[]; edits: LevelEdit[]; joins: boolean };
 
 /**
  * Takes the route through a hill it has no other way over. `last` is the
@@ -215,7 +216,8 @@ function digThrough(
   for (const entry of entries) {
     const pathFrom = cheapestFrom(ground, level, entry.behind, box);
     for (const exit of exits) {
-      if (exit.at.x === entry.at.x && exit.at.y === entry.at.y) continue;
+      /** A tunnel that comes out of the face it went in by is a detour under the rim, which the road takes round the foot instead. */
+      if (exit.facing === entry.facing) continue;
       const inside = pathFrom(exit.behind);
       if (!inside) continue;
       const taken = new Set([entry.at, exit.at, ...inside].map(key));
@@ -238,6 +240,7 @@ function digThrough(
           ...sided(on.cells),
         ],
         edits: carve(ground, style, level, entry, exit, inside, hill),
+        joins: inside.some(hill.passage),
       };
     }
   }
@@ -352,18 +355,22 @@ function aroundTheFoot(
 
 /**
  * Takes the route under every hill it crosses and cannot climb. A stretch
- * of the route that leaves `level` for higher ground and comes back down to
+ * of the route that leaves a level for higher ground and comes back down to
  * the same level is tunnelled when `climbs` says the road cannot get over it
- * by ramps, which is the case for a cliff more than a level high or a shelf
- * too narrow for a ramp, and cannot go round its foot instead
- * (`aroundTheFoot`). A stretch that ends on the hill, or comes down on
- * another level, is left to the ramps. So is one no mouth or tunnel fits.
+ * by ramps: a cliff more than a level high, or a shelf too narrow for a
+ * ramp. Where no tunnel fits from that level, each tier the route climbs
+ * onto is tried in turn, so a road ramps onto a low shelf and digs into the
+ * cliff above it. A tunnel that runs along a cave or a dungeon already in
+ * the hill is always taken; one through bare rock only where the foot of the
+ * hill is not a short way round (`aroundTheFoot`). A stretch nothing
+ * tunnels is taken round the foot where that is short, and otherwise left
+ * to the ramps.
  */
 export function withTunnels(
   cells: readonly RouteCell[],
   ground: TunnelGround,
   style: TunnelStyle,
-  climbs: (stretch: readonly RouteCell[]) => boolean,
+  climbs: (stretch: readonly Tunnelled[]) => boolean,
 ): { cells: Tunnelled[]; edits: LevelEdit[] } {
   const out: Tunnelled[] = [];
   const edits: LevelEdit[] = [];
@@ -378,30 +385,40 @@ export function withTunnels(
       continue;
     }
     const floor = level(prev);
-    let j = i;
-    while (j < cells.length && level(cells[j]!) > floor) j++;
+    const j = returnTo(cells, i, floor, level);
+    if (j === null) {
+      out.push(c);
+      i++;
+      continue;
+    }
     const stretch = cells.slice(i, j);
-    if (j >= cells.length || level(cells[j]!) !== floor || climbs([prev, ...stretch, cells[j]!])) {
+    if (climbs([prev, ...stretch, cells[j]!])) {
       out.push(...stretch);
       i = j;
       continue;
     }
     const ahead = new Map<string, number>();
     for (let n = cells.length - 1; n >= j; n--) ahead.set(key(cells[n]!), n);
-    const round = aroundTheFoot(ground, floor, prev, stretch, ahead);
-    if (round) {
-      out.push(...round.laid);
-      i = round.to + 1;
-      continue;
-    }
     const passed = new Map(out.map((k, n) => [key(k), n]));
     const dug = digThrough(ground, style, floor, prev, cells[j]!, passed, ahead, [
       prev,
       ...stretch,
     ]);
+    /**
+     * Nothing fits on this level, so the route goes on into the stretch one
+     * cell at a time: a tier it climbs onto by a ramp can still have a
+     * tunnel dug from it into the cliff above.
+     */
     if (!dug) {
-      out.push(...stretch);
-      i = j;
+      out.push(c);
+      i++;
+      continue;
+    }
+    /** A tunnel through bare rock gives way to a short way round; one that joins a cave or a dungeon is the way through it. */
+    const round = dug.joins ? null : aroundTheFoot(ground, floor, prev, stretch, ahead);
+    if (round) {
+      out.push(...round.laid);
+      i = round.to + 1;
       continue;
     }
     out.length = dug.from + 1;
@@ -409,5 +426,61 @@ export function withTunnels(
     edits.push(...dug.edits);
     i = dug.to + 1;
   }
-  return { cells: out, edits };
+  return { cells: withDetours(out, ground, climbs), edits };
+}
+
+/** The index of the first cell after `i` back down on `floor`, or null when the route ends above it or comes down past it. */
+function returnTo<C extends Cell>(
+  cells: readonly C[],
+  i: number,
+  floor: number,
+  level: (c: C) => number,
+): number | null {
+  let j = i;
+  while (j < cells.length && level(cells[j]!) > floor) j++;
+  return j < cells.length && level(cells[j]!) === floor ? j : null;
+}
+
+/**
+ * Takes every stretch that neither ramps nor tunnels got over round the foot
+ * of its hill, when that is short (`aroundTheFoot`). It runs after the
+ * tunnels, so a road goes round a hill only where no tunnel fits from any
+ * tier of it.
+ */
+function withDetours(
+  cells: readonly Tunnelled[],
+  ground: TunnelGround,
+  climbs: (stretch: readonly Tunnelled[]) => boolean,
+): Tunnelled[] {
+  const level = (c: Tunnelled) => c.under ?? ground.level(c.x, c.y);
+  const out: Tunnelled[] = [];
+  let i = 0;
+  while (i < cells.length) {
+    const c = cells[i]!;
+    const prev = out.at(-1);
+    if (!prev || level(c) <= level(prev)) {
+      out.push(c);
+      i++;
+      continue;
+    }
+    const floor = level(prev);
+    const j = returnTo(cells, i, floor, level);
+    const stretch = j === null ? [] : cells.slice(i, j);
+    if (j === null || climbs([prev, ...stretch, cells[j]!])) {
+      out.push(c);
+      i++;
+      continue;
+    }
+    const ahead = new Map<string, number>();
+    for (let n = cells.length - 1; n >= j; n--) ahead.set(key(cells[n]!), n);
+    const round = aroundTheFoot(ground, floor, prev, stretch, ahead);
+    if (!round) {
+      out.push(...stretch);
+      i = j;
+      continue;
+    }
+    out.push(...round.laid);
+    i = round.to + 1;
+  }
+  return out;
 }
