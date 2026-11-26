@@ -27,7 +27,15 @@ describe("the foot of a cliff", () => {
   it("is left open by a forest, so a player who drops into the wood can walk out", () => {
     const wood = node(
       "forest",
-      { onlyOn: ["grass"], density: 100, path: null, edge: 0, outliers: 0, undergrowthDensity: 0 },
+      {
+        onlyOn: ["grass"],
+        density: 100,
+        path: null,
+        edge: 0,
+        outliers: 0,
+        foliage: [],
+        bushes: [],
+      },
       { frame: frame(11, 0, 33, 22) },
     );
     const { cells, sketch } = stranded(hillBeside(wood));

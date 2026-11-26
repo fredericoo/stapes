@@ -72,6 +72,15 @@ export const TILES = {
       !t.intangible &&
       !(t as { interactions?: object }).interactions,
   },
+  cover: {
+    label: "ground cover",
+    test: (t) =>
+      t.kind === "prop" &&
+      t.height <= 1 &&
+      t.walkable !== false &&
+      (t.type === "simple" || t.type === "scatter") &&
+      !coversCells(footprintOf(t)),
+  },
   standing: {
     label: "a plant or prop that stands",
     test: (t) =>
