@@ -3060,10 +3060,24 @@ keys the slices by the raw eight-neighbour mask instead, 256 of them, and
   different rings of cells two away. `outerRound` 4 and `blend` 6 is the most
   that passes with a 2px inset: a larger blend lets a cell two away pull the
   fillet, and so the same mask would need two drawings.
-- **Water draws its own bank.** Every water cell is opaque: water, a 1px line
-  of wet sand, then `sand`'s own colour out to the cell's sides, so a river
-  meets the sand under the grass beside it without a seam, and the `dirt`
-  under a river is no longer seen.
+- **Water leaves its bank out.** Past the water's outline a cell's art is a
+  1px wet line of black at 30% and then nothing, so the ground under the
+  water is its bank: sand where a river crosses grass, snow on a peak, mud in
+  the bog. The palette pass snaps the wet line to that ground's own darker
+  shade, as it does `grass`'s shadow. The sheet used to draw a sand bank out
+  to the cell's sides, which read as a strip of dirt on snow and in the bog.
+  - **The water sheet is `translucent`**, for the wet line's blend, so it
+    writes no depth and is drawn after the level. Merged translucent batches
+    are drawn bottom up a step apart (`TRANSLUCENT_LAYER_STEP` in
+    `WorldRenderer`): other ground such as `grass`, then water, then a
+    liquid that `fades` over water. Without the steps, which of water and
+    deep water came first in a chunk depended on which the chunk met first.
+  - **A river lays no bed.** It keeps the bottom tile of each cell, so a
+    river through grass has the sand under the grass as its bank, on a hill's
+    top as on the ground (the hill's `cover`), and one on snow has snow. The
+    `dirt` bed every river used to lay showed through the bank as a
+    square-cornered strip: `dirt` is a blob autotile, which cannot round a
+    corner. `mud` is too, which is why the bog's edge is square.
 - **Grass lobes fade out towards grass.** Each of the six columns adds its own
   waves to the inset, scaled to nothing within 3px of any neighbour that is
   grass, so where the edge crosses into the next cell it is where the outline
@@ -16205,6 +16219,15 @@ terrace it never raises a cell beside lower ground either, which leaves the
 tier below a ledge a cell wide all round. With `terrace` 0 it is raised to
 the lower tier's edge, and the two cliffs are one: where no neighbour is left
 on the lower tier's level, the upper wall replaces the lower tier's brink.
+
+**A green hill's top is sand under grass, as the land below it is.** Its
+`cover` is laid on its `ground`, under the walls of its upper tiers as on
+its top, and a cell beside a drop takes the cover's brink. With the full green `grass-2` as the top, a road with no tile had no
+grass to cut, so it was laid as nothing, a road with one showed it against
+green with no sand round it, and a river had no sand to keep as its bank.
+`cover` is unset by default, so a hill of snow, sand or basalt gets no grass;
+Rune Isle's green hills set `ground: sand, cover: grass`. The sandy patches on
+the wreck valley's hills are `clear`s of that grass.
 
 A ramp needs three clear cells on the lower level and two on the upper
 (`rampFits`), so a shelf narrower than three cells takes none, from the hill's

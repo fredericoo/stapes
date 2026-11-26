@@ -27,10 +27,14 @@ const CELL = 8;
 const EDGE: RoundedEdge = { inset: 2, outerRound: 4, blend: 6 };
 /** The wet line is this much wider than the water, round the whole bank. */
 const WET_PX = 1;
-/** `sand`'s own colour, so the bank meets the ground beside it without a seam. */
-const SAND: [number, number, number, number] = [0xfb, 0xb9, 0x54, 255];
-/** `sand`'s ripple colour, darkening the sand the water has just left. */
-const WET_SAND: [number, number, number, number] = [0xe6, 0x90, 0x4e, 255];
+/** Past the wet line the bank is left out, so the ground the water lies on shows round it. */
+const BANK: [number, number, number, number] = [0, 0, 0, 0];
+/**
+ * Black over 30% of whatever is under it, the ground the water has just left.
+ * The palette pass snaps the blend to that ground's own darker shade, so one
+ * line suits sand, grass and snow alike, as `grass`'s shadow does.
+ */
+const WET: [number, number, number, number] = [0, 0, 0, Math.round(0.3 * 255)];
 
 const SHADOW = "#24436b";
 const BASE = "#335c8c";
@@ -88,7 +92,7 @@ async function main() {
     const wet = outlineCoverage(joined, EDGE, -WET_PX);
     for (let y = 0; y < CELL; y++) {
       for (let x = 0; x < CELL; x++) {
-        const tone = water[y]![x]! >= 0.5 ? KEY : wet[y]![x]! >= 0.5 ? WET_SAND : SAND;
+        const tone = water[y]![x]! >= 0.5 ? KEY : wet[y]![x]! >= 0.5 ? WET : BANK;
         setPixel(sheet, x, row * CELL + y, tone);
       }
     }
@@ -130,6 +134,7 @@ async function main() {
     file: string;
     width: number;
     height: number;
+    translucent?: boolean;
   }[];
   const existing = sets.find((s) => s.id === TILESET_ID);
   const entry = {
@@ -138,6 +143,7 @@ async function main() {
     file: `${TILESET_ID}.png`,
     width: sheet.width,
     height: sheet.height,
+    translucent: true,
   };
   if (existing) Object.assign(existing, entry);
   else sets.push(entry);

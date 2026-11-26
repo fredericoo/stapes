@@ -133,6 +133,10 @@ export class ColorCycleSheets {
     return this.ids;
   }
 
+  cycleFor(sheet: string): TileColorCycle | null {
+    return this.bySheet.get(sheet)?.cycle ?? null;
+  }
+
   uniformsFor(sheet: string): ColorCycleUniforms | null {
     return this.bySheet.get(sheet)?.uniforms ?? null;
   }

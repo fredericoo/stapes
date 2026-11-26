@@ -239,6 +239,14 @@ const WADING_RENDER_ORDER = 0.5;
 const TRANSLUCENT_RENDER_ORDER = 0.75;
 
 /**
+ * Merged translucent batches in one cell are drawn bottom up, a step apart:
+ * ground such as grass, then water, whose bank is left out so the ground
+ * shows round it, then a liquid that fades out over water. Neither writes
+ * depth, so a batch drawn out of turn covers the one under it.
+ */
+const TRANSLUCENT_LAYER_STEP = 0.01;
+
+/**
  * A translucent mesh of its own, such as a wisp, is drawn after the merged
  * translucent batches. Those are flat ground and liquid, so whatever is a
  * mesh of its own stands over them, and drawing the batch second would blend
@@ -2425,7 +2433,9 @@ export class WorldRenderer {
       const geo = buildMergedQuadGeometry(quads);
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
-      mesh.renderOrder = restingRenderOrder(mesh, { merged: true });
+      mesh.renderOrder =
+        restingRenderOrder(mesh, { merged: true }) +
+        (isTranslucent(tex) ? this.translucentLayer(tex) * TRANSLUCENT_LAYER_STEP : 0);
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
@@ -2648,7 +2658,7 @@ export class WorldRenderer {
           mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
           reflect: this.reflective().index.get(def.id),
           cycle: def.colorCycle
-            ? this.cycleCornersAt(map, x, y, z, placed, tileset.translucent === true)
+            ? this.cycleCornersAt(map, x, y, z, placed, def.colorCycle.fades === true)
             : undefined,
           lightX0: x,
           lightY0: y,
@@ -3028,6 +3038,12 @@ export class WorldRenderer {
   private colorCycleState(): ColorCycleSheets {
     this.colorCycles.use(this.tilesById);
     return this.colorCycles;
+  }
+
+  private translucentLayer(texture: THREE.Texture): number {
+    const cycle = this.colorCycleState().cycleFor(texture.userData.tilesetId as string);
+    if (!cycle) return 0;
+    return cycle.fades ? 2 : 1;
   }
 
   private cycleCornersAt(
