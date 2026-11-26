@@ -120,6 +120,8 @@
               "h": 320
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 3,
               "terrace": 6,
               "roughness": 45
@@ -565,6 +567,8 @@
               "h": 112
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 3,
               "roughness": 35,
@@ -605,6 +609,8 @@
               "h": 104
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 6,
               "roughness": 35,
@@ -645,6 +651,8 @@
               "h": 260
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 3,
               "terrace": 3,
               "roughness": 70
@@ -677,6 +685,8 @@
               "h": 200
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 2,
               "terrace": 3,
               "roughness": 70
@@ -709,6 +719,8 @@
               "h": 76
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 3,
               "terrace": 0,
               "roughness": 30
@@ -741,6 +753,8 @@
               "h": 120
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 6,
               "roughness": 40,
@@ -781,6 +795,8 @@
               "h": 100
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 3,
               "terrace": 0,
               "roughness": 35
@@ -813,6 +829,8 @@
               "h": 112
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 6,
               "roughness": 40,
@@ -1223,6 +1241,8 @@
               "h": 76
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 4,
               "roughness": 40,
@@ -1269,6 +1289,8 @@
               "h": 24
             },
             "props": {
+              "ground": "sand",
+              "cover": "grass",
               "levels": 1,
               "terrace": 0,
               "roughness": 35
@@ -6494,7 +6516,7 @@
             }
           },
           {
-            "type": "fill",
+            "type": "clear",
             "key": "wreck-hills-sand-1",
             "frame": {
               "x": 326,
@@ -6503,17 +6525,8 @@
               "h": 12
             },
             "props": {
-              "tiles": [
-                "sand"
-              ],
-              "mode": "ground",
-              "edge": [
-                "sand",
+              "remove": [
                 "grass"
-              ],
-              "edgeWidth": 1,
-              "onlyOn": [
-                "grass-2"
               ]
             },
             "children": [
@@ -6536,7 +6549,7 @@
             ]
           },
           {
-            "type": "fill",
+            "type": "clear",
             "key": "wreck-hills-sand-2",
             "frame": {
               "x": 344,
@@ -6545,17 +6558,8 @@
               "h": 14
             },
             "props": {
-              "tiles": [
-                "sand"
-              ],
-              "mode": "ground",
-              "edge": [
-                "sand",
+              "remove": [
                 "grass"
-              ],
-              "edgeWidth": 1,
-              "onlyOn": [
-                "grass-2"
               ]
             },
             "children": [
@@ -6578,7 +6582,7 @@
             ]
           },
           {
-            "type": "fill",
+            "type": "clear",
             "key": "wreck-hills-sand-3",
             "frame": {
               "x": 470,
@@ -6587,17 +6591,8 @@
               "h": 15
             },
             "props": {
-              "tiles": [
-                "sand"
-              ],
-              "mode": "ground",
-              "edge": [
-                "sand",
+              "remove": [
                 "grass"
-              ],
-              "edgeWidth": 1,
-              "onlyOn": [
-                "grass-2"
               ]
             },
             "children": [
