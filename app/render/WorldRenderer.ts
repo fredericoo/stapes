@@ -85,7 +85,6 @@ import type {
   PlacedTile,
   SpriteAnchor,
   SpriteState,
-  TileColorCycle,
   TileDef,
   TilesetDef,
 } from "../lib/types";
@@ -166,15 +165,13 @@ import {
 } from "./worldQuads";
 import { AnimationTable, tableCanHold } from "./animTable";
 import {
-  type ColorCycleUniforms,
+  ColorCycleSheets,
   type CycleCorners,
   FULL_COVER,
-  colorCycleUniforms,
   coverCorners,
-  cyclePhaseAt,
   currentCorners,
 } from "./colorCycle";
-import { colorCycleTileIds, driftFlow, placedBank } from "../lib/waterFlow";
+import { driftFlow, placedBank } from "../lib/waterFlow";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
@@ -775,11 +772,7 @@ export class WorldRenderer {
   private readonly weatherDefines: WeatherDefines = {};
   /** The weather defines plus `COLOR_CYCLE`, for the sheets of colour-cycled tiles; kept in step with `weatherDefines`. */
   private readonly cycleDefines: WeatherDefines & { COLOR_CYCLE?: "" } = { COLOR_CYCLE: "" };
-  private colorCycles: {
-    for: Record<string, TileDef>;
-    tileIds: ReadonlySet<string>;
-    byTileset: Map<string, { cycle: TileColorCycle; uniforms: ColorCycleUniforms }>;
-  } | null = null;
+  private readonly colorCycles = new ColorCycleSheets();
   /** False until the first view's weather has been shown, so a player who joins in the rain sees rain at once. */
   private weatherSnapped = false;
   private sheltered: ReadonlySet<string> = new Set();
@@ -2018,9 +2011,7 @@ export class WorldRenderer {
     const key = `${texture.uuid}:${z}:${tintCacheKey(tint)}`;
     let mat = this.materials.get(key);
     if (!mat) {
-      const cycle =
-        this.colorCycleState().byTileset.get(texture.userData.tilesetId as string)?.uniforms ??
-        null;
+      const cycle = this.colorCycleState().uniformsFor(texture.userData.tilesetId as string);
       const lightUniforms = this.ensureLightUniforms(z);
       const cutUniforms = this.ensureCutUniforms(z);
       const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
@@ -3036,22 +3027,8 @@ export class WorldRenderer {
     }
   }
 
-  private colorCycleState() {
-    if (this.colorCycles?.for !== this.tilesById) {
-      const byTileset = new Map<string, { cycle: TileColorCycle; uniforms: ColorCycleUniforms }>();
-      for (const def of Object.values(this.tilesById)) {
-        if (!def.colorCycle || byTileset.has(def.anchor.tilesetId)) continue;
-        byTileset.set(def.anchor.tilesetId, {
-          cycle: def.colorCycle,
-          uniforms: colorCycleUniforms(def.colorCycle),
-        });
-      }
-      this.colorCycles = {
-        for: this.tilesById,
-        tileIds: colorCycleTileIds(this.tilesById),
-        byTileset,
-      };
-    }
+  private colorCycleState(): ColorCycleSheets {
+    this.colorCycles.use(this.tilesById);
     return this.colorCycles;
   }
 
@@ -3071,16 +3048,8 @@ export class WorldRenderer {
     };
   }
 
-  /** Turns every colour cycle to the clock, and says whether any moved on a step. */
   private updateColorCycles(): boolean {
-    let changed = false;
-    for (const { cycle, uniforms } of this.colorCycleState().byTileset.values()) {
-      const phase = cyclePhaseAt(cycle, this.animClock);
-      if (phase === uniforms.uCyclePhase.value) continue;
-      uniforms.uCyclePhase.value = phase;
-      changed = true;
-    }
-    return changed;
+    return this.colorCycleState().turnTo(this.animClock);
   }
 
   private reflective() {
