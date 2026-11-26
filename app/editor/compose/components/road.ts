@@ -158,6 +158,14 @@ function climbs(cells: readonly Stepped[], ground: RampGround): boolean {
   });
 }
 
+/**
+ * How far from the bank a route that clips the water looks for a way round
+ * it on dry ground. A road that runs beside a river at a slant dips into it
+ * and out again on the same bank, and a bridge there would lead to the far
+ * bank and back.
+ */
+const CLIP_REACH = 6;
+
 /** Longest bridge a road will build; past it the far bank is taken to be open sea, and the road stops. */
 const MAX_SPAN = 48;
 
@@ -178,6 +186,40 @@ function beside(cell: RouteCell, end: { x: number; y: number }, onward: { x: num
 }
 
 /**
+ * The way a bridge runs from `bank`: of the four, the one whose straight run
+ * over the water lands nearest `exit`, where the route leaves the water,
+ * trying `preferred` first on a tie. Taking the longer axis from bank to exit
+ * instead lays a route that crosses a river at a slant along the river.
+ */
+function bridgeStep(
+  bank: { x: number; y: number },
+  exit: { x: number; y: number },
+  preferred: readonly { x: number; y: number }[],
+  wet: (x: number, y: number) => boolean,
+): { x: number; y: number } {
+  const ways = [...preferred, ...DIRECTIONS.map((d) => STEP[d])].filter(
+    (d, i, all) =>
+      (d.x !== 0 || d.y !== 0) && all.findIndex((e) => e.x === d.x && e.y === d.y) === i,
+  );
+  let best: { step: { x: number; y: number }; far: number } | null = null;
+  for (const step of ways) {
+    let x = bank.x + step.x;
+    let y = bank.y + step.y;
+    if (!wet(x, y)) continue;
+    let n = 1;
+    while (wet(x, y) && n <= MAX_SPAN) {
+      x += step.x;
+      y += step.y;
+      n++;
+    }
+    if (n > MAX_SPAN) continue;
+    const far = apart({ x, y }, exit);
+    if (!best || far < best.far) best = { step, far };
+  }
+  return best?.step ?? preferred.find((d) => wet(bank.x + d.x, bank.y + d.y)) ?? preferred[1]!;
+}
+
+/**
  * Replaces every stretch of the route that runs over water with one straight
  * bridge. It runs along the crossing's longer axis, or along the step the
  * route entered the water by when the longer axis starts on land, from the
@@ -190,6 +232,8 @@ function beside(cell: RouteCell, end: { x: number; y: number }, onward: { x: num
 function withBridges(
   cells: readonly Stepped[],
   wet: (x: number, y: number) => boolean,
+  dry: (x: number, y: number) => boolean,
+  level: (x: number, y: number) => number,
   bridged: (water: readonly RouteCell[]) => boolean,
 ): Laid[] {
   const out: Laid[] = [];
@@ -212,12 +256,26 @@ function withBridges(
       continue;
     }
     const exit = cells[j]!;
+    const round = pathTo(
+      bank,
+      (k) =>
+        dry(k.x, k.y) && level(k.x, k.y) === level(bank.x, bank.y) && apart(k, bank) <= CLIP_REACH,
+      (k) => (k.x === exit.x && k.y === exit.y ? j : undefined),
+    );
+    if (round && round.cells.length - 1 <= 2 * (j - i + 1)) {
+      const path = round.cells;
+      path.slice(1).forEach((k, n) => {
+        out.push({ ...k, side: across(path[n]!, k), bridge: false });
+      });
+      i = j + 1;
+      continue;
+    }
     const entered = { x: c.x - bank.x, y: c.y - bank.y };
     const longer =
       Math.abs(exit.x - bank.x) >= Math.abs(exit.y - bank.y)
         ? { x: Math.sign(exit.x - bank.x), y: 0 }
         : { x: 0, y: Math.sign(exit.y - bank.y) };
-    const step = wet(bank.x + longer.x, bank.y + longer.y) ? longer : entered;
+    const step = bridgeStep(bank, exit, [longer, entered], wet);
     const side = step.x !== 0 ? { x: 0, y: 1 } : { x: 1, y: 0 };
     /**
      * The road comes onto the bridge from straight behind it. A route that
@@ -301,6 +359,10 @@ export const road: Component<RoadProps> = {
   label: "Road",
   starter: { props: { from: { x: 2, y: 2 }, to: { x: 14, y: 2 } } },
   schema: RoadSchema,
+  route(props, frame) {
+    const cells = routeOf(frame, props);
+    return "reason" in cells ? null : { cells, width: props.width };
+  },
   build(ctx, props) {
     for (const id of [props.tile, ...props.clears]) {
       if (id && !ctx.tilesById[id]) return { ok: false, reason: `There is no tile called ${id}` };
@@ -411,6 +473,8 @@ export const road: Component<RoadProps> = {
     const laid = withBridges(
       ramped.cells,
       (x, y) => !under.has(at(x, y)) && wet(x, y),
+      (x, y) => !under.has(at(x, y)) && ctx.stackAt(x, y).length > 0 && !wet(x, y),
+      ctx.raisedAt,
       (water) => declared(water) !== null,
     );
     for (const c of laid) {

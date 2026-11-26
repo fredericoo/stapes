@@ -104,12 +104,19 @@ export function isle(
  */
 export function buildTree(
   root: MapNode,
-  opts: { seed?: number; components?: ComponentRegistry; problems?: "returned" } = {},
+  opts: {
+    seed?: number;
+    components?: ComponentRegistry;
+    problems?: "returned";
+    previous?: BuildResult;
+  } = {},
 ): BuildResult {
   const built = buildMap(
     { version: MAP_DOC_VERSION, seed: opts.seed ?? DEFAULT_SEED, root: keyed(root) },
     tilesById,
     opts.components ?? COMPONENTS,
+    undefined,
+    opts.previous,
   );
   if (built.problems.length > 0 && opts.problems !== "returned") {
     const reasons = built.problems.map((p) => `${p.key}: ${p.reason}`).join("\n");

@@ -1,7 +1,7 @@
 import type { PlacedTile } from "../../../lib/types";
 import * as v from "valibot";
 import { fbm, randomAt } from "../../generator";
-import type { BridgeStyle, BuildContext } from "../build";
+import type { BridgeStyle, RouteFrame } from "../build";
 import type { Point } from "../doc";
 import { field } from "../field";
 
@@ -154,7 +154,7 @@ type RouteProps = {
   bendLength: number;
 };
 
-export function routeOf(ctx: BuildContext, props: RouteProps): RouteCell[] | { reason: string } {
+export function routeOf(ctx: RouteFrame, props: RouteProps): RouteCell[] | { reason: string } {
   const anchors: Cell[] = [];
   for (const point of [props.from, ...props.via, props.to]) {
     const cell = ctx.point(point);

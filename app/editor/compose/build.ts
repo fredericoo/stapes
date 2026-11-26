@@ -49,7 +49,15 @@ export type BuildContext = {
   covered(x: number, y: number): boolean;
   /** The node's visible children of the types its component lists in `parts`, in tree order, props validated. */
   readonly parts: readonly Part[];
+  /** For a component that sets `readsRoutes`: the routes of the tree's roads that pass through the node's frame. */
+  readonly routes: readonly Route[];
 };
+
+/** A road's centre line, and how many cells wide it is laid across it (`bandOffsets`). */
+export type Route = { cells: ReadonlyArray<{ x: number; y: number }>; width: number };
+
+/** What a component's `route` measures its points with. */
+export type RouteFrame = Pick<BuildContext, "point" | "seed">;
 
 /** A child its parent builds. `point` resolves one of the child's own points to a cell. */
 export type Part = {
@@ -102,6 +110,14 @@ export type Component<Props> = {
    * part is selected, so it must be the level the build puts the part on.
    */
   partLevels?(node: MapNode): Map<string, number>;
+  /**
+   * For a component that is a way through the map: the cells it runs along,
+   * worked out from the layout before anything is built, so a node built
+   * earlier can make room for it.
+   */
+  route?(props: Props, frame: RouteFrame): Route | null;
+  /** Set by a component that reads `ctx.routes`; a change to one of them then rebuilds it. */
+  readonly readsRoutes?: true;
   /** The parent types this component is a part of. Anywhere else it is refused. */
   readonly within?: readonly string[];
   build(ctx: BuildContext, props: Props): ComponentPlan;
@@ -205,7 +221,12 @@ function namedFrames(value: unknown, layout: Layout, into: Record<string, unknow
  * layer needs nothing more, because that layer comes earlier, and any change
  * to it already stops the build reusing what follows.
  */
-function inputsOf(placement: Placement, layout: Layout, parts: readonly MapNode[]): string {
+function inputsOf(
+  placement: Placement,
+  layout: Layout,
+  parts: readonly MapNode[],
+  routes: readonly Route[],
+): string {
   const named: Record<string, unknown> = {};
   namedFrames(placement.node.props, layout, named);
   const built = parts.map((part) => {
@@ -227,6 +248,7 @@ function inputsOf(placement: Placement, layout: Layout, parts: readonly MapNode[
     named,
     masks,
     built,
+    routes,
   ]);
 }
 
@@ -415,6 +437,33 @@ function validProps(
   return wrong ? { ok: false, reason: wrong } : { ok: true, props: parsed.output };
 }
 
+/** The route of every visible node whose component has one, in tree order. */
+function routesOf(
+  order: readonly Visit[],
+  layout: Layout,
+  tilesById: Record<string, TileDef>,
+  components: ComponentRegistry,
+): Route[] {
+  return order.flatMap(({ placement }) => {
+    const component = components[placement.node.type];
+    if (!component?.route) return [];
+    const valid = validProps(component, placement.node, tilesById);
+    if (!valid.ok) return [];
+    const route = component.route(valid.props as never, {
+      seed: placement.seed,
+      point: (point) => {
+        const frame = pointFrame(layout, placement, point);
+        return frame ? pointIn(point, frame) : null;
+      },
+    });
+    return route ? [route] : [];
+  });
+}
+
+function crossing(routes: readonly Route[], b: Bounds): Route[] {
+  return routes.filter((route) => route.cells.some((c) => inside(b, c.x, c.y)));
+}
+
 /**
  * Builds the tree depth first: a node is built against the map every node
  * before it left, then its children are. A node that cannot be built writes
@@ -450,10 +499,15 @@ export function buildMap(
   let map = base;
   let terrain = FLAT;
   let resuming = true;
+  const order = visibleOrder(doc, layout);
+  const routes = routesOf(order, layout, tilesById, components);
 
-  for (const { placement, parent, ancestors } of visibleOrder(doc, layout)) {
+  for (const { placement, parent, ancestors } of order) {
     const partsOfNode = partNodes(placement.node, components[placement.node.type]);
-    const inputs = inputsOf(placement, layout, partsOfNode);
+    const routesHere = components[placement.node.type]?.readsRoutes
+      ? crossing(routes, placement.bounds)
+      : [];
+    const inputs = inputsOf(placement, layout, partsOfNode, routesHere);
     const prior = usable[steps.length];
     if (resuming && prior?.key === placement.node.key && prior.inputs === inputs) {
       steps.push(prior);
@@ -523,6 +577,7 @@ export function buildMap(
                 },
               ];
             }),
+            routes: routesHere,
           },
           valid.props as never,
         );
