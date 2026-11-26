@@ -40,16 +40,15 @@ describe("forest", () => {
   );
 
   it.each([1, 2, 3])(
-    "grows old trees whole and apart, and fallen logs whole, and keeps the path open through them, seed %i",
+    "grows old trees whole and apart, fallen logs whole, and keeps the path open through them, seed %i",
     (seed) => {
       const built = buildTree(
         land(SIZE, [
           node("forest", {
-            trees: [{ tile: "old-tree", weight: 1 }],
             density: 100,
+            decay: 30,
+            dead: [{ tile: "fallen-log", weight: 1 }],
             path: "dirt",
-            undergrowth: [{ tile: "fallen-log", weight: 1 }],
-            undergrowthDensity: 30,
           }),
         ]),
         { seed },
@@ -58,7 +57,7 @@ describe("forest", () => {
       expect(cutFootprints(built), sketch(built)).toEqual([]);
       expect(brokenTallTrees(built), sketch(built)).toEqual([]);
       const trunks = new Set(stands(built, "old-tree").map((b) => tallTreeAt(built, b)?.trunks));
-      expect([...trunks].sort()).toEqual([0, 1, 2, 3]);
+      expect(trunks.size, sketch(built)).toBeGreaterThan(1);
       const bases = stands(built, "old-tree");
       const close = bases.filter((a) =>
         bases.some((b) => a !== b && Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 2),
@@ -74,6 +73,41 @@ describe("forest", () => {
   );
 });
 
+describe("a forest's density and decay", () => {
+  const grown = (props: Record<string, unknown>) => {
+    const built = buildTree(land(SIZE, [node("forest", { path: null, ...props })]), { seed: 4 });
+    const count = (...ids: string[]) => ids.reduce((n, id) => n + stands(built, id).length, 0);
+    return {
+      cover: count("tuft", "fern", "undergrowth", "red-flowers", "yellow-flowers"),
+      trees: count("tree", "apple-tree"),
+      tall: count("old-tree"),
+      dead: count("dead-tree", "tree-stump", "fallen-log"),
+    };
+  };
+
+  it("grows only ground cover and bushes below 10", () => {
+    const wood = grown({ density: 8 });
+    expect(wood.cover).toBeGreaterThan(0);
+    expect(wood.trees + wood.tall + wood.dead).toBe(0);
+  });
+
+  it("adds trees from 10 and tall trees only from 50", () => {
+    const middling = grown({ density: 45 });
+    expect(middling.trees).toBeGreaterThan(0);
+    expect(middling.tall).toBe(0);
+    expect(grown({ density: 90 }).tall).toBeGreaterThan(0);
+  });
+
+  it("grows dead trees in place of live ones as decay rises, and only dead ones at 100", () => {
+    const some = grown({ density: 90, decay: 40 });
+    expect(some.dead).toBeGreaterThan(0);
+    expect(some.trees).toBeGreaterThan(0);
+    const all = grown({ density: 90, decay: 100 });
+    expect(all.dead).toBeGreaterThan(0);
+    expect(all.trees + all.tall).toBe(0);
+  });
+});
+
 describe("a forest's shape", () => {
   const WOOD = { w: 60, h: 40 };
   const FRAME = { x: 4, y: 4, w: 52, h: 32 };
@@ -82,7 +116,7 @@ describe("a forest's shape", () => {
       land(WOOD, [
         node(
           "forest",
-          { path: null, undergrowthDensity: 0, outliers: 0, ...props },
+          { path: null, foliage: [], bushes: [], outliers: 0, ...props },
           { frame: frame(FRAME.x, FRAME.y, FRAME.w, FRAME.h) },
         ),
       ]),
@@ -193,7 +227,8 @@ describe("a forest that opens to a road", () => {
             onlyOn: ["grass"],
             density: 80,
             path: null,
-            undergrowthDensity: 0,
+            foliage: [],
+            bushes: [],
             opensTo: ["dirt"],
             ...props,
           },

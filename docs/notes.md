@@ -16225,27 +16225,52 @@ its own fix:
   in, measured in a straight line from whatever ends it (frame, mask, a road
   through it, a house) and pushed in and out by noise, more in than out. A
   wood then ends in bays and tongues, and `outliers` (3% by default) stands
-  lone trees in the open past it. Undergrowth grows up to five times as thick
-  where the canopy is half closed, which is the scrub at a wood's edge.
+  lone trees in the open past it. Ground cover grows up to half as thick
+  again where the canopy is half closed, which is the scrub at a wood's edge.
 - **`widenToTwo` made the holes square.** Run to a fixed point on a noisy
   field, it plants every open cell that is not in a clear 2×2 square, so all
-  that survives is unions of squares. The new pass plants only an open cell
-  with six or more trees around it, and only where the canopy is past half,
-  twice. That removes the one-cell slits the camera hides in the thick of the
-  wood and leaves the gaps between lone trees where the wood is thin, the way
-  a scatter leaves them.
-- **`joinRegions` cut L-shaped tunnels.** A glade of `MIN_GLADE_CELLS` or more
-  that cannot be walked into is now joined by the way that fells the fewest
-  trees (Dijkstra, each tree costing 4 to 8 so the track bends round the thick
-  of the wood), two cells wide, to open ground at the wood's edge or the path.
+  that survives is unions of squares.
+- **`joinRegions` cut L-shaped tunnels.** A pocket that cannot be walked into
+  is now joined by the way that fells the fewest trees (Dijkstra, each tree
+  costing 4 to 8 so the track bends round the thick of the wood), two cells
+  wide, to open ground at the wood's edge or the path.
 
 **`trees` is a weighted mix, and each kind comes in stands.** Each kind's
 weight is multiplied by `exp(7 × (noise − 0.5))` from its own noise field 13
-cells across, so one kind dominates a patch without the others vanishing. The
-default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
-grass and, in stands, reads as a hole in the map. A tree wider than a cell
-that does not fit falls back to the commonest one-cell kind. A saved forest
-with the old single `tree` prop is read as a mix of one (`migrateDoc`).
+cells across, so one kind dominates a patch without the others vanishing. A
+tile wider than a cell that does not fit falls back to the commonest one-cell
+kind of its list. A saved forest with the old single `tree` prop is read as a
+mix of one (`migrateDoc`).
+
+### A forest's density picks what grows, and its decay what has died
+
+Every wood used to be walls. At the default density of 55, 41% of a 50×50
+wood blocked a walker and the largest solid clump was 468 cells, for three
+reasons: an open cell with six trees round it was planted over, twice; a
+pocket smaller than 14 cells that nobody could reach was planted over instead
+of opened; and undergrowth grew five times as thick at the wood's edge, so a
+setting of 6% grew 15%. All three are gone. Every pocket is joined to open
+ground now, and no tree is planted beside two trees already planted before it
+in the scan (`MAX_TREES_BESIDE`), which allows a line and never a clump.
+
+`density` (0 to 100) now picks what grows as well as how much (`forestMix`):
+
+- **0 to 10:** ground cover only (`foliage`: tufts, ferns, undergrowth,
+  flowers) and a rare bush.
+- **10 to 50:** `trees` as well, `tree` with a rare `apple-tree`.
+- **50 to 100:** a growing share of the trees are `tall` (`old-tree`) instead,
+  each two cells from the next.
+
+At 100 about 14% of a wood's cells are trees and 17% block a walker, which is
+what 30 was before; the largest clump is about 10 cells. `decay` (0 to 100)
+is the share of trees that grow as one of `dead` (dead trees, stumps and
+fallen logs) instead; at 100 none is alive.
+
+**Only ground cover grows on the wood's open cells.** A bush, a fallen log
+or anything else that blocks the way grows on one of `growWoodland`'s tree
+cells, which are what the pocket joining counts, so nothing planted after it
+can shut a pocket again. A fallen log covers two tree cells or falls back to
+the commonest one-cell piece of `dead`.
 
 ### An old tree is a stack of tiles over several levels
 
@@ -16265,11 +16290,11 @@ the next; its art rises well past that.
   refuses the tree where not even a crown fits or where the base would not
   end at the top of its level. So `forest`, `scatter` and `tile` all plant
   whole trees without knowing about them.
-- **`forest` keeps them two cells apart.** One takes a cell and its crown
+- **`forest` keeps them two cells apart** and grows them only from density
+  50 (see the section above on density). One takes a cell and its crown
   spreads over the cells round it, so a stand of them packed cell to cell
   draws as one dark mass. An old tree within `TALL_SPACING` of another gives
-  way to the commonest one-cell tree, and the big trees stand out of a wood
-  of small ones.
+  way to one of `trees`, and the big trees stand out of a wood of small ones.
 - **Whatever takes the base away takes the rest.** `fellAbove` runs on every
   node's edits in `buildMap`, against the map the node made, so a road, a
   clearing or a hill raised over a tree leaves nothing in the air. A hill
