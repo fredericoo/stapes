@@ -11474,7 +11474,11 @@ is one mesh carrying every sprite (`buildSpreadQuadGeometry`), so a fall or a
 wade moves the whole heap. Its geometry keeps each sprite's depth nudge,
 because `writeBoxAttr` rewrites the depth of every quad on every motion frame,
 and its outline is one ring per quad (`makeFollowingPileOutlines`) in the order
-the geometry was built in. A pile that is *animated*, or forming under a
+the geometry was built in. Each ring's quad is moved back onto its own origin
+and its offset carried in the ring's matrix, because the outline shader reads a
+vertex's corner and the sprite's size off its position; left at its offset in
+the pile, a ring read the wrong rect of the atlas and filled the heap with
+white. A pile that is *animated*, or forming under a
 transition, still draws one sprite: `writeFrameUvs` writes four vertices, and a forming
 transition is drawn on one quad. Nothing that piles is animated today.
 
