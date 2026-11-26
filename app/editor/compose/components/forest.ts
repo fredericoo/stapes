@@ -24,7 +24,7 @@ const ForestSchema = v.object({
     { tile: "bush", weight: 1 },
   ]),
   trees: v.optional(field.weighted(TILES.standing), [
-    { tile: "tree", weight: 30 },
+    { tile: "tree", weight: 60 },
     { tile: "apple-tree", weight: 1 },
   ]),
   tall: v.optional(field.weighted(TILES.standing), [{ tile: "old-tree", weight: 1 }]),
