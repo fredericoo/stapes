@@ -79,9 +79,14 @@ export function cellHasLooseGravity(
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) =>
-    isLooseGravityBody(placed, tilesById),
-  );
+  return stackHasLooseGravity(getStack(map, cell.x, cell.y, cell.z), tilesById);
+}
+
+export function stackHasLooseGravity(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => isLooseGravityBody(placed, tilesById));
 }
 
 export function findLooseGravityCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {

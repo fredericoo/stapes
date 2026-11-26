@@ -55,6 +55,17 @@ describe("buffered writes", () => {
 
     expect(await store.get<unknown>("a")).toEqual({ n: 2 });
   });
+
+  it("reads many keys at once as `get` reads each, written, pending or deleted", async () => {
+    await store.put({ stored: 1, gone: 2, replaced: 3 });
+    await store.flush();
+    await store.delete("gone");
+    await store.put({ replaced: 4, pending: 5 });
+
+    const read = await store.getMany<number>(["stored", "gone", "replaced", "pending", "never"]);
+
+    expect(Object.fromEntries(read)).toEqual({ stored: 1, replaced: 4, pending: 5 });
+  });
 });
 
 describe("listing", () => {

@@ -28,7 +28,14 @@ export function cellHasPlate(
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
+  return stackHasPlate(getStack(map, cell.x, cell.y, cell.z), tilesById);
+}
+
+export function stackHasPlate(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => {
     const def = tilesById[placed.tileId];
     return def != null && resolvePressurePlate(def) != null;
   });

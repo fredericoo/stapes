@@ -260,10 +260,10 @@ const UNLOAD_IDLE_MS = 120_000;
 const RESIDENCY_EVERY_MS = 10_000;
 
 /**
- * Putting chunks back costs about 2ms each on a board of two million cells,
- * most of it copying the level records, so a tick takes a few and a player
- * crossing into new chunks is not a stall. The reach's two spare chunks are
- * what this can lag by.
+ * A batch put back costs about 3ms on the showcase island and each chunk in it
+ * about 1ms more, so a tick takes a few and a player crossing into new chunks
+ * is not a stall. Fewer a tick would make a join far from the kept chunks wait
+ * longer for its 121. The reach's two spare chunks are what this can lag by.
  */
 const CHUNKS_LOADED_PER_TICK = 4;
 
@@ -3098,15 +3098,15 @@ export class GameServer {
     if (!session) return;
     const keys = [...chunkKeys];
     const reads: Promise<void>[] = [];
+    const unread: string[] = [];
     for (const chk of keys) {
       const reading = this.chunksLoading.get(chk);
-      if (reading) {
-        reads.push(reading);
-        continue;
-      }
-      if (!isUnloadedChunk(session.getMap(), chk)) continue;
-      const read = this.readChunk(session, chk);
-      this.chunksLoading.set(chk, read);
+      if (reading) reads.push(reading);
+      else if (isUnloadedChunk(session.getMap(), chk)) unread.push(chk);
+    }
+    if (unread.length > 0) {
+      const read = this.readChunks(session, unread);
+      for (const chk of unread) this.chunksLoading.set(chk, read);
       reads.push(read);
     }
     await Promise.all(reads);
@@ -3119,20 +3119,27 @@ export class GameServer {
     await new Promise<void>((done) => this.chunkWaiters.push({ keys, done }));
   }
 
-  private async readChunk(session: GameSession, chk: string): Promise<void> {
-    const records = new Map<string, ChunkCells>();
+  /** One statement for them all, which is most of what reading a chunk costs the tick that asks. */
+  private async readChunks(session: GameSession, chunkKeys: readonly string[]): Promise<void> {
+    const levelKeys = Object.keys(session.getMap().levels);
+    let rows: Map<string, ChunkCells>;
     try {
-      await Promise.all(
-        Object.keys(session.getMap().levels).map(async (zk) => {
-          const cells = await this.ctx.storage.get<ChunkCells>(boardKey(zk, chk));
-          if (cells) records.set(zk, shareCells(cells, this.reloadPool, true));
-        }),
+      rows = await this.ctx.storage.getMany<ChunkCells>(
+        chunkKeys.flatMap((chk) => levelKeys.map((zk) => boardKey(zk, chk))),
       );
     } catch (error) {
-      this.chunksLoading.delete(chk);
+      for (const chk of chunkKeys) this.chunksLoading.delete(chk);
       throw error;
     }
-    if (this.session === session) this.chunksRead.set(chk, records);
+    if (this.session !== session) return;
+    for (const chk of chunkKeys) {
+      const records = new Map<string, ChunkCells>();
+      for (const zk of levelKeys) {
+        const cells = rows.get(boardKey(zk, chk));
+        if (cells) records.set(zk, shareCells(cells, this.reloadPool, true));
+      }
+      this.chunksRead.set(chk, records);
+    }
   }
 
   private putBackChunks(session: GameSession, most: number) {
