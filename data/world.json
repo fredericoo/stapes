@@ -10333,6 +10333,17 @@
                 }
               }
             }
+          },
+          {
+            "type": "tile",
+            "key": "mtn-road-pocket-bush",
+            "props": {
+              "tile": "bush",
+              "at": {
+                "x": 613,
+                "y": 306
+              }
+            }
           }
         ]
       },
