@@ -3001,6 +3001,24 @@ The blend goes through the palette pass like everything else, so what shows
 is the nearest palette colour to half body, half water. That is coarse, and it
 reads as pixel art.
 
+**A wading body stands in a ring of dark water** (`app/render/wadeRings.ts`).
+The cut alone took nearly all of a rat, whose art sits low in its slot, and
+left a player looking cropped rather than in water. The ring is a filled
+ellipse in `deep-water`'s base colour, `WADE_RING_COLOR`, with a radius of a
+quarter of the sprite's width and at least 2px, centred on the same sunk feet
+the cut measures from. It is a child mesh of the body, so it moves and sinks
+with it, and it is drawn with the world material, so it is lit, fogged and
+palette-snapped like the water under it. It shares the body's depth box and is
+drawn at `WADE_RING_RENDER_ORDER`, after the level and before the wading body,
+so the body's half-opacity edge blends over the ring rather than the water.
+It wobbles through `WADE_RING_FRAMES` frames that squash it one way and then
+the other, `WADE_RING_FRAME_MS` apart, with a phase per body so a crowd does
+not wobble in step.
+
+`bun run scene` asks `wadingFor` about every battler and actor it places, as
+if each stood still, so a scene shows wading as the game does
+(`scripts/scenes/wading.json`).
+
 The shipped `water` tile is shallow: it is walkable, and it carries
 `wade: true`. `deep-water` is the liquid tile with `walkable: false`, and
 everything above about a plane something unstandable is lying on is about that
