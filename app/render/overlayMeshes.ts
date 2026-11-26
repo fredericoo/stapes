@@ -333,17 +333,29 @@ export function makeFollowingSpriteOutline(
 
   const mesh = outlineMesh(source.geometry, { texture, uvPerPx }, color, materials);
   mesh.userData[BORROWED_GEOMETRY] = true;
-  mesh.matrix.copy(source.matrixWorld);
-  mesh.matrixWorld.copy(source.matrixWorld);
+  followSource(mesh, source);
   return mesh;
 }
 
 const QUAD_VERTS = 4;
 
+const RING_OFFSET = "ringOffset";
+
+/** Places an outline that rides on `source`, at its own offset within it when it has one. */
+export function followSource(outline: THREE.Mesh, source: THREE.Mesh) {
+  const offset = outline.userData[RING_OFFSET] as THREE.Matrix4 | undefined;
+  if (offset) outline.matrix.multiplyMatrices(source.matrixWorld, offset);
+  else outline.matrix.copy(source.matrixWorld);
+  outline.matrixWorld.copy(outline.matrix);
+}
+
 /**
  * One ring per sprite of a moving pile, each told where its siblings are, as
  * `makeSpriteOutline` is for a pile at rest. Sprite `i` is the `i`th quad of
  * `source`, so `rings` must be in the order the pile's geometry was built in.
+ * Each quad is moved back onto its own origin and the offset kept in the
+ * matrix, because the outline shader reads a vertex's corner and the sprite's
+ * size off its position.
  */
 export function makeFollowingPileOutlines(
   source: THREE.Mesh,
@@ -359,14 +371,15 @@ export function makeFollowingPileOutlines(
 
   return rings.slice(0, pos.count / QUAD_VERTS).map(({ peers }, i) => {
     const first = i * QUAD_VERTS;
+    const corners = (pos.array as Float32Array).slice(first * 3, (first + QUAD_VERTS) * 3);
+    const cx = (corners[0]! + corners[3]!) / 2;
+    const cy = (corners[1]! + corners[7]!) / 2;
+    for (let v = 0; v < QUAD_VERTS; v++) {
+      corners[v * 3] = corners[v * 3]! - cx;
+      corners[v * 3 + 1] = corners[v * 3 + 1]! - cy;
+    }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.BufferAttribute(
-        (pos.array as Float32Array).slice(first * 3, (first + QUAD_VERTS) * 3),
-        3,
-      ),
-    );
+    geo.setAttribute("position", new THREE.BufferAttribute(corners, 3));
     geo.setAttribute(
       "uv",
       new THREE.BufferAttribute(
@@ -376,8 +389,8 @@ export function makeFollowingPileOutlines(
     );
     geo.setIndex([0, 2, 1, 2, 3, 1]);
     const mesh = outlineMesh(geo, { texture, uvPerPx }, color, materials, peers);
-    mesh.matrix.copy(source.matrixWorld);
-    mesh.matrixWorld.copy(source.matrixWorld);
+    mesh.userData[RING_OFFSET] = new THREE.Matrix4().makeTranslation(cx, cy, 0);
+    followSource(mesh, source);
     return mesh;
   });
 }

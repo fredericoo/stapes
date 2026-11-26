@@ -176,6 +176,7 @@ import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
   makeFollowingPileOutlines,
+  followSource,
   makeRectOutline,
   makeCellFill,
   makeCellFrame,
@@ -1022,10 +1023,7 @@ export class WorldRenderer {
   }
 
   private syncFollowingOutlines() {
-    for (const { outline, source } of this.followingOutlines) {
-      outline.matrix.copy(source.matrixWorld);
-      outline.matrixWorld.copy(source.matrixWorld);
-    }
+    for (const { outline, source } of this.followingOutlines) followSource(outline, source);
   }
 
   setDebugView(on: boolean) {
