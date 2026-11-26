@@ -121,7 +121,9 @@ Rules that follow from the table:
 - **A zone-1 road has no zone-2 hostile within reach of it.** Wolves and bog
   imps walk up to 10 and 18 cells from where they were placed before their
   home leash turns them back, and a wolf notices a player 9 cells off at
-  night. A wolf outpaces a player (a step in 140 ms against 200 ms), so one
+  night. Snakes, slimes and skeletons keep to the leash of their `predator`
+  trait (10, 12 and 14 cells), so a skeleton reaches at most 22 cells from
+  its home including its 8-cell sight. A wolf outpaces a player (a step in 140 ms against 200 ms), so one
   that notices a new player kills them. `wood-wolves` therefore carries a
   subtract mask `from` each of `camp-to-druids`, `druids-to-inn` and
   `hamlet-road`, and from `druid-town`, grown 24 cells; `bog-imps` carries
