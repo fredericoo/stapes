@@ -16263,8 +16263,10 @@ in the scan (`MAX_TREES_BESIDE`), which allows a line and never a clump.
 
 At 100 about 14% of a wood's cells are trees and 17% block a walker, which is
 what 30 was before; the largest clump is about 10 cells. `decay` (0 to 100)
-is the share of trees that grow as one of `dead` (dead trees, stumps and
-fallen logs) instead; at 100 none is alive.
+grows up to a tenth of the trees as one of `dead` (dead trees, stumps and
+fallen logs) instead (`MOST_DEAD`). It once took every tree at 100, and a wood
+at even half that read as felled: a bare dead tree leans along the diagonal
+and looks like a trunk lying on the ground.
 
 **Only ground cover grows on the wood's open cells.** A bush, a fallen log
 or anything else that blocks the way grows on one of `growWoodland`'s tree

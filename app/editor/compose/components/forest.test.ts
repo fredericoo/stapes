@@ -98,13 +98,12 @@ describe("a forest's density and decay", () => {
     expect(grown({ density: 90 }).tall).toBeGreaterThan(0);
   });
 
-  it("grows dead trees in place of live ones as decay rises, and only dead ones at 100", () => {
-    const some = grown({ density: 90, decay: 40 });
-    expect(some.dead).toBeGreaterThan(0);
-    expect(some.trees).toBeGreaterThan(0);
+  it("grows a few dead trees in place of live ones as decay rises", () => {
+    const none = grown({ density: 90 });
     const all = grown({ density: 90, decay: 100 });
+    expect(none.dead).toBe(0);
     expect(all.dead).toBeGreaterThan(0);
-    expect(all.trees + all.tall).toBe(0);
+    expect(all.dead).toBeLessThan((all.trees + all.tall) / 4);
   });
 });
 

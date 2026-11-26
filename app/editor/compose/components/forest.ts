@@ -82,6 +82,9 @@ const MOST_FOLIAGE = 0.22;
 const FEWEST_BUSHES = 0.01;
 const MOST_BUSHES = 0.04;
 
+/** The share of a wood's trees that `decay` at 100 grows dead: past a few, the wood reads as felled. */
+const MOST_DEAD = 0.1;
+
 export type ForestMix = { trees: number; tall: number; foliage: number; bushes: number };
 
 export function forestMix(density: number): ForestMix {
@@ -135,8 +138,8 @@ function pickWeighted(entries: Weighted, hash: number, scale?: (index: number) =
  *
  * `density` picks what grows as well as how much (`forestMix`): ground cover
  * and a rare bush below 10, then `trees`, then from 50 a share of `tall`
- * trees in their place, each kept `TALL_SPACING` from the next. `decay` is
- * the share of trees that grow as one of `dead` instead. Each kind of tree is
+ * trees in their place, each kept `TALL_SPACING` from the next. `decay` grows
+ * up to `MOST_DEAD` of the trees as one of `dead` instead. Each kind of tree is
  * weighted up and down by its own noise field, so the mix comes in stands
  * rather than evenly salted. A tile wider than a cell grows south and east of
  * the cell it starts in where every cell it covers is free ground of the
@@ -236,7 +239,7 @@ export const forest: Component<ForestProps> = {
             );
             continue;
           }
-          if (randomAt(x, y, ctx.seed ^ DECAY_SALT) < props.decay / 100) {
+          if (randomAt(x, y, ctx.seed ^ DECAY_SALT) < (props.decay / 100) * MOST_DEAD) {
             grow(pickWeighted(props.dead, hashCell(x, y, ctx.seed ^ PICK_SALT)), props.dead, x, y);
             continue;
           }
