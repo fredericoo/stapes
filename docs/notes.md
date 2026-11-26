@@ -17969,6 +17969,14 @@ The rest of the design follows from where the shader sits:
 - **A material for a colour-cycled sheet carries the `COLOR_CYCLE` define** and
   its own copy of the weather defines (`cycleDefines`), kept in step with
   `weatherDefines`. Every other world material compiles without the code.
+- **A sheet keeps one set of cycle uniforms for the renderer's life**
+  (`ColorCycleSheets`). A material takes its uniforms when it is built and is
+  cached by texture, and the play view hands the renderer a new catalogue
+  whenever a worn look changes (`WornLooks.apply`). Building new uniforms for
+  each catalogue left the water's materials holding ones the clock no longer
+  turned, so in the game the water stood still after the first change of
+  clothes; the map viewer, which has no worn looks, never showed it. A new
+  catalogue is written into the same objects.
 - **The clock's phase loops over a stored period, not over one cycle**
   (`cyclePhaseAt`). Looping after one cycle snapped every band each time it
   wrapped: water drawing half the waves jumped half a cycle, and every band's

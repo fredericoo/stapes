@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PX_PER_HEIGHT } from "../lib/geometry";
-import { CELL_SIZE, type MapFile, type TileColorCycle } from "../lib/types";
+import { CELL_SIZE, type MapFile, type TileColorCycle, type TileDef } from "../lib/types";
 import { getStack } from "../lib/mapData";
 import {
   FLOW_PERIOD,
@@ -8,6 +8,7 @@ import {
   cellBank,
   cellFlow,
   cellWaves,
+  colorCycleTileIds,
   flowDelta,
 } from "../lib/waterFlow";
 
@@ -62,21 +63,91 @@ export type ColorCycleUniforms = {
 };
 
 export function colorCycleUniforms(cycle: TileColorCycle): ColorCycleUniforms {
-  const key = new THREE.Color(cycle.key).convertLinearToSRGB();
-  const ramp = Array.from({ length: MAX_CYCLE_STEPS }, () => new THREE.Vector3());
-  cycle.ramp.slice(0, MAX_CYCLE_STEPS).forEach((hex, i) => {
-    const c = new THREE.Color(hex);
-    ramp[i]!.set(c.r, c.g, c.b);
-  });
-  return {
-    uCycleKey: { value: new THREE.Vector3(key.r, key.g, key.b) },
-    uCycleRamp: { value: ramp },
-    uCycleSteps: { value: Math.min(cycle.ramp.length, MAX_CYCLE_STEPS) },
-    uCyclePerCell: { value: 1 / cycle.cellsPerCycle },
-    uCycleRipple: { value: cycle.ripple },
-    uCycleGaps: { value: cycle.gaps },
+  const uniforms: ColorCycleUniforms = {
+    uCycleKey: { value: new THREE.Vector3() },
+    uCycleRamp: { value: Array.from({ length: MAX_CYCLE_STEPS }, () => new THREE.Vector3()) },
+    uCycleSteps: { value: 0 },
+    uCyclePerCell: { value: 0 },
+    uCycleRipple: { value: 0 },
+    uCycleGaps: { value: 0 },
     uCyclePhase: { value: 0 },
   };
+  writeColorCycle(uniforms, cycle);
+  return uniforms;
+}
+
+function writeColorCycle(uniforms: ColorCycleUniforms, cycle: TileColorCycle) {
+  const key = new THREE.Color(cycle.key).convertLinearToSRGB();
+  uniforms.uCycleKey.value.set(key.r, key.g, key.b);
+  for (const v of uniforms.uCycleRamp.value) v.set(0, 0, 0);
+  cycle.ramp.slice(0, MAX_CYCLE_STEPS).forEach((hex, i) => {
+    const c = new THREE.Color(hex);
+    uniforms.uCycleRamp.value[i]!.set(c.r, c.g, c.b);
+  });
+  uniforms.uCycleSteps.value = Math.min(cycle.ramp.length, MAX_CYCLE_STEPS);
+  uniforms.uCyclePerCell.value = 1 / cycle.cellsPerCycle;
+  uniforms.uCycleRipple.value = cycle.ripple;
+  uniforms.uCycleGaps.value = cycle.gaps;
+}
+
+/**
+ * The uniforms of every colour-cycled sheet, one object per sheet for the
+ * renderer's life. A material takes its uniforms when it is built and keeps
+ * them, and the play view hands the renderer a new catalogue whenever a
+ * worn look changes, so a sheet given new uniforms for the new catalogue
+ * left the water's cached materials holding ones the clock no longer turned,
+ * and the water stood still. A new catalogue is written into the same objects.
+ */
+export class ColorCycleSheets {
+  private readonly bySheet = new Map<
+    string,
+    { cycle: TileColorCycle; uniforms: ColorCycleUniforms }
+  >();
+  private catalogue: Record<string, TileDef> | null = null;
+  private ids: ReadonlySet<string> = new Set();
+
+  /** Reads `tilesById` when it is not the catalogue read last. */
+  use(tilesById: Record<string, TileDef>) {
+    if (this.catalogue === tilesById) return;
+    this.catalogue = tilesById;
+    this.ids = colorCycleTileIds(tilesById);
+    const seen = new Set<string>();
+    for (const def of Object.values(tilesById)) {
+      const sheet = def.anchor.tilesetId;
+      if (!def.colorCycle || seen.has(sheet)) continue;
+      seen.add(sheet);
+      const kept = this.bySheet.get(sheet);
+      if (!kept) {
+        this.bySheet.set(sheet, {
+          cycle: def.colorCycle,
+          uniforms: colorCycleUniforms(def.colorCycle),
+        });
+      } else if (kept.cycle !== def.colorCycle) {
+        kept.cycle = def.colorCycle;
+        writeColorCycle(kept.uniforms, def.colorCycle);
+      }
+    }
+  }
+
+  get tileIds(): ReadonlySet<string> {
+    return this.ids;
+  }
+
+  uniformsFor(sheet: string): ColorCycleUniforms | null {
+    return this.bySheet.get(sheet)?.uniforms ?? null;
+  }
+
+  /** Turns every sheet's cycle to the clock, and says whether any moved on a step. */
+  turnTo(clockMs: number): boolean {
+    let changed = false;
+    for (const { cycle, uniforms } of this.bySheet.values()) {
+      const phase = cyclePhaseAt(cycle, clockMs);
+      if (phase === uniforms.uCyclePhase.value) continue;
+      uniforms.uCyclePhase.value = phase;
+      changed = true;
+    }
+    return changed;
+  }
 }
 
 /**

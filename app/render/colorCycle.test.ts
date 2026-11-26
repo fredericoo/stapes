@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import type { MapFile, TileColorCycle } from "../lib/types";
+import type { MapFile, TileColorCycle, TileDef } from "../lib/types";
 import { FLOW_PERIOD } from "../lib/waterFlow";
-import { cycleCorners, cyclePhaseAt, cyclesPerPeriod } from "./colorCycle";
+import { ColorCycleSheets, cycleCorners, cyclePhaseAt, cyclesPerPeriod } from "./colorCycle";
 
 const cycling = new Set(["water"]);
 
@@ -53,4 +53,47 @@ describe("cyclePhaseAt", () => {
       expect(step(loopMs - stepMs)).toBeCloseTo(step(stepMs));
     },
   );
+});
+
+describe("ColorCycleSheets", () => {
+  const water = (msPerCycle: number): TileDef =>
+    ({
+      id: "water",
+      anchor: { tilesetId: "water", x: 0, y: 0 },
+      colorCycle: {
+        key: "#335c8c",
+        ramp: Array.from({ length: 16 }, () => "#335c8c"),
+        cellsPerCycle: 4,
+        msPerCycle,
+        ripple: 0,
+        gaps: 0,
+      },
+    }) as TileDef;
+
+  it("keeps turning the uniforms a material took after the catalogue is replaced", () => {
+    const sheets = new ColorCycleSheets();
+    sheets.use({ water: water(1600) });
+    const taken = sheets.uniformsFor("water")!;
+
+    sheets.use({
+      water: water(1600),
+      cloak: { id: "cloak", anchor: { tilesetId: "clothes", x: 0, y: 0 } } as TileDef,
+    });
+    sheets.turnTo(500);
+
+    expect(sheets.uniformsFor("water")).toBe(taken);
+    expect(taken.uCyclePhase.value).toBeGreaterThan(0);
+  });
+
+  it("writes a changed cycle into the uniforms already handed out", () => {
+    const sheets = new ColorCycleSheets();
+    sheets.use({ water: water(1600) });
+    const taken = sheets.uniformsFor("water")!;
+
+    sheets.use({
+      water: { ...water(1600), colorCycle: { ...water(1600).colorCycle!, gaps: 0.5 } },
+    });
+
+    expect(taken.uCycleGaps.value).toBe(0.5);
+  });
 });
