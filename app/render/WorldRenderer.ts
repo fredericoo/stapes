@@ -126,6 +126,7 @@ import {
   WadeRingSheets,
   feetPx,
   wadeRingFrameAt,
+  wadeRingLiftPx,
   wadeRingPhaseMs,
   wadeRingRadiusPx,
   wadeRingSidePx,
@@ -2969,8 +2970,8 @@ export class WorldRenderer {
 
   /**
    * A wading body stands in a circle of dark water a quarter of its sprite's
-   * width across each way, centred on its feet and lifted by the pixels the
-   * wade cut takes, so it sits at the waterline drawn on the body. It is a
+   * width across each way, centred on its feet and lifted past the pixels the
+   * wade cut takes, so it sits round the body rather than in front of it. It is a
    * child of the body, so it moves and sinks with it, and it shares the body's
    * depth box and light.
    */
@@ -3020,7 +3021,8 @@ export class WorldRenderer {
     }
     ring.mesh.visible = true;
     const feet = feetPx(rest.box);
-    ring.mesh.position.set(feet.x - base.x - edgePx, feet.y - base.y - edgePx, 0);
+    const liftPx = edgePx + wadeRingLiftPx(rest.widthPx);
+    ring.mesh.position.set(feet.x - base.x - liftPx, feet.y - base.y - liftPx, 0);
     ring.mesh.updateMatrix();
     writeBoxAttr(ring.mesh.geometry, box, stackBias);
   }
