@@ -12,6 +12,7 @@ import {
 } from "../../lib/types";
 import { hashCell, placed } from "../generator";
 import type { BuildContext } from "./build";
+import { TALL_TREES, growTallTree } from "./tallTrees";
 
 type Cell = { x: number; y: number };
 
@@ -28,6 +29,7 @@ export type PutOptions = {
 const FNV_OFFSET = 0x811c9dc5;
 const FNV_PRIME = 0x01000193;
 const SPAN_ID_DIGITS = 8;
+const TRUNK_SALT = 0x7a11;
 
 function hashOf(text: string): number {
   let h = FNV_OFFSET;
@@ -62,9 +64,14 @@ export function cellsCovered(
  * (`docs/terrain.md`). It is refused where any cell has no ground, where the
  * cells are on different levels or of different heights, where it would rise
  * into a next level that holds anything (the rule `fitsInColumn` applies in
- * the game), and where this node already put something.
+ * the game), and where this node already put something. A tall tree's base
+ * (`TALL_TREES`) brings its trunks and crown on the levels above, and is
+ * refused where it would not top out at its level or those levels are not
+ * empty.
  */
-export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raisedAt" | "z">) {
+export function placer(
+  ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raisedAt" | "z" | "seed">,
+) {
   const edits: StackEdit[] = [];
   const taken = new Set<string>();
 
@@ -99,6 +106,22 @@ export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raised
       if (wide && stack.some((p) => p.span?.id === id)) return { ok: false, why: "taken", at };
       stacks.push(stack);
     }
+    const tall = wide ? undefined : TALL_TREES[tileId];
+    const above = tall
+      ? height === 0 && def && physicalHeight(def) === HEIGHT_PER_LEVEL
+        ? growTallTree(
+            tall,
+            hashCell(anchor.x, anchor.y, ctx.seed ^ TRUNK_SALT),
+            (id) => {
+              const piece = ctx.tilesById[id];
+              return piece ? physicalHeight(piece) : 0;
+            },
+            (level) => ctx.stackAt(anchor.x, anchor.y, level).length === 0,
+            z,
+          )
+        : null
+      : [];
+    if (!above) return { ok: false, why: "room", at: anchor };
     const shape = placed(tileId, ctx.tilesById, opts.facing);
     cells.forEach((at, i) => {
       const tile: PlacedTile =
@@ -108,6 +131,7 @@ export function placer(ctx: Pick<BuildContext, "tilesById" | "stackAt" | "raised
       taken.add(`${at.x},${at.y}`);
       edits.push({ x: at.x, y: at.y, z, stack: [...stacks[i]!, tile] });
     });
+    above.forEach((stack, i) => edits.push({ x: anchor.x, y: anchor.y, z: z + i + 1, stack }));
     return { ok: true };
   }
 
