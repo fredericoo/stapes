@@ -309,6 +309,17 @@ describe("itemForSave", () => {
     expect(itemForSave(draft)).not.toHaveProperty("resist");
   });
 
+  it("keeps only the masteries a bonus actually raises, and drops an empty one", () => {
+    expect(itemForSave({ type: "armor", def: 1, masteryBonus: { nature: 2, fist: 0 } })).toEqual({
+      type: "armor",
+      def: 1,
+      masteryBonus: { nature: 2 },
+    });
+    expect(
+      itemForSave({ type: "charm", everyMs: 1000, masteryBonus: { fist: 0 } }),
+    ).not.toHaveProperty("masteryBonus");
+  });
+
   it("writes an armour's square only when it is not the body", () => {
     expect(itemForSave({ type: "armor", def: 2, slot: "armor" })).toEqual({
       type: "armor",

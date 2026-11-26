@@ -248,7 +248,8 @@ describe("sameAttributes", () => {
       const moved: Attributes = { ...reading };
       const was = moved[key];
       // @ts-expect-error
-      moved[key] = typeof was === "number" ? was + 1 : `${was}!`;
+      moved[key] =
+        typeof was === "number" ? was + 1 : typeof was === "object" ? { fist: 1 } : `${was}!`;
       expect(sameAttributes(reading, moved), key).toBe(false);
     }
   });

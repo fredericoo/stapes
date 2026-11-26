@@ -82,6 +82,13 @@ describe("itemCard", () => {
     ).toBe("Fangs by Wolf");
   });
 
+  it("lists what it adds to the wearer's masteries, and says so aloud", () => {
+    const pelt: ItemDef = { type: "armor", def: 1, masteryBonus: { nature: 2, toughness: 0 } };
+    const card = itemCard(tileWith(pelt), null, NOTHING_LEARNT)!;
+    expect(card.bonuses).toEqual([{ mastery: "nature", extra: 2 }]);
+    expect(card.speech).toContain("Bonuses: Nature +2");
+  });
+
   it("says how many hands it costs", () => {
     const card = itemCard(tileWith({ ...SWORD, twoHanded: true }), null, NOTHING_LEARNT);
     expect(card?.kind).toBe("Both hands — Sharp");

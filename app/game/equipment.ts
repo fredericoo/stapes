@@ -25,6 +25,7 @@ import {
   armorSlotOf,
   isTwoHanded,
   itemElements,
+  itemMasteryBonus,
   itemRequirements,
   NO_ELEMENTS,
   resolveArmor,
@@ -39,9 +40,13 @@ import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import {
   type Masteries,
+  MASTERIES,
   meetsMagicRequirements,
+  meetsRequirements,
+  NO_MASTERY_BONUS,
   physicalShortfall,
   WEAPON_MASTERIES,
+  withMasteryBonus,
 } from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
@@ -296,14 +301,52 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): FightingStats {
+  const boosted = boostedMasteries(base.masteries, equipment, tilesById);
   const stats = encumbered(
-    fightingStats(base, weaponInHand(base, equipment, tilesById, hand)),
+    fightingStats(base, weaponInHand(base, equipment, tilesById, hand), boosted),
     encumbrance(armorShortfall(base.masteries, equipment, tilesById)),
   );
-  const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
+  const guard = wornDefence(base, equipment, tilesById) + bodyDefence(boosted);
   const resist = armorResistances(equipment, tilesById, base.masteries);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
   return { ...stats, def: guard, resist };
+}
+
+/**
+ * What worn and held gear adds to a body's masteries. It counts only gear whose
+ * requirements are met by the trained masteries, so a bonus can never lift its
+ * wearer into wearing it or anything else.
+ */
+export function wornMasteryBonus(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+): Masteries {
+  if (!equipment) return NO_MASTERY_BONUS;
+  let summed: Masteries | null = null;
+  for (let i = 0; i < EQUIPMENT_SLOTS.length; i++) {
+    const instance = equipment[EQUIPMENT_SLOTS[i]!];
+    const def = instance ? tilesById[instance.tileId] : undefined;
+    const bonus = def ? itemMasteryBonus(def) : undefined;
+    if (!bonus || !meetsRequirements(masteries, itemRequirements(def!))) continue;
+    for (let j = 0; j < MASTERIES.length; j++) {
+      const mastery = MASTERIES[j]!;
+      const extra = bonus[mastery] ?? 0;
+      if (extra <= 0) continue;
+      summed ??= {};
+      summed[mastery] = (summed[mastery] ?? 0) + extra;
+    }
+  }
+  return summed ?? NO_MASTERY_BONUS;
+}
+
+/** The trained masteries plus `wornMasteryBonus`: what damage, defence and casting read, and nothing else. */
+export function boostedMasteries(
+  masteries: Masteries,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): Masteries {
+  return withMasteryBonus(masteries, wornMasteryBonus(equipment, tilesById, masteries));
 }
 
 export function armorShortfall(

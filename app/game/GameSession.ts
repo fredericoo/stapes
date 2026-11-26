@@ -307,6 +307,7 @@ import {
   magicDormant,
   carriedLightTileIds,
   wornOutfit,
+  boostedMasteries,
   effectiveBattler,
   emptyEquipment,
   HANDS,
@@ -810,6 +811,7 @@ type AreaCast = {
   requirements: Masteries | undefined;
   physical: PhysicalBlow | undefined;
   masteries: Masteries;
+  boosted: Masteries;
 };
 
 type CastingRun = {
@@ -3990,6 +3992,10 @@ export class GameSession implements PlaySession {
     return stats;
   }
 
+  private boostedMasteriesOf(actor: ActorRuntime): Masteries {
+    return boostedMasteries(this.bodyOf(actor)?.masteries ?? {}, actor.equipment, this.tilesById);
+  }
+
   private baseBattlerOf(
     actor: ActorRuntime,
     hand: Hand | null = this.handOf(actor),
@@ -4150,6 +4156,7 @@ export class GameSession implements PlaySession {
       tilesById: this.tilesById,
       equipment: actor.equipment,
       masteries: body?.masteries ?? {},
+      boosted: this.boostedMasteriesOf(actor),
       caster: this.casterPointOf(actor, from),
       casting: actor.casting?.progress ?? null,
       spells: this.spellsOf(actor),
@@ -4211,7 +4218,7 @@ export class GameSession implements PlaySession {
       return false;
     }
 
-    const durationMs = castDurationMs(stone, context.masteries);
+    const durationMs = castDurationMs(stone, context.masteries, context.boosted);
     if (durationMs <= 0) {
       this.resolveCast(actor, slot, stone, context);
       return true;
@@ -4380,10 +4387,9 @@ export class GameSession implements PlaySession {
 
     const body = this.bodyOf(actor);
     if (!body) return;
+    const boosted = this.boostedMasteriesOf(actor);
 
-    const landing = atSomebodyElse
-      ? this.rollStoneLanding(actor, stats, stone, body.masteries)
-      : "landed";
+    const landing = atSomebodyElse ? this.rollStoneLanding(actor, stats, stone, boosted) : "landed";
     const landed = landing === "landed";
 
     let flightMs = 0;
@@ -4401,6 +4407,7 @@ export class GameSession implements PlaySession {
     const rolledMove = this.rollHealthMove(subject, effect, stone, elements, {
       stats,
       masteries: body.masteries,
+      boosted,
     });
     const rolledGrants = this.boltInflicts(effect.statuses);
     const move = landed ? rolledMove : null;
@@ -4437,6 +4444,7 @@ export class GameSession implements PlaySession {
                 requirements: stone.requirements,
                 physical: stone.physical,
                 masteries: body.masteries,
+                boosted,
               },
             }
           : {}),
@@ -4616,6 +4624,7 @@ export class GameSession implements PlaySession {
     const move = this.rollHealthMove(body, cast.area, cast, from.elements, {
       stats,
       masteries: cast.masteries,
+      boosted: cast.boosted,
     });
     if (move) {
       if (move.kind === "harm" && !isCaster && actor) {
@@ -4655,11 +4664,17 @@ export class GameSession implements PlaySession {
     effect: { damage?: number; variance?: number },
     stone: { requirements?: Masteries | undefined; physical?: PhysicalBlow | undefined },
     elements: readonly Element[],
-    context: { stats: FightingStats; masteries: Masteries },
+    context: { stats: FightingStats; masteries: Masteries; boosted: Masteries },
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, stone.requirements, context.masteries, stone.physical);
+    const power = spellPower(
+      effect.damage,
+      stone.requirements,
+      context.masteries,
+      stone.physical,
+      context.boosted,
+    );
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
@@ -4669,7 +4684,7 @@ export class GameSession implements PlaySession {
       return { kind: "mend", amount, potential: amount };
     }
 
-    const guard = spellGuard(stone.physical, context.stats, this.bodyOf(subject)?.masteries ?? {});
+    const guard = spellGuard(stone.physical, context.stats, this.boostedMasteriesOf(subject));
     const through = damageAfterGuard(rolled, guard, guardRoll);
     return {
       kind: "harm",
@@ -6341,7 +6356,7 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     this.cancelCasting(actor);
 
-    const durationMs = extractDurationMs(extract, this.bodyOf(actor)?.masteries ?? {});
+    const durationMs = extractDurationMs(extract, this.boostedMasteriesOf(actor));
     const run: ExtractionRun = {
       ref,
       tileId: placed.tileId,

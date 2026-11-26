@@ -54,6 +54,20 @@ export function masteryLevel(masteries: Masteries, mastery: Mastery): number {
   return masteries[mastery] ?? MIN_MASTERY;
 }
 
+export const NO_MASTERY_BONUS: Masteries = {};
+
+export function withMasteryBonus(masteries: Masteries, bonus: Masteries): Masteries {
+  if (bonus === NO_MASTERY_BONUS) return masteries;
+  let boosted: Masteries | null = null;
+  for (const mastery of MASTERIES) {
+    const extra = bonus[mastery] ?? 0;
+    if (extra <= 0) continue;
+    boosted ??= { ...masteries };
+    boosted[mastery] = Math.min(MAX_MASTERY, masteryLevel(masteries, mastery) + extra);
+  }
+  return boosted ?? masteries;
+}
+
 export function spellElements(requirements: Masteries | undefined): Element[] {
   if (!requirements) return [];
   return ELEMENTS.filter((element) => (requirements[element] ?? 0) > 0);

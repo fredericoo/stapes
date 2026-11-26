@@ -111,6 +111,8 @@ export type CastContext = {
   tilesById: Record<string, TileDef>;
   equipment: Equipment;
   masteries: Masteries;
+  /** `masteries` with worn gear's bonus added; absent is none. */
+  boosted?: Masteries;
   caster: CasterPoint;
   casting: CastProgress | null;
   spells: readonly NaturalSpell[];
@@ -347,11 +349,20 @@ export function needsTarget(stone: Pick<ArcaneStoneItem, "effect">): boolean {
 /** The share of its authored time a cast keeps however far past the requirements its caster is. */
 export const MIN_CAST_SHARE = 0.2;
 
-export function castDurationMs(stone: ArcaneStoneItem, masteries: Masteries): number {
+/**
+ * A shortfall is read from the trained `masteries` and the surplus from `boosted`,
+ * so worn gear speeds up a stone its wearer can already cast and does nothing
+ * for one they cannot.
+ */
+export function castDurationMs(
+  stone: ArcaneStoneItem,
+  masteries: Masteries,
+  boosted: Masteries = masteries,
+): number {
   const authored = stone.castTimeMs ?? 0;
   if (authored <= 0) return 0;
   const met = requirementShare(masteries, stone.requirements);
-  const coverage = requirementCoverage(masteries, stone.requirements);
+  const coverage = requirementCoverage(boosted, stone.requirements);
   /**
    * Short of what the stone asks, every share missing adds the same share of the
    * authored time; past it, every share over takes one off, down to `MIN_CAST_SHARE`.
@@ -404,7 +415,7 @@ export function castableSpells(context: CastContext): SpellButton[] {
       name: instance.inscription?.trim() || def?.name || instance.tileId,
       cooldownMs: instance.cooldownMs ?? 0,
       cooldownTotalMs: stone.cooldownMs,
-      castTimeMs: castDurationMs(stone, context.masteries),
+      castTimeMs: castDurationMs(stone, context.masteries, context.boosted),
       castability: castability(context, slot),
       reach: needsTarget(stone) ? reachOf(stone) : null,
       approach: false,
@@ -422,7 +433,7 @@ export function castableSpells(context: CastContext): SpellButton[] {
       name: spell.name,
       cooldownMs: context.spellCooldownsMs[spell.name] ?? 0,
       cooldownTotalMs: spell.cooldownMs,
-      castTimeMs: castDurationMs(spell, context.masteries),
+      castTimeMs: castDurationMs(spell, context.masteries, context.boosted),
       castability: castability(context, slot),
       reach: needsTarget(spell) ? reachOf(spell) : null,
       approach: false,
