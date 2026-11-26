@@ -1,4 +1,5 @@
 import { emptyMap, replaceStack } from "./mapData";
+import { withFlow } from "./waterFlow";
 import type { WeatherKind } from "./weather";
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
 import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
@@ -29,6 +30,8 @@ export type Scene = {
   weather?: WeatherKind;
   /** Where rain and fog stop; see `WeatherArea`. */
   weatherAreas?: WeatherArea[];
+  /** The animation clock in ms, which picks each animation's frame and each colour cycle's step; zero when absent. */
+  clockMs?: number;
 };
 
 export type BuiltScene = {
@@ -39,6 +42,7 @@ export type BuiltScene = {
   lighting: boolean;
   weather: WeatherKind;
   weatherAreas: WeatherArea[];
+  clockMs: number;
 };
 
 export const DEFAULT_SCENE_ZOOM = 6;
@@ -71,13 +75,14 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
     : { x: middle(xs), y: middle(ys), z: lowestZ };
 
   return {
-    map,
+    map: withFlow(map, tilesById),
     minutesOfDay: scene.time === undefined ? NOON : minutesOf(scene.time),
     zoom: scene.zoom ?? DEFAULT_SCENE_ZOOM,
     look,
     lighting: scene.lighting ?? true,
     weather: scene.weather ?? "clear",
     weatherAreas: parseWeatherAreas(scene.weatherAreas ?? []),
+    clockMs: scene.clockMs ?? 0,
   };
 }
 

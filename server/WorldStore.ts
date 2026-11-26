@@ -28,6 +28,30 @@ export class WorldStore {
   }
 
   /**
+   * One statement for every key: preparing one costs more than the read, and
+   * a chunk is a key per level.
+   */
+  async getMany<T>(keys: readonly string[]): Promise<Map<string, T>> {
+    const out = new Map<string, T>();
+    const unread: string[] = [];
+    for (const key of keys) {
+      if (this.tombstones.has(key)) continue;
+      if (this.pending.has(key)) out.set(key, this.pending.get(key) as T);
+      else unread.push(key);
+    }
+    if (unread.length === 0) return out;
+    const statement = await this.db.prepare(
+      `SELECT key, value FROM kv WHERE key IN (${unread.map(() => "?").join(", ")})`,
+    );
+    const rows = (await statement.all(unread)) as { key: string; value: Uint8Array | string }[];
+    for (const row of rows) {
+      if (this.tombstones.has(row.key) || this.pending.has(row.key)) continue;
+      out.set(row.key, decode(row.value) as T);
+    }
+    return out;
+  }
+
+  /**
    * `revive` runs on each stored value as it is decoded, so a caller that
    * shrinks what it keeps never holds every decoded value at once. Values
    * still pending were put by this process and are returned as they are.

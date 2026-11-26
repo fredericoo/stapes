@@ -307,6 +307,7 @@ import {
   magicDormant,
   carriedLightTileIds,
   wornOutfit,
+  boostedMasteries,
   effectiveBattler,
   emptyEquipment,
   HANDS,
@@ -356,7 +357,8 @@ import {
   extractEarnings,
   practiceEarnings,
 } from "./experience";
-import { mintCellItemIds, mintItemIds } from "./itemIds";
+import { mintCellItemIds, mintItemIds, stackNeedsItemIds } from "./itemIds";
+import { isPooledStack } from "../lib/stackPool";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import { planDistanceSq, type ReachPoint } from "./distance";
 import { type BodyBoard, nearestOnTiles, TileColumns } from "./nearestBody";
@@ -396,7 +398,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
-  cellHasLooseGravity,
+  stackHasLooseGravity,
   findLooseGravityCells,
   gravityPullOn,
   looseGravityIndex,
@@ -507,9 +509,9 @@ import {
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { evictionsFor } from "./doorway";
-import { cellHasPlate, cellKey, findPlateCells, plateIndex, settlePlates } from "./pressurePlates";
+import { cellKey, findPlateCells, plateIndex, settlePlates, stackHasPlate } from "./pressurePlates";
 import {
-  cellIsWired,
+  stackIsWired,
   channelPowered,
   findWiredCells,
   readChannels,
@@ -525,16 +527,17 @@ import {
   applyLootDecay,
   applyPlacementTurns,
   findDecayCells,
+  stackHasDecay,
 } from "./decay";
-import { Weathering, findWeatheringCells } from "./weathering";
-import { Shedding, findSheddingCells, shedLanding, type DueShed } from "./shedding";
+import { Weathering, findWeatheringCells, stackWeathers } from "./weathering";
+import { Shedding, findSheddingCells, shedLanding, stackSheds, type DueShed } from "./shedding";
 import { CLEAR_SKY, underOpenSky, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
   afflictionsFrom,
   applyConsumed,
-  cellAfflicts,
+  stackAfflicts,
   findAfflictCells,
   sufferersIn,
   flameLives,
@@ -546,6 +549,7 @@ import {
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { settleAllSpans, settleSpans, spanAnchor, spanningTileIds } from "../lib/footprint";
+import { settleFlow } from "../lib/waterFlow";
 import { withTraits, type TraitCatalogue } from "../lib/traits";
 import { projectileEffect, projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
@@ -739,6 +743,15 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   return dy > 0 ? "s" : "n";
 }
 
+const STACK_NEEDS_ITEM_IDS = 1 << 0;
+const STACK_DECAYS = 1 << 1;
+const STACK_WEATHERS = 1 << 2;
+const STACK_SHEDS = 1 << 3;
+const STACK_PLATE = 1 << 4;
+const STACK_WIRED = 1 << 5;
+const STACK_LOOSE_GRAVITY = 1 << 6;
+const STACK_AFFLICTS = 1 << 7;
+
 const SHELTER_MAX_NODES = 256;
 
 const SHELTER_MEMORY_MS = 4000;
@@ -798,6 +811,7 @@ type AreaCast = {
   requirements: Masteries | undefined;
   physical: PhysicalBlow | undefined;
   masteries: Masteries;
+  boosted: Masteries;
 };
 
 type CastingRun = {
@@ -1040,16 +1054,19 @@ export type Death = {
 export class GameSession implements PlaySession {
   private board!: MapFile;
   private readonly tilesById: Record<string, TileDef>;
+  private readonly stackIndexes = new WeakMap<readonly PlacedTile[], number>();
   /**
-   * Every write settles the multi-cell footprints it touched, so the value read
-   * back can differ from the one assigned. Derive the next edit from `this.map`,
-   * never from a value already assigned to it.
+   * Every write settles the multi-cell footprints it touched and gives new
+   * water a current, so the value read back can differ from the one assigned.
+   * Derive the next edit from `this.map`, never from a value already assigned
+   * to it.
    */
   private get map(): MapFile {
     return this.board;
   }
   private set map(next: MapFile) {
-    this.board = settleSpans(this.board, next, this.tilesById);
+    const prev = this.board;
+    this.board = settleFlow(prev, settleSpans(prev, next, this.tilesById), this.tilesById);
   }
   /**
    * Steps and turns write through this, so a crowd walking one level copies
@@ -1658,7 +1675,7 @@ export class GameSession implements PlaySession {
     for (const chk of stored.keys()) {
       for (const [zk, chunk] of chunkRecords(this.map, chk)) (levels[zk] ??= {})[chk] = chunk;
     }
-    this.reindexCells(cells);
+    this.reindexCells(cells, true);
     const back: MapFile = { version: this.map.version, levels };
     for (const body of listResidentBodies(back, this.tilesById)) {
       const owner = body.placed.owner;
@@ -1809,35 +1826,71 @@ export class GameSession implements PlaySession {
    * placement that has just become an item gets its id, before `armCell`
    * would read the missing id as a placement's clock.
    */
-  private reindexCells(cells: Iterable<Coord>) {
+  /**
+   * `fresh` cells are in chunks just put back, which no index holds a cell of,
+   * so only what a cell has is added and nothing is taken out.
+   */
+  private reindexCells(cells: Iterable<Coord>, fresh = false) {
+    const tiles = this.tilesById;
     for (const cell of cells) {
       const key = cellKey(cell);
-      this.map = mintCellItemIds(this.map, cell, this.tilesById);
-      this.decay.armCell(this.map, cell, this.tilesById);
-      this.weathering.index(this.map, cell, this.tilesById);
-      this.shedding.index(this.map, cell, this.tilesById);
-      if (cellHasPlate(this.map, cell, this.tilesById)) {
+      let stack = getStack(this.map, cell.x, cell.y, cell.z);
+      let has = this.indexesOf(stack);
+      if (has & STACK_NEEDS_ITEM_IDS) {
+        this.map = mintCellItemIds(this.map, cell, tiles);
+        stack = getStack(this.map, cell.x, cell.y, cell.z);
+        has = this.indexesOf(stack);
+      }
+      if (fresh && has === 0) continue;
+      if (has & STACK_DECAYS) this.decay.armStack(cell, stack, tiles);
+      if (has & STACK_WEATHERS || !fresh) this.weathering.mark(cell, (has & STACK_WEATHERS) !== 0);
+      if (has & STACK_SHEDS || !fresh) this.shedding.mark(cell, (has & STACK_SHEDS) !== 0);
+      if (has & STACK_PLATE) {
         this.plateCells.add(cell);
-      } else {
+      } else if (!fresh) {
         this.plateCells.delete(cell);
       }
-      if (cellIsWired(this.map, cell)) {
+      if (has & STACK_WIRED) {
         this.wiredCells.set(key, cell);
-      } else {
+      } else if (!fresh) {
         this.wiredCells.delete(key);
       }
-      if (cellHasLooseGravity(this.map, cell, this.tilesById)) {
+      if (has & STACK_LOOSE_GRAVITY) {
         this.looseGravityCells.add(cell);
-      } else {
+      } else if (!fresh) {
         this.looseGravityCells.delete(cell);
       }
-      if (cellAfflicts(this.map, cell, this.tilesById)) {
+      if (has & STACK_AFFLICTS) {
         if (!this.afflictCells.has(key))
           this.afflictCells.set(key, { cell, stack: null, holds: [] });
-      } else {
+      } else if (!fresh) {
         this.afflictCells.delete(key);
       }
     }
+  }
+
+  /**
+   * Only a pooled stack's answer is kept: it is frozen and holds nothing
+   * nested, where any other stack's placements can be edited in place. A chunk
+   * read back from the store shares its stacks through one pool, so most of
+   * its cells ask about a stack already asked about.
+   */
+  private indexesOf(stack: readonly PlacedTile[]): number {
+    const pooled = isPooledStack(stack);
+    const known = pooled ? this.stackIndexes.get(stack) : undefined;
+    if (known !== undefined) return known;
+    const tiles = this.tilesById;
+    const has =
+      (stackNeedsItemIds(stack, tiles) ? STACK_NEEDS_ITEM_IDS : 0) |
+      (stackHasDecay(stack, tiles) ? STACK_DECAYS : 0) |
+      (stackWeathers(stack, tiles) ? STACK_WEATHERS : 0) |
+      (stackSheds(stack, tiles) ? STACK_SHEDS : 0) |
+      (stackHasPlate(stack, tiles) ? STACK_PLATE : 0) |
+      (stackIsWired(stack) ? STACK_WIRED : 0) |
+      (stackHasLooseGravity(stack, tiles) ? STACK_LOOSE_GRAVITY : 0) |
+      (stackAfflicts(stack, tiles) ? STACK_AFFLICTS : 0);
+    if (pooled) this.stackIndexes.set(stack, has);
+    return has;
   }
 
   private settleBoardNow() {
@@ -3939,6 +3992,10 @@ export class GameSession implements PlaySession {
     return stats;
   }
 
+  private boostedMasteriesOf(actor: ActorRuntime): Masteries {
+    return boostedMasteries(this.bodyOf(actor)?.masteries ?? {}, actor.equipment, this.tilesById);
+  }
+
   private baseBattlerOf(
     actor: ActorRuntime,
     hand: Hand | null = this.handOf(actor),
@@ -4099,6 +4156,7 @@ export class GameSession implements PlaySession {
       tilesById: this.tilesById,
       equipment: actor.equipment,
       masteries: body?.masteries ?? {},
+      boosted: this.boostedMasteriesOf(actor),
       caster: this.casterPointOf(actor, from),
       casting: actor.casting?.progress ?? null,
       spells: this.spellsOf(actor),
@@ -4160,7 +4218,7 @@ export class GameSession implements PlaySession {
       return false;
     }
 
-    const durationMs = castDurationMs(stone, context.masteries);
+    const durationMs = castDurationMs(stone, context.masteries, context.boosted);
     if (durationMs <= 0) {
       this.resolveCast(actor, slot, stone, context);
       return true;
@@ -4329,10 +4387,9 @@ export class GameSession implements PlaySession {
 
     const body = this.bodyOf(actor);
     if (!body) return;
+    const boosted = this.boostedMasteriesOf(actor);
 
-    const landing = atSomebodyElse
-      ? this.rollStoneLanding(actor, stats, stone, body.masteries)
-      : "landed";
+    const landing = atSomebodyElse ? this.rollStoneLanding(actor, stats, stone, boosted) : "landed";
     const landed = landing === "landed";
 
     let flightMs = 0;
@@ -4350,6 +4407,7 @@ export class GameSession implements PlaySession {
     const rolledMove = this.rollHealthMove(subject, effect, stone, elements, {
       stats,
       masteries: body.masteries,
+      boosted,
     });
     const rolledGrants = this.boltInflicts(effect.statuses);
     const move = landed ? rolledMove : null;
@@ -4386,6 +4444,7 @@ export class GameSession implements PlaySession {
                 requirements: stone.requirements,
                 physical: stone.physical,
                 masteries: body.masteries,
+                boosted,
               },
             }
           : {}),
@@ -4565,6 +4624,7 @@ export class GameSession implements PlaySession {
     const move = this.rollHealthMove(body, cast.area, cast, from.elements, {
       stats,
       masteries: cast.masteries,
+      boosted: cast.boosted,
     });
     if (move) {
       if (move.kind === "harm" && !isCaster && actor) {
@@ -4604,11 +4664,17 @@ export class GameSession implements PlaySession {
     effect: { damage?: number; variance?: number },
     stone: { requirements?: Masteries | undefined; physical?: PhysicalBlow | undefined },
     elements: readonly Element[],
-    context: { stats: FightingStats; masteries: Masteries },
+    context: { stats: FightingStats; masteries: Masteries; boosted: Masteries },
   ): HealthMove | null {
     if (!effect.damage) return null;
 
-    const power = spellPower(effect.damage, stone.requirements, context.masteries, stone.physical);
+    const power = spellPower(
+      effect.damage,
+      stone.requirements,
+      context.masteries,
+      stone.physical,
+      context.boosted,
+    );
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
     const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
@@ -4618,7 +4684,7 @@ export class GameSession implements PlaySession {
       return { kind: "mend", amount, potential: amount };
     }
 
-    const guard = spellGuard(stone.physical, context.stats, this.bodyOf(subject)?.masteries ?? {});
+    const guard = spellGuard(stone.physical, context.stats, this.boostedMasteriesOf(subject));
     const through = damageAfterGuard(rolled, guard, guardRoll);
     return {
       kind: "harm",
@@ -6290,7 +6356,7 @@ export class GameSession implements PlaySession {
     this.cancelExtraction(actor);
     this.cancelCasting(actor);
 
-    const durationMs = extractDurationMs(extract, this.bodyOf(actor)?.masteries ?? {});
+    const durationMs = extractDurationMs(extract, this.boostedMasteriesOf(actor));
     const run: ExtractionRun = {
       ref,
       tileId: placed.tileId,

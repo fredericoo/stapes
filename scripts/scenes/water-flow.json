@@ -1,0 +1,14 @@
+{
+  "time": "12:00",
+  "zoom": 3,
+  "look": [14, 20],
+  "cells": [
+    { "from": [-20, -20], "to": [48, 46], "tiles": ["water", "deep-water"] },
+    { "from": [-5, -5], "to": [33, 31], "tiles": ["sand", "water"] },
+    { "from": [0, 0], "to": [28, 22], "tiles": ["grass-2"] },
+    { "from": [13, 3], "to": [15, 22], "tiles": ["dirt", "water"] },
+    { "from": [12, 9], "to": [16, 12], "tiles": ["dirt", "water"] },
+    { "from": [3, 4], "to": [7, 8], "tiles": ["dirt", "water"] },
+    { "from": [22, 18], "to": [23, 19], "tiles": ["grass-2", "tree"] }
+  ]
+}

@@ -80,8 +80,9 @@
     "id": "water",
     "name": "Water",
     "file": "water.png",
-    "width": 112,
-    "height": 2048
+    "width": 8,
+    "height": 2048,
+    "translucent": true
   },
   {
     "id": "respawn",
@@ -165,16 +166,16 @@
     "id": "deep-water",
     "name": "Deep Water",
     "file": "deep-water.png",
-    "width": 112,
-    "height": 376,
+    "width": 8,
+    "height": 8,
     "translucent": true
   },
   {
     "id": "swamp",
     "name": "Swamp",
     "file": "swamp.png",
-    "width": 112,
-    "height": 376,
+    "width": 8,
+    "height": 8,
     "translucent": true
   },
   {
@@ -309,8 +310,8 @@
     "id": "deep-woods",
     "name": "Deep Woods",
     "file": "deep-woods.png",
-    "width": 128,
-    "height": 64
+    "width": 192,
+    "height": 96
   },
   {
     "id": "gold",

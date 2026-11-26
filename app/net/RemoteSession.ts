@@ -69,7 +69,7 @@ import {
 import { canBeginExtract, type Extraction, type ExtractionProgress } from "../game/extract";
 import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
-import { type Equipment, emptyEquipment } from "../game/equipment";
+import { boostedMasteries, type Equipment, emptyEquipment } from "../game/equipment";
 import type { DeathCost } from "../game/deathCost";
 import { type Attributes, attributesOf } from "../game/attributes";
 import {
@@ -645,7 +645,11 @@ export class RemoteSession implements PlaySession {
     this.applyPvp(message.pvp);
     this.applyExtractions(message.extractions);
     this.applyCastings(message.castings);
-    for (const event of message.events) this.applyEvent(event);
+    const back = rejoined(message.events);
+    for (const event of message.events) {
+      if (event.kind === "left" && back.has(event.actorId)) continue;
+      this.applyEvent(event);
+    }
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
   };
@@ -1606,11 +1610,13 @@ export class RemoteSession implements PlaySession {
     const targetMotion = this.targetId ? this.motions.get(this.targetId) : undefined;
     const to = this.targetId && targetMotion ? this.locate(this.targetId, targetMotion) : null;
 
+    const masteries = masteriesFromXp(this.masteryXp);
     return {
       map: this.map,
       tilesById: this.tilesById,
       equipment: this.equipment,
-      masteries: masteriesFromXp(this.masteryXp),
+      masteries,
+      boosted: boostedMasteries(masteries, this.equipment, this.tilesById),
       caster: this.casterPoint(from, motion.walk?.to ?? null),
       casting: this.castingsById.get(this.selfId) ?? null,
       spells: this.naturalSpells(from.placed.tileId),
@@ -1869,6 +1875,23 @@ const NO_STATUSES: readonly StatusInstance[] = [];
 const NO_SPELLS: readonly NaturalSpell[] = [];
 
 const NO_OWNERS: readonly string[] = [];
+
+/**
+ * Actors whose last `joined` or `left` in one patch is `joined`. A tab that drops
+ * its socket and reconnects inside a tick is sent both, and the cells and hit
+ * points in the same patch already describe it back, so its `left` must not
+ * forget them.
+ */
+function rejoined(events: readonly MotionEvent[]): ReadonlySet<string> {
+  let back: Set<string> | null = null;
+  for (const event of events) {
+    if (event.kind === "joined") (back ??= new Set()).add(event.actorId);
+    else if (event.kind === "left") back?.delete(event.actorId);
+  }
+  return back ?? NO_ACTOR_IDS;
+}
+
+const NO_ACTOR_IDS: ReadonlySet<string> = new Set();
 
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, strike: null, lastSeen: null };

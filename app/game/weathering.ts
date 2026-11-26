@@ -20,7 +20,14 @@ export function cellHasWeathering(
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => reacts(placed, tilesById));
+  return stackWeathers(getStack(map, cell.x, cell.y, cell.z), tilesById);
+}
+
+export function stackWeathers(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => reacts(placed, tilesById));
 }
 
 export function findWeatheringCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
@@ -61,8 +68,12 @@ export class Weathering {
   }
 
   index(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>) {
+    this.mark(cell, stackWeathers(getStack(map, cell.x, cell.y, cell.z), tilesById));
+  }
+
+  mark(cell: Coord, on: boolean) {
     const key = cellKey(cell);
-    if (cellHasWeathering(map, cell, tilesById)) this.cells.set(key, { ...cell });
+    if (on) this.cells.set(key, { ...cell });
     else this.cells.delete(key);
   }
 

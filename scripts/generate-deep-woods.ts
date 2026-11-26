@@ -51,7 +51,7 @@ const FROND_STEPS = [0.28, 0.8];
 const LIGHT = normalise([-0.6, 0.35, 0.75]);
 const AMBIENT = 0.2;
 
-type Part = "bark" | "log" | "root" | "earth" | "leaf" | "frond";
+type Part = "bark" | "trunk" | "log" | "root" | "earth" | "leaf" | "frond";
 /** `facing` is the outward direction of the crown a leaf bundle sits on. */
 type Limb = {
   from: Vec3;
@@ -62,6 +62,8 @@ type Limb = {
   occlusion: number;
   facing?: Vec3;
   tone?: number;
+  /** A trunk whose top end is cut flat by the top of its tile, where its rings show. */
+  cut?: boolean;
 };
 
 function limb(
@@ -92,10 +94,14 @@ function random(seed: number): () => number {
   };
 }
 
-function step(intensity: number, ramp: readonly number[], steps: readonly number[]): number {
+function stepIndex(intensity: number, steps: readonly number[]): number {
   let i = 0;
   while (i < steps.length && intensity > steps[i]!) i++;
-  return ramp[i]!;
+  return i;
+}
+
+function step(intensity: number, ramp: readonly number[], steps: readonly number[]): number {
+  return ramp[stepIndex(intensity, steps)]!;
 }
 
 function lambert(normal: Vec3, wrap: boolean): number {
@@ -109,6 +115,8 @@ function mossy(normal: Vec3, at: Vec3): boolean {
 }
 
 function shade({ normal, limb, at }: Hit<Limb>): number {
+  if (limb.cut && at[2] > limb.to[2] - CUT_FACE_PX) return rings(at);
+  if (limb.part === "trunk") return barkAt(normal, at);
   if (limb.part === "log" && mossy(normal, at)) return lambert(normal, true) > 0.85 ? GREEN : PINE;
   if (limb.part === "bark" || limb.part === "log")
     return step(lambert(normal, true), BARK_RAMP, BARK_STEPS);
@@ -127,40 +135,189 @@ function shade({ normal, limb, at }: Hit<Limb>): number {
 }
 
 /**
- * The old tree stands on the shared corner of a 2×2 footprint, which is the
- * north-west corner of the anchor cell, so its feet are at the origin. The
- * sprite is five cells square to leave the wide crown room to lean into.
+ * The old tree is a stack of tiles, so the roof-cut can lift what stands over
+ * a player: a base a level tall, up to three half-level trunks, and a crown,
+ * which `app/editor/compose/tallTrees.ts` puts on the levels above the base.
+ * Each is cast with its ray starting at its own top and stopping at its foot,
+ * which cuts the capsules flat where one tile meets the next, and every trunk
+ * is the same, so the pieces line up whatever the count.
  */
-const TREE_CELLS = 6;
-const TREE_PX = TREE_CELLS * CELL;
-const TREE_PROJECTION: Projection = { spritePx: TREE_PX, groundPx: TREE_PX - CELL, topPx: 28 };
+const TRUNK_AT: Vec3 = [CELL / 2 + 0.5, CELL / 2 + 0.5, 0];
+const TRUNK_RADIUS = 3.2;
+/** A height of one level rises as many pixels as a cell is wide. */
+const LEVEL_PX = CELL;
+
+const BASE_CELLS = 4;
+const BASE_PX = BASE_CELLS * CELL;
+const BASE_PROJECTION: Projection = { spritePx: BASE_PX, groundPx: 2 * CELL, topPx: LEVEL_PX };
+
+const TRUNK_CELLS = 2;
+const TRUNK_PX = TRUNK_CELLS * CELL;
+const TRUNK_HEIGHT: TileHeight = 2;
+const TRUNK_TOP_PX = (LEVEL_PX * TRUNK_HEIGHT) / HEIGHT_PER_LEVEL;
+const TRUNK_PROJECTION: Projection = { spritePx: TRUNK_PX, groundPx: CELL, topPx: TRUNK_TOP_PX };
+
+/** The crown spreads well past its cell, south and east as well, so its cell is one in from the sprite's corner. */
+const CROWN_CELLS = 6;
+const CROWN_PX = CROWN_CELLS * CELL;
+const CROWN_BASE = 4;
+const CROWN_PROJECTION: Projection = {
+  spritePx: CROWN_PX,
+  groundPx: CROWN_BASE * CELL,
+  topPx: 22,
+};
+
+function at(dx: number, dy: number, z: number): Vec3 {
+  return [TRUNK_AT[0] + dx, TRUNK_AT[1] + dy, z];
+}
+
+/** Buttress roots: each leaves the trunk a little above the ground and dives into it about a cell out. */
+function roots(seed: number): Limb[] {
+  const rand = random(seed);
+  const out: Limb[] = [];
+  const count = 5;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + rand() * 0.5;
+    const reach = 4.6 + rand() * 1.4;
+    const bend = (rand() - 0.5) * 0.6;
+    const mid = at(Math.cos(a + bend) * reach * 0.55, Math.sin(a + bend) * reach * 0.55, 0.9);
+    const end = at(Math.cos(a) * reach, Math.sin(a) * reach, -0.2);
+    out.push(limb(at(0, 0, 2.4), mid, 1.8, 1.2, "root"), limb(mid, end, 1.2, 0.55, "root"));
+  }
+  return out;
+}
+
+/**
+ * The ray starts at the top of the tile, so what it meets there is the flat
+ * end of the trunk. It is drawn as the stump's cut top is, and shows when the
+ * roof-cut lifts the tiles above it.
+ */
+const CUT_FACE_PX = 0.4;
+
+/**
+ * The trunk's end is drawn as the stump's top is, in the three bands that fit
+ * on it: a dark heart, one light ring and a bark rim. The bounds fall between
+ * the distances of whole pixels from the centre, which is why the trunk
+ * stands on a pixel centre: round a pixel corner the ring comes out square.
+ */
+const HEART_PX = 1.7;
+const RIM_PX = 2.5;
+
+function rings(p: Vec3): number {
+  const ring = Math.hypot(p[0] - TRUNK_AT[0], p[1] - TRUNK_AT[1]);
+  if (ring > RIM_PX) return MAUVE;
+  return ring < HEART_PX ? DUSK : ASH;
+}
+
+/**
+ * Furrows run up the trunk, each a step darker than the bark either side. They
+ * wander sideways with a period of `FURROW_PERIOD_PX`, which divides the height
+ * of the base and of a trunk, so the furrows meet where one tile meets the next.
+ */
+const FURROWS = 7;
+const FURROW_SHARE = 0.32;
+const FURROW_PERIOD_PX = 4;
+const FURROW_WANDER = 0.5;
+
+function barkAt(normal: Vec3, p: Vec3): number {
+  const shade = stepIndex(lambert(normal, true), BARK_STEPS);
+  const around = Math.atan2(p[1] - TRUNK_AT[1], p[0] - TRUNK_AT[0]);
+  const wander = FURROW_WANDER * Math.sin((2 * Math.PI * p[2]) / FURROW_PERIOD_PX);
+  const turn = (((around + wander) / (2 * Math.PI)) * FURROWS) % 1;
+  const furrow = (turn + 1) % 1 < FURROW_SHARE;
+  return BARK_RAMP[Math.max(0, shade - (furrow ? 1 : 0))]!;
+}
+
+function baseLimbs(): Limb[] {
+  return [
+    { ...limb(at(0, 0, 0), at(0, 0, LEVEL_PX), 4, TRUNK_RADIUS, "trunk"), cut: true },
+    ...roots(77),
+  ];
+}
+
+function trunkLimbs(): Limb[] {
+  return [
+    {
+      ...limb(at(0, 0, -4), at(0, 0, TRUNK_TOP_PX), TRUNK_RADIUS, TRUNK_RADIUS, "trunk"),
+      cut: true,
+    },
+  ];
+}
 
 /**
  * The crown is a handful of lobes of different sizes round the ends of the
  * limbs, not one ball: the gaps and bulges between them are what make it read
  * as foliage. Each lobe is a dark core under leaf bundles scattered over its
- * upper surface, as the apple tree's crown is.
+ * upper surface, as the apple tree's crown is. Lobes are placed from the
+ * trunk's top, in pixels of the crown's own cell.
  */
 type Lobe = { centre: Vec3; radius: number; depth: number; bundles: number };
+type CrownShape = { lobes: Lobe[]; branches: number[]; seed: number };
 
-const LOBES: Lobe[] = [
-  { centre: [-6.5, 3, 14], radius: 3.8, depth: 2.6, bundles: 12 },
-  { centre: [3.5, -6, 15], radius: 3.8, depth: 2.6, bundles: 12 },
-  { centre: [4, 4.5, 13.5], radius: 3.4, depth: 2.4, bundles: 10 },
-  { centre: [-1.5, -1.5, 18.5], radius: 4.6, depth: 2.8, bundles: 16 },
-  { centre: [-5.5, -4, 16.5], radius: 3.6, depth: 2.4, bundles: 11 },
-  { centre: [6.5, -0.5, 16], radius: 3.2, depth: 2.2, bundles: 9 },
-  { centre: [-2, 5.5, 16], radius: 3.4, depth: 2.4, bundles: 10 },
-  { centre: [1, -3, 13.5], radius: 3.6, depth: 2.2, bundles: 10 },
+const CROWNS: CrownShape[] = [
+  {
+    seed: 4021,
+    branches: [0, 1, 2],
+    lobes: [
+      { centre: [-6.5, 3, 5], radius: 3.8, depth: 2.6, bundles: 12 },
+      { centre: [3.5, -6, 6], radius: 3.8, depth: 2.6, bundles: 12 },
+      { centre: [4, 4.5, 4.5], radius: 3.4, depth: 2.4, bundles: 10 },
+      { centre: [-1.5, -1.5, 9.5], radius: 4.6, depth: 2.8, bundles: 16 },
+      { centre: [-5.5, -4, 7.5], radius: 3.6, depth: 2.4, bundles: 11 },
+      { centre: [6.5, -0.5, 7], radius: 3.2, depth: 2.2, bundles: 9 },
+      { centre: [-2, 5.5, 7], radius: 3.4, depth: 2.4, bundles: 10 },
+      { centre: [1, -3, 4.5], radius: 3.6, depth: 2.2, bundles: 10 },
+    ],
+  },
+  {
+    seed: 5133,
+    branches: [0, 1],
+    lobes: [
+      { centre: [-3, 2, 5], radius: 3.4, depth: 2.4, bundles: 10 },
+      { centre: [2.5, -2.5, 5.5], radius: 3.4, depth: 2.4, bundles: 10 },
+      { centre: [0, 0, 9], radius: 4.2, depth: 2.8, bundles: 14 },
+      { centre: [-1, -1, 13], radius: 3.4, depth: 2.6, bundles: 11 },
+      { centre: [2.5, 2, 8.5], radius: 3, depth: 2.2, bundles: 8 },
+      { centre: [-3, -3, 9.5], radius: 3, depth: 2.2, bundles: 8 },
+    ],
+  },
+  {
+    seed: 6247,
+    branches: [0, 1, 2],
+    lobes: [
+      { centre: [-7, -1, 4.5], radius: 3.4, depth: 2.4, bundles: 10 },
+      { centre: [-4, -5.5, 6.5], radius: 3.8, depth: 2.6, bundles: 12 },
+      { centre: [2, -6.5, 5], radius: 3.2, depth: 2.2, bundles: 9 },
+      { centre: [-3, -2, 9.5], radius: 4.4, depth: 2.8, bundles: 15 },
+      { centre: [1.5, 1.5, 6], radius: 3, depth: 2.2, bundles: 8 },
+      { centre: [-6.5, 3.5, 6.5], radius: 3, depth: 2.2, bundles: 8 },
+    ],
+  },
+  {
+    seed: 7351,
+    branches: [0, 1, 2, 3],
+    lobes: [
+      { centre: [-5.5, 0.5, 4], radius: 3.2, depth: 2, bundles: 10 },
+      { centre: [0.5, -5.5, 4.5], radius: 3.2, depth: 2, bundles: 10 },
+      { centre: [4.5, 3, 4], radius: 3, depth: 2, bundles: 9 },
+      { centre: [-1.5, 4.5, 4], radius: 3, depth: 2, bundles: 9 },
+      { centre: [-0.5, -0.5, 10], radius: 3.8, depth: 2.6, bundles: 13 },
+      { centre: [-3.5, -3, 8.5], radius: 2.8, depth: 2.2, bundles: 8 },
+      { centre: [2.5, -1.5, 8], radius: 2.8, depth: 2.2, bundles: 8 },
+    ],
+  },
 ];
 const BUNDLE_PX = 2.2;
+const CROWN_FORK_PX = 1.5;
 
-function crown(seed: number): Limb[] {
+function crownLobes({ lobes, seed }: CrownShape): Limb[] {
   const rand = random(seed);
+  const low = Math.min(...lobes.map((l) => l.centre[2]));
+  const high = Math.max(...lobes.map((l) => l.centre[2]));
   const out: Limb[] = [];
-  for (const lobe of LOBES) {
-    const [cx, cy, cz] = lobe.centre;
-    const height = Math.max(0, Math.min(1, (cz - 14) / 4));
+  for (const lobe of lobes) {
+    const [cx, cy, cz] = at(lobe.centre[0], lobe.centre[1], lobe.centre[2]);
+    const height = high > low ? (cz - low) / (high - low) : 1;
     out.push({
       ...limb(
         [cx - 1, cy - 1, cz - 0.5],
@@ -192,30 +349,15 @@ function crown(seed: number): Limb[] {
   return out;
 }
 
-/** Buttress roots: each leaves the trunk a little above the ground and dives into it a cell out. */
-function roots(seed: number): Limb[] {
-  const rand = random(seed);
-  const out: Limb[] = [];
-  const count = 5;
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2 + rand() * 0.5;
-    const reach = 5 + rand() * 2;
-    const bend = (rand() - 0.5) * 0.6;
-    const mid: Vec3 = [Math.cos(a + bend) * reach * 0.55, Math.sin(a + bend) * reach * 0.55, 0.9];
-    const end: Vec3 = [Math.cos(a) * reach, Math.sin(a) * reach, -0.2];
-    out.push(limb([0, 0, 2.4], mid, 2, 1.3, "root"), limb(mid, end, 1.3, 0.6, "root"));
-  }
-  return out;
-}
-
-function oldTreeLimbs(): Limb[] {
+function crownLimbs(shape: CrownShape): Limb[] {
+  const fork = at(0, 0, CROWN_FORK_PX);
   return [
-    ...crown(4021),
-    limb([0, 0, 0], [0.2, 0.2, 11], 3.4, 2.4, "bark"),
-    limb([0.2, 0.2, 9], [-4.5, 2, 14.5], 1.6, 0.9, "bark"),
-    limb([0.2, 0.2, 9.5], [3, -4, 14.5], 1.5, 0.8, "bark"),
-    limb([0.2, 0.2, 9.5], [2.5, 3.5, 14], 1.3, 0.7, "bark"),
-    ...roots(77),
+    ...crownLobes(shape),
+    limb(at(0, 0, -4), fork, TRUNK_RADIUS, 2.6, "trunk"),
+    ...shape.branches.map((i) => {
+      const [x, y, z] = shape.lobes[i]!.centre;
+      return limb(fork, at(x * 0.75, y * 0.75, z), 1.5, 0.8, "bark");
+    }),
   ];
 }
 
@@ -429,7 +571,8 @@ function coverSprite(column: number): TileSprite {
   return sprite(column * COVER_CELLS, 0, COVER_CELLS, COVER_CELLS, { x: 1, y: 1 });
 }
 
-const COVER_ROW = TREE_CELLS;
+const PROP_ROW = CROWN_CELLS;
+const COVER_ROW = PROP_ROW + BASE_CELLS;
 const VARIANTS = 2;
 
 type Cover = {
@@ -531,14 +674,39 @@ function outlineCrown(pixels: Int16Array, size: number): Int16Array {
 async function main() {
   const coverColumns = COVERS.length * VARIANTS;
   const sheet = new PNG({
-    width: Math.max(TREE_CELLS + LOG_CELLS + STUMP_CELLS, coverColumns * COVER_CELLS) * CELL,
-    height: (TREE_CELLS + COVER_CELLS) * CELL,
+    width:
+      Math.max(
+        CROWNS.length * CROWN_CELLS,
+        BASE_CELLS + TRUNK_CELLS + LOG_CELLS + STUMP_CELLS,
+        coverColumns * COVER_CELLS,
+      ) * CELL,
+    height: COVER_ROW * CELL + COVER_PX,
   });
   sheet.data.fill(0);
   const tiles: TileDef[] = [];
+  const propsTop = PROP_ROW * CELL;
 
-  const crown = tidy(castLimbs(oldTreeLimbs(), TREE_PROJECTION), TREE_PX);
-  blit(sheet, outlineCrown(crown, TREE_PX), TREE_PX, 0, 0);
+  CROWNS.forEach((shape, i) => {
+    const crown = tidy(castLimbs(crownLimbs(shape), CROWN_PROJECTION), CROWN_PX);
+    blit(sheet, outlineCrown(crown, CROWN_PX), CROWN_PX, i * CROWN_PX, 0);
+  });
+  tiles.push({
+    id: "old-tree-crown",
+    name: "Old tree crown",
+    height: 2,
+    type: "scatter",
+    kind: "prop",
+    attributes: {},
+    anchor: { tilesetId: TILESET_ID, x: 0, y: 0 },
+    walkable: false,
+    lightPassing: true,
+    cutAlone: true,
+    scatter: CROWNS.map((_, i) =>
+      sprite(i * CROWN_CELLS, 0, CROWN_CELLS, CROWN_CELLS, { x: CROWN_BASE, y: CROWN_BASE }),
+    ),
+  });
+
+  blit(sheet, castLimbs(baseLimbs(), BASE_PROJECTION), BASE_PX, 0, propsTop);
   tiles.push({
     id: "old-tree",
     name: "Old tree",
@@ -546,17 +714,32 @@ async function main() {
     type: "simple",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: TILESET_ID, x: 0, y: 0 },
-    footprint: { w: 2, d: 2 },
+    anchor: { tilesetId: TILESET_ID, x: 0, y: PROP_ROW },
     walkable: false,
-    sprite: sprite(0, 0, TREE_CELLS, TREE_CELLS, { x: TREE_CELLS - 1, y: TREE_CELLS - 1 }),
+    sprite: sprite(0, 0, BASE_CELLS, BASE_CELLS, { x: 2, y: 2 }),
     interactions: {
       endure: { durability: 48, suffers: [{ statusId: "burned", tileId: "" }] },
       respawn: { fromMs: 600000, toMs: 1200000 },
     },
   });
 
-  blit(sheet, castLimbs(fallenLogLimbs(), LOG_PROJECTION), LOG_PX, TREE_PX, 0);
+  blit(sheet, castLimbs(trunkLimbs(), TRUNK_PROJECTION), TRUNK_PX, BASE_PX, propsTop);
+  tiles.push({
+    id: "old-tree-trunk",
+    name: "Old tree trunk",
+    height: TRUNK_HEIGHT,
+    type: "simple",
+    kind: "prop",
+    attributes: {},
+    anchor: { tilesetId: TILESET_ID, x: BASE_CELLS, y: PROP_ROW },
+    walkable: false,
+    lightPassing: true,
+    cutAlone: true,
+    sprite: sprite(0, 0, TRUNK_CELLS, TRUNK_CELLS, { x: 1, y: 1 }),
+  });
+
+  const logLeft = BASE_PX + TRUNK_PX;
+  blit(sheet, castLimbs(fallenLogLimbs(), LOG_PROJECTION), LOG_PX, logLeft, propsTop);
   tiles.push({
     id: "fallen-log",
     name: "Fallen log",
@@ -564,7 +747,7 @@ async function main() {
     type: "simple",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: TILESET_ID, x: TREE_CELLS, y: 0 },
+    anchor: { tilesetId: TILESET_ID, x: BASE_CELLS + TRUNK_CELLS, y: PROP_ROW },
     footprint: { w: 2, d: 1 },
     walkable: false,
     lightPassing: true,
@@ -573,7 +756,7 @@ async function main() {
   });
 
   const stump = castModel({ sample: stumpSample, shade: stumpShade }, STUMP_PROJECTION);
-  blit(sheet, stump, STUMP_PX, TREE_PX + LOG_PX, 0);
+  blit(sheet, stump, STUMP_PX, logLeft + LOG_PX, propsTop);
   tiles.push({
     id: "tree-stump",
     name: "Tree stump",
@@ -581,7 +764,7 @@ async function main() {
     type: "simple",
     kind: "prop",
     attributes: {},
-    anchor: { tilesetId: TILESET_ID, x: TREE_CELLS + LOG_CELLS, y: 0 },
+    anchor: { tilesetId: TILESET_ID, x: BASE_CELLS + TRUNK_CELLS + LOG_CELLS, y: PROP_ROW },
     walkable: false,
     lightPassing: true,
     sprite: sprite(0, 0, STUMP_CELLS, STUMP_CELLS, { x: 1, y: 1 }),

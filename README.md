@@ -129,9 +129,11 @@ an agent drives", lists every call.
   another block of the same sheet: each cell gets the source block's full cell
   wherever the source cell is transparent. Which blocks, on which sheet, is the `JOBS`
   list at the top of the script
-- `bun run generate:water` — rebuild the water autotile from two masks: the wave
-  frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
-  Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:water` — redraw `data/tilesets/water.png` and the `water`
+  tile's 256 slices: water painted in one key colour, which the world shader
+  replaces with the tile's `colorCycle` ramp, inside a wet line of black at
+  30%, with the bank left out so the ground under the water shows. Writes the
+  `colorCycle` with the sheet, since the key is baked into it
 - `bun run generate:camp` — copy the two canvas tents out of the tiny-ranch
   sheet onto the cell grid of `data/tilesets/camp.png` and cast the bedroll in
   its four facings below them; writes the `tent`, `tent-2` and `bedroll` tiles.
@@ -203,7 +205,7 @@ an agent drives", lists every call.
   over eight frames, one frame apart per cell so the wave runs along the shore
 - `bun run generate:swamp` — redraw `data/tilesets/deep-water.png`,
   `swamp.png` and `swamp-plants.png`. `deep-water` and `swamp` are
-  `water.png`'s open-water frames recoloured, faded out in opacity towards
+  each painted in its `colorCycle` key colour, faded out in opacity towards
   every side they do not connect on, on sheets marked `translucent`. `reeds`,
   `cattails`, `duckweed` and `swamp-lily` are cast through the game's
   projection with the hats' caster, each with a `-trodden` twin it swaps
@@ -215,12 +217,16 @@ an agent drives", lists every call.
   trees grown from a seed per species and cast through the game's projection.
   The growth settings and seeds are constants in the script
 - `bun run generate:deep-woods` — redraw `data/tilesets/deep-woods.png`:
-  `old-tree` (a 2×2 footprint with a wide dark crown and buttress roots),
+  the old tree as stacked pieces: `old-tree` (a level of trunk on buttress
+  roots), `old-tree-trunk` (half a level) and `old-tree-crown` (four
+  crowns, picked per cell), with growth rings on the cut top of the base
+  and the trunk,
   `fallen-log` (2×1, an uprooted trunk with its root plate on edge),
   `tree-stump`, and the ground cover `fern` with its `fern-trodden`
   twin, `undergrowth` and `tree-roots`, all cast through the game's projection
   with `limb-caster` and `model-caster`. `bun run scene scripts/scenes/deep-woods.json`
-  draws them beside the forest and swamp tiles
+  draws them beside the forest and swamp tiles, and `scripts/scenes/old-trees.json`
+  draws old trees of every height
 - `bun run generate:apple-trees` — redraw `data/tilesets/apple-trees.png`:
   `apple-tree`, a low trunk forking under a wide crown, ray-traced in the
   game's projection. The crown is a dark core under a shell of evenly spaced
@@ -253,8 +259,8 @@ an agent drives", lists every call.
   also writes `sand.png` there, a field of the sand faces picked the way
   the renderer picks them
 - `bun run generate:lava` — redraw `data/tilesets/lava.png` and its tiles. All
-  three are autotiles with `dirt`'s rounded outline, read from `floors.png` as
-  `generate:water` does, and are meant to be stacked: sand, `basalt`,
+  three are autotiles with `dirt`'s rounded outline, read from `floors.png`,
+  and are meant to be stacked: sand, `basalt`,
   `lava-crust`, `lava`, each with its own edge over the layer beneath.
   `lava` is 16 frames of a sum of waves, each with a spatial frequency chosen
   so that the per-cell frame offset (`phase`) carries it across the cell border
@@ -473,6 +479,12 @@ an agent drives", lists every call.
   one player and let them leave, then print how many ticks the empty world
   runs over `--seconds <n>` (20) and the CPU they cost. A world at rest runs
   none
+- `bun run bench:walk` — build the world from `data/world.json` into a real
+  ticking `GameServer`, seat one player at the spawn and move them a cell
+  every 200ms along a line (`--cells` 150, `--dx` 0, `--dy` -1, north), then
+  print what a tick cost, how much of the slowest was putting chunks back on
+  the board, and how late ticks started. Runs differ by several milliseconds
+  at the tail, so compare a few of each
 - `bun run bench:crowd` — seat a crowd of walking players on a real
   `GameServer` against `data/map.json`, and print the tick rate the world
   keeps, what a tick costs and which parts of it cost that. `--players <n>`

@@ -21,7 +21,8 @@ const POLL_MS = 50;
  * The real `WorldRenderer` with no game behind it: nothing moves, nothing
  * thinks, and the map is whatever `window.__scene.render` is handed. It is the
  * page `bun run scene` screenshots. The renderer is never started, so its
- * animation clock stays at zero and every render of a scene is the same picture.
+ * animation clock is the scene's `clockMs` and every render of a scene is the
+ * same picture.
  */
 export default function ScenePage() {
   const { tiles, tilesets } = useLoaderData<typeof clientLoader>();
@@ -72,6 +73,7 @@ export default function ScenePage() {
            */
           world.setView(view);
         }
+        world.setAnimClock(built.clockMs);
         world.renderOnce();
       },
     };

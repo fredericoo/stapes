@@ -1,11 +1,15 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { MAX_PILE_SPRITES, pileRings } from "./pileLayout";
+import { MAX_PILE_SPRITES, pileOffsets, pileRings } from "./pileLayout";
+import { depthBox } from "../lib/geometry";
+import { buildSpreadQuadGeometry } from "./worldQuads";
 import {
   OUTLINE_ALPHA_UNIFORM,
   OutlineMaterials,
   PULSE_PERIOD_MS,
   disposeGroupChildren,
+  followSource,
+  makeFollowingPileOutlines,
   makeFollowingSpriteOutline,
   makeSpriteOutline,
   pulseAlphaAt,
@@ -255,5 +259,92 @@ describe("makeSpriteOutline, around a heap", () => {
       makeSpriteOutline(quad(), 0xffffff, materials, ring.peers),
     );
     expect(new Set(outlines.map((o) => o.material)).size).toBe(rings.length);
+  });
+});
+
+describe("makeFollowingPileOutlines", () => {
+  const SPRITE = {
+    w: 8,
+    h: 8,
+    u0: 0,
+    v0: 0,
+    u1: 1 / 32,
+    v1: 1 / 32,
+    box: depthBox(2, 3, 0, 1),
+    stackBias: 0,
+    lightX0: 0,
+    lightY0: 0,
+    lightX1: 1,
+    lightY1: 1,
+    unlit: false,
+  };
+
+  function movingPile(count: number) {
+    const geometry = buildSpreadQuadGeometry(
+      SPRITE,
+      pileOffsets(count).map((o) => ({ ...o, stackNudge: 0 })),
+    );
+    const source = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({ map: new THREE.Texture() }),
+    );
+    source.position.set(40, 24, 0);
+    source.updateMatrixWorld(true);
+    return source;
+  }
+
+  const cornersOf = (mesh: THREE.Mesh, world: boolean) => {
+    const pos = mesh.geometry.attributes.position!;
+    return Array.from({ length: 4 }, (_, v) => {
+      const p = new THREE.Vector3().fromBufferAttribute(pos, v);
+      if (world) p.applyMatrix4(mesh.matrixWorld);
+      return [p.x, p.y];
+    });
+  };
+
+  /** The outline shader reads a corner and the sprite's size off a vertex's position, so a ring offset from its origin samples the wrong texels. */
+  it("centres each ring on its own sprite and keeps it where the sprite is drawn", () => {
+    const count = 5;
+    const source = movingPile(count);
+    const rings = makeFollowingPileOutlines(
+      source,
+      pileRings(count),
+      0xffffff,
+      new OutlineMaterials(),
+    );
+
+    expect(rings).toHaveLength(count);
+    rings.forEach((ring, i) => {
+      expect(cornersOf(ring, false)).toEqual([
+        [-4, 4],
+        [4, 4],
+        [-4, -4],
+        [4, -4],
+      ]);
+      const pos = source.geometry.attributes.position!;
+      const drawn = Array.from({ length: 4 }, (_, v) => {
+        const p = new THREE.Vector3()
+          .fromBufferAttribute(pos, i * 4 + v)
+          .applyMatrix4(source.matrixWorld);
+        return [p.x, p.y];
+      });
+      expect(cornersOf(ring, true)).toEqual(drawn);
+    });
+  });
+
+  it("follows the pile when it moves", () => {
+    const source = movingPile(2);
+    const [ring] = makeFollowingPileOutlines(
+      source,
+      pileRings(2),
+      0xffffff,
+      new OutlineMaterials(),
+    );
+    source.position.set(41, 30, 0);
+    source.updateMatrixWorld(true);
+    followSource(ring!, source);
+
+    const first = new THREE.Vector3().fromBufferAttribute(source.geometry.attributes.position!, 0);
+    expect(cornersOf(ring!, true)[0]).toEqual([first.x + 41, first.y + 30]);
   });
 });

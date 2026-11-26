@@ -133,6 +133,35 @@ function WornRequirements({
   );
 }
 
+const MASTERY_BONUS_INFO =
+  "Added to the wearer's masteries while this is worn or held, once its requirements are met. It raises damage, accuracy, defence, hit points, speed, resist, cast time and gathering speed as those levels would. It does not count towards any requirement, and earns no experience.";
+
+function MasteryBonus({
+  bonus,
+  onChange,
+}: {
+  bonus: Masteries | undefined;
+  onChange: (bonus: Masteries) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+      <FieldLabel info={MASTERY_BONUS_INFO}>Mastery bonus</FieldLabel>
+      <div className="flex flex-wrap gap-4">
+        {MASTERIES.map((mastery) => (
+          <StatField
+            key={mastery}
+            label={MASTERY_LABELS[mastery]}
+            value={bonus?.[mastery] ?? 0}
+            min={MIN_MASTERY}
+            max={MAX_MASTERY}
+            onChange={(level) => onChange({ ...bonus, [mastery]: level })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
   { value: "armor", label: "Armour" },
@@ -514,6 +543,13 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles, tilesets }: P
               onChange={(elements) => setItem({ ...item, elements })}
             />
           </div>
+        ) : null}
+
+        {wearable ? (
+          <MasteryBonus
+            bonus={item.masteryBonus}
+            onChange={(masteryBonus) => setItem({ ...item, masteryBonus })}
+          />
         ) : null}
       </section>
     </div>

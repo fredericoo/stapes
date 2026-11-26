@@ -3060,24 +3060,39 @@ keys the slices by the raw eight-neighbour mask instead, 256 of them, and
   different rings of cells two away. `outerRound` 4 and `blend` 6 is the most
   that passes with a 2px inset: a larger blend lets a cell two away pull the
   fillet, and so the same mask would need two drawings.
-- **Water draws its own bank.** Every water cell is opaque: water, a 1px line
-  of wet sand, then `sand`'s own colour out to the cell's sides, so a river
-  meets the sand under the grass beside it without a seam, and the `dirt`
-  under a river is no longer seen.
+- **Water leaves its bank out.** Past the water's outline a cell's art is a
+  1px wet line of black at 30% and then nothing, so the ground under the
+  water is its bank: sand where a river crosses grass, snow on a peak, mud in
+  the bog. The palette pass snaps the wet line to that ground's own darker
+  shade, as it does `grass`'s shadow. The sheet used to draw a sand bank out
+  to the cell's sides, which read as a strip of dirt on snow and in the bog.
+  - **The water sheet is `translucent`**, for the wet line's blend, so it
+    writes no depth and is drawn after the level. Merged translucent batches
+    are drawn bottom up a step apart (`TRANSLUCENT_LAYER_STEP` in
+    `WorldRenderer`): other ground such as `grass`, then water, then a
+    liquid that `fades` over water. Without the steps, which of water and
+    deep water came first in a chunk depended on which the chunk met first.
+  - **A river lays no bed.** It keeps the bottom tile of each cell, so a
+    river through grass has the sand under the grass as its bank, on a hill's
+    top as on the ground (the hill's `cover`), and one on snow has snow. The
+    `dirt` bed every river used to lay showed through the bank as a
+    square-cornered strip: `dirt` is a blob autotile, which cannot round a
+    corner. `mud` is too, which is why the bog's edge is square.
 - **Grass lobes fade out towards grass.** Each of the six columns adds its own
   waves to the inset, scaled to nothing within 3px of any neighbour that is
   grass, so where the edge crosses into the next cell it is where the outline
   alone puts it, whichever column that cell drew.
-- **It costs 256 rows of sheet and of `tiles.json`.** Water's 14 frames per
-  slice made `tiles.json` about 1MB larger, 20KB gzipped.
+- **It costs 256 rows of sheet and of `tiles.json`**, one still frame each:
+  the colour cycle moves the water, not the frames (*Water is colour-cycled
+  along a current worked out when the world is built*).
 
 ### Deep water and swamp are laid over shallow water
 
 `deep-water` and `swamp` are autotiles meant to sit on top of `water` in the
-same stack (`dirt, water, deep-water`). Each connects only to itself, and where
-it does not connect its art fades in opacity over the three pixels in from the
-edge (0, ½, 1), so the water underneath shows through and the two read as one
-body of water. The water underneath still draws the shoreline against the bank.
+same stack (`dirt, water, deep-water`). Each connects only to itself, and the
+shader thins it out over the two cells in from the edge of its pool (*A liquid
+laid over water fades by how much of the pool is round it*, below), so the
+water underneath shows through and the two read as one body of water. The water underneath still draws the shoreline against the bank.
 A swamp laid straight on grass, with no water under it, fades into the grass,
 which reads as a marshy edge. Both sheets are `translucent` (below).
 
@@ -3136,13 +3151,12 @@ picture:
 `bun run generate:swamp` draws all of them. Three things in it look arbitrary
 and are not:
 
-- **The liquids are the water's own frames, at the water's `phase` and frame
-  time.** The renderer offsets an animated tile's frame per cell by its
-  `phase`, which is what stops water repeating every 8px. A liquid without the
-  phase showed the same frame in every cell and read as a grid, and one at
-  another frame time ripples out of step with the water showing through its
-  edge.
-- **The fade has three steps, not a smooth ramp.** A blend goes through the
+- **The liquids are colour-cycled on the water's current, and deep water at
+  the water's cycle length and pace.** A wave then runs on from the shallows
+  through the fading edge into the deep without a seam. Deep water's ramp has
+  no trough: the palette pass snaps any shade darker than its body to near
+  black, which drew a black scratch across the sea.
+- **The fade drops whole pixels, not opacity.** A blend goes through the
   palette pass, and a faint one (a fifth of deep blue over the water's crest)
   lands on a grey, which drew a broken grey line round every pool.
 - **A plant's stalks are shaded by height, not by the light.** Lit from above, a
@@ -6257,6 +6271,49 @@ of a weapon's requirements is still `weaponHandling`, as before.
 It is applied in `effectiveBattler`, so the world, the Arena and the stats panel
 all read the same figure. `weaponHandling` is applied separately inside
 `fightingStats`; the two multiply.
+
+### Gear can add to a mastery, for what the mastery does and never for what it allows
+
+Any item that is worn or held (weapon, armour, shield, stone, charm) can carry
+`masteryBonus`, a `Masteries` block. The Wolfskin Hood, Coat and Boots give
+Nature 1, 2 and 1, so the whole set is Nature +4. There is no set concept: the
+bonuses add up piece by piece, the way `armorResistances` adds up resists, and a
+set bonus is just several pieces that raise the same mastery.
+
+**Two sets of masteries, and every formula reads one of them.**
+`wornMasteryBonus` adds up what is in the worn squares (never the bag), and
+`boostedMasteries` adds it to the trained levels, capped at `MAX_MASTERY`. The
+boosted set drives what a level *does*:
+
+- weapon damage and accuracy, `maxHp` and body defence from Toughness, haste and
+  flee from Agility (`fightingStats`, `bodyDefence`, via `effectiveBattler`);
+- spell power and mend size (`castingSkill` inside `spellPower`), and a physical
+  stone's hit chance (`stoneHitChance`);
+- arcane resist (`arcaneResist`, through `spellGuard` and the stats panel);
+- the cast time saved past a stone's requirements (`castDurationMs`'s
+  `requirementCoverage`), and extraction speed (`extractDurationMs`).
+
+The trained set answers every question about what a body *may* do: weapon
+handling, encumbrance, magic going dormant, whether a natural spell may be cast,
+the shortfall share `spellPower` pays and the cast time a shortfall adds, which
+hand swings, rating, and all experience. So a +30 Sharp blade hits harder but
+does not stop a heavier sword held in the other hand from being held short of
+its requirements, and a bonus never makes up a shortfall on a stone.
+
+**A piece gives its bonus only when the trained masteries meet all of its
+requirements.** That is stricter than encumbrance, where physical gear still
+works short. Without the rule, a bonus could seem to lift its wearer into gear
+they have not earned, and an author would have to check two figures to know
+whether a bonus counts.
+
+**Toughness is deliberate.** A Toughness bonus raises `maxHp`, and taking the
+piece off lowers it again. `hpOf` already clamps on read rather than on write,
+so somebody who takes off a tough coat is not left overfull.
+
+Bots do not see bonuses yet: their odds and gear choices (`bots/odds.ts`,
+`bots/arcane.ts`, `bots/gear.ts`) read the trained masteries, so they slightly
+underrate a bot wearing a bonus and do not seek bonus gear out. The server
+resolves the blows with the boosted figures either way.
 
 ### Armour is a draw, and a blow is weighed against it
 
@@ -11474,7 +11531,11 @@ is one mesh carrying every sprite (`buildSpreadQuadGeometry`), so a fall or a
 wade moves the whole heap. Its geometry keeps each sprite's depth nudge,
 because `writeBoxAttr` rewrites the depth of every quad on every motion frame,
 and its outline is one ring per quad (`makeFollowingPileOutlines`) in the order
-the geometry was built in. A pile that is *animated*, or forming under a
+the geometry was built in. Each ring's quad is moved back onto its own origin
+and its offset carried in the ring's matrix, because the outline shader reads a
+vertex's corner and the sprite's size off its position; left at its offset in
+the pile, a ring read the wrong rect of the atlas and filled the heap with
+white. A pile that is *animated*, or forming under a
 transition, still draws one sprite: `writeFrameUvs` writes four vertices, and a forming
 transition is drawn on one quad. Nothing that piles is animated today.
 
@@ -15951,7 +16012,7 @@ builds one, and `app/editor/compose/demo.json` is the example. Rune Isle is stil
 **A tile wider than a cell is placed whole or not at all.** `placer`
 (`app/editor/compose/placing.ts`) is what `tile`, `scatter`, `forest` and
 `shipwreck` stand tiles on the ground with. For a tile with a `footprint`
-(old trees, dunes, fallen logs, the wreck pieces) it writes the anchor in the
+(dunes, fallen logs, tents, the wreck pieces) it writes the anchor in the
 south-east cell and a part carrying `span` in each other one, and refuses the
 spot unless every cell has ground at one height and level and room under the
 next level. The span id is hashed from the anchor and the tile, not minted, so
@@ -16202,6 +16263,15 @@ tier below a ledge a cell wide all round. With `terrace` 0 it is raised to
 the lower tier's edge, and the two cliffs are one: where no neighbour is left
 on the lower tier's level, the upper wall replaces the lower tier's brink.
 
+**A green hill's top is sand under grass, as the land below it is.** Its
+`cover` is laid on its `ground`, under the walls of its upper tiers as on
+its top, and a cell beside a drop takes the cover's brink. With the full green `grass-2` as the top, a road with no tile had no
+grass to cut, so it was laid as nothing, a road with one showed it against
+green with no sand round it, and a river had no sand to keep as its bank.
+`cover` is unset by default, so a hill of snow, sand or basalt gets no grass;
+Rune Isle's green hills set `ground: sand, cover: grass`. The sandy patches on
+the wreck valley's hills are `clear`s of that grass.
+
 A ramp needs three clear cells on the lower level and two on the upper
 (`rampFits`), so a shelf narrower than three cells takes none, from the hill's
 own `ramps` or from a road. A road across such a cliff is laid on both levels
@@ -16221,27 +16291,93 @@ its own fix:
   in, measured in a straight line from whatever ends it (frame, mask, a road
   through it, a house) and pushed in and out by noise, more in than out. A
   wood then ends in bays and tongues, and `outliers` (3% by default) stands
-  lone trees in the open past it. Undergrowth grows up to five times as thick
-  where the canopy is half closed, which is the scrub at a wood's edge.
+  lone trees in the open past it. Ground cover grows up to half as thick
+  again where the canopy is half closed, which is the scrub at a wood's edge.
 - **`widenToTwo` made the holes square.** Run to a fixed point on a noisy
   field, it plants every open cell that is not in a clear 2×2 square, so all
-  that survives is unions of squares. The new pass plants only an open cell
-  with six or more trees around it, and only where the canopy is past half,
-  twice. That removes the one-cell slits the camera hides in the thick of the
-  wood and leaves the gaps between lone trees where the wood is thin, the way
-  a scatter leaves them.
-- **`joinRegions` cut L-shaped tunnels.** A glade of `MIN_GLADE_CELLS` or more
-  that cannot be walked into is now joined by the way that fells the fewest
-  trees (Dijkstra, each tree costing 4 to 8 so the track bends round the thick
-  of the wood), two cells wide, to open ground at the wood's edge or the path.
+  that survives is unions of squares.
+- **`joinRegions` cut L-shaped tunnels.** A pocket that cannot be walked into
+  is now joined by the way that fells the fewest trees (Dijkstra, each tree
+  costing 4 to 8 so the track bends round the thick of the wood), two cells
+  wide, to open ground at the wood's edge or the path.
 
 **`trees` is a weighted mix, and each kind comes in stands.** Each kind's
 weight is multiplied by `exp(7 × (noise − 0.5))` from its own noise field 13
-cells across, so one kind dominates a patch without the others vanishing. The
-default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
-grass and, in stands, reads as a hole in the map. A tree wider than a cell
-that does not fit falls back to the commonest one-cell kind. A saved forest
-with the old single `tree` prop is read as a mix of one (`migrateDoc`).
+cells across, so one kind dominates a patch without the others vanishing. A
+tile wider than a cell that does not fit falls back to the commonest one-cell
+kind of its list. A saved forest with the old single `tree` prop is read as a
+mix of one (`migrateDoc`).
+
+### A forest's density picks what grows, and its decay what has died
+
+Every wood used to be walls. At the default density of 55, 41% of a 50×50
+wood blocked a walker and the largest solid clump was 468 cells, for three
+reasons: an open cell with six trees round it was planted over, twice; a
+pocket smaller than 14 cells that nobody could reach was planted over instead
+of opened; and undergrowth grew five times as thick at the wood's edge, so a
+setting of 6% grew 15%. All three are gone. Every pocket is joined to open
+ground now, and no tree is planted beside two trees already planted before it
+in the scan (`MAX_TREES_BESIDE`), which allows a line and never a clump.
+
+`density` (0 to 100) now picks what grows as well as how much (`forestMix`):
+
+- **0 to 10:** ground cover only (`foliage`: tufts, ferns, undergrowth,
+  flowers) and a rare bush.
+- **10 to 50:** `trees` as well, `tree` with a rare `apple-tree`.
+- **50 to 100:** a growing share of the trees are `tall` (`old-tree`) instead,
+  each two cells from the next.
+
+At 100 about 9% of a wood's cells are trees and 10% block a walker, about
+half what 30 grew before; the largest clump is about 5 cells. `decay` (0 to 100)
+grows up to a tenth of the trees as one of `dead` (dead trees, stumps and
+fallen logs) instead (`MOST_DEAD`). It once took every tree at 100, and a wood
+at even half that read as felled: a bare dead tree leans along the diagonal
+and looks like a trunk lying on the ground.
+
+**Only ground cover grows on the wood's open cells.** A bush, a fallen log
+or anything else that blocks the way grows on one of `growWoodland`'s tree
+cells, which are what the pocket joining counts, so nothing planted after it
+can shut a pocket again. A fallen log covers two tree cells or falls back to
+the commonest one-cell piece of `dead`.
+
+### An old tree is a stack of tiles over several levels
+
+`old-tree` used to be one 2×2 prop a level tall with a crown drawn three
+levels high, so it was drawn over anybody behind it and nothing could lift
+it: the roof-cut only takes cells on levels above the viewer. It is now
+three tiles (`app/editor/compose/tallTrees.ts`): `old-tree`, one cell and a
+whole level tall, then 0 to 3 `old-tree-trunk`s of half a level each, then an
+`old-tree-crown`, a scatter tile with four crowns. The trunks and crown start
+on the level above the base and go on to the next level whenever one fills,
+so the crown always has a level of its own. The crown is two units tall in
+the catalogue, so a crown on a trunk fills a level and never overflows into
+the next; its art rises well past that.
+
+- **The placer grows them.** `placer.put` of a base stacks the rest from a
+  hash of the cell, fewer trunks where a level above is not empty, and
+  refuses the tree where not even a crown fits or where the base would not
+  end at the top of its level. So `forest`, `scatter` and `tile` all plant
+  whole trees without knowing about them.
+- **`forest` keeps them two cells apart** and grows them only from density
+  50 (see the section above on density). One takes a cell and its crown
+  spreads over the cells round it, so a stand of them packed cell to cell
+  draws as one dark mass. An old tree within `TALL_SPACING` of another gives
+  way to one of `trees`, and the big trees stand out of a wood of small ones.
+- **Whatever takes the base away takes the rest.** `fellAbove` runs on every
+  node's edits in `buildMap`, against the map the node made, so a road, a
+  clearing or a hill raised over a tree leaves nothing in the air. A hill
+  does not count a tree's trunk on the level above as something built there.
+- **The trunks and crown are `cutAlone`.** The roof-cut seeds them from a
+  window round the viewer's south-east diagonal on each level (a crown spreads
+  past its own cell and rises above it, so the plain diagonal seed misses
+  most of the places it covers somebody), and the flood fill takes only the
+  column such a cell is in. Without that, a wood's crowns touch each other
+  and the hills round them, so walking behind one tree would lift the whole
+  wood, or every storey once the fill ran past `MAX_CUT_CELLS`.
+- **The trunks and crown pass light.** A crown that did not would shade the
+  ground under it as a roof does. The base blocks light, as the old tree did.
+- **What is not handled:** burning the base leaves the trunks and crown
+  standing until the base respawns, since only the map build fells them.
 
 ### A hill and a river declare; a road builds
 
@@ -16270,9 +16406,42 @@ shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
 - **A road with no `tile` lays only ramps and bridges**, so it can serve as a
   way up a hill that shows no path. A hill's own `ramps` are points; each puts
   a ramp on the nearest stretch of cliff that fits.
-- **The head of a ramp is the one place a road writes below its own level**:
+- **The head of a ramp writes below the road's own level**:
   the wall under it becomes two `half-stone`. Its edit is at `ctx.z - 1`, which
   the build lifts with the cell like any other.
+- **A hill the road cannot climb is tunnelled** (`withTunnels` in
+  `components/tunnel.ts`). A stretch of route that leaves a level for higher
+  ground and comes back down to the same level is tunnelled when `withRamps`
+  would leave a jump in it: a cliff two or more levels high, or a shelf too
+  narrow for a ramp. A stretch that ends on the hill is left to the ramps, as
+  is one where `tunnels` is off.
+- **Each tier the route climbs onto is tried in turn.** Where no tunnel fits
+  from the level a stretch starts on, the route goes on into it a cell at a
+  time, so a road that ramps onto a low shelf digs into the cliff above the
+  shelf. `bat-crag` in `world.json` is that case: `camp-to-inn` ramps onto
+  `bat-hill` and runs through `bat-cave` on level 1.
+- **A tunnel that joins a cave or a dungeon is always taken; one through bare
+  rock gives way to a short way round** (`aroundTheFoot`: over clear ground
+  on the stretch's level, at most twice the stretch's length plus
+  `MOUTH_REACH`). A stretch no tunnel fits is taken round the same way where
+  it can be. Without this, `mountain-road`, which clips the corner of a hill,
+  dug in under the rim and came straight back out.
+- **The two mouths face different ways.** A tunnel in and out of the same
+  face is a detour under the rim, and is not dug.
+- **A tunnel is dug the way a cave is.** A mouth goes on a straight stretch of
+  cliff with a full block over it, nearest the route on each side, south and
+  east faces first. The two are joined on the road's level by the cheapest way
+  through: a step along a passage already there costs one and a step that
+  digs costs `DIG_COST`, so a dungeon dug in the hill earlier in the tree is
+  walked through and only the rock between it and each mouth is dug. A
+  passage counts doors a body opens with its hands (a `switch` to an
+  intangible tile), so a crypt's doors stay. A door opened by a channel does
+  not count, and the road digs round it. A dug cell keeps rock or passage on
+  all eight sides, so the tunnel breaks out of the hill only at its mouths,
+  and rock under nothing but a hilltop's floor is not dug.
+- **The tunnel's edits are on an absolute level.** The build lifts every edit
+  of a road by the cell's elevation, so a tunnel cell is written at
+  `ctx.z + level - raisedAt`, which the lift brings back to `level`.
 
 ### The build keeps how high the ground is, and hides it from most components
 
@@ -16654,7 +16823,8 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
 - **It reads the board's chunk rows, not the tree and not the live session.**
   `GET /api/board` lists the chunk keys and levels from the `chunk:` keys alone
   (plus the spawn the view opens on), and `GET /api/board/chunks?chunks=a;b`
-  hands back every level's row of the chunks named, at most 128 a read. The
+  hands back the rows of the chunks named on the levels from `from` to `to`
+  (every level when left out), at most 128 chunks a read. The
   rows are the last checkpoint, so the viewer shows the world as played,
   creatures and dropped things included, and never makes the server load a
   chunk it had unloaded. 64 chunks of the 4× island are about 1.4 MB and
@@ -16666,10 +16836,16 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
   middle first, with a chunk of margin. The page keeps one read in flight and
   always reads the missing chunks nearest the middle of the view as it is
   then, so a pan that outruns the reads does not wait for what it left.
-- **`BoardChunks` holds at most `MAX_HELD_CHUNKS`** and forgets the ones read
-  longest ago that are not in view.
+- **`BoardChunks` holds only what is near the view.** It records each chunk
+  on the levels it was read for, so stepping a level reads only the level
+  that came into reach, asked for as the narrowest range that covers what
+  the batch lacks. After every read and every move it forgets the chunks more
+  than `UNLOAD_MARGIN_CHUNKS` outside what the view asks for, and the levels
+  outside `viewLevels`, so a long pan never piles up the island in the tab.
 - **Isolating a level leaves every level above it out of the map handed to
-  the renderer**, and out of what is read. A link can open the viewer on a
+  the renderer**, and out of what is read. Below ground, level 0 and up are
+  left out even without isolating (`topLevelShown`): the surface sits right
+  above a cave and would hide all of it. A link can open the viewer on a
   place with `?x=…&y=…&level=…`.
 - A dev server, which takes saves, still gets the editor, which builds the
   whole tree in the tab.
@@ -17119,6 +17295,18 @@ heap of bubbles south out of the foot of the fall, each living one cycle, so
 the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
+
+**Water joins a fall across the cliff** (`fallsInto` on `water`,
+`joinsOverFall` in `app/lib/autotile.ts`). An autotile reads its neighbours on
+its own level, and a fall's top and its pool are a level apart: the water on
+the cliff found open air where the fall rises and the pool found the cliff
+behind it, so each drew its sandy bank at the drop and the river looked
+dammed by dirt on both sides of every fall. Water on a cliff now counts the
+open cell over a fall as joined when that fall's cliff top is a cell of the
+same water, and water at a fall's foot counts the cliff behind the fall as
+joined, and the corner along the cliff where the next cell falls too. A
+fall put down at runtime does not rebuild the water a level above it, since
+the incremental rebuild only restyles neighbours on one level.
 
 `waterfall-east-top`, `-middle` and `-base` are the same fall down a cliff's
 east face, for a river that flows east off a cliff: they go in the cell east
@@ -17815,10 +18003,10 @@ Measured on the shipped map: **131 world meshes and 205 draw calls became 23 and
 
 ### A phase is a vector on the sprite, and it is for art whose light does not vary
 
-`TileSprite.phase` — `{ x: 3, y: -1 }` on water — advances the cycle by that
+`TileSprite.phase` — `{ x: 5, y: 3 }` on `lava` — advances the cycle by that
 many frames per cell, so neighbouring placements are out of step. Without one a
-pond is one motif stamped in lockstep and reads as wallpaper; the vector is what
-makes the wave travel diagonally across it. It is deliberately a vector rather
+lava field is one motif stamped in lockstep and reads as wallpaper; the vector
+is what makes the waves travel diagonally across it. It is deliberately a vector rather
 than a hash of the cell: the direction is art direction, and a hash gives static.
 
 **A sprite whose light varies may not declare one**, and `spritePhase` returns
@@ -17854,75 +18042,150 @@ editor did exactly that — `setSprite({ frames: next })` — which made every f
 edit in the dialog, including changing a duration, silently unphase the tile.
 Spread the sprite.
 
-### The water autotile is generated from two masks, not drawn
+### Water is colour-cycled along a current worked out when the world is built
 
-`bun run generate:water` writes `data/tilesets/water.png` and the `water` tile's
-47 slices together, from:
+`water`, `deep-water` and `swamp` are drawn by colour cycling, as palette
+animation was on indexed hardware. Their art is one still frame per slice with
+the liquid painted in a single key colour (`colorCycle.key`). The world shader
+(`app/render/colorCycle.ts`) replaces every pixel of that colour with a colour
+from the tile's `ramp`, picked by how far the current has come to the pixel and
+by the clock. The ramp turns a step at a time, so its bands travel with the
+current, and the bank keeps the colours it was drawn in.
 
-- `scripts/wave-frames.png` — the fourteen recovered wave frames, white where
-  the wave catches the light. Not in `data/tilesets/` because it is not a
-  tileset: nothing draws it, it is only ever an input.
-- the green autotile block in `data/tilesets/floors.png` — its green pixels are
-  the shape of each of the 47 neighbourhoods.
+**The current is a field over the whole map, so the server works it out.**
+`withFlow` (`app/lib/waterFlow.ts`) runs after `buildMap` in `buildWorldMap`
+and writes each colour-cycled placement's `flow`: the time for the current to
+reach that cell. A client only holds the chunks round it, and which way the
+sea runs past a beach depends on where the open water is a long way off.
+`bun run build:map` and the scene page call it too. The compose editor's
+preview, which builds on every drag step, does not: it has no `flow` and draws
+every liquid drifting south, as water put down without a current does.
 
-The slice-to-source-cell map is read off `dirt`, the ground autotile already laid
-out on that sheet, rather than restated. A pond's rim has to tuck into its
-neighbours exactly the way the ground does, and two hand-maintained copies of
-the same 47-entry mapping would drift.
+- **The sea runs in towards the coast.** Sea is the water a disc of
+  `SEA_CLEARANCE` cells can reach from the map's edge without touching a bank,
+  plus any narrow water whose far end is within `INLET_REACH` of it. Its
+  current starts at every sea cell beside something that is not sea and is
+  measured outwards, then reversed, so waves arrive square on to every shore,
+  into bays and round islets, as real waves are turned by the shallows.
+- **A river runs to the sea by the shortest way through water.** It is
+  measured from its mouths, a mouth further north starting `SOUTHWARD_BIAS`
+  later per cell, so a river joined to the sea at both ends leaves by the
+  southern one unless the other is much nearer. A lake on a river carries the
+  river's current from its inlet to its outlet. A narrow river runs faster
+  than a wide one, and a drop of a level is a fall, crossed four times as fast.
+- **Water that reaches no sea drifts south**, as does every placement written
+  without a `flow`.
+- **The distance steps include knight's moves.** Eight steps alone make every
+  front an octagon, which shows as straight bands breaking at 45°.
 
-47 slices x 14 frames is 47 rows in the level's animation table and one texture
-either way, so it costs a few hundred texels and **no extra draw call**. Measured
-on the shipped map with the pond in view: 27 world meshes, 58 draw calls.
+Measured on the shipped world: 721,837 cells of water, 0.9 s to find them,
+2.0 s for the current and 3.6–3.9 s for the whole pass, added to a 30 s build.
 
-The tile is **opaque**, unlike the translucent slab water used to be. A wash over
-whatever was underneath made a pond over a dirt bed read as mud; the ground still
-shows at the rim, because that is where the autotile's own shape stops rather
-than where its alpha does. Three tones, not two: the third is a shadow one pixel
-down and right of every bright one, which is what stops a crest reading as a flat
-line, plus a two-pixel band inside each slice's top and left edges so the water
-reads as sunken into the bank rather than painted onto it.
+**`flow` is stored modulo `FLOW_PERIOD` (16 cells) in steps of an eighth of a
+cell**, so a placement holds one of 128 values and identical stacks of open
+water are still shared by the stack pool. With `bank` and `waves` beside it
+(below), the shipped world's distinct stacks went from 13,882 to 18,910 and its
+map text from 102 MB to 122 MB (6.0 MB to 8.6 MB gzipped). Every `cellsPerCycle` divides the period, so the wrap lands on
+a whole number of cycles and the shader's `fract` cannot see it.
 
-**A phased pattern does not wrap within its own frame.** The shadow on a tile's
-left column is cast by the pixel to its left, which is in the tile to the *west*
-— and that tile is `phase.x` frames further round the cycle, so its column 7 is
-not this frame's column 7. Wrapping within the frame is what a plain tiling
-pattern wants, and this one only tiles across space after the clock has been
-shifted per cell. The source frame therefore steps back by `-phase.x` across the
-left seam, `-phase.y` across the top one, and both at the corner.
+**The shader blends the current at the cell's four corners.** Each corner is
+the mean of the water cells that meet there (`cycleCorners`), each taken within
+half a period of the cell's own value so that a corner averaged across the wrap
+is not pulled half a period away. The blend is bilinear, at the art pixel's
+centre, in the fragment shader: leaving it to a varying would crease every band
+along the diagonal of the quad's two triangles. The corners ride on the quad as
+`aCycle`, beside `aCycleWaves` and `aCycleCover` (below), which only quads of a
+colour-cycled tile carry.
 
-The consequence is worth stating plainly: **the phase is baked into the art.**
-Change it on the tile — in the editor, say — and the sheet has to be regenerated
-with `bun run generate:water`, or every tile's leading edges stop lining up with
-its neighbours.
+**Two kinds of fixed noise keep the bands from reading as stripes.** `ripple`
+moves each pixel's place on the ramp by up to that many steps, which bends a
+band. `gaps` hides that share of each band behind the ramp's first colour,
+the water's own, which breaks it into dashes. Each band takes its gaps from a
+hash of its count along the current, so the dashes change shape as they
+travel rather than sliding under fixed holes. The count is taken modulo the
+cycles in a stored period, because two cells either side of a wrap count their
+bands from different starts.
 
-The bank band reads its edges off the slice's own shape, with off-tile counting
-as inside. That is what separates open water, whose shape fills the tile and
-which gets no band at all, from an edge slice whose outline the artwork already
-cuts in. The reach is a square rather than a row and a column of it: two
-separate reaches leave the corner where they meet unshaded, and a bank that turns
-a corner in two strips with a gap between them reads as two shadows rather than
-as one edge.
+**A river's waves are smaller than the sea's.** `withFlow` also writes
+`waves` on water that is not sea: 2 within `TWO_WAVES_WITHIN` cells of a bank
+and 3 within `THREE_WAVES_WITHIN`, absent (one) elsewhere. The shader
+multiplies both the current and the clock by it, so the bands are that many
+times closer and travel at the same speed. It has to be a whole number, or the
+bands would not meet where the stored flow wraps, so where the corners blend
+between two counts each pixel takes one or the other in noisy patches of
+`WAVES_PATCH_PX`. The noise that bends and breaks the bands shrinks half as
+fast as the waves: shrunk as fast, a river's dashes broke up into single
+pixels.
 
-**A shaded autotile needs its corner slices, and a flat one does not.** The
-ground autotiles map the whole 47-slice blob set onto the sixteen cells their
-artwork has, so a cell with material on two sides but ground on the diagonal
-between them draws the same square corner as one with material all round.
-Nobody minded, because a flat fill makes the two identical. Water shaded from the
-top and left is not flat: a corner with no nick taken out of it has no shade in
-it either, and the bank stops exactly where the eye is looking.
+**Open water calms with distance from the shore.** `withFlow` writes `bank`
+on every colour-cycled placement: whole cells to the nearest bank, capped at
+`BANK_CAP` (24) so the open sea is one value and its stacks stay shared. It is
+left off at the cap, so a placement with a `flow` and no `bank` is open water
+(`placedBank`); written on all of it, it made the map 12 MB larger. The
+shader blends it at the corners like the current. From `LONG_FROM` cells out
+it halves the wave count, a dithered patch at a time; a half still leaves a
+whole number of cycles in a stored period. From `CALM_FROM` to `CALM_TO` cells
+it raises `gaps` to all of every band, so the bands thin out and the middle of
+a lake or the open sea is its plain colour. Without it the sea was one
+pattern of rings drawn round every coast out to the edge of the map.
 
-So the generator cuts one pixel out of each corner the ground reaches into, on
-top of the shape it borrows — one pixel because that is the radius the artwork
-rounds its own corners by, and picking any other number would be picking a
-different sheet's answer. The 47 slices become 47 distinct shapes rather than
-sixteen repeated.
+**A liquid laid over water fades by how much of the pool is round it.** The
+3-pixel opacity fade the `deep-water` and `swamp` sheets used to carry followed
+the cell sides, so a pool's outline was its cells'. Their sheets are now one
+solid cell of the key colour. Each quad of a translucent colour-cycled tile
+carries `aCycleCover`: at each corner, the share of the cells within
+`LIQUID_FADE_CELLS` (2) that hold the same tile (`coverCorners`). The shader
+blends it like the current and drops a pixel where it falls under a threshold
+mixed from a Bayer matrix and noise, so the edge is dithered and ragged over
+two cells. Three things follow:
 
-**Only the northern nicks cast a bank.** A nick at a *southern* corner is the
-near shore: the light comes over the water's top-left shoulder, so that ground is
-lit rather than casting, and letting it cast drew a bar of shadow running off to
-the right along the bottom of the tile with nothing above it to explain itself.
-So the bank is measured from a shape carrying only the north-west and north-east
-nicks, while the tile is drawn from the shape carrying all four.
+- **Every cell within two of a pool's edge needs `water` under it**, or the
+  background shows through the gaps. `bun run verify content` warns about one
+  with nothing under it.
+- **A pool one cell wide all but vanishes**, and one two wide shows about a
+  quarter of its pixels: neither has a cell with enough of the pool round it.
+- **The cover reads two cells out, and an edit rebuilds the cells one out.**
+  Deep water put down or taken away at runtime leaves the cover of the cells
+  two away as it was until their chunk is next rebuilt.
+
+The rest of the design follows from where the shader sits:
+
+- **It runs straight after the texture is sampled.** The reflection mask reads
+  `sampledDiffuseColor`, which the cycle overwrites, so `reflective.colors`
+  names ramp colours and the crest can still be left out of the mirror. Light,
+  fog and the palette pass all come after, as they do for any other pixel.
+- **A material for a colour-cycled sheet carries the `COLOR_CYCLE` define** and
+  its own copy of the weather defines (`cycleDefines`), kept in step with
+  `weatherDefines`. Every other world material compiles without the code.
+- **A sheet keeps one set of cycle uniforms for the renderer's life**
+  (`ColorCycleSheets`). A material takes its uniforms when it is built and is
+  cached by texture, and the play view hands the renderer a new catalogue
+  whenever a worn look changes (`WornLooks.apply`). Building new uniforms for
+  each catalogue left the water's materials holding ones the clock no longer
+  turned, so in the game the water stood still after the first change of
+  clothes; the map viewer, which has no worn looks, never showed it. A new
+  catalogue is written into the same objects.
+- **The clock's phase loops over a stored period, not over one cycle**
+  (`cyclePhaseAt`). Looping after one cycle snapped every band each time it
+  wrapped: water drawing half the waves jumped half a cycle, and every band's
+  count along the current, which picks its gaps, moved on, so all the dashes
+  changed at once. Four cycles is a whole number at every wave count and is
+  what that count is taken modulo.
+- **The picture changes only when a ramp steps.** `updateColorCycles` asks for
+  a frame only then, as `crossedFrame` does for the animation table, so a view
+  of open water renders once per step rather than on every tick of the clock.
+- **The key and the sheet are generated together.** `colorCycle` is one of the
+  fields `writeTileset` takes from a generator, beside `slices`, because a key
+  that no longer matches a pixel of the art draws the key colour itself.
+
+Water put down after the world was built (`GameSession`'s map setter calls
+`settleFlow`) takes the mean current of the water beside it, so a channel dug
+from a river carries the river on. Only changed chunks that hold a colour-cycled
+tile are read, and a step through water changes no placement's `flow`.
+
+The sheets went from 344 KB to 10 KB, and `tiles.json` from 6.1 MB to 4.5 MB
+(213 KB to 181 KB gzipped), the fourteen wave frames per slice it no longer
+lists.
 
 ### Mobility is a property of the tile, not of the frame
 
@@ -20371,6 +20634,61 @@ so a chunk is back before anybody can see it.
   to 137 MB and the settled RSS from about 560 to 455 MB. It is less than the
   board's share because JSC keeps the structures and partly used blocks the
   chunk records left.
+
+### Putting a chunk back costs a millisecond, not a tick
+
+A player walking north from the spawn crosses a chunk boundary every 16 cells,
+about every 3.2s, and comes near a row of 15 chunks. On the showcase island
+that took one tick of 7–12ms to start the reads and then four ticks of
+10–35ms to put the chunks back, four a tick. With the rest of the tick on top,
+a few ticks a crossing ran past 33ms, which is the stutter players felt.
+`bun run bench:walk` reproduces it. What it cost, and why:
+
+- **`for...in` on a level walks the away record.** A level's prototype is the
+  frozen record of every unloaded chunk, about 4,700 keys on the island, and
+  `for...in` lists the whole prototype chain before it yields the first key.
+  `isEmptyRecord(level)` ran once per level in every `loadChunks` and in
+  `pruneEmpty`, and was the largest single cost. `isEmptyLevel` answers from
+  the prototype instead. Any new `for...in` over a level pays this too.
+- **The away record's keys are kept beside it** (`awayKeys`). Listing them
+  with `Object.keys` on every batch, and scanning every level's own keys for
+  an `UNLOADED_CHUNK` that is only ever in the prototype, took about 3ms a
+  batch. Building the next record is still about 1ms for 4,700 keys, and is
+  most of what a batch costs before its chunks: it grows with the island, not
+  with the players.
+- **A prepared statement costs more than the row it reads.**
+  `WorldStore.get` prepares its `SELECT` every call, and a crossing read 15
+  chunks on 21 levels that way, all before the tick's first `await`: 7.7ms.
+  `getMany` reads them in one statement, 0.5ms; a join far from the kept
+  chunks reads 2,541 rows in 2.7ms rather than 61ms. One statement cannot be
+  shared by overlapping reads, because the driver binds parameters before it
+  takes its exec lock.
+- **`reindexCells` read each cell's stack eight times**, once per index it
+  asks. It reads it once now, and keeps the eight answers as bits per pooled
+  stack, which is frozen and holds nothing nested; a chunk read from the store
+  shares its stacks through `reloadPool`, so most of its cells hit. A chunk
+  just put back is reindexed `fresh`: no index holds a cell of it, so nothing
+  is deleted. A chunk of woods went from about 7ms to 1.2ms.
+
+`bench:walk`, three runs each of 150 cells north from the spawn on a dev
+container:
+
+| | before | after |
+|---|---|---|
+| tick p99 | 23–45ms | 13–16ms |
+| tick max | 69–110ms | 29–36ms |
+| ticks over 33ms | 5–13 | 0–1 |
+| longest put-back in a tick | 33–41ms | 9–14ms |
+| put-back over the walk | 450–620ms | 190–240ms |
+
+**What is left on that walk is brains, not chunks.** The slowest ticks of
+both runs are `tickBrains`, 45–130ms on some runs and absent on others: one
+rat's `setWalkOrder` route search at about 20ms, and a wolf pack each running
+`nearestShelter` at 5–10ms a wolf in the same tick. A round with fewer than
+`BRAIN_TURNS_PER_TICK_MIN` turns takes them all on one tick, so a few
+expensive turns land together. They come once per crossing because a crossing
+brings creatures into attention range, but they are the same with every chunk
+in memory.
 
 ### A world starts with only the chunks it keeps
 

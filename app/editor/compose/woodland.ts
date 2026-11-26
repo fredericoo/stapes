@@ -30,9 +30,9 @@ export type Woodland = {
 };
 
 const THICKET_SCALE = 17;
-const THICKET_SWING = 0.5;
+const THICKET_SWING = 0.3;
 const CLUMP_SCALE = 6;
-const CLUMP_SWING = 0.45;
+const CLUMP_SWING = 0.25;
 
 /**
  * How far the wood's outline is pushed in or out, in edge bands, and how many
@@ -49,16 +49,24 @@ const EDGE_OCTAVES = 3;
 const VERGE = 4;
 const VERGE_FLOOR = 0.15;
 
-/** An open cell with this many trees among its eight neighbours is planted over, where the wood is this closed. */
-const PINHOLE_TREES = 6;
-const PINHOLE_CANOPY = 0.5;
-const PINHOLE_PASSES = 2;
-
-export const MIN_GLADE_CELLS = 14;
+/**
+ * A tree is not planted beside this many trees already planted. The cells
+ * before it in the scan are its west, north-west, north and north-east
+ * neighbours, so two of them still allows a line but never a clump.
+ */
+const MAX_TREES_BESIDE = 2;
 
 const TREE_STEP_COST = 4;
 const TREE_STEP_SWING = 4;
 const OPEN_STEP_COST = 1;
+
+/** The neighbours a row-by-row scan has already reached. */
+const BEFORE = [
+  [-1, 0],
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+] as const;
 
 const N4 = [
   [0, -1],
@@ -81,11 +89,10 @@ function smooth(t: number): number {
  * the wood ends in bays and tongues rather than in the shape of its frame,
  * and `outliers` puts lone trees in the open beyond it.
  *
- * In the close wood an open cell nearly ringed by trees is planted over,
- * because the camera draws the trees in front of it over it, and every glade
- * of at least `MIN_GLADE_CELLS` is joined to open ground outside or to the
- * path by felling the cheapest way there two cells wide. Where the canopy is
- * thin the gaps are left: a lone tree in a field is not a thicket.
+ * No tree is planted beside more than `MAX_TREES_BESIDE` others, so the
+ * trees stand apart rather than in clumps, and every open pocket that cannot
+ * be walked into is joined to open ground outside or to the path by felling
+ * the cheapest way there two cells wide.
  */
 export function growWoodland(
   bounds: Bounds,
@@ -113,6 +120,15 @@ export function growWoodland(
   });
   const fromPath = path.size > 0 ? distanceTo(width, height, (i) => path.has(i)) : null;
 
+  const treesBefore = (x: number, y: number) => {
+    let trees = 0;
+    for (const [dx, dy] of BEFORE) {
+      const bx = x + dx - bounds.minX;
+      const by = y + dy - bounds.minY;
+      if (bx >= 0 && by >= 0 && bx < width && cells[by * width + bx] === TREE) trees++;
+    }
+    return trees;
+  };
   const canopy = new Float32Array(n);
   const edgeScale = Math.max(MIN_EDGE_SCALE, options.edge * EDGE_SCALE_SHARE);
   for (let i = 0; i < n; i++) {
@@ -135,26 +151,9 @@ export function growWoodland(
       ? VERGE_FLOOR + (1 - VERGE_FLOOR) * smooth((fromPath[i]! - 1) / VERGE)
       : 1;
     const chance = Math.max(options.density * closed * thicket * clump, options.outliers) * verge;
-    if (randomAt(x, y, options.seed) < chance) cells[i] = TREE;
-  }
-
-  const at = (x: number, y: number) =>
-    x < bounds.minX || y < bounds.minY || x > bounds.maxX || y > bounds.maxY
-      ? OUTSIDE
-      : cells[(y - bounds.minY) * width + (x - bounds.minX)]!;
-  for (let pass = 0; pass < PINHOLE_PASSES; pass++) {
-    const fill: number[] = [];
-    for (let i = 0; i < n; i++) {
-      if (cells[i] !== OPEN || path.has(i) || canopy[i]! < PINHOLE_CANOPY) continue;
-      let trees = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if ((dx || dy) && at(xOf(i) + dx, yOf(i) + dy) === TREE) trees++;
-        }
-      }
-      if (trees >= PINHOLE_TREES) fill.push(i);
+    if (randomAt(x, y, options.seed) < chance && treesBefore(x, y) < MAX_TREES_BESIDE) {
+      cells[i] = TREE;
     }
-    for (const i of fill) cells[i] = TREE;
   }
 
   const exit = opensTo ? (i: number) => opensTo(xOf(i), yOf(i)) : () => true;
@@ -210,9 +209,7 @@ function heap(cost: Float64Array) {
  * bounds, or a cell beyond the ground that `exit` allows. Each glade that is
  * not, largest first, is joined to what is by the way that fells the fewest
  * trees, each tree costed with a little noise so the track bends round the
- * thick of the wood instead of running straight. A pocket too small to be a
- * glade that is still not reached is planted over, since nobody could walk
- * into it.
+ * thick of the wood instead of running straight.
  */
 function joinGlades(
   cells: Uint8Array,
@@ -259,7 +256,7 @@ function joinGlades(
 
   const glades = sizes
     .map((size, id) => ({ size, id }))
-    .filter((g) => !reached[g.id] && g.size >= MIN_GLADE_CELLS)
+    .filter((g) => !reached[g.id])
     .sort((a, b) => b.size - a.size || a.id - b.id);
   const stepCost = (i: number) =>
     cells[i] === TREE
@@ -322,10 +319,5 @@ function joinGlades(
     reached[glade.id] = true;
     const r = region[end]!;
     if (r !== -1) reached[r] = true;
-  }
-  for (let i = 0; i < n; i++) {
-    const r = region[i]!;
-    if (r !== -1 && !reached[r] && sizes[r]! < MIN_GLADE_CELLS && cells[i] === OPEN)
-      cells[i] = TREE;
   }
 }

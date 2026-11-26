@@ -2091,3 +2091,30 @@ describe("RemoteSession talk", () => {
     ]);
   });
 });
+
+describe("RemoteSession joins and leaves in one patch", () => {
+  const joined: MotionEvent = { kind: "joined", actorId: SELF };
+  const left: MotionEvent = { kind: "left", actorId: SELF };
+  const here: CellPatch[] = [{ x: 0, y: 0, z: 0, stack: [grass, player] }];
+
+  it("keeps walking a body that left and joined again within one tick", () => {
+    const { socket, session } = connected();
+    socket.deliver(
+      patch(here, [joined, left, joined], [{ actorId: SELF, hp: 9, maxHp: 13, rating: 2 }]),
+    );
+
+    session.setInput({ directions: ["e"] });
+
+    expect(stepsSent(socket)).toHaveLength(1);
+    expect(session.getSnapshot().self.hp).toBe(9);
+  });
+
+  it("still forgets a body whose last word in the patch is that it left", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 0, y: 0, z: 0, stack: [grass] }], [joined, left]));
+
+    session.setInput({ directions: ["e"] });
+
+    expect(stepsSent(socket)).toEqual([]);
+  });
+});

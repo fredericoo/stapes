@@ -1,8 +1,15 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { FULL_AUTOTILE_SLICE_COUNT, type TileDef, type TileSprite } from "../app/lib/types";
+import {
+  FULL_AUTOTILE_SLICE_COUNT,
+  type TileColorCycle,
+  type TileDef,
+  type TileFalls,
+  type TileSprite,
+} from "../app/lib/types";
 import { joinedByMask, outlineCoverage, type RoundedEdge } from "./rounded-edge";
+import { cycleRamp } from "./water-ramps";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA = path.join(ROOT, "data");
@@ -20,52 +27,51 @@ const CELL = 8;
 const EDGE: RoundedEdge = { inset: 2, outerRound: 4, blend: 6 };
 /** The wet line is this much wider than the water, round the whole bank. */
 const WET_PX = 1;
-/** `sand`'s own colour, so the bank meets the ground beside it without a seam. */
-const SAND: [number, number, number, number] = [0xfb, 0xb9, 0x54, 255];
-/** `sand`'s ripple colour, darkening the sand the water has just left. */
-const WET_SAND: [number, number, number, number] = [0xe6, 0x90, 0x4e, 255];
+/** Past the wet line the bank is left out, so the ground the water lies on shows round it. */
+const BANK: [number, number, number, number] = [0, 0, 0, 0];
+/**
+ * Black over 30% of whatever is under it, the ground the water has just left.
+ * The palette pass snaps the blend to that ground's own darker shade, so one
+ * line suits sand, grass and snow alike, as `grass`'s shadow does.
+ */
+const WET: [number, number, number, number] = [0, 0, 0, Math.round(0.3 * 255)];
 
-const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
-const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
-const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
+const SHADOW = "#24436b";
+const BASE = "#335c8c";
+const HIGHLIGHT = "#5b8fbf";
+const KEY: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
 
-const FRAME_MS = 80;
+/**
+ * A long run of the body colour, then a trough and a crest, so each cycle
+ * reads as one wave with open water between it and the next. The crest leads:
+ * bands move towards the end of the ramp.
+ */
+export const WATER_CYCLE: TileColorCycle = {
+  key: BASE,
+  ramp: cycleRamp([
+    [BASE, 9],
+    [SHADOW, 2],
+    [BASE, 1],
+    [HIGHLIGHT, 2],
+    [BASE, 2],
+  ]),
+  cellsPerCycle: 4,
+  msPerCycle: 1600,
+  ripple: 8,
+  gaps: 0.45,
+};
 
-const PHASE = { x: 3, y: -1 };
+/** One still frame: the shader moves the water. 200 is what every other one-frame tile in the catalogue lasts. */
+const STILL_MS = 200;
+
+/** The falls `generate:waterfall` draws, which carry the river over a cliff. */
+const FALLS: TileFalls = {
+  south: ["waterfall-base", "waterfall-middle", "waterfall-top"],
+  east: ["waterfall-east-base", "waterfall-east-middle", "waterfall-east-top"],
+};
 
 const TILESET_ID = "water";
 const TILE_ID = "water";
-
-/**
- * A shadow on the left column or top row is cast from the neighbouring tile,
- * which is `PHASE` frames apart in the cycle, so the source frame is shifted by
- * that phase at those edges. Changing `PHASE` means regenerating the sheet.
- */
-function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
-  const count = litByFrame.length;
-  const lit = litByFrame[frame]!;
-  const out = lit.map((row) => row.map(() => false));
-  for (let y = 0; y < CELL; y++) {
-    for (let x = 0; x < CELL; x++) {
-      if (lit[y]![x]!) continue;
-      const step = (x === 0 ? -PHASE.x : 0) + (y === 0 ? -PHASE.y : 0);
-      const source = litByFrame[(((frame + step) % count) + count) % count]!;
-      if (source[(y + CELL - 1) % CELL]![(x + CELL - 1) % CELL]!) {
-        out[y]![x] = true;
-      }
-    }
-  }
-  return out;
-}
-
-async function readPng(file: string): Promise<PNG> {
-  return PNG.sync.read(await fs.readFile(file));
-}
-
-function pixel(png: PNG, x: number, y: number): [number, number, number, number] {
-  const i = (png.width * y + x) << 2;
-  return [png.data[i]!, png.data[i + 1]!, png.data[i + 2]!, png.data[i + 3]!];
-}
 
 function setPixel(png: PNG, x: number, y: number, rgba: readonly number[]) {
   const i = (png.width * y + x) << 2;
@@ -76,52 +82,18 @@ function setPixel(png: PNG, x: number, y: number, rgba: readonly number[]) {
 }
 
 async function main() {
-  const waves = await readPng(path.join(ROOT, "scripts", "wave-frames.png"));
-
-  const frameCount = waves.width / CELL;
-  if (!Number.isInteger(frameCount) || waves.height !== CELL) {
-    throw new Error(`wave-frames.png should be a row of ${CELL}px frames`);
-  }
   const slices = Array.from({ length: FULL_AUTOTILE_SLICE_COUNT }, (_, mask) => mask);
-
-  const sheet = new PNG({
-    width: frameCount * CELL,
-    height: slices.length * CELL,
-  });
+  const sheet = new PNG({ width: CELL, height: slices.length * CELL });
   sheet.data.fill(0);
-
-  const litByFrame: boolean[][][] = [];
-  for (let frame = 0; frame < frameCount; frame++) {
-    litByFrame.push(
-      Array.from({ length: CELL }, (_, y) =>
-        Array.from({ length: CELL }, (_, x) => pixel(waves, frame * CELL + x, y)[3] > 0),
-      ),
-    );
-  }
-  const shadowByFrame = litByFrame.map((_, frame) => shadowOf(litByFrame, frame));
 
   slices.forEach((mask, row) => {
     const joined = joinedByMask(mask);
     const water = outlineCoverage(joined, EDGE);
     const wet = outlineCoverage(joined, EDGE, -WET_PX);
-
-    for (let frame = 0; frame < frameCount; frame++) {
-      const lit = litByFrame[frame]!;
-      const shade = shadowByFrame[frame]!;
-      for (let y = 0; y < CELL; y++) {
-        for (let x = 0; x < CELL; x++) {
-          const tone =
-            water[y]![x]! >= 0.5
-              ? lit[y]![x]!
-                ? HIGHLIGHT
-                : shade[y]![x]!
-                  ? SHADOW
-                  : BASE
-              : wet[y]![x]! >= 0.5
-                ? WET_SAND
-                : SAND;
-          setPixel(sheet, frame * CELL + x, row * CELL + y, tone);
-        }
+    for (let y = 0; y < CELL; y++) {
+      for (let x = 0; x < CELL; x++) {
+        const tone = water[y]![x]! >= 0.5 ? KEY : wet[y]![x]! >= 0.5 ? WET : BANK;
+        setPixel(sheet, x, row * CELL + y, tone);
       }
     }
   });
@@ -135,20 +107,22 @@ async function main() {
 
   water.type = "autotile";
   water.autotileMask = "full";
+  water.colorCycle = WATER_CYCLE;
+  water.fallsInto = FALLS;
   delete water.sprite;
   water.slices = Object.fromEntries(
     slices.map((slice, row): [number, TileSprite] => [
       slice,
       {
-        frames: Array.from({ length: frameCount }, (_, frame) => ({
-          sprite: {
-            tilesetId: TILESET_ID,
-            rect: { x: frame, y: row, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
+        frames: [
+          {
+            sprite: {
+              rect: { x: 0, y: row, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: STILL_MS,
           },
-          durationMs: FRAME_MS,
-        })),
-        phase: PHASE,
+        ],
       },
     ]),
   );
@@ -160,6 +134,7 @@ async function main() {
     file: string;
     width: number;
     height: number;
+    translucent?: boolean;
   }[];
   const existing = sets.find((s) => s.id === TILESET_ID);
   const entry = {
@@ -168,6 +143,7 @@ async function main() {
     file: `${TILESET_ID}.png`,
     width: sheet.width,
     height: sheet.height,
+    translucent: true,
   };
   if (existing) Object.assign(existing, entry);
   else sets.push(entry);
@@ -176,12 +152,13 @@ async function main() {
   await fs.writeFile(setsPath, `${JSON.stringify(sets, null, 2)}\n`);
 
   console.log(
-    `data/tilesets/${TILESET_ID}.png — ${sheet.width}x${sheet.height}, ` +
-      `${slices.length} slices x ${frameCount} frames`,
+    `data/tilesets/${TILESET_ID}.png — ${sheet.width}x${sheet.height}, ${slices.length} slices`,
   );
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

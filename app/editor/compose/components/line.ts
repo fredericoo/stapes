@@ -163,3 +163,44 @@ export function routeOf(ctx: BuildContext, props: RouteProps): RouteCell[] | { r
   }
   return route(anchors, props.wander / 100, props.bendLength, ctx.seed);
 }
+
+const FOUR: readonly Cell[] = [
+  { x: 0, y: -1 },
+  { x: 1, y: 0 },
+  { x: 0, y: 1 },
+  { x: -1, y: 0 },
+];
+
+/**
+ * The shortest way from `start` over cells that are `open`, stepping to four
+ * neighbours, to the first cell `goal` gives an index for. It is how a road
+ * finds its way round a hill to a ramp: a straight line to the ramp's foot
+ * would as often cut the corner of the cliff it is trying to climb.
+ */
+export function pathTo(
+  start: { x: number; y: number },
+  open: (c: { x: number; y: number }) => boolean,
+  goal: (c: { x: number; y: number }) => number | undefined,
+): { cells: Array<{ x: number; y: number }>; index: number } | null {
+  const key = (c: { x: number; y: number }) => `${c.x},${c.y}`;
+  const from = new Map<string, { x: number; y: number } | null>([[key(start), null]]);
+  const queue = [start];
+  for (let head = 0; head < queue.length; head++) {
+    const c = queue[head]!;
+    const index = goal(c);
+    if (index !== undefined) {
+      const cells = [];
+      for (let k: { x: number; y: number } | null = c; k; k = from.get(key(k)) ?? null)
+        cells.push(k);
+      return { cells: cells.reverse(), index };
+    }
+    for (const step of FOUR) {
+      const next = { x: c.x + step.x, y: c.y + step.y };
+      if (from.has(key(next))) continue;
+      if (goal(next) === undefined && !open(next)) continue;
+      from.set(key(next), c);
+      queue.push(next);
+    }
+  }
+  return null;
+}

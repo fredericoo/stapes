@@ -33,6 +33,7 @@ import { armorSlotOf, resolveItem } from "../lib/item";
 import { heldPartOf, layerForSlot, wornPartOf } from "../lib/humanParts";
 import { E, maskBlobCorners, N, NE, neighborMask, NW, S, SE, SW, W } from "../lib/autotile";
 import { getStack, listCoords, presentLevels } from "../lib/mapData";
+import { LIQUID_FADE_CELLS } from "../lib/waterFlow";
 import { resolveProjectile } from "../lib/projectile";
 import { anchorFits } from "../lib/spriteAnchor";
 import { tileHumanSchema, wearsHumanSheet } from "../lib/humanSprite";
@@ -858,6 +859,15 @@ function seamsOf(
   return found;
 }
 
+function nearPoolEdge(map: MapFile, x: number, y: number, z: number, tileId: string): boolean {
+  for (let dy = -LIQUID_FADE_CELLS; dy <= LIQUID_FADE_CELLS; dy++) {
+    for (let dx = -LIQUID_FADE_CELLS; dx <= LIQUID_FADE_CELLS; dx++) {
+      if (!getStack(map, x + dx, y + dy, z).some((p) => p.tileId === tileId)) return true;
+    }
+  }
+  return false;
+}
+
 function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Findings): number {
   const players = findPlayers(map);
   if (players.length !== 1) {
@@ -877,6 +887,7 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
   const unbacked = new Map<string, Tally>();
   const strangers = new Map<string, Tally>();
   const underFade = new Map<string, Tally>();
+  const bareFade = new Map<string, Tally>();
   for (const z of presentLevels(map)) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const where = `${x},${y} L${z}`;
@@ -898,6 +909,9 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
             tally(strangers, placed.tileId, `${under} ${beside}`, where);
           }
           for (const cover of seams.fadedCovers) tally(underFade, placed.tileId, cover, where);
+        }
+        if (index === 0 && def?.colorCycle?.fades && nearPoolEdge(map, x, y, z, def.id)) {
+          tally(bareFade, placed.tileId, "placed", where);
         }
         if (def && resolveDepotDef(def) && !resolveDepot(placed, def)) {
           tally(untagged, placed.tileId, "depotTag", where);
@@ -949,6 +963,14 @@ function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Fi
       tileId,
       "",
       `The map has ${placements(times)} of "${tileId}" under "${cover}" that draw an edge towards a neighbour holding "${cover}", so whatever is under them shows through the faded rim of the "${cover}" (first at ${first}). Add "${cover}" to the connectsTo of "${tileId}".`,
+    );
+  }
+
+  for (const { tileId, count: times, first } of bareFade.values()) {
+    findings.warn(
+      tileId,
+      "",
+      `The map has ${placements(times)} of "${tileId}" with nothing under them within ${LIQUID_FADE_CELLS} cells of the edge of their pool, where it fades out, so the background shows through (first at ${first}). Put "water" under them.`,
     );
   }
 

@@ -79,6 +79,7 @@ export class SocketHub {
 export interface WorldContext {
   storage: {
     get<T>(key: string): Promise<T | undefined>;
+    getMany<T>(keys: readonly string[]): Promise<Map<string, T>>;
     list<T>(options: { prefix: string; revive?: (value: unknown) => T }): Promise<Map<string, T>>;
     listKeys(prefix: string): Promise<string[]>;
     flush(): Promise<void>;

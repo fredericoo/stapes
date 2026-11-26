@@ -1,0 +1,25 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [8, 8],
+  "cells": [
+    { "from": [-6, -6], "to": [22, 20], "tiles": ["grass-2"] },
+    { "at": [2, 6], "tiles": ["grass-2", "old-tree"] },
+    { "at": [2, 6, 1], "tiles": ["old-tree-crown"] },
+    { "at": [6, 6], "tiles": ["grass-2", "old-tree"] },
+    { "at": [6, 6, 1], "tiles": ["old-tree-trunk", "old-tree-crown"] },
+    { "at": [10, 6], "tiles": ["grass-2", "old-tree"] },
+    { "at": [10, 6, 1], "tiles": ["old-tree-trunk", "old-tree-trunk"] },
+    { "at": [10, 6, 2], "tiles": ["old-tree-crown"] },
+    { "at": [14, 6], "tiles": ["grass-2", "old-tree"] },
+    { "at": [14, 6, 1], "tiles": ["old-tree-trunk", "old-tree-trunk"] },
+    { "at": [14, 6, 2], "tiles": ["old-tree-trunk", "old-tree-crown"] },
+    { "at": [6, 13], "tiles": ["grass-2", "old-tree"] },
+    { "at": [9, 13], "tiles": ["grass-2", "old-tree"] },
+    { "at": [9, 13, 1], "tiles": ["old-tree-trunk"] },
+    { "at": [12, 13], "tiles": ["grass-2", "tree-stump"] },
+    { "at": [4, 12], "tiles": ["grass-2", "player"] },
+    { "at": [3, 10], "tiles": ["grass-2", "tree"] },
+    { "at": [15, 12], "tiles": ["grass-2", "fern"] }
+  ]
+}

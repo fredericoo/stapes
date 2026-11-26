@@ -168,6 +168,35 @@ export type TileReflective = {
   turbulence: number;
 };
 
+/**
+ * Water drawn by colour cycling (`app/render/colorCycle.ts`): every pixel of
+ * the tile's art in `key` takes a colour from `ramp` instead, picked by how
+ * far the current has come to it (the placement's `flow`) and the clock, so
+ * the ramp's bands travel with the current. One cycle of the ramp spans
+ * `cellsPerCycle` cells of the current's travel and passes a pixel in
+ * `msPerCycle`. `ripple` is how many ramp steps a pixel's colour may be moved
+ * by fixed noise, which bends the bands, and `gaps` is the share of each band
+ * (0 to 1) shown as the ramp's first colour, which breaks it into dashes.
+ * A liquid laid over water `fades` out towards the edge of its pool, so the
+ * water under it shows through (`coverCorners`).
+ */
+export type TileColorCycle = {
+  key: string;
+  ramp: string[];
+  cellsPerCycle: number;
+  msPerCycle: number;
+  ripple: number;
+  gaps: number;
+  fades?: boolean;
+};
+
+/**
+ * Waterfall tiles an autotile liquid carries on into over a cliff, by the
+ * face of the cliff they come down: a `south` fall stands in the cell south
+ * of the cliff, an `east` one in the cell east of it.
+ */
+export type TileFalls = { south: string[]; east: string[] };
+
 export type TileDef = StateSprites & {
   id: string;
   name: string;
@@ -203,9 +232,22 @@ export type TileDef = StateSprites & {
    * can curve through the corner of the cell.
    */
   autotileMask?: "full";
+  /**
+   * Falls this autotile joins across the cliff they come down, so neither the
+   * water above a fall nor the pool under it draws a bank at the drop; see
+   * `joinsOverFall`.
+   */
+  fallsInto?: TileFalls;
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;
+  /**
+   * The roof-cut lifts a cell of this tile when it is drawn over the viewer or
+   * beside them, and takes only the column it stands in with it, never what
+   * touches it; see `levelVisibility`. A tree standing over several levels is
+   * made of these, so walking behind one lifts that tree and not the wood.
+   */
+  cutAlone?: boolean;
   intangible?: boolean;
   affectedByGravity?: boolean;
   walkable?: boolean;
@@ -215,6 +257,7 @@ export type TileDef = StateSprites & {
   walkSpeedPercent?: number;
   wade?: boolean;
   reflective?: TileReflective;
+  colorCycle?: TileColorCycle;
   climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;
   interactions?: TileInteractions;
   particles?: ParticleEmitterDef;
@@ -370,6 +413,15 @@ export type PlacedTile = {
   extractsReserved?: number;
   contents?: ItemInstance[];
   count?: number;
+  /**
+   * On a colour-cycled tile, the current's travel time to this cell modulo
+   * `FLOW_PERIOD` (`app/lib/waterFlow.ts`), written when the world is built.
+   */
+  flow?: number;
+  /** How many of its waves a colour-cycled tile draws here where open water draws one; one when absent. */
+  waves?: number;
+  /** On a colour-cycled tile, whole cells to the nearest bank, below `BANK_CAP`; see `placedBank`. */
+  bank?: number;
 };
 
 export const MAX_INSCRIPTION_LENGTH = 240;

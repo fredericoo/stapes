@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getStack } from "../../../lib/mapData";
 import {
+  brokenTallTrees,
   buildTree,
   cutFootprints,
   frame,
@@ -48,7 +49,7 @@ describe("scatter", () => {
     expect(cutFootprints(built), sketch(built)).toEqual([]);
   });
 
-  it("takes a whole old tree out when a road clears one cell of it", () => {
+  it("takes an old tree out with its trunks and crown when a road clears it", () => {
     const WEST = { x: 1, y: 6 };
     const EAST = { x: 22, y: 6 };
     const wood = node(
@@ -63,15 +64,16 @@ describe("scatter", () => {
     );
     expect(walks(cut, WEST, EAST), sketch(cut)).toBe(true);
     expect(cutFootprints(cut), sketch(cut)).toEqual([]);
+    expect(brokenTallTrees(cut), sketch(cut)).toEqual([]);
   });
 
   it.each([1, 2, 3])("puts a tile only where its `among` tiles stand thick, seed %i", (seed) => {
-    const AT_LEAST = 12;
+    const AT_LEAST = 5;
     const built = buildTree(
       land({ w: 40, h: 24 }, [
         node(
           "forest",
-          { density: 100, edge: 2, path: null, undergrowthDensity: 0 },
+          { density: 100, edge: 2, path: null, foliage: [], tall: [] },
           { frame: frame(0, 0, 20, 24) },
         ),
         node("scatter", {

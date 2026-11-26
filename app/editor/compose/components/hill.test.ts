@@ -174,6 +174,29 @@ describe("hill", () => {
     expect(grassed.edges).toEqual(edges.map(() => ["grass-brink"]));
     expect(grassed.inner).toEqual(inner.map(() => ["sand", "grass"]));
   });
+
+  it("lays its cover on its top's ground, so a road that cuts the cover finds the ground", () => {
+    const covered = { ground: "sand", cover: "grass" };
+    const { edges, inner } = tops(onSand([], covered));
+    expect(edges.length).toBeGreaterThan(20);
+    expect(inner.length).toBeGreaterThan(20);
+    expect(edges).toEqual(edges.map(() => ["grass-brink"]));
+    expect(inner).toEqual(inner.map(() => ["sand", "grass"]));
+  });
+
+  it("stands the walls of its upper tiers on its cover", () => {
+    const built = onSand([], { ground: "sand", cover: "grass" });
+    const feet: string[][] = [];
+    for (const [key, top] of built.elevation) {
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      for (let z = 1; z < top; z++) {
+        const column = getStack(built.map, x, y, z).map((p) => p.tileId);
+        if (column.length > 1) feet.push(column);
+      }
+    }
+    expect(feet.length).toBeGreaterThan(20);
+    for (const column of feet) expect(column).toEqual(["sand", "grass", "hill-wall"]);
+  });
 });
 
 describe("the foot of a rough hill", () => {

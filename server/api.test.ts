@@ -745,6 +745,12 @@ describe("the board, read a chunk at a time", () => {
     expect(chunks[0]!.cells["1,0"]).toEqual([{ tileId: "grass" }]);
   });
 
+  it("leaves out the levels outside the range asked for", async () => {
+    const response = await read("/board/chunks?chunks=0,0&from=1&to=8", { cookie });
+
+    expect(await response.json()).toEqual({ chunks: [] });
+  });
+
   it("is read by administrators only", async () => {
     expect((await read("/board", {})).status).toBe(404);
     expect((await read("/board/chunks?chunks=0,0", {})).status).toBe(404);

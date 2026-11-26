@@ -14,7 +14,7 @@ const MaskSchema = v.object({
   op: v.optional(v.picklist(MASK_OPS), "subtract"),
   ragged: v.optional(field.percent(), 0),
   raggedScale: v.optional(v.pipe(v.number(), v.integer(), v.minValue(2), v.maxValue(32)), 6),
-  grow: v.optional(v.pipe(v.number(), v.integer(), v.minValue(-16), v.maxValue(16)), 0),
+  grow: v.optional(v.pipe(v.number(), v.integer(), v.minValue(-16), v.maxValue(24)), 0),
   only: v.optional(field.tiles(TILES.any), []),
   from: v.optional(v.nullable(field.node()), null),
 });

@@ -6,6 +6,7 @@ import {
   ENCUMBRANCE_PER_POINT_SHORT,
   MAX_ENCUMBRANCE,
   bodyDefence,
+  defFrom,
   fightingStats,
   fleeFrom,
   maxHpFrom,
@@ -31,6 +32,7 @@ import {
   armorDefence,
   armorResistances,
   bodyElements,
+  boostedMasteries,
   fightsWithAHand,
   HANDS,
   handClaimedByTwoHander,
@@ -50,6 +52,7 @@ import {
   weaponSwungBy,
   wornAccepts,
   wornDefence,
+  wornMasteryBonus,
 } from "./equipment";
 
 const MASTERED: Masteries = Object.fromEntries(MASTERIES.map((mastery) => [mastery, MAX_MASTERY]));
@@ -153,7 +156,7 @@ describe("effectiveBattler", () => {
     const out = effectiveBattler(base, null, lightTiles, firstHand(null, lightTiles));
     expect(out.damage).toBeGreaterThan(CLAWS.damage);
     expect(out.accuracy).toBeGreaterThan(CLAWS.accuracy);
-    expect(out.def).toBe(CLAWS.def + bodyDefence(base));
+    expect(out.def).toBe(CLAWS.def + bodyDefence(base.masteries));
     expect(out.variance).toBe(CLAWS.variance);
     expect(out.spd).toBe(CLAWS.spd);
   });
@@ -701,7 +704,7 @@ describe("the off hand", () => {
     expect(wornDefence(player, oneHanded, tiles)).toBe(3);
     expect(wornDefence(player, twoHanded, tiles)).toBe(6);
     expect(effectiveBattler(player, twoHanded, tiles, firstHand(twoHanded, tiles)).def).toBe(
-      6 + bodyDefence(player),
+      6 + bodyDefence(player.masteries),
     );
   });
 
@@ -1537,5 +1540,75 @@ describe("the shipped torch, worn as an accessory", () => {
   it("is drawn as a square that is doing something", () => {
     const kit = wearing("hand-lantern");
     expect(takesEffect("charm", kit.charm, shipped, {})).toBe(true);
+  });
+});
+
+describe("a mastery bonus on what is worn", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("pelt", { type: "armor", def: 0, masteryBonus: { toughness: 10, nature: 2 } }),
+    itemTile("cowl", { type: "armor", slot: "head", def: 0, masteryBonus: { nature: 3 } }),
+    itemTile("crown", {
+      type: "armor",
+      slot: "head",
+      def: 0,
+      requirements: { agility: base.masteries.agility! + 1 },
+      masteryBonus: { toughness: 10 },
+    }),
+    itemTile("blade", {
+      ...DEFAULT_WEAPON,
+      mastery: "sharp",
+      requirements: { sharp: 10 },
+      masteryBonus: { sharp: 30 },
+    }),
+    itemTile("greatblade", { ...DEFAULT_WEAPON, mastery: "sharp", requirements: { sharp: 25 } }),
+  ]);
+  const wearing = (slots: Partial<Equipment>): Equipment => ({ ...emptyEquipment(), ...slots });
+  const worn = (tileId: string) => ({ id: `itm_${tileId}`, tileId });
+
+  it("adds up across every worn square and leaves the bag out", () => {
+    const equipment = wearing({ armor: worn("pelt"), head: worn("cowl") });
+    expect(wornMasteryBonus(equipment, tiles, base.masteries)).toEqual({
+      toughness: 10,
+      nature: 5,
+    });
+    const packed = wearing({ bag: { ...worn("bag"), contents: [worn("pelt")] } });
+    expect(wornMasteryBonus(packed, tiles, base.masteries)).toEqual({});
+  });
+
+  it("gives nothing from a piece whose requirements training has not met", () => {
+    expect(wornMasteryBonus(wearing({ head: worn("crown") }), tiles, base.masteries)).toEqual({});
+  });
+
+  it("raises hit points and defence by the toughness it adds", () => {
+    const naked = effectiveBattler(base, null, tiles, null);
+    const out = effectiveBattler(base, wearing({ armor: worn("pelt") }), tiles, null);
+    const tougher = base.masteries.toughness! + 10;
+    expect(out.maxHp).toBe(maxHpFrom(base.baseHp, tougher));
+    expect(out.maxHp).toBeGreaterThan(naked.maxHp);
+    expect(out.def).toBe(naked.def - defFrom(base.masteries.toughness!) + defFrom(tougher));
+  });
+
+  it("adds damage without lifting the wielder past another weapon's requirements", () => {
+    const swordsman: BattlerDef = { ...base, masteries: { ...base.masteries, sharp: 10 } };
+    const equipment = wearing({ weapon: worn("blade"), offhand: worn("greatblade") });
+    const blade = resolveWeapon(tiles.blade!)!;
+    const greatblade = resolveWeapon(tiles.greatblade!)!;
+
+    const swinging = effectiveBattler(swordsman, equipment, tiles, "weapon");
+    expect(swinging.damage).toBeGreaterThan(fightingStats(swordsman, blade).damage);
+
+    const heavy = effectiveBattler(swordsman, equipment, tiles, "offhand");
+    const untrained = fightingStats(swordsman, greatblade);
+    expect(heavy.damage).toBeGreaterThan(untrained.damage);
+    expect(heavy.haste / untrained.haste).toBeCloseTo(1);
+  });
+
+  it("stops at the highest level a mastery has", () => {
+    const boosted = boostedMasteries(
+      { toughness: MAX_MASTERY - 1 },
+      wearing({ armor: worn("pelt") }),
+      tiles,
+    );
+    expect(boosted.toughness).toBe(MAX_MASTERY);
   });
 });

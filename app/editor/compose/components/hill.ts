@@ -17,12 +17,14 @@ import { brinkOf, isFlat } from "../brinks";
 import { distanceTo } from "../distance";
 import { isWet } from "./line";
 import { nearestRamp, rampCells, type Cell, type RampGround, type RampSite } from "./ramp";
+import { isTallTreePiece } from "../tallTrees";
 
 const HillSchema = v.object({
   levels: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(6)), 2),
   terrace: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(12)), 4),
   roughness: v.optional(field.percent(), 40),
   ground: v.optional(field.tile(TILES.ground), "grass-2"),
+  cover: v.optional(v.nullable(field.tile(TILES.ground)), null),
   brink: v.optional(field.tile(TILES.ground), "grass-brink"),
   wall: v.optional(field.tile(TILES.any), "hill-wall"),
   ramp: v.optional(field.tile(TILES.any), "ramp"),
@@ -300,9 +302,12 @@ function levelsOf(
  * raised cell is a column with one `wall` on every level under its top,
  * standing on ground wherever a neighbour's ground lies on that level, with
  * `ground` on top, cut to its brink on every cell beside a drop; `brink` is
- * for a ground with no brink of its own. Plants on a cell go to the top with
- * it, and a cover such as grass stays at the foot of the wall: the top is the
- * hill's own ground until a cover is laid on it.
+ * for a ground with no brink of its own. A `cover` is laid on the top's
+ * ground and takes the brink in its place, so a top of sand under grass is
+ * laid the way the land below is, and a road or a river that takes the grass
+ * off shows the sand. The walls of the upper tiers stand on both. Plants on a
+ * cell go to the top with it, and a cover the cell had stays at the foot of
+ * the wall.
  *
  * It builds on whatever level the ground under the middle of its frame is
  * on, so a hill laid on a hill's top is a second tier, in its own tiles. Only
@@ -336,12 +341,12 @@ export const hill: Component<HillProps> = {
     const stackOn = (x: number, y: number) => ctx.stackAt(x, y, z0);
     const before = (i: number) => stackOn(gridX(g, i), gridY(g, i));
     const built = (x: number, y: number) =>
-      ctx.stackAt(x, y, z0 + 1).length > 0 ||
+      ctx.stackAt(x, y, z0 + 1).some((p) => !isTallTreePiece(p.tileId)) ||
       stackOn(x, y)
         .slice(1)
         .some((p) => {
           const def = ctx.tilesById[p.tileId];
-          return !def || (def.height > 0 && !TILES.standing.test(def));
+          return !def || (def.height > 0 && !TILES.standing.test(def) && !TILES.cover.test(def));
         });
     const level = levelsOf(
       g,
@@ -406,6 +411,7 @@ export const hill: Component<HillProps> = {
     }
     const heads = new Set(sites.map((s) => gridIndex(g, s.head.x, s.head.y)));
 
+    const laidTop = () => [tile(props.ground), ...(props.cover ? [tile(props.cover)] : [])];
     const tops = new Map<string, StackEdit>();
     const edits: StackEdit[] = [];
     for (let i = 0; i < level.length; i++) {
@@ -415,8 +421,7 @@ export const hill: Component<HillProps> = {
       const y = gridY(g, i);
       const stack = before(i);
       for (let z = 0; z < L; z++) {
-        const under =
-          z === 0 ? [...stack.slice(0, 1), ...stack.slice(1).filter(flat)] : [tile(props.ground)];
+        const under = z === 0 ? [...stack.slice(0, 1), ...stack.slice(1).filter(flat)] : laidTop();
         const column =
           heads.has(i) && z === L - 1
             ? [...under, tile(props.rampBlock), tile(props.rampBlock)]
@@ -427,12 +432,10 @@ export const hill: Component<HillProps> = {
       }
       const edge = !heads.has(i) && around(i, (l) => l < L);
       const carried = stack.slice(1).filter((p) => !flat(p));
-      tops.set(`${x},${y}`, {
-        x,
-        y,
-        z: z0 + L,
-        stack: [tile(edge ? (brinkOf(props.ground) ?? props.brink) : props.ground), ...carried],
-      });
+      const surface = edge
+        ? [tile(brinkOf(props.cover ?? props.ground) ?? props.brink)]
+        : laidTop();
+      tops.set(`${x},${y}`, { x, y, z: z0 + L, stack: [...surface, ...carried] });
     }
     for (const site of sites) {
       const { high, low } = rampCells(site);
