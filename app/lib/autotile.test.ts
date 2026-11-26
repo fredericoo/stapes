@@ -1,7 +1,7 @@
 import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
-import { chunkifyMap } from "./mapData";
+import { chunkifyMap, emptyMap, replaceStack } from "./mapData";
 import { resolveTileSprite } from "./tileResolve";
 import { normalizeTiles } from "./types";
 import type { FlatMapFile } from "./types";
@@ -15,6 +15,8 @@ import {
   N,
   NE,
   E,
+  S,
+  W,
 } from "./autotile";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, spriteRect } from "./types";
@@ -208,5 +210,67 @@ describe("wooden floor inner", () => {
         x: base.x + COMPLEMENT_COL_OFFSET,
       });
     }
+  });
+});
+
+describe("water over a fall", () => {
+  const water = {
+    id: "water",
+    fallsInto: {
+      south: ["waterfall-base", "waterfall-top"],
+      east: ["waterfall-east-base", "waterfall-east-top"],
+    },
+  };
+  const wet = [{ tileId: "dirt" }, { tileId: "water" }];
+  const southFall = [...wet, { tileId: "waterfall-base" }, { tileId: "waterfall-top" }];
+  const eastFall = [...wet, { tileId: "waterfall-east-base" }, { tileId: "waterfall-east-top" }];
+  const cliff = [{ tileId: "hill-wall" }];
+
+  function cells(entries: [number, number, number, { tileId: string }[]][]): MapFile {
+    let map = emptyMap();
+    for (const [x, y, z, stack] of entries) map = replaceStack(map, x, y, z, stack);
+    return map;
+  }
+
+  it("joins water on a cliff to the open cell its fall rises out of", () => {
+    const map = cells([
+      [0, 0, 0, cliff],
+      [0, 0, 1, wet],
+      [0, 1, 0, southFall],
+    ]);
+    expect(neighborMask(map, 0, 0, 1, water) & S).toBe(S);
+  });
+
+  it("joins the pool at a fall's foot to the cliff behind it", () => {
+    const map = cells([
+      [0, 0, 0, cliff],
+      [0, 1, 0, southFall],
+      [1, 0, 0, cliff],
+      [1, 1, 0, eastFall],
+    ]);
+    expect(neighborMask(map, 0, 1, 0, water) & N).toBe(N);
+    expect(neighborMask(map, 1, 1, 0, water) & W).toBe(W);
+  });
+
+  it("joins a pool's corner along the cliff only where the next cell falls too", () => {
+    const map = cells([
+      [0, 0, 0, cliff],
+      [1, 0, 0, cliff],
+      [2, 0, 0, cliff],
+      [0, 1, 0, southFall],
+      [1, 1, 0, southFall],
+      [2, 1, 0, wet],
+    ]);
+    expect(neighborMask(map, 0, 1, 0, water) & NE).toBe(NE);
+    expect(neighborMask(map, 1, 1, 0, water) & NE).toBe(0);
+  });
+
+  it("draws a bank where water over a cliff has no fall below it", () => {
+    const map = cells([
+      [0, 0, 0, cliff],
+      [0, 0, 1, wet],
+      [0, 1, 0, wet],
+    ]);
+    expect(neighborMask(map, 0, 0, 1, water) & S).toBe(0);
   });
 });

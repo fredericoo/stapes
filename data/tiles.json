@@ -5881,6 +5881,18 @@
       "msPerCycle": 1600,
       "ripple": 8,
       "gaps": 0.45
+    },
+    "fallsInto": {
+      "south": [
+        "waterfall-base",
+        "waterfall-middle",
+        "waterfall-top"
+      ],
+      "east": [
+        "waterfall-east-base",
+        "waterfall-east-middle",
+        "waterfall-east-top"
+      ]
     }
   },
   {
