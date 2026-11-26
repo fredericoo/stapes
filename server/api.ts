@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { serializeMap } from "../app/lib/mapData";
 import { BOARD_CHUNK_SEPARATOR } from "../app/lib/boardView";
+import { MAX_LEVEL, MIN_LEVEL } from "../app/lib/types";
 import { parseMapDoc } from "../app/editor/compose/doc";
 import { readPngSize } from "../app/lib/png";
 import { TILESET_VERSION_PARAM } from "../app/lib/dataStore";
@@ -243,9 +244,16 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         if (keys.length > MAX_BOARD_CHUNKS_PER_READ) {
           return status(400, `Ask for at most ${MAX_BOARD_CHUNKS_PER_READ} chunks at a time`);
         }
-        return { chunks: await world.server.readBoardChunks(keys) };
+        const levels = { from: query.from ?? MIN_LEVEL, to: query.to ?? MAX_LEVEL };
+        return { chunks: await world.server.readBoardChunks(keys, levels) };
       },
-      { query: t.Object({ chunks: t.String() }) },
+      {
+        query: t.Object({
+          chunks: t.String(),
+          from: t.Optional(t.Numeric()),
+          to: t.Optional(t.Numeric()),
+        }),
+      },
     )
     .get("/bootstrap", async () => ({
       tiles: await store.readTiles(),

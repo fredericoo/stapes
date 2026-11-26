@@ -3,7 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminShell } from "../../components/AppShell";
 import { LightingToggle } from "../../components/LightingToggle";
 import { fetchBoardChunks } from "../../lib/api";
-import { BoardChunks, chunksInView, type BoardOutline, type CameraRect } from "../../lib/boardView";
+import {
+  BoardChunks,
+  chunksInView,
+  drawnLevels,
+  type BoardOutline,
+  type CameraRect,
+} from "../../lib/boardView";
 import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
 import { baseCellWorldOrigin, levelScreenOffset } from "../../lib/geometry";
 import {
@@ -13,16 +19,17 @@ import {
   type TileDef,
   type TilesetDef,
 } from "../../lib/types";
+import { viewLevels } from "../../lib/view";
 import { Button, Toggle, Tooltip } from "../../ui";
 import { ComposeCanvas, type ComposeView } from "./ComposeCanvas";
 
 const CHUNKS_PER_READ = 64;
 
 /**
- * About four screens of chunks at the widest zoom. Past this the ones read
- * longest ago are dropped, so a long pan does not end with the island in the tab.
+ * How far outside what the view asks for a read chunk is kept, so panning back
+ * a little does not read it again while a long pan never piles up the island.
  */
-const MAX_HELD_CHUNKS = 2400;
+const UNLOAD_MARGIN_CHUNKS = 2;
 
 const NOON = 12 * 60;
 
@@ -82,10 +89,10 @@ export function BoardViewer({
   const [failure, setFailure] = useState<string | null>(null);
   const topLevel = isolated ? level : Number.POSITIVE_INFINITY;
 
-  const wanted = useMemo(
-    () => (camera ? chunksInView(camera, level, outline.levels, topLevel) : []),
-    [camera, level, outline.levels, topLevel],
-  );
+  const wanted = useMemo(() => {
+    const drawn = drawnLevels(level, outline.levels, topLevel);
+    return { level, drawn, keys: camera ? chunksInView(camera, level, drawn) : [] };
+  }, [camera, level, outline.levels, topLevel]);
   const wantedRef = useRef(wanted);
   wantedRef.current = wanted;
   const pumping = useRef(false);
@@ -100,10 +107,14 @@ export function BoardViewer({
     setReading(true);
     try {
       for (;;) {
-        const next = board.missing(wantedRef.current).slice(0, CHUNKS_PER_READ);
-        if (next.length === 0) break;
-        board.add(next, await fetchBoardChunks(next));
-        board.trim(wantedRef.current, MAX_HELD_CHUNKS);
+        const { drawn, keys } = wantedRef.current;
+        const next = board.missing(keys, drawn).slice(0, CHUNKS_PER_READ);
+        const range = board.missingRange(next, drawn);
+        if (!range) break;
+        const levels = drawn.filter((z) => z >= range.z0 && z <= range.z1);
+        board.add(next, levels, await fetchBoardChunks(next, range));
+        const now = wantedRef.current;
+        board.trim(now.keys, viewLevels(now.level), UNLOAD_MARGIN_CHUNKS);
         setReadCount((n) => n + 1);
       }
       setFailure(null);
@@ -116,8 +127,11 @@ export function BoardViewer({
   }, [board]);
 
   useEffect(() => {
+    if (board.trim(wanted.keys, viewLevels(wanted.level), UNLOAD_MARGIN_CHUNKS)) {
+      setReadCount((n) => n + 1);
+    }
     void pump();
-  }, [wanted, pump]);
+  }, [board, wanted, pump]);
 
   const map = useMemo(() => board.map(topLevel), [board, readCount, topLevel]);
 
@@ -180,7 +194,7 @@ export function BoardViewer({
               </Button>
             </Tooltip>
           </div>
-          <Tooltip content="Isolate this level (I): leave out every level above it">
+          <Tooltip content="Isolate this level (I): leave out every level above it.">
             <Toggle pressed={isolated} onPressedChange={setIsolated} ariaLabel="Isolate this level">
               <IconStackBackward size={16} stroke={2} aria-hidden="true" />
             </Toggle>
@@ -225,7 +239,7 @@ export function BoardViewer({
             <p className="pointer-events-none absolute bottom-2 left-2 bg-ink/80 px-2 py-1 text-xs tabular-nums text-paper">
               {failure
                 ? `Could not read the board: ${failure}`
-                : `${board.size} of ${outline.chunks.length} chunks read${reading ? " · reading…" : ""}`}
+                : `${board.size} of ${outline.chunks.length} chunks loaded${reading ? " · reading…" : ""}`}
             </p>
           )}
         />

@@ -16658,7 +16658,8 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
 - **It reads the board's chunk rows, not the tree and not the live session.**
   `GET /api/board` lists the chunk keys and levels from the `chunk:` keys alone
   (plus the spawn the view opens on), and `GET /api/board/chunks?chunks=a;b`
-  hands back every level's row of the chunks named, at most 128 a read. The
+  hands back the rows of the chunks named on the levels from `from` to `to`
+  (every level when left out), at most 128 chunks a read. The
   rows are the last checkpoint, so the viewer shows the world as played,
   creatures and dropped things included, and never makes the server load a
   chunk it had unloaded. 64 chunks of the 4× island are about 1.4 MB and
@@ -16670,8 +16671,12 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
   middle first, with a chunk of margin. The page keeps one read in flight and
   always reads the missing chunks nearest the middle of the view as it is
   then, so a pan that outruns the reads does not wait for what it left.
-- **`BoardChunks` holds at most `MAX_HELD_CHUNKS`** and forgets the ones read
-  longest ago that are not in view.
+- **`BoardChunks` holds only what is near the view.** It records each chunk
+  on the levels it was read for, so stepping a level reads only the level
+  that came into reach, asked for as the narrowest range that covers what
+  the batch lacks. After every read and every move it forgets the chunks more
+  than `UNLOAD_MARGIN_CHUNKS` outside what the view asks for, and the levels
+  outside `viewLevels`, so a long pan never piles up the island in the tab.
 - **Isolating a level leaves every level above it out of the map handed to
   the renderer**, and out of what is read. A link can open the viewer on a
   place with `?x=…&y=…&level=…`.
