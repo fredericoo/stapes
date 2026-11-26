@@ -16261,8 +16261,8 @@ in the scan (`MAX_TREES_BESIDE`), which allows a line and never a clump.
 - **50 to 100:** a growing share of the trees are `tall` (`old-tree`) instead,
   each two cells from the next.
 
-At 100 about 14% of a wood's cells are trees and 17% block a walker, which is
-what 30 was before; the largest clump is about 10 cells. `decay` (0 to 100)
+At 100 about 9% of a wood's cells are trees and 10% block a walker, about
+half what 30 grew before; the largest clump is about 5 cells. `decay` (0 to 100)
 grows up to a tenth of the trees as one of `dead` (dead trees, stumps and
 fallen logs) instead (`MOST_DEAD`). It once took every tree at 100, and a wood
 at even half that read as felled: a bare dead tree leans along the diagonal

@@ -6282,7 +6282,7 @@
               "tiles": [
                 {
                   "tile": "fern",
-                  "weight": 4
+                  "weight": 0.1
                 },
                 {
                   "tile": "mushroom-patch",
@@ -6297,7 +6297,7 @@
                   "weight": 2
                 }
               ],
-              "density": 10,
+              "density": 5,
               "onlyOn": [
                 "grass",
                 "grass-2"
@@ -6454,7 +6454,7 @@
                   "weight": 1
                 }
               ],
-              "density": 60,
+              "density": 100,
               "edge": 20,
               "outliers": 2,
               "opensTo": [

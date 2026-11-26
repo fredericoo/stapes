@@ -14,7 +14,7 @@ const ForestSchema = v.object({
   decay: v.optional(field.percent(), 0),
   foliage: v.optional(field.weighted(TILES.cover), [
     { tile: "tuft", weight: 4 },
-    { tile: "fern", weight: 3 },
+    { tile: "fern", weight: 0.15 },
     { tile: "undergrowth", weight: 2 },
     { tile: "red-flowers", weight: 1 },
     { tile: "yellow-flowers", weight: 1 },
@@ -76,11 +76,11 @@ const UINT32 = 4294967296;
  */
 const TREES_FROM = 10;
 const TALL_FROM = 50;
-const MOST_TREES = 0.4;
+const MOST_TREES = 0.2;
 const MOST_TALL = 0.4;
-const MOST_FOLIAGE = 0.22;
-const FEWEST_BUSHES = 0.01;
-const MOST_BUSHES = 0.04;
+const MOST_FOLIAGE = 0.12;
+const FEWEST_BUSHES = 0.005;
+const MOST_BUSHES = 0.02;
 
 /** The share of a wood's trees that `decay` at 100 grows dead: past a few, the wood reads as felled. */
 const MOST_DEAD = 0.1;

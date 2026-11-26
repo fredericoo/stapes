@@ -224,7 +224,7 @@ describe("a forest that opens to a road", () => {
           "forest",
           {
             onlyOn: ["grass"],
-            density: 80,
+            density: 100,
             path: null,
             foliage: [],
             bushes: [],
