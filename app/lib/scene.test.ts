@@ -8,6 +8,7 @@ const tiles: Record<string, TileDef> = {
   grass: tile({ id: "grass" }),
   water: tile({ id: "water" }),
   hound: tile({ id: "hound", height: 2 }),
+  rat: tile({ id: "rat", kind: "battler" }),
 };
 
 describe("buildScene", () => {
@@ -27,6 +28,21 @@ describe("buildScene", () => {
       { tileId: "grass" },
       { tileId: "hound", direction: "e" },
     ]);
+  });
+
+  it("lists the battlers it places, and forgets one a later entry paints over", () => {
+    const { bodies } = buildScene(
+      {
+        cells: [
+          { from: [0, 0], to: [1, 0], tiles: ["water", "rat"] },
+          { at: [1, 0], tiles: ["grass"] },
+          { at: [3, 0], tiles: ["grass", "hound"] },
+        ],
+      },
+      tiles,
+    );
+
+    expect(bodies).toEqual([{ x: 0, y: 0, z: 0, stackIndex: 1 }]);
   });
 
   it("looks at the middle of the scene unless told where to look", () => {
