@@ -32,6 +32,18 @@ function mintStackItemIds(stack: PlacedTile[], tilesById: Record<string, TileDef
   return touched ? replaced : stack;
 }
 
+export function stackNeedsItemIds(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => {
+    if (placed.contents?.some((instance) => !instance.id)) return true;
+    if (placed.itemId) return false;
+    const def = tilesById[placed.tileId];
+    return def !== undefined && isItem(def);
+  });
+}
+
 /**
  * Sweeps the whole board, so only for a board being loaded. The edits go in
  * one `setStacks`: one per cell would copy the level's record each time, and

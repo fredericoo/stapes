@@ -356,7 +356,8 @@ import {
   extractEarnings,
   practiceEarnings,
 } from "./experience";
-import { mintCellItemIds, mintItemIds } from "./itemIds";
+import { mintCellItemIds, mintItemIds, stackNeedsItemIds } from "./itemIds";
+import { isPooledStack } from "../lib/stackPool";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import { planDistanceSq, type ReachPoint } from "./distance";
 import { type BodyBoard, nearestOnTiles, TileColumns } from "./nearestBody";
@@ -396,7 +397,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
-  cellHasLooseGravity,
+  stackHasLooseGravity,
   findLooseGravityCells,
   gravityPullOn,
   looseGravityIndex,
@@ -507,9 +508,9 @@ import {
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import { evictionsFor } from "./doorway";
-import { cellHasPlate, cellKey, findPlateCells, plateIndex, settlePlates } from "./pressurePlates";
+import { cellKey, findPlateCells, plateIndex, settlePlates, stackHasPlate } from "./pressurePlates";
 import {
-  cellIsWired,
+  stackIsWired,
   channelPowered,
   findWiredCells,
   readChannels,
@@ -525,16 +526,17 @@ import {
   applyLootDecay,
   applyPlacementTurns,
   findDecayCells,
+  stackHasDecay,
 } from "./decay";
-import { Weathering, findWeatheringCells } from "./weathering";
-import { Shedding, findSheddingCells, shedLanding, type DueShed } from "./shedding";
+import { Weathering, findWeatheringCells, stackWeathers } from "./weathering";
+import { Shedding, findSheddingCells, shedLanding, stackSheds, type DueShed } from "./shedding";
 import { CLEAR_SKY, underOpenSky, weatherOn, weatherOver, type Sky } from "./weatherOn";
 import {
   EndureIndex,
   type AfflictedPlacement,
   afflictionsFrom,
   applyConsumed,
-  cellAfflicts,
+  stackAfflicts,
   findAfflictCells,
   sufferersIn,
   flameLives,
@@ -739,6 +741,15 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "e" : "w";
   return dy > 0 ? "s" : "n";
 }
+
+const STACK_NEEDS_ITEM_IDS = 1 << 0;
+const STACK_DECAYS = 1 << 1;
+const STACK_WEATHERS = 1 << 2;
+const STACK_SHEDS = 1 << 3;
+const STACK_PLATE = 1 << 4;
+const STACK_WIRED = 1 << 5;
+const STACK_LOOSE_GRAVITY = 1 << 6;
+const STACK_AFFLICTS = 1 << 7;
 
 const SHELTER_MAX_NODES = 256;
 
@@ -1041,6 +1052,7 @@ export type Death = {
 export class GameSession implements PlaySession {
   private board!: MapFile;
   private readonly tilesById: Record<string, TileDef>;
+  private readonly stackIndexes = new WeakMap<readonly PlacedTile[], number>();
   /**
    * Every write settles the multi-cell footprints it touched and gives new
    * water a current, so the value read back can differ from the one assigned.
@@ -1661,7 +1673,7 @@ export class GameSession implements PlaySession {
     for (const chk of stored.keys()) {
       for (const [zk, chunk] of chunkRecords(this.map, chk)) (levels[zk] ??= {})[chk] = chunk;
     }
-    this.reindexCells(cells);
+    this.reindexCells(cells, true);
     const back: MapFile = { version: this.map.version, levels };
     for (const body of listResidentBodies(back, this.tilesById)) {
       const owner = body.placed.owner;
@@ -1812,35 +1824,71 @@ export class GameSession implements PlaySession {
    * placement that has just become an item gets its id, before `armCell`
    * would read the missing id as a placement's clock.
    */
-  private reindexCells(cells: Iterable<Coord>) {
+  /**
+   * `fresh` cells are in chunks just put back, which no index holds a cell of,
+   * so only what a cell has is added and nothing is taken out.
+   */
+  private reindexCells(cells: Iterable<Coord>, fresh = false) {
+    const tiles = this.tilesById;
     for (const cell of cells) {
       const key = cellKey(cell);
-      this.map = mintCellItemIds(this.map, cell, this.tilesById);
-      this.decay.armCell(this.map, cell, this.tilesById);
-      this.weathering.index(this.map, cell, this.tilesById);
-      this.shedding.index(this.map, cell, this.tilesById);
-      if (cellHasPlate(this.map, cell, this.tilesById)) {
+      let stack = getStack(this.map, cell.x, cell.y, cell.z);
+      let has = this.indexesOf(stack);
+      if (has & STACK_NEEDS_ITEM_IDS) {
+        this.map = mintCellItemIds(this.map, cell, tiles);
+        stack = getStack(this.map, cell.x, cell.y, cell.z);
+        has = this.indexesOf(stack);
+      }
+      if (fresh && has === 0) continue;
+      if (has & STACK_DECAYS) this.decay.armStack(cell, stack, tiles);
+      if (has & STACK_WEATHERS || !fresh) this.weathering.mark(cell, (has & STACK_WEATHERS) !== 0);
+      if (has & STACK_SHEDS || !fresh) this.shedding.mark(cell, (has & STACK_SHEDS) !== 0);
+      if (has & STACK_PLATE) {
         this.plateCells.add(cell);
-      } else {
+      } else if (!fresh) {
         this.plateCells.delete(cell);
       }
-      if (cellIsWired(this.map, cell)) {
+      if (has & STACK_WIRED) {
         this.wiredCells.set(key, cell);
-      } else {
+      } else if (!fresh) {
         this.wiredCells.delete(key);
       }
-      if (cellHasLooseGravity(this.map, cell, this.tilesById)) {
+      if (has & STACK_LOOSE_GRAVITY) {
         this.looseGravityCells.add(cell);
-      } else {
+      } else if (!fresh) {
         this.looseGravityCells.delete(cell);
       }
-      if (cellAfflicts(this.map, cell, this.tilesById)) {
+      if (has & STACK_AFFLICTS) {
         if (!this.afflictCells.has(key))
           this.afflictCells.set(key, { cell, stack: null, holds: [] });
-      } else {
+      } else if (!fresh) {
         this.afflictCells.delete(key);
       }
     }
+  }
+
+  /**
+   * Only a pooled stack's answer is kept: it is frozen and holds nothing
+   * nested, where any other stack's placements can be edited in place. A chunk
+   * read back from the store shares its stacks through one pool, so most of
+   * its cells ask about a stack already asked about.
+   */
+  private indexesOf(stack: readonly PlacedTile[]): number {
+    const pooled = isPooledStack(stack);
+    const known = pooled ? this.stackIndexes.get(stack) : undefined;
+    if (known !== undefined) return known;
+    const tiles = this.tilesById;
+    const has =
+      (stackNeedsItemIds(stack, tiles) ? STACK_NEEDS_ITEM_IDS : 0) |
+      (stackHasDecay(stack, tiles) ? STACK_DECAYS : 0) |
+      (stackWeathers(stack, tiles) ? STACK_WEATHERS : 0) |
+      (stackSheds(stack, tiles) ? STACK_SHEDS : 0) |
+      (stackHasPlate(stack, tiles) ? STACK_PLATE : 0) |
+      (stackIsWired(stack) ? STACK_WIRED : 0) |
+      (stackHasLooseGravity(stack, tiles) ? STACK_LOOSE_GRAVITY : 0) |
+      (stackAfflicts(stack, tiles) ? STACK_AFFLICTS : 0);
+    if (pooled) this.stackIndexes.set(stack, has);
+    return has;
   }
 
   private settleBoardNow() {

@@ -39,7 +39,11 @@ export function channelsPowered(
 }
 
 export function cellIsWired(map: MapFile, cell: Coord): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => Boolean(placed.channel));
+  return stackIsWired(getStack(map, cell.x, cell.y, cell.z));
+}
+
+export function stackIsWired(stack: readonly PlacedTile[]): boolean {
+  return stack.some((placed) => Boolean(placed.channel));
 }
 
 export function findWiredCells(map: MapFile): Coord[] {
