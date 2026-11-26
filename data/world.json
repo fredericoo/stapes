@@ -7042,6 +7042,10 @@
                 {
                   "tile": "nature-slime",
                   "weight": 1
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 0.5
                 }
               ],
               "density": 0.6,
@@ -7090,6 +7094,10 @@
                 {
                   "tile": "snake",
                   "weight": 1
+                },
+                {
+                  "tile": "ember-wisp",
+                  "weight": 0.5
                 }
               ],
               "density": 0.3,
@@ -7222,6 +7230,553 @@
                   "shape": "rect",
                   "op": "subtract",
                   "ragged": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "meadow-pests",
+            "frame": {
+              "x": 480,
+              "y": 440,
+              "w": 360,
+              "h": 220
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rat",
+                  "weight": 4
+                },
+                {
+                  "tile": "snake",
+                  "weight": 3
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 0.12,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "meadow-pests-off-warrior-town",
+                "props": {
+                  "op": "subtract",
+                  "from": "warrior-town",
+                  "grow": 10
+                }
+              },
+              {
+                "type": "mask",
+                "key": "meadow-pests-off-crossroads",
+                "props": {
+                  "op": "subtract",
+                  "from": "crossroads",
+                  "grow": 10
+                }
+              },
+              {
+                "type": "mask",
+                "key": "meadow-pests-off-farmsteads",
+                "props": {
+                  "op": "subtract",
+                  "from": "farmsteads",
+                  "grow": 10
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "camp-heath",
+            "frame": {
+              "x": 340,
+              "y": 550,
+              "w": 320,
+              "h": 170
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rat",
+                  "weight": 4
+                },
+                {
+                  "tile": "snake",
+                  "weight": 2
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 0.12,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "camp-heath-off-camp",
+                "props": {
+                  "op": "subtract",
+                  "from": "camp",
+                  "grow": 16
+                }
+              },
+              {
+                "type": "mask",
+                "key": "camp-heath-off-old-harbour",
+                "props": {
+                  "op": "subtract",
+                  "from": "old-harbour",
+                  "grow": 8
+                }
+              },
+              {
+                "type": "mask",
+                "key": "camp-heath-off-bat-hill",
+                "props": {
+                  "op": "subtract",
+                  "from": "bat-hill",
+                  "grow": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "camp-heath-off-wreck-west-hill",
+                "props": {
+                  "op": "subtract",
+                  "from": "wreck-west-hill",
+                  "grow": 0
+                }
+              },
+              {
+                "type": "mask",
+                "key": "camp-heath-off-wreck-east-hill",
+                "props": {
+                  "op": "subtract",
+                  "from": "wreck-east-hill",
+                  "grow": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "lake-shore",
+            "frame": {
+              "x": 516,
+              "y": 356,
+              "w": 192,
+              "h": 144
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "water-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 2
+                },
+                {
+                  "tile": "small-water-slime",
+                  "weight": 2
+                }
+              ],
+              "density": 0.5,
+              "clumping": 0,
+              "spacing": 3,
+              "onlyOn": [
+                "grass"
+              ]
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "south-shore",
+            "frame": {
+              "x": 600,
+              "y": 650,
+              "w": 370,
+              "h": 210
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "small-water-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "water-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "tide-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 0.3,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "sand"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "south-shore-off-farmsteads",
+                "props": {
+                  "op": "subtract",
+                  "from": "farmsteads",
+                  "grow": 8
+                }
+              },
+              {
+                "type": "mask",
+                "key": "south-shore-off-wyrd-lighthouse",
+                "props": {
+                  "op": "subtract",
+                  "from": "wyrd-lighthouse",
+                  "grow": 8
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "south-downs",
+            "frame": {
+              "x": 600,
+              "y": 650,
+              "w": 370,
+              "h": 210
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rat",
+                  "weight": 3
+                },
+                {
+                  "tile": "snake",
+                  "weight": 3
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 0.12,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "south-downs-off-farmsteads",
+                "props": {
+                  "op": "subtract",
+                  "from": "farmsteads",
+                  "grow": 10
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "west-shore",
+            "frame": {
+              "x": 20,
+              "y": 560,
+              "w": 360,
+              "h": 170
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "rat",
+                  "weight": 3
+                },
+                {
+                  "tile": "snake",
+                  "weight": 2
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 1
+                }
+              ],
+              "density": 0.12,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "west-shore-off-camp",
+                "props": {
+                  "op": "subtract",
+                  "from": "camp",
+                  "grow": 16
+                }
+              },
+              {
+                "type": "mask",
+                "key": "west-shore-off-wreck-west-hill",
+                "props": {
+                  "op": "subtract",
+                  "from": "wreck-west-hill",
+                  "grow": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "woodland-wilds",
+            "frame": {
+              "x": 120,
+              "y": 144,
+              "w": 400,
+              "h": 464
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "nature-slime",
+                  "weight": 3
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 3
+                },
+                {
+                  "tile": "snake",
+                  "weight": 2
+                },
+                {
+                  "tile": "rat",
+                  "weight": 2
+                }
+              ],
+              "density": 0.06,
+              "clumping": 0,
+              "spacing": 4,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "woodland-wilds-off-druid-town",
+                "props": {
+                  "op": "subtract",
+                  "from": "druid-town",
+                  "grow": 8
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "north-wilds",
+            "frame": {
+              "x": 380,
+              "y": 50,
+              "w": 550,
+              "h": 390
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "wolf",
+                  "weight": 6
+                },
+                {
+                  "tile": "snake",
+                  "weight": 4
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "skeleton",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 2
+                },
+                {
+                  "tile": "bear",
+                  "weight": 0.5
+                }
+              ],
+              "density": 0.12,
+              "clumping": 60,
+              "spacing": 2,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "north-wilds-off-mountain-road",
+                "props": {
+                  "op": "subtract",
+                  "from": "mountain-road",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "north-wilds-off-north-road",
+                "props": {
+                  "op": "subtract",
+                  "from": "north-road",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "north-wilds-off-inn-to-warriors",
+                "props": {
+                  "op": "subtract",
+                  "from": "inn-to-warriors",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "north-wilds-off-druids-to-inn",
+                "props": {
+                  "op": "subtract",
+                  "from": "druids-to-inn",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "north-wilds-off-warrior-town",
+                "props": {
+                  "op": "subtract",
+                  "from": "warrior-town",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "north-wilds-off-crossroads",
+                "props": {
+                  "op": "subtract",
+                  "from": "crossroads",
+                  "grow": 24
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
+            "key": "west-wilds",
+            "frame": {
+              "x": 20,
+              "y": 100,
+              "w": 140,
+              "h": 480
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "wolf",
+                  "weight": 4
+                },
+                {
+                  "tile": "snake",
+                  "weight": 3
+                },
+                {
+                  "tile": "nature-slime",
+                  "weight": 2
+                },
+                {
+                  "tile": "moss-wisp",
+                  "weight": 2
+                },
+                {
+                  "tile": "skeleton",
+                  "weight": 1
+                }
+              ],
+              "density": 0.12,
+              "clumping": 60,
+              "spacing": 2,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "west-wilds-off-hamlet-road",
+                "props": {
+                  "op": "subtract",
+                  "from": "hamlet-road",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "west-wilds-off-west-hamlet",
+                "props": {
+                  "op": "subtract",
+                  "from": "west-hamlet",
+                  "grow": 24
                 }
               }
             ]

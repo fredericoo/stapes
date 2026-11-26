@@ -111,8 +111,8 @@ twice its even level, so do not place by the star.
 | zone | player rating | where | kit on arrival | hostiles (even level) |
 | ---- | ------------- | ----- | -------------- | --------------------- |
 | 0 | 1–5 | the wreck valley, the camp, the old harbour cellar, `wreck-cave` | none | rat 1, bat 1, small slimes 1–2, two snakes 8 off the road |
-| 1 | 5–15 | `camp-to-inn`, `camp-to-druids`, `druids-to-inn`, `inn-to-warriors`, `hamlet-road`, both towns and the ground beside them | bow, hammer or axe, cap and boots (requirement 5) | slimes 5 and snakes 8 in the desert by the warriors' town |
-| 2 | 15–50 | the deep woods off the roads, the bog, the desert, `sunken-crypt`, `bat-cave`, `bear-den`, tower hill | the towns' second tier (requirement 10–15), then the third (22–33) | wolf 15, bog imp 14, skeleton 24, snow wolf 28, bear 35 |
+| 1 | 5–15 | the roads between the camp, the inn and both towns, and the land beside them: `camp-heath`, `meadow-pests`, `lake-shore`, `south-shore`, `south-downs`, `west-shore`, `woodland-wilds` | bow, hammer or axe, cap and boots (requirement 5) | rats, snakes 8, nature, water and fire slimes 5, and moss and tide wisps by night |
+| 2 | 15–50 | the deep woods off the roads (`wood-wolves`), `north-wilds`, `west-wilds`, the bog, the desert, `sunken-crypt`, `bat-cave`, `bear-den` | the towns' second tier (requirement 10–15), then the third (22–33) | wolf 15, bog imp 14, skeleton 24, snow wolf 28, bear 35, with zone-1 kinds among them |
 | 3 | 50+ | the peak, `ice-caves` | third tier | snow wolf 28 on the way, the yeti 65 for a party |
 | 4 | 65+ | `obsidian-deeps`, the lava gorge | — | cave troll 35 today; the zone has no creature that fits it yet |
 
@@ -138,3 +138,10 @@ Rules that follow from the table:
   0.15 and `peak-beasts` at 0.3, both with `clumping` 100, which leaves about
   120 wolves and 67 snow wolves, mostly alone or in twos and threes.
   `bog-imps` is at 0.6 and `desert-slimes` at 0.3.
+- **Every stretch of land has something on it, and more than one kind.** Each
+  zone-1 and zone-2 area has its own scatter mixing three to six kinds, with
+  `spacing` so they are spread rather than clumped, at about one creature per
+  800 cells. Only the camp's ring (Runa Hask's post) and the wreck valley's
+  hilltops are left empty on purpose. A zone-2 scatter carries a subtract mask
+  `from` each zone-1 road and town it borders, grown 24 cells; a zone-1 scatter
+  needs only to stay off the towns' streets.
