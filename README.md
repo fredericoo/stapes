@@ -130,8 +130,9 @@ an agent drives", lists every call.
   wherever the source cell is transparent. Which blocks, on which sheet, is the `JOBS`
   list at the top of the script
 - `bun run generate:water` — redraw `data/tilesets/water.png` and the `water`
-  tile's 256 slices: a sandy bank round water painted in one key colour, which
-  the world shader replaces with the tile's `colorCycle` ramp. Writes the
+  tile's 256 slices: water painted in one key colour, which the world shader
+  replaces with the tile's `colorCycle` ramp, inside a wet line of black at
+  30%, with the bank left out so the ground under the water shows. Writes the
   `colorCycle` with the sheet, since the key is baked into it
 - `bun run generate:camp` — copy the two canvas tents out of the tiny-ranch
   sheet onto the cell grid of `data/tilesets/camp.png` and cast the bedroll in

@@ -50,6 +50,7 @@ export const HEADINGS = {
   onHit: "On hit",
   onCast: "On cast",
   grants: "Grants",
+  bonuses: "Bonuses",
 } as const;
 
 const EN_DASH = "–";

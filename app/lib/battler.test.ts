@@ -319,6 +319,19 @@ describe("what a spell is worth in the hand", () => {
     expect(spellPower(-20, { arcane: 10 }, { arcane: 5 })).toBeCloseTo(-earned / 2, 6);
   });
 
+  it("is driven by what is worn but still pays for a shortfall in what is trained", () => {
+    const trained = { arcane: 5, nature: 5 };
+    const boosted = { arcane: 5, nature: 45 };
+    expect(spellPower(20, { nature: 5 }, trained, undefined, boosted)).toBeCloseTo(
+      spellPower(20, { nature: 5 }, boosted),
+      6,
+    );
+    expect(spellPower(20, { nature: 10 }, trained, undefined, boosted)).toBeCloseTo(
+      spellPower(20, { nature: 10 }, boosted) / 2,
+      6,
+    );
+  });
+
   it("makes a mend deeper rather than shallower", () => {
     const novice = spellPower(-20, undefined, {});
     const master = spellPower(-20, undefined, { arcane: 100 });

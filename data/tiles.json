@@ -62687,6 +62687,9 @@
         "requirements": {
           "agility": 12
         },
+        "masteryBonus": {
+          "nature": 2
+        },
         "humanPart": "wolfskin-coat"
       }
     },
@@ -63074,6 +63077,9 @@
         "requirements": {
           "agility": 8
         },
+        "masteryBonus": {
+          "nature": 1
+        },
         "humanPart": "wolfskin-hood"
       }
     },
@@ -63263,6 +63269,9 @@
         },
         "requirements": {
           "agility": 8
+        },
+        "masteryBonus": {
+          "nature": 1
         },
         "humanPart": "wolfskin-boots"
       }
@@ -98280,7 +98289,8 @@
       "cellsPerCycle": 4,
       "msPerCycle": 1600,
       "ripple": 8,
-      "gaps": 0.5
+      "gaps": 0.5,
+      "fades": true
     }
   },
   {
@@ -99230,7 +99240,8 @@
       "cellsPerCycle": 4,
       "msPerCycle": 4000,
       "ripple": 8,
-      "gaps": 0.5
+      "gaps": 0.5,
+      "fades": true
     }
   },
   {

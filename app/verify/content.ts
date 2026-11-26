@@ -204,11 +204,7 @@ export function checkContent(input: ContentInput): ContentReport {
   checkStatuses(rawStatuses, catalogue, statusFindings);
   let placements: number | null = null;
   if ("error" in input.map) mapFindings.warn("", "", `The map does not load: ${input.map.error}.`);
-  else {
-    const translucent = new Set<string>();
-    for (const [id, sheet] of sheets) if (sheet?.translucent) translucent.add(id);
-    placements = checkMap(input.map.value, tilesById, translucent, mapFindings);
-  }
+  else placements = checkMap(input.map.value, tilesById, mapFindings);
 
   const findings = [
     ...tileFindings.list,
@@ -872,12 +868,7 @@ function nearPoolEdge(map: MapFile, x: number, y: number, z: number, tileId: str
   return false;
 }
 
-function checkMap(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-  translucentSheets: ReadonlySet<string>,
-  findings: Findings,
-): number {
+function checkMap(map: MapFile, tilesById: Record<string, TileDef>, findings: Findings): number {
   const players = findPlayers(map);
   if (players.length !== 1) {
     const where = players.map((at) => `${at.x},${at.y} L${at.z}`).join(", ");
@@ -919,12 +910,7 @@ function checkMap(
           }
           for (const cover of seams.fadedCovers) tally(underFade, placed.tileId, cover, where);
         }
-        if (
-          index === 0 &&
-          def?.colorCycle &&
-          translucentSheets.has(def.anchor.tilesetId) &&
-          nearPoolEdge(map, x, y, z, def.id)
-        ) {
+        if (index === 0 && def?.colorCycle?.fades && nearPoolEdge(map, x, y, z, def.id)) {
           tally(bareFade, placed.tileId, "placed", where);
         }
         if (def && resolveDepotDef(def) && !resolveDepot(placed, def)) {

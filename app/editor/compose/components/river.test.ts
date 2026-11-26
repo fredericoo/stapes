@@ -22,6 +22,11 @@ describe("river", () => {
     expect(walks(built, WEST, EAST), sketch(built)).toBe(false);
   });
 
+  it("keeps the ground under the grass as its bank", () => {
+    const stack = getStack(buildTree(land(SIZE, [node("grass"), river()], "sand")).map, 15, 6, 0);
+    expect(stack.map((p) => p.tileId)).toEqual(["sand", "water"]);
+  });
+
   it("washes out a road it is drawn after", () => {
     const bridged = buildTree(land(SIZE, [river(), road()]));
     expect(walks(bridged, WEST, EAST), sketch(bridged)).toBe(true);

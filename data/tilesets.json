@@ -81,7 +81,8 @@
     "name": "Water",
     "file": "water.png",
     "width": 8,
-    "height": 2048
+    "height": 2048,
+    "translucent": true
   },
   {
     "id": "respawn",

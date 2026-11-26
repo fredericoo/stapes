@@ -1,9 +1,10 @@
 import type { BattlerDef } from "../lib/battler";
+import { type Masteries, MASTERIES, withMasteryBonus } from "../lib/mastery";
 import { MELEE_REACH, type Reach } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { arcaneResist, damageBand, swingIntervalMs } from "./combat";
-import { type Equipment, effectiveBattler, handToSwing } from "./equipment";
+import { type Equipment, effectiveBattler, handToSwing, wornMasteryBonus } from "./equipment";
 import { walkDurationMsFor } from "./movement";
 import { type StatusInstance, walkSpeedPercentFrom, withStatusModifiers } from "./statuses";
 
@@ -17,6 +18,7 @@ export type Attributes = {
   flee: number;
   reach: string;
   walkPace: number;
+  masteryBonus: Masteries;
 };
 
 const REPORTED_HAND = "weapon";
@@ -45,6 +47,7 @@ export function attributesOf({
     handToSwing(equipment, tilesById, REPORTED_HAND, body.masteries),
   );
   const stats = withStatusModifiers(base, statuses, statusDefs, hp ?? base.maxHp);
+  const masteryBonus = wornMasteryBonus(equipment, tilesById, body.masteries);
 
   const damage = damageBand(stats);
 
@@ -54,10 +57,11 @@ export function attributesOf({
     swingMs: swingIntervalMs(stats),
     hitChance: stats.hitChance,
     def: stats.def,
-    resist: arcaneResist(stats, body.masteries),
+    resist: arcaneResist(stats, withMasteryBonus(body.masteries, masteryBonus)),
     flee: stats.flee,
     reach: shortReach(stats.reach),
     walkPace: 1000 / walkDurationMsFor(bodyDef, walkSpeedPercentFrom(statuses, statusDefs)),
+    masteryBonus,
   };
 }
 
@@ -78,6 +82,11 @@ export function sameAttributes(a: Attributes | null, b: Attributes | null): bool
     a.resist === b.resist &&
     a.flee === b.flee &&
     a.reach === b.reach &&
-    a.walkPace === b.walkPace
+    a.walkPace === b.walkPace &&
+    sameMasteries(a.masteryBonus, b.masteryBonus)
   );
+}
+
+function sameMasteries(a: Masteries, b: Masteries): boolean {
+  return a === b || MASTERIES.every((mastery) => (a[mastery] ?? 0) === (b[mastery] ?? 0));
 }

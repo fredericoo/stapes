@@ -58,6 +58,7 @@ const LIQUIDS: Liquid[] = [
       msPerCycle: 1600,
       ripple: 8,
       gaps: 0.5,
+      fades: true,
     },
     extra: {
       lightPassing: true,
@@ -81,6 +82,7 @@ const LIQUIDS: Liquid[] = [
       msPerCycle: 4000,
       ripple: 8,
       gaps: 0.5,
+      fades: true,
     },
     extra: {
       lightPassing: true,

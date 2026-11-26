@@ -819,6 +819,18 @@ describe("the stones we ship", () => {
     );
   });
 
+  it("lets worn gear speed up a stone the caster can cast, and never one they cannot", () => {
+    const flame = resolveStone(shipped["rune-flame"]!)!;
+    const asks = flame.requirements!;
+    const boosted = { ...asks, arcane: asks.arcane! + 6 };
+
+    expect(castDurationMs(flame, asks, boosted)).toBe(castDurationMs(flame, boosted));
+    const short = { ...asks, arcane: asks.arcane! - 2 };
+    expect(castDurationMs(flame, short, { ...short, arcane: asks.arcane! + 6 })).toBe(
+      castDurationMs(flame, short),
+    );
+  });
+
   it("names a status and a tile the world actually has", () => {
     for (const element of ELEMENTS) {
       for (let index = 0; index < LADDER[element].length; index++) {
