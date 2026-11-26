@@ -1153,32 +1153,10 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 60,
+              "density": 100,
               "path": null,
               "paths": 1,
-              "undergrowth": [
-                {
-                  "tile": "old-tree",
-                  "weight": 4
-                },
-                {
-                  "tile": "fallen-log",
-                  "weight": 2
-                },
-                {
-                  "tile": "small-bush",
-                  "weight": 3
-                },
-                {
-                  "tile": "tree-stump",
-                  "weight": 1
-                },
-                {
-                  "tile": "dead-tree",
-                  "weight": 1
-                }
-              ],
-              "undergrowthDensity": 12
+              "decay": 50
             },
             "children": [
               {
@@ -1418,10 +1396,9 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 45,
+              "density": 55,
               "path": null,
-              "paths": 1,
-              "undergrowthDensity": 10
+              "paths": 1
             },
             "children": [
               {
@@ -1455,10 +1432,9 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 40,
+              "density": 45,
               "path": null,
-              "paths": 1,
-              "undergrowthDensity": 6
+              "paths": 1
             },
             "children": [
               {
@@ -4840,10 +4816,9 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 55,
+              "density": 70,
               "path": null,
-              "paths": 1,
-              "undergrowthDensity": 8
+              "paths": 1
             },
             "children": [
               {
@@ -4878,8 +4853,7 @@
               ],
               "density": 45,
               "path": null,
-              "paths": 1,
-              "undergrowthDensity": 8
+              "paths": 1
             },
             "children": [
               {
@@ -4913,7 +4887,7 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 50,
+              "density": 60,
               "path": null,
               "paths": 1
             },
@@ -6344,10 +6318,9 @@
               "onlyOn": [
                 "grass"
               ],
-              "density": 35,
+              "density": 40,
               "path": null,
               "paths": 1,
-              "undergrowthDensity": 3,
               "trees": [
                 {
                   "tile": "apple-tree",
@@ -6387,7 +6360,7 @@
                 "grass",
                 "grass-2"
               ],
-              "density": 40,
+              "density": 50,
               "path": null,
               "paths": 1
             },
@@ -6481,7 +6454,7 @@
                   "weight": 1
                 }
               ],
-              "density": 25,
+              "density": 60,
               "edge": 20,
               "outliers": 2,
               "opensTo": [
@@ -6490,7 +6463,7 @@
                 "moss-flagstone"
               ],
               "path": null,
-              "undergrowthDensity": 0
+              "tall": []
             }
           },
           {
@@ -6809,7 +6782,7 @@
               "among": [
                 "tree"
               ],
-              "amongAtLeast": 6
+              "amongAtLeast": 4
             }
           },
           {
