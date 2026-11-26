@@ -3016,9 +3016,12 @@ with it, and it is drawn with the world material, so it is lit, fogged and
 palette-snapped like the water under it. It shares the body's depth box and is
 drawn at `WADE_RING_RENDER_ORDER`, after the level and before the wading body,
 so the body's half-opacity edge blends over the ring rather than the water.
-It wobbles through `WADE_RING_FRAMES` frames that squash it one way and then
-the other, `WADE_RING_FRAME_MS` apart, with a phase per body so a crowd does
-not wobble in step.
+Its sheet holds `WADE_RING_FRAMES` frames, `WADE_RING_FRAME_MS` apart, with a
+phase per body so a crowd does not move in step. Through them the circle
+squashes one way and then the other, and a one-pixel ripple in `water`'s crest
+shade, `WADE_RIPPLE_COLOR`, leaves its edge, travels out three quarters of its
+radius and breaks into every other pixel and then every third as it fades.
+The sheet is sized so the ripple at its widest stays clear of the frame's edge.
 
 `bun run scene` asks `wadingFor` about every battler and actor it places, as
 if each stood still, so a scene shows wading as the game does
