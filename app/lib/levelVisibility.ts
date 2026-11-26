@@ -1,6 +1,6 @@
 import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
 import { type CellOcclusion, rayTransmission, stackOcclusion } from "./lighting";
-import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
+import type { ChunkCells, LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
 import { CHUNK_SIZE, HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "./types";
 import { viewLevels } from "./view";
 
@@ -65,12 +65,26 @@ function buildOcclusion(
   return occlusion;
 }
 
+function standsAlone(stack: readonly PlacedTile[], tilesById: Record<string, TileDef>): boolean {
+  if (stack.length === 0) return false;
+  for (const p of stack) if (tilesById[p.tileId]?.cutAlone !== true) return false;
+  return true;
+}
+
 /** Nothing above the drawn levels is drawn, so nothing there needs cutting. */
-function contentAbove(map: MapFile, x: number, y: number, viewZ: number, into: number[]): number[] {
+function contentAbove(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  x: number,
+  y: number,
+  viewZ: number,
+  into: number[],
+): number[] {
   into.length = 0;
   const top = viewLevels(viewZ).z1;
   for (let z = viewZ + 1; z <= top; z++) {
-    if (getStack(map, x, y, z).length > 0) into.push(z);
+    const stack = getStack(map, x, y, z);
+    if (stack.length > 0 && !standsAlone(stack, tilesById)) into.push(z);
   }
   return into;
 }
@@ -118,16 +132,35 @@ export function cutHidesWholeLevel(cut: RoofCut | undefined, z: number): boolean
   return cut !== undefined && cut.cells === null && z > cut.floor;
 }
 
+/**
+ * Where a `cutAlone` cell `k` levels up can be drawn over the viewer: round
+ * the cell `k` along the diagonal, as the diagonal seed above, but centred
+ * half a cell further south-east and reaching a little more than a cell,
+ * because a crown spreads past its own cell and rises above it.
+ */
+const ALONE_REACH = 1.6;
+const ALONE_WINDOW: ReadonlyArray<readonly [number, number]> = (() => {
+  const out: Array<[number, number]> = [];
+  for (let dy = -1; dy <= 2; dy++) {
+    for (let dx = -1; dx <= 2; dx++) {
+      if ((dx - 0.5) ** 2 + (dy - 0.5) ** 2 <= ALONE_REACH ** 2) out.push([dx, dy]);
+    }
+  }
+  return out;
+})();
+
+type Seed = { x: number; y: number; z: number; alone?: true };
+
 function cutSeeds(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   view: ViewAnchor,
   radius: number,
-): Array<{ x: number; y: number; z: number }> {
+): Seed[] {
   const r2 = radius * radius;
   const span = Math.ceil(radius);
   const occlusion = buildOcclusion(map, tilesById, view, span);
-  const seeds: Array<{ x: number; y: number; z: number }> = [];
+  const seeds: Seed[] = [];
   const levels: number[] = [];
 
   for (let dy = -span; dy <= span; dy++) {
@@ -136,7 +169,7 @@ function cutSeeds(
 
       const x = view.x + dx;
       const y = view.y + dy;
-      if (contentAbove(map, x, y, view.z, levels).length === 0) continue;
+      if (contentAbove(map, tilesById, x, y, view.z, levels).length === 0) continue;
       if (!hideRayClear(view.x, view.y, view.z, x, y, occlusion)) continue;
 
       for (const z of levels) seeds.push({ x, y, z });
@@ -151,7 +184,17 @@ function cutSeeds(
     const step = z - view.z;
     const x = view.x + step;
     const y = view.y + step;
-    if (getStack(map, x, y, z).length > 0) seeds.push({ x, y, z });
+    const stack = getStack(map, x, y, z);
+    if (stack.length > 0 && !standsAlone(stack, tilesById)) seeds.push({ x, y, z });
+  }
+  const top = viewLevels(view.z).z1;
+  for (let z = view.z + 1; z <= top; z++) {
+    const step = z - view.z;
+    for (const [dx, dy] of ALONE_WINDOW) {
+      const x = view.x + step + dx;
+      const y = view.y + step + dy;
+      if (standsAlone(getStack(map, x, y, z), tilesById)) seeds.push({ x, y, z, alone: true });
+    }
   }
   return seeds;
 }
@@ -162,12 +205,15 @@ function cutSeeds(
  * yours, while splitting a structure costs a hard diagonal edge through a
  * building. Including the level above and below keeps a two-storey house
  * whose upper floor sits one cell in from its roof from cutting as two
- * things.
+ * things. A `cutAlone` cell is the exception: it is reached only from the
+ * cell straight above or below it, and reaches only those, so a tree is cut
+ * as its own column and never with the wood or the hill beside it.
  */
 function fillStructure(
   map: MapFile,
+  tilesById: Record<string, TileDef>,
   floor: number,
-  seeds: ReadonlyArray<{ x: number; y: number; z: number }>,
+  seeds: readonly Seed[],
 ): Map<number, Set<string>> | null {
   const byLevel = new Map<number, Set<string>>();
   const queue = [...seeds];
@@ -200,21 +246,21 @@ function fillStructure(
   let lastLevel: LevelChunks | undefined;
   let lastChunkKey = "";
   let lastChunk: ChunkCells | undefined;
-  const occupied = (x: number, y: number, z: number): boolean => {
+  const stackOf = (x: number, y: number, z: number): readonly PlacedTile[] | undefined => {
     if (z !== lastZ) {
       lastZ = z;
       lastLevel = map.levels[levelKey(z)];
       lastChunkKey = "";
       lastChunk = undefined;
     }
-    if (lastLevel === undefined) return false;
+    if (lastLevel === undefined) return undefined;
     const chunkKey = chunkKeyFor(x, y);
     if (chunkKey !== lastChunkKey) {
       lastChunkKey = chunkKey;
       lastChunk = lastLevel[chunkKey];
     }
     const stack = lastChunk?.[coordKey(x, y)];
-    return stack !== undefined && stack.length > 0;
+    return stack !== undefined && stack.length > 0 ? stack : undefined;
   };
 
   for (let head = 0; head < queue.length; head++) {
@@ -226,11 +272,15 @@ function fillStructure(
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0 && dz === 0) continue;
+          if (cell.alone && (dx !== 0 || dy !== 0)) continue;
           const x = cell.x + dx;
           const y = cell.y + dy;
-          if (!occupied(x, y, z)) continue;
+          const stack = stackOf(x, y, z);
+          if (!stack) continue;
+          const alone = standsAlone(stack, tilesById);
+          if (alone !== (cell.alone === true && dx === 0 && dy === 0)) continue;
           if (!claim(x, y, z)) continue;
-          queue.push({ x, y, z });
+          queue.push(alone ? { x, y, z, alone } : { x, y, z });
         }
       }
     }
@@ -247,17 +297,19 @@ export function roofCutFor(
 ): RoofCut | undefined {
   const seeds = cutSeeds(map, tilesById, view, radius);
   if (seeds.length === 0) return undefined;
-  return { floor: view.z, cells: fillStructure(map, view.z, seeds) };
+  return { floor: view.z, cells: fillStructure(map, tilesById, view.z, seeds) };
 }
 
 export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RADIUS): unknown[] {
   const span = Math.ceil(radius);
   const out: unknown[] = [];
-  const cx0 = Math.floor((view.x - span) / CHUNK_SIZE);
-  const cx1 = Math.floor((view.x + span) / CHUNK_SIZE);
-  const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
-  const cy1 = Math.floor((view.y + span) / CHUNK_SIZE);
   const { z0, z1 } = viewLevels(view.z);
+  /** The `cutAlone` window runs down the diagonal to the top drawn level. */
+  const reach = Math.max(span, z1 - view.z + 2);
+  const cx0 = Math.floor((view.x - span) / CHUNK_SIZE);
+  const cx1 = Math.floor((view.x + reach) / CHUNK_SIZE);
+  const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
+  const cy1 = Math.floor((view.y + reach) / CHUNK_SIZE);
   for (let z = z0; z <= z1; z++) {
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {

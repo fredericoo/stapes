@@ -225,6 +225,13 @@ export type TileDef = StateSprites & {
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;
+  /**
+   * The roof-cut lifts a cell of this tile when it is drawn over the viewer or
+   * beside them, and takes only the column it stands in with it, never what
+   * touches it; see `levelVisibility`. A tree standing over several levels is
+   * made of these, so walking behind one lifts that tree and not the wood.
+   */
+  cutAlone?: boolean;
   intangible?: boolean;
   affectedByGravity?: boolean;
   walkable?: boolean;
