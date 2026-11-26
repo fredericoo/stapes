@@ -122,15 +122,16 @@ import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
 import { LevelLights } from "./levelLights";
 import { PalettePass } from "./palettePass";
+import { type Wading } from "./wadeDepth";
 import {
-  WadeRingSheets,
+  type WadeRing,
+  createWadeRingUniforms,
   feetPx,
-  wadeRingFrameAt,
   wadeRingLiftPx,
   wadeRingPhaseMs,
   wadeRingRadiusPx,
-  wadeRingSidePx,
-  wadeRingUs,
+  wadeRingsTurned,
+  writeWadeRings,
 } from "./wadeRings";
 import {
   type LevelCutUniforms,
@@ -223,8 +224,6 @@ const VERTS_PER_SPRITE = 4;
 const PROJECTILE_STACK_BIAS = 32;
 
 const WADING_RENDER_ORDER = 0.5;
-/** After the level, so the ring covers the water, and before the wading body, which blends over it. */
-const WADE_RING_RENDER_ORDER = 0.4;
 
 /**
  * A translucent sheet writes no depth, so whatever stands behind its art has to
@@ -437,7 +436,7 @@ export type WorldView = {
   roofCut?: RoofCut;
   viewerZ?: number;
   spriteTints?: ReadonlyMap<string, StatusTint>;
-  wading?: ReadonlyMap<string, number>;
+  wading?: ReadonlyMap<string, Wading>;
   particleEmitters?: readonly ParticleEmitterSpec[];
   playSquare?: { x: number; y: number; sizePx: number };
 };
@@ -707,8 +706,7 @@ export class WorldRenderer {
     string,
     { box: DepthBox; stackBias: number; z: number; widthPx: number }
   >();
-  private wadeRingSheets = new WadeRingSheets();
-  private wadeRings = new Map<string, { mesh: THREE.Mesh; frame: number; phaseMs: number }>();
+  private wadeRingUniforms = createWadeRingUniforms();
   private motionGhosts = new Map<string, THREE.Mesh>();
   private roofCut: RoofCut | undefined;
   private cutUniformsByZ = new Map<number, LevelCutUniforms>();
@@ -1520,7 +1518,6 @@ export class WorldRenderer {
     this.stop();
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
-    this.wadeRingSheets.dispose();
     this.shelterTexture?.dispose();
     this.particles.dispose();
     this.tintedMeshes.clear();
@@ -1557,13 +1554,14 @@ export class WorldRenderer {
 
   private applyTileMotions(
     motions: TileMotion[] | undefined,
-    wading: ReadonlyMap<string, number> | undefined,
+    wading: ReadonlyMap<string, Wading> | undefined,
   ) {
     const byKey = new Map<string, TileMotion>();
     for (const m of motions ?? []) byKey.set(this.tileKey(m), m);
     this.currentMotions = byKey;
 
     const activeGhosts = new Set<string>();
+    const rings: WadeRing[] = [];
 
     for (const [key, mesh] of this.movableMeshes) {
       const base = this.movableBasePos.get(key);
@@ -1571,7 +1569,8 @@ export class WorldRenderer {
       if (!base || !baseBox) continue;
 
       const motion = byKey.get(key);
-      const wade = wading?.get(key) ?? 0;
+      const waded = wading?.get(key);
+      const wade = waded?.depth ?? 0;
       const sinkPx = Math.round(wade * WADE_SINK_PX);
       const edgePx = Math.round(wade * WADE_EDGE_PX);
       mesh.position.x = base.x + (motion?.ox ?? 0) + sinkPx;
@@ -1584,7 +1583,17 @@ export class WorldRenderer {
         : baseBox.box;
       const stackBias = motion ? motion.box.stackBias : baseBox.stackBias;
       writeBoxAttr(mesh.geometry, box, stackBias);
-      this.syncWadeRing(key, mesh, base, baseBox, edgePx, box, stackBias);
+      if (waded && edgePx > 0) {
+        const feet = feetPx(baseBox.box);
+        const liftPx = edgePx + wadeRingLiftPx(baseBox.widthPx);
+        rings.push({
+          x: feet.x + (mesh.position.x - base.x) - liftPx,
+          y: feet.y + (mesh.position.y - base.y) - liftPx,
+          radiusPx: wadeRingRadiusPx(baseBox.widthPx),
+          foot: box.foot,
+          phaseMs: wadeRingPhaseMs(waded.id),
+        });
+      }
       /**
        * The scene has matrixWorldAutoUpdate false, so world matrices are not
        * recomputed automatically: without this the mesh never moves on
@@ -1608,6 +1617,9 @@ export class WorldRenderer {
     for (const key of [...this.motionGhosts.keys()]) {
       if (!activeGhosts.has(key)) this.disposeMotionGhost(key);
     }
+
+    const camera = this.view?.camera ?? { x: 0, y: 0 };
+    if (writeWadeRings(this.wadeRingUniforms, rings, camera.x, camera.y)) this.needsRender = true;
   }
 
   private applyProjectiles(views: ProjectileView[] | undefined) {
@@ -1970,7 +1982,7 @@ export class WorldRenderer {
           this.depthUniforms,
           undefined,
           this.weatherUniforms,
-          cycle,
+          cycle && { ...cycle, ...this.wadeRingUniforms },
         );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
@@ -2121,7 +2133,6 @@ export class WorldRenderer {
     this.movableMeshes.clear();
     this.movableBasePos.clear();
     this.movableBaseBox.clear();
-    this.wadeRings.clear();
   }
 
   private syncChunks(next: MapFile, window: MeshWindow) {
@@ -2279,7 +2290,6 @@ export class WorldRenderer {
     if (!entry) return;
 
     for (const movableKey of entry.movableKeys) {
-      this.wadeRings.delete(movableKey);
       this.movableMeshes.delete(movableKey);
       this.movableBasePos.delete(movableKey);
       this.movableBaseBox.delete(movableKey);
@@ -2379,7 +2389,6 @@ export class WorldRenderer {
         mesh.parent?.remove(mesh);
         disposeObject3D(mesh);
       }
-      this.wadeRings.delete(key);
       this.movableMeshes.delete(key);
       this.movableBasePos.delete(key);
       this.movableBaseBox.delete(key);
@@ -2968,84 +2977,6 @@ export class WorldRenderer {
     return this.colorCycleState().turnTo(this.animClock);
   }
 
-  /**
-   * A wading body stands in a circle of dark water a quarter of its sprite's
-   * width across each way, centred on its feet and lifted past the pixels the
-   * wade cut takes, so it sits round the body rather than in front of it. It is a
-   * child of the body, so it moves and sinks with it, and it shares the body's
-   * depth box and light.
-   */
-  private syncWadeRing(
-    key: string,
-    body: THREE.Mesh,
-    base: { x: number; y: number },
-    rest: { box: DepthBox; z: number; widthPx: number },
-    edgePx: number,
-    box: DepthBox,
-    stackBias: number,
-  ) {
-    let ring = this.wadeRings.get(key);
-    if (edgePx <= 0) {
-      if (ring) ring.mesh.visible = false;
-      return;
-    }
-    if (!ring) {
-      const radiusPx = wadeRingRadiusPx(rest.widthPx);
-      const side = wadeRingSidePx(radiusPx);
-      const phaseMs = wadeRingPhaseMs(key);
-      const frame = wadeRingFrameAt(this.animClock, phaseMs);
-      const light = body.geometry.getAttribute("aLightUv").array;
-      const geo = buildSingleQuadGeometry({
-        w: side,
-        h: side,
-        ...wadeRingUs(frame),
-        v0: 0,
-        v1: 1,
-        box,
-        stackBias,
-        lightX0: light[0]!,
-        lightY0: light[5]!,
-        lightX1: light[2]!,
-        lightY1: light[1]!,
-        unlit: false,
-      });
-      const mesh = new THREE.Mesh(
-        geo,
-        this.materialFor(this.wadeRingSheets.sheet(radiusPx), rest.z),
-      );
-      mesh.renderOrder = WADE_RING_RENDER_ORDER;
-      mesh.matrixAutoUpdate = false;
-      body.add(mesh);
-      ring = { mesh, frame, phaseMs };
-      this.wadeRings.set(key, ring);
-    }
-    ring.mesh.visible = true;
-    const feet = feetPx(rest.box);
-    const liftPx = edgePx + wadeRingLiftPx(rest.widthPx);
-    ring.mesh.position.set(feet.x - base.x - liftPx, feet.y - base.y - liftPx, 0);
-    ring.mesh.updateMatrix();
-    writeBoxAttr(ring.mesh.geometry, box, stackBias);
-  }
-
-  private turnWadeRings(): boolean {
-    let changed = false;
-    for (const ring of this.wadeRings.values()) {
-      if (!ring.mesh.visible) continue;
-      const frame = wadeRingFrameAt(this.animClock, ring.phaseMs);
-      if (frame === ring.frame) continue;
-      ring.frame = frame;
-      const { u0, u1 } = wadeRingUs(frame);
-      const uvs = ring.mesh.geometry.attributes.uv!;
-      uvs.setX(0, u0);
-      uvs.setX(1, u1);
-      uvs.setX(2, u0);
-      uvs.setX(3, u1);
-      uvs.needsUpdate = true;
-      changed = true;
-    }
-    return changed;
-  }
-
   private addQuadMesh(
     parent: THREE.Object3D,
     quad: Quad & { spread?: readonly SpreadSprite[] },
@@ -3074,7 +3005,9 @@ export class WorldRenderer {
       }
       u.uAnimClockMs.value = this.animClock;
     }
-    if (this.turnWadeRings()) changed = true;
+    const wade = this.wadeRingUniforms;
+    if (wadeRingsTurned(wade, wade.uWadeClockMs.value, this.animClock)) changed = true;
+    wade.uWadeClockMs.value = this.animClock;
     if (this.animatedByKey.size === 0) return changed;
 
     for (const [key, instances] of this.animatedByKey) {

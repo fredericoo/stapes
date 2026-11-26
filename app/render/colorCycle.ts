@@ -11,6 +11,7 @@ import {
   colorCycleTileIds,
   flowDelta,
 } from "../lib/waterFlow";
+import { WADE_RING_GLSL_COMMON, WADE_RING_GLSL_FRAGMENT } from "./wadeRings";
 
 export const MAX_CYCLE_STEPS = 32;
 
@@ -304,6 +305,7 @@ function glsl(n: number): string {
 }
 
 export const COLOR_CYCLE_GLSL_COMMON = `
+${WADE_RING_GLSL_COMMON}
 #ifdef COLOR_CYCLE
 uniform vec3 uCycleKey;
 uniform vec3 uCycleRamp[${MAX_CYCLE_STEPS}];
@@ -393,6 +395,7 @@ export const COLOR_CYCLE_GLSL_FRAGMENT = `
     float cycleGap = cycleNoise(cycleScaledPx / ${glsl(GAP_PX)} + cycleHash(vec2(cycleBand, 5.0)) * 97.0);
     float cycleCalm = smoothstep(${glsl(CALM_FROM)}, ${glsl(CALM_TO)}, cycleBank);
     if (cycleGap < mix(uCycleGaps, 1.0, cycleCalm)) cycleColor = uCycleRamp[0];
+${WADE_RING_GLSL_FRAGMENT}
     sampledDiffuseColor.rgb = cycleColor;
     diffuseColor.rgb = diffuse * cycleColor;
   }

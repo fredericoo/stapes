@@ -231,7 +231,7 @@ const SPLASH_STEPS = 3;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v22-rounded-wade";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v23-wade-rings-on-water";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;

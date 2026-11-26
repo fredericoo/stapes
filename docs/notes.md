@@ -3008,20 +3008,29 @@ ellipse in `deep-water`'s base colour, `WADE_RING_COLOR`, with a radius of a
 quarter of the sprite's width and at least 2px. It is centred on the sunk feet
 the cut measures from, lifted up-left by the cut's own `WADE_EDGE_PX` and
 then by `wadeRingLiftPx` more (a sixteenth of the sprite's width, 1px on a
-player, never less than 1px), so it sits round the body rather than in front of it. The cut's corner is rounded to
-a quarter circle of the ring's radius (the third component of `aWade`), so the
-body's bottom edge curves into the ring instead of meeting it in a square
-corner. It is a child mesh of the body, so it moves and sinks
-with it, and it is drawn with the world material, so it is lit, fogged and
-palette-snapped like the water under it. It shares the body's depth box and is
-drawn at `WADE_RING_RENDER_ORDER`, after the level and before the wading body,
-so the body's half-opacity edge blends over the ring rather than the water.
-Its sheet holds `WADE_RING_FRAMES` frames, `WADE_RING_FRAME_MS` apart, with a
-phase per body so a crowd does not move in step. Through them the circle
-squashes one way and then the other, and a one-pixel ripple in `water`'s crest
-shade, `WADE_RIPPLE_COLOR`, leaves its edge, travels out three quarters of its
-radius and breaks into every other pixel and then every third as it fades.
-The sheet is sized so the ripple at its widest stays clear of the frame's edge.
+player, never less than 1px). The cut's corner is rounded to a quarter circle
+of the ring's radius (the third component of `aWade`), so the body's bottom
+edge curves into the ring instead of meeting it in a square corner.
+
+The water draws the ring, not a mesh of the body's. `applyTileMotions` writes
+each wading body's ring (centre, radius, foot and phase) into
+`wadeRingUniforms`, which every colour-cycled material carries, and the
+colour-cycle fragment code paints it over the key-coloured pixels it is
+already recolouring. So a ring stops at the bank, the rim and anything else
+that is not open water, and it is lit, fogged and palette-snapped like the
+water. A ring is drawn only on a surface whose top is within
+`SAME_SURFACE_ELEV` of the body's foot, so a pond on the level below does not
+show it. At most `MAX_WADE_RINGS` fit the uniforms; past that the bodies
+nearest the camera keep theirs. A wade tile that is not colour-cycled shows no
+ring.
+
+The ring moves through `WADE_RING_FRAMES` frames, `WADE_RING_FRAME_MS` apart:
+the circle squashes one way and then the other, and a one-pixel ripple in
+`water`'s crest shade, `WADE_RIPPLE_COLOR`, leaves its edge, travels out three
+quarters of its radius and breaks into every other pixel and then every third
+as it fades. The phase comes from the body's id, not its cell, because a body's
+render key is its cell and changes with every step: keyed by cell, the loop
+restarted each time the body crossed into a new one.
 
 `bun run scene` asks `wadingFor` about every battler and actor it places, as
 if each stood still, so a scene shows wading as the game does

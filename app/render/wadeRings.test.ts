@@ -1,22 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { WADE_RING_FRAMES, wadeRingPixel, wadeRingSidePx } from "./wadeRings";
+import { MAX_WADE_RINGS, createWadeRingUniforms, writeWadeRings, type WadeRing } from "./wadeRings";
 
-describe("wadeRingPixel", () => {
-  it("draws a ripple in every frame and none in the pixels just outside it", () => {
-    for (const radiusPx of [2, 3, 4, 8, 12]) {
-      const side = wadeRingSidePx(radiusPx);
-      for (let frame = 0; frame < WADE_RING_FRAMES; frame++) {
-        let inside = 0;
-        for (let y = -1; y <= side; y++) {
-          for (let x = -1; x <= side; x++) {
-            if (wadeRingPixel(radiusPx, frame, x, y) !== "ripple") continue;
-            expect([x, y]).not.toContain(-1);
-            expect([x, y]).not.toContain(side);
-            inside++;
-          }
-        }
-        expect(inside).toBeGreaterThan(0);
-      }
-    }
+const ringAt = (x: number): WadeRing => ({ x, y: 0, radiusPx: 4, foot: 0, phaseMs: 0 });
+
+describe("writeWadeRings", () => {
+  it("keeps the rings nearest the camera when more bodies wade than the shader holds", () => {
+    const uniforms = createWadeRingUniforms();
+    const rings = Array.from({ length: MAX_WADE_RINGS + 4 }, (_, i) => ringAt(1000 - i * 10));
+
+    writeWadeRings(uniforms, rings, 0, 0);
+
+    const kept = uniforms.uWadeRings.value.map((v) => v.x).sort((a, b) => a - b);
+    expect(uniforms.uWadeRingCount.value).toBe(MAX_WADE_RINGS);
+    expect(kept[0]).toBe(1000 - (MAX_WADE_RINGS + 3) * 10);
+    expect(kept.at(-1)).toBe(1000 - 4 * 10);
+  });
+
+  it("says nothing changed when the same rings are written again", () => {
+    const uniforms = createWadeRingUniforms();
+    expect(writeWadeRings(uniforms, [ringAt(5)], 0, 0)).toBe(true);
+    expect(writeWadeRings(uniforms, [ringAt(5)], 0, 0)).toBe(false);
   });
 });

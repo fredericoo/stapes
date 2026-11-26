@@ -80,9 +80,18 @@ describe("wadingFor", () => {
   it("names only the bodies in the water, and nothing on a dry board", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "body" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "water" }, { tileId: "body" }]);
-    const dry = { x: 0, y: 0, z: 0, stackIndex: 1, walk: null, walkProgress: 0, fall: null };
-    const wet = { ...dry, x: 1 };
-    expect(wadingFor(map, [dry, wet], by)).toEqual(new Map([["0:1,0:1", 1]]));
+    const dry = {
+      id: "a",
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+      walk: null,
+      walkProgress: 0,
+      fall: null,
+    };
+    const wet = { ...dry, id: "b", x: 1 };
+    expect(wadingFor(map, [dry, wet], by)).toEqual(new Map([["0:1,0:1", { depth: 1, id: "b" }]]));
     expect(wadingFor(map, [dry], by)).toBeUndefined();
   });
 });

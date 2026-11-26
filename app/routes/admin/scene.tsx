@@ -58,7 +58,13 @@ export default function ScenePage() {
           viewerCell: built.look,
           wading: wadingFor(
             built.map,
-            built.bodies.map((body) => ({ ...body, walk: null, fall: null, walkProgress: 0 })),
+            built.bodies.map((body) => ({
+              ...body,
+              id: `${body.x},${body.y},${body.z}:${body.stackIndex}`,
+              walk: null,
+              fall: null,
+              walkProgress: 0,
+            })),
             tilesById,
           ),
         };
