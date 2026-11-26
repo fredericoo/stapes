@@ -16274,9 +16274,34 @@ shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
 - **A road with no `tile` lays only ramps and bridges**, so it can serve as a
   way up a hill that shows no path. A hill's own `ramps` are points; each puts
   a ramp on the nearest stretch of cliff that fits.
-- **The head of a ramp is the one place a road writes below its own level**:
+- **The head of a ramp writes below the road's own level**:
   the wall under it becomes two `half-stone`. Its edit is at `ctx.z - 1`, which
   the build lifts with the cell like any other.
+- **A hill the road cannot climb is tunnelled** (`withTunnels` in
+  `components/tunnel.ts`). A stretch of route that leaves a level for higher
+  ground and comes back down to the same level is tunnelled when `withRamps`
+  would leave a jump in it: a cliff two or more levels high, or a shelf too
+  narrow for a ramp. A stretch that ends on the hill is left to the ramps, as
+  is one where `tunnels` is off.
+- **A route that only clips a hill goes round its foot instead.** Before
+  digging, the road looks for a way over clear ground on its own level to the
+  route past the hill, at most twice the stretch's length plus
+  `MOUTH_REACH`. Without it a road that cut the corner of a hill dug in and
+  came back out of the same face a few cells along.
+- **A tunnel is dug the way a cave is.** A mouth goes on a straight stretch of
+  cliff with a full block over it, nearest the route on each side, south and
+  east faces first. The two are joined on the road's level by the cheapest way
+  through: a step along a passage already there costs one and a step that
+  digs costs `DIG_COST`, so a dungeon dug in the hill earlier in the tree is
+  walked through and only the rock between it and each mouth is dug. A
+  passage counts doors a body opens with its hands (a `switch` to an
+  intangible tile), so a crypt's doors stay. A door opened by a channel does
+  not count, and the road digs round it. A dug cell keeps rock or passage on
+  all eight sides, so the tunnel breaks out of the hill only at its mouths,
+  and rock under nothing but a hilltop's floor is not dug.
+- **The tunnel's edits are on an absolute level.** The build lifts every edit
+  of a road by the cell's elevation, so a tunnel cell is written at
+  `ctx.z + level - raisedAt`, which the lift brings back to `level`.
 
 ### The build keeps how high the ground is, and hides it from most components
 

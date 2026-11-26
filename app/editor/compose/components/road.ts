@@ -17,6 +17,7 @@ import {
   type RouteCell,
 } from "./line";
 import { STEP, nearestRamp, rampCells, type RampGround, type RampSite } from "./ramp";
+import { withTunnels, type Tunnelled } from "./tunnel";
 
 const RoadSchema = v.object({
   ...ROUTE_PROPS,
@@ -32,12 +33,15 @@ const RoadSchema = v.object({
   ]),
   cuts: v.optional(field.tiles(TILES.ground), ["grass"]),
   verge: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(2)), 0),
+  /** Whether the road digs under a hill it cannot climb by ramps, rather than being laid on both levels unjoined. */
+  tunnels: v.optional(v.boolean(), true),
+  mouth: v.optional(field.tile(TILES.any), "hill-cave-mouth"),
 });
 
 export type RoadProps = v.InferOutput<typeof RoadSchema>;
 
 /** A route cell that is one of a ramp's two cells of slope, which take no road tile. */
-type Stepped = RouteCell & { slope?: true };
+type Stepped = Tunnelled & { slope?: true };
 
 /** `span` numbers the bridge a cell is part of, and `at` of `of` is how far along it the cell is. */
 type Laid = Stepped & { bridge: boolean; span?: number; at?: number; of?: number };
@@ -61,7 +65,7 @@ const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
  * fits within `RAMP_REACH`, or the levels differ by more than one, the route
  * is left as it was and the road is laid on both levels unjoined.
  */
-function withRamps(cells: readonly RouteCell[], ground: RampGround) {
+function withRamps(cells: readonly Tunnelled[], ground: RampGround) {
   const out: Stepped[] = [];
   const sites: RampSite[] = [];
   const key = (c: { x: number; y: number }) => `${c.x},${c.y}`;
@@ -142,6 +146,16 @@ function withRamps(cells: readonly RouteCell[], ground: RampGround) {
     i = plan.to + 1;
   }
   return { cells: out, sites };
+}
+
+/** Whether a route relaid by `withRamps` steps between levels only on its ramps. */
+function climbs(cells: readonly Stepped[], ground: RampGround): boolean {
+  return cells.every((c, n) => {
+    const next = cells[n + 1];
+    return (
+      !next || c.slope || next.slope || ground.level(c.x, c.y) === ground.level(next.x, next.y)
+    );
+  });
 }
 
 /** Longest bridge a road will build; past it the far bank is taken to be open sea, and the road stops. */
@@ -328,7 +342,27 @@ export const road: Component<RoadProps> = {
         );
       },
     };
-    const ramped = withRamps(route, ground);
+    const dug = props.tunnels
+      ? withTunnels(
+          route,
+          {
+            level: ctx.raisedAt,
+            stackOn: (x, y, level) => ctx.stackAt(x, y, ctx.z + level - ctx.raisedAt(x, y)),
+            clear: ground.clear,
+            rampGround: (x, y) => ctx.rampAt(x, y)?.ground,
+            tilesById: ctx.tilesById,
+          },
+          { floor: props.tile ?? "dirt", mouth: props.mouth },
+          (stretch) => climbs(withRamps(stretch, ground).cells, ground),
+        )
+      : { cells: route as Tunnelled[], edits: [] };
+    const under = new Map(
+      dug.cells.flatMap((c) => (c.under === undefined ? [] : [[at(c.x, c.y), c.under] as const])),
+    );
+    const ramped = withRamps(dug.cells, {
+      level: (x, y) => under.get(at(x, y)) ?? ctx.raisedAt(x, y),
+      clear: (x, y) => !under.has(at(x, y)) && ground.clear(x, y),
+    });
     /** What a ramp leaves on its cells, which the road is then laid on: slope cells are finished, a head gets the road's tile like any other cell. */
     const reshaped = new Map<string, PlacedTile[]>();
     const slopes = new Set<string>();
@@ -365,7 +399,11 @@ export const road: Component<RoadProps> = {
     const styles = new Map<number, BridgeStyle>();
     const declared = (cells: readonly { x: number; y: number }[]) =>
       cells.map((c) => ctx.bridgeAt(c.x, c.y)).find((b) => b !== undefined);
-    const laid = withBridges(ramped.cells, wet, (water) => declared(water) !== null);
+    const laid = withBridges(
+      ramped.cells,
+      (x, y) => !under.has(at(x, y)) && wet(x, y),
+      (water) => declared(water) !== null,
+    );
     for (const c of laid) {
       if (c.span === undefined || styles.has(c.span)) continue;
       const style = declared(laid.filter((k) => k.span === c.span)) ?? DEFAULT_BRIDGE;
@@ -384,7 +422,7 @@ export const road: Component<RoadProps> = {
         .flatMap((c) => band.map((o) => at(c.x + c.side.x * o, c.y + c.side.y * o))),
     );
     for (const c of laid) {
-      if (c.slope) continue;
+      if (c.slope || c.under !== undefined) continue;
       for (const o of band) {
         const x = c.x + c.side.x * o;
         const y = c.y + c.side.y * o;
@@ -425,7 +463,7 @@ export const road: Component<RoadProps> = {
       }
     }
     for (const c of laid) {
-      if (c.bridge || c.slope) continue;
+      if (c.bridge || c.slope || c.under !== undefined) continue;
       for (let n = 1; n <= props.verge; n++) {
         for (const o of [band[0]! - n, band.at(-1)! + n]) {
           const x = c.x + c.side.x * o;
@@ -440,7 +478,10 @@ export const road: Component<RoadProps> = {
     }
     for (const [key, stack] of reshaped) if (!written.has(key)) written.set(key, stack);
 
-    const edits: StackEdit[] = [...below];
+    const edits: StackEdit[] = [
+      ...below,
+      ...dug.edits.map(({ level, ...e }) => ({ ...e, z: ctx.z + level - ctx.raisedAt(e.x, e.y) })),
+    ];
     for (const [key, stack] of written) {
       const [x, y] = key.split(",").map(Number) as [number, number];
       edits.push({ x, y, z: ctx.z, stack });
