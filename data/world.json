@@ -6131,10 +6131,10 @@
             "props": {
               "from": {
                 "in": "warrior-town",
-                "x": 1,
-                "y": 0.3,
-                "pinX": "scale",
-                "pinY": "scale"
+                "x": 0,
+                "y": 22,
+                "pinX": "right",
+                "pinY": "top"
               },
               "to": {
                 "in": "obsidian-deeps",
@@ -6146,7 +6146,8 @@
               "tile": null,
               "width": 1,
               "wander": 40,
-              "bendLength": 48
+              "bendLength": 48,
+              "cuts": []
             }
           },
           {

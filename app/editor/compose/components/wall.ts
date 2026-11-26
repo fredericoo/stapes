@@ -3,7 +3,7 @@ import type { StackEdit } from "../../../lib/mapData";
 import type { Direction, PlacedTile } from "../../../lib/types";
 import { DEFAULT_STAIRS_TILE_ID, stairBlock } from "../../building";
 import { placed } from "../../generator";
-import type { Component } from "../build";
+import type { Component, Route } from "../build";
 import { TILES, field } from "../field";
 import { bandOffsets, isWet, lineCells, type Cell } from "./line";
 import { STEP } from "./ramp";
@@ -87,6 +87,26 @@ function outsideOf(band: ReadonlyMap<string, Cell>): (c: Cell) => boolean {
 
 type Gate = { opening: Cell[]; doors: Array<{ cell: Cell; facing: Direction }> };
 
+/** Each unbroken stretch of a route that runs over the wall's band, with the route's width. */
+function routesThrough(
+  routes: readonly Route[],
+  band: ReadonlyMap<string, Cell>,
+): Array<{ cells: Cell[]; width: number }> {
+  const out: Array<{ cells: Cell[]; width: number }> = [];
+  for (const route of routes) {
+    let cells: Cell[] = [];
+    for (const c of route.cells) {
+      if (band.has(at(c))) cells.push(c);
+      else if (cells.length) {
+        out.push({ cells, width: route.width });
+        cells = [];
+      }
+    }
+    if (cells.length) out.push({ cells, width: route.width });
+  }
+  return out;
+}
+
 /**
  * A wall of solid courses `height` levels high with a walkway on top. Every
  * top cell that looks out over the outside is a battlement of half blocks,
@@ -96,7 +116,8 @@ type Gate = { opening: Cell[]; doors: Array<{ cell: Cell; facing: Direction }> }
  * one, which has an outer face on both sides.
  *
  * A gate is an opening through the bottom course with the walkway carried
- * over it. Stairs are a flight along the wall's face, two cells a level, up
+ * over it. Besides the gates it names, it opens one wherever a road's route
+ * runs over it, unless that stretch of the road already passes through or beside a gate. Stairs are a flight along the wall's face, two cells a level, up
  * to a landing beside the walkway.
  */
 export const wall: Component<WallProps> = {
@@ -118,6 +139,7 @@ export const wall: Component<WallProps> = {
   },
   schema: WallSchema,
   ownLevels: true,
+  readsRoutes: true,
   build(ctx, props) {
     const anchors: Cell[] = [];
     for (const point of [props.from, ...props.via, props.to]) {
@@ -153,28 +175,28 @@ export const wall: Component<WallProps> = {
 
     const gates: Gate[] = [];
     const opened = new Set<string>();
-    const span = bandOffsets(props.gateWidth);
-    for (const point of props.gates) {
-      const cell = ctx.point(point);
-      if (!cell) return { ok: false, reason: `There is no node called ${point.in ?? ""}` };
+    /**
+     * A road is widened toward positive x or y (`bandOffsets`), so a gate
+     * opened for one counts its cells the same way, whichever way round the
+     * wall's own line runs there. A named gate keeps the line's direction.
+     */
+    const openGate = (cell: Cell, width: number, alongRoad: boolean): boolean => {
       const middle = nearestOnPath(cell);
-      const reach = props.thickness + props.gateWidth;
-      const first = pathAt(middle + span[0]! - reach);
-      const last = pathAt(middle + span.at(-1)! + reach);
+      const next = pathAt(middle + 1);
+      const here = pathAt(middle)!;
+      const sign = alongRoad && next && next.x + next.y < here.x + here.y ? -1 : 1;
+      const span = bandOffsets(width).map((o) => o * sign);
+      const low = Math.min(...span);
+      const high = Math.max(...span);
+      const reach = props.thickness + width;
+      const first = pathAt(middle + low - reach);
+      const last = pathAt(middle + high + reach);
       const straight =
         first && last && (first.x === last.x || first.y === last.y) && apart(first, last) > 0;
       const run = straight
-        ? Array.from({ length: apart(first, last) + 1 }, (_, n) =>
-            pathAt(middle + span[0]! - reach + n),
-          )
+        ? Array.from({ length: apart(first, last) + 1 }, (_, n) => pathAt(middle + low - reach + n))
         : [];
-      if (!straight || run.some((c) => !c || (c.x !== first.x && c.y !== first.y))) {
-        return {
-          ok: false,
-          reason:
-            "A gate needs a straight stretch of wall on both sides. Move it away from the corner or the end of the wall.",
-        };
-      }
+      if (!straight || run.some((c) => !c || (c.x !== first.x && c.y !== first.y))) return false;
       const through: Cell = first.y === last.y ? { x: 0, y: 1 } : { x: 1, y: 0 };
       const gate: Gate = { opening: [], doors: [] };
       for (const o of span) {
@@ -186,6 +208,31 @@ export const wall: Component<WallProps> = {
       }
       for (const c of gate.opening) opened.add(at(c));
       gates.push(gate);
+      return true;
+    };
+    for (const point of props.gates) {
+      const cell = ctx.point(point);
+      if (!cell) return { ok: false, reason: `There is no node called ${point.in ?? ""}` };
+      if (!openGate(cell, props.gateWidth, false)) {
+        return {
+          ok: false,
+          reason:
+            "A gate needs a straight stretch of wall on both sides. Move it away from the corner or the end of the wall.",
+        };
+      }
+    }
+    /** A road that runs over the cell beside a gate walks through it already, so it gets no gate of its own. */
+    const byGate = (c: Cell) =>
+      [-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => opened.has(at(plus(c, { x: dx, y: dy })))));
+    for (const stretch of routesThrough(ctx.routes, band)) {
+      if (stretch.cells.some(byGate)) continue;
+      const cell = stretch.cells[Math.floor(stretch.cells.length / 2)]!;
+      if (!openGate(cell, Math.max(props.gateWidth, stretch.width), true)) {
+        return {
+          ok: false,
+          reason: `A road meets this wall at ${cell.x},${cell.y}, where there is no straight stretch of wall on both sides for a gate. Move the road away from the corner or the end of the wall.`,
+        };
+      }
     }
 
     const level = (c: Cell) => ctx.raisedAt(c.x, c.y);

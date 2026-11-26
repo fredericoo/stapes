@@ -301,6 +301,10 @@ export const road: Component<RoadProps> = {
   label: "Road",
   starter: { props: { from: { x: 2, y: 2 }, to: { x: 14, y: 2 } } },
   schema: RoadSchema,
+  route(props, frame) {
+    const cells = routeOf(frame, props);
+    return "reason" in cells ? null : { cells, width: props.width };
+  },
   build(ctx, props) {
     for (const id of [props.tile, ...props.clears]) {
       if (id && !ctx.tilesById[id]) return { ok: false, reason: `There is no tile called ${id}` };
