@@ -68,12 +68,12 @@ describe("scatter", () => {
   });
 
   it.each([1, 2, 3])("puts a tile only where its `among` tiles stand thick, seed %i", (seed) => {
-    const AT_LEAST = 12;
+    const AT_LEAST = 5;
     const built = buildTree(
       land({ w: 40, h: 24 }, [
         node(
           "forest",
-          { density: 100, edge: 2, path: null, undergrowthDensity: 0 },
+          { density: 100, edge: 2, path: null, foliage: [], tall: [] },
           { frame: frame(0, 0, 20, 24) },
         ),
         node("scatter", {

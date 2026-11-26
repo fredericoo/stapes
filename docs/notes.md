@@ -16248,27 +16248,54 @@ its own fix:
   in, measured in a straight line from whatever ends it (frame, mask, a road
   through it, a house) and pushed in and out by noise, more in than out. A
   wood then ends in bays and tongues, and `outliers` (3% by default) stands
-  lone trees in the open past it. Undergrowth grows up to five times as thick
-  where the canopy is half closed, which is the scrub at a wood's edge.
+  lone trees in the open past it. Ground cover grows up to half as thick
+  again where the canopy is half closed, which is the scrub at a wood's edge.
 - **`widenToTwo` made the holes square.** Run to a fixed point on a noisy
   field, it plants every open cell that is not in a clear 2×2 square, so all
-  that survives is unions of squares. The new pass plants only an open cell
-  with six or more trees around it, and only where the canopy is past half,
-  twice. That removes the one-cell slits the camera hides in the thick of the
-  wood and leaves the gaps between lone trees where the wood is thin, the way
-  a scatter leaves them.
-- **`joinRegions` cut L-shaped tunnels.** A glade of `MIN_GLADE_CELLS` or more
-  that cannot be walked into is now joined by the way that fells the fewest
-  trees (Dijkstra, each tree costing 4 to 8 so the track bends round the thick
-  of the wood), two cells wide, to open ground at the wood's edge or the path.
+  that survives is unions of squares.
+- **`joinRegions` cut L-shaped tunnels.** A pocket that cannot be walked into
+  is now joined by the way that fells the fewest trees (Dijkstra, each tree
+  costing 4 to 8 so the track bends round the thick of the wood), two cells
+  wide, to open ground at the wood's edge or the path.
 
 **`trees` is a weighted mix, and each kind comes in stands.** Each kind's
 weight is multiplied by `exp(7 × (noise − 0.5))` from its own noise field 13
-cells across, so one kind dominates a patch without the others vanishing. The
-default is `tree` 60 to `old-tree` 1: the old tree is much darker than the
-grass and, in stands, reads as a hole in the map. A tree wider than a cell
-that does not fit falls back to the commonest one-cell kind. A saved forest
-with the old single `tree` prop is read as a mix of one (`migrateDoc`).
+cells across, so one kind dominates a patch without the others vanishing. A
+tile wider than a cell that does not fit falls back to the commonest one-cell
+kind of its list. A saved forest with the old single `tree` prop is read as a
+mix of one (`migrateDoc`).
+
+### A forest's density picks what grows, and its decay what has died
+
+Every wood used to be walls. At the default density of 55, 41% of a 50×50
+wood blocked a walker and the largest solid clump was 468 cells, for three
+reasons: an open cell with six trees round it was planted over, twice; a
+pocket smaller than 14 cells that nobody could reach was planted over instead
+of opened; and undergrowth grew five times as thick at the wood's edge, so a
+setting of 6% grew 15%. All three are gone. Every pocket is joined to open
+ground now, and no tree is planted beside two trees already planted before it
+in the scan (`MAX_TREES_BESIDE`), which allows a line and never a clump.
+
+`density` (0 to 100) now picks what grows as well as how much (`forestMix`):
+
+- **0 to 10:** ground cover only (`foliage`: tufts, ferns, undergrowth,
+  flowers) and a rare bush.
+- **10 to 50:** `trees` as well, `tree` with a rare `apple-tree`.
+- **50 to 100:** a growing share of the trees are `tall` (`old-tree`) instead,
+  each two cells from the next.
+
+At 100 about 9% of a wood's cells are trees and 10% block a walker, about
+half what 30 grew before; the largest clump is about 5 cells. `decay` (0 to 100)
+grows up to a tenth of the trees as one of `dead` (dead trees, stumps and
+fallen logs) instead (`MOST_DEAD`). It once took every tree at 100, and a wood
+at even half that read as felled: a bare dead tree leans along the diagonal
+and looks like a trunk lying on the ground.
+
+**Only ground cover grows on the wood's open cells.** A bush, a fallen log
+or anything else that blocks the way grows on one of `growWoodland`'s tree
+cells, which are what the pocket joining counts, so nothing planted after it
+can shut a pocket again. A fallen log covers two tree cells or falls back to
+the commonest one-cell piece of `dead`.
 
 ### An old tree is a stack of tiles over several levels
 
@@ -16288,11 +16315,11 @@ the next; its art rises well past that.
   refuses the tree where not even a crown fits or where the base would not
   end at the top of its level. So `forest`, `scatter` and `tile` all plant
   whole trees without knowing about them.
-- **`forest` keeps them two cells apart.** One takes a cell and its crown
+- **`forest` keeps them two cells apart** and grows them only from density
+  50 (see the section above on density). One takes a cell and its crown
   spreads over the cells round it, so a stand of them packed cell to cell
   draws as one dark mass. An old tree within `TALL_SPACING` of another gives
-  way to the commonest one-cell tree, and the big trees stand out of a wood
-  of small ones.
+  way to one of `trees`, and the big trees stand out of a wood of small ones.
 - **Whatever takes the base away takes the rest.** `fellAbove` runs on every
   node's edits in `buildMap`, against the map the node made, so a road, a
   clearing or a hill raised over a tree leaves nothing in the air. A hill
@@ -16336,9 +16363,42 @@ shallows, a lake laid with a fill) gets `DEFAULT_BRIDGE`; a river with
 - **A road with no `tile` lays only ramps and bridges**, so it can serve as a
   way up a hill that shows no path. A hill's own `ramps` are points; each puts
   a ramp on the nearest stretch of cliff that fits.
-- **The head of a ramp is the one place a road writes below its own level**:
+- **The head of a ramp writes below the road's own level**:
   the wall under it becomes two `half-stone`. Its edit is at `ctx.z - 1`, which
   the build lifts with the cell like any other.
+- **A hill the road cannot climb is tunnelled** (`withTunnels` in
+  `components/tunnel.ts`). A stretch of route that leaves a level for higher
+  ground and comes back down to the same level is tunnelled when `withRamps`
+  would leave a jump in it: a cliff two or more levels high, or a shelf too
+  narrow for a ramp. A stretch that ends on the hill is left to the ramps, as
+  is one where `tunnels` is off.
+- **Each tier the route climbs onto is tried in turn.** Where no tunnel fits
+  from the level a stretch starts on, the route goes on into it a cell at a
+  time, so a road that ramps onto a low shelf digs into the cliff above the
+  shelf. `bat-crag` in `world.json` is that case: `camp-to-inn` ramps onto
+  `bat-hill` and runs through `bat-cave` on level 1.
+- **A tunnel that joins a cave or a dungeon is always taken; one through bare
+  rock gives way to a short way round** (`aroundTheFoot`: over clear ground
+  on the stretch's level, at most twice the stretch's length plus
+  `MOUTH_REACH`). A stretch no tunnel fits is taken round the same way where
+  it can be. Without this, `mountain-road`, which clips the corner of a hill,
+  dug in under the rim and came straight back out.
+- **The two mouths face different ways.** A tunnel in and out of the same
+  face is a detour under the rim, and is not dug.
+- **A tunnel is dug the way a cave is.** A mouth goes on a straight stretch of
+  cliff with a full block over it, nearest the route on each side, south and
+  east faces first. The two are joined on the road's level by the cheapest way
+  through: a step along a passage already there costs one and a step that
+  digs costs `DIG_COST`, so a dungeon dug in the hill earlier in the tree is
+  walked through and only the rock between it and each mouth is dug. A
+  passage counts doors a body opens with its hands (a `switch` to an
+  intangible tile), so a crypt's doors stay. A door opened by a channel does
+  not count, and the road digs round it. A dug cell keeps rock or passage on
+  all eight sides, so the tunnel breaks out of the hill only at its mouths,
+  and rock under nothing but a hilltop's floor is not dug.
+- **The tunnel's edits are on an absolute level.** The build lifts every edit
+  of a road by the cell's elevation, so a tunnel cell is written at
+  `ctx.z + level - raisedAt`, which the lift brings back to `level`.
 
 ### The build keeps how high the ground is, and hides it from most components
 
@@ -16720,7 +16780,8 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
 - **It reads the board's chunk rows, not the tree and not the live session.**
   `GET /api/board` lists the chunk keys and levels from the `chunk:` keys alone
   (plus the spawn the view opens on), and `GET /api/board/chunks?chunks=a;b`
-  hands back every level's row of the chunks named, at most 128 a read. The
+  hands back the rows of the chunks named on the levels from `from` to `to`
+  (every level when left out), at most 128 chunks a read. The
   rows are the last checkpoint, so the viewer shows the world as played,
   creatures and dropped things included, and never makes the server load a
   chunk it had unloaded. 64 chunks of the 4× island are about 1.4 MB and
@@ -16732,10 +16793,16 @@ server a chunk at a time. Building the 4× island's tree in the tab took about
   middle first, with a chunk of margin. The page keeps one read in flight and
   always reads the missing chunks nearest the middle of the view as it is
   then, so a pan that outruns the reads does not wait for what it left.
-- **`BoardChunks` holds at most `MAX_HELD_CHUNKS`** and forgets the ones read
-  longest ago that are not in view.
+- **`BoardChunks` holds only what is near the view.** It records each chunk
+  on the levels it was read for, so stepping a level reads only the level
+  that came into reach, asked for as the narrowest range that covers what
+  the batch lacks. After every read and every move it forgets the chunks more
+  than `UNLOAD_MARGIN_CHUNKS` outside what the view asks for, and the levels
+  outside `viewLevels`, so a long pan never piles up the island in the tab.
 - **Isolating a level leaves every level above it out of the map handed to
-  the renderer**, and out of what is read. A link can open the viewer on a
+  the renderer**, and out of what is read. Below ground, level 0 and up are
+  left out even without isolating (`topLevelShown`): the surface sits right
+  above a cave and would hide all of it. A link can open the viewer on a
   place with `?x=…&y=…&level=…`.
 - A dev server, which takes saves, still gets the editor, which builds the
   whole tree in the tab.
@@ -20524,6 +20591,61 @@ so a chunk is back before anybody can see it.
   to 137 MB and the settled RSS from about 560 to 455 MB. It is less than the
   board's share because JSC keeps the structures and partly used blocks the
   chunk records left.
+
+### Putting a chunk back costs a millisecond, not a tick
+
+A player walking north from the spawn crosses a chunk boundary every 16 cells,
+about every 3.2s, and comes near a row of 15 chunks. On the showcase island
+that took one tick of 7–12ms to start the reads and then four ticks of
+10–35ms to put the chunks back, four a tick. With the rest of the tick on top,
+a few ticks a crossing ran past 33ms, which is the stutter players felt.
+`bun run bench:walk` reproduces it. What it cost, and why:
+
+- **`for...in` on a level walks the away record.** A level's prototype is the
+  frozen record of every unloaded chunk, about 4,700 keys on the island, and
+  `for...in` lists the whole prototype chain before it yields the first key.
+  `isEmptyRecord(level)` ran once per level in every `loadChunks` and in
+  `pruneEmpty`, and was the largest single cost. `isEmptyLevel` answers from
+  the prototype instead. Any new `for...in` over a level pays this too.
+- **The away record's keys are kept beside it** (`awayKeys`). Listing them
+  with `Object.keys` on every batch, and scanning every level's own keys for
+  an `UNLOADED_CHUNK` that is only ever in the prototype, took about 3ms a
+  batch. Building the next record is still about 1ms for 4,700 keys, and is
+  most of what a batch costs before its chunks: it grows with the island, not
+  with the players.
+- **A prepared statement costs more than the row it reads.**
+  `WorldStore.get` prepares its `SELECT` every call, and a crossing read 15
+  chunks on 21 levels that way, all before the tick's first `await`: 7.7ms.
+  `getMany` reads them in one statement, 0.5ms; a join far from the kept
+  chunks reads 2,541 rows in 2.7ms rather than 61ms. One statement cannot be
+  shared by overlapping reads, because the driver binds parameters before it
+  takes its exec lock.
+- **`reindexCells` read each cell's stack eight times**, once per index it
+  asks. It reads it once now, and keeps the eight answers as bits per pooled
+  stack, which is frozen and holds nothing nested; a chunk read from the store
+  shares its stacks through `reloadPool`, so most of its cells hit. A chunk
+  just put back is reindexed `fresh`: no index holds a cell of it, so nothing
+  is deleted. A chunk of woods went from about 7ms to 1.2ms.
+
+`bench:walk`, three runs each of 150 cells north from the spawn on a dev
+container:
+
+| | before | after |
+|---|---|---|
+| tick p99 | 23–45ms | 13–16ms |
+| tick max | 69–110ms | 29–36ms |
+| ticks over 33ms | 5–13 | 0–1 |
+| longest put-back in a tick | 33–41ms | 9–14ms |
+| put-back over the walk | 450–620ms | 190–240ms |
+
+**What is left on that walk is brains, not chunks.** The slowest ticks of
+both runs are `tickBrains`, 45–130ms on some runs and absent on others: one
+rat's `setWalkOrder` route search at about 20ms, and a wolf pack each running
+`nearestShelter` at 5–10ms a wolf in the same tick. A round with fewer than
+`BRAIN_TURNS_PER_TICK_MIN` turns takes them all on one tick, so a few
+expensive turns land together. They come once per crossing because a crossing
+brings creatures into attention range, but they are the same with every chunk
+in memory.
 
 ### A world starts with only the chunks it keeps
 

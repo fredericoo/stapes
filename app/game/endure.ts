@@ -74,7 +74,14 @@ export function cellAfflicts(
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
+  return stackAfflicts(getStack(map, cell.x, cell.y, cell.z), tilesById);
+}
+
+export function stackAfflicts(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => {
     const def = tilesById[placed.tileId];
     return def != null && resolveAddStatus(def)?.ground === true;
   });

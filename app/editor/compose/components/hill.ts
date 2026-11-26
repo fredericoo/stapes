@@ -346,7 +346,7 @@ export const hill: Component<HillProps> = {
         .slice(1)
         .some((p) => {
           const def = ctx.tilesById[p.tileId];
-          return !def || (def.height > 0 && !TILES.standing.test(def));
+          return !def || (def.height > 0 && !TILES.standing.test(def) && !TILES.cover.test(def));
         });
     const level = levelsOf(
       g,

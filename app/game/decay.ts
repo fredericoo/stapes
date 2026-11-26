@@ -60,7 +60,14 @@ export function cellHasDecay(
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
+  return stackHasDecay(getStack(map, cell.x, cell.y, cell.z), tilesById);
+}
+
+export function stackHasDecay(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return stack.some((placed) => {
     if (decayOf(placed.tileId, tilesById)) return true;
     return (placed.contents ?? []).some((held) => decayOf(held.tileId, tilesById));
   });
@@ -103,7 +110,11 @@ export class DecayIndex {
   }
 
   armCell(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>) {
-    for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
+    this.armStack(cell, getStack(map, cell.x, cell.y, cell.z), tilesById);
+  }
+
+  armStack(cell: Coord, stack: readonly PlacedTile[], tilesById: Record<string, TileDef>) {
+    for (const placed of stack) {
       if (placed.itemId) {
         this.armItem(placed.itemId, placed.tileId, tilesById);
       } else {

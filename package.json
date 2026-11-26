@@ -63,6 +63,7 @@
     "bench:server": "bun scripts/bench-server.ts",
     "bench:crowd": "bun scripts/bench-crowd.ts",
     "bench:idle": "bun scripts/bench-idle.ts",
+    "bench:walk": "bun scripts/bench-walk.ts",
     "bench:realm": "bun scripts/bench-realm.ts",
     "bench:respawn": "bun scripts/bench-respawn.ts",
     "bench:bots": "bun scripts/bench-bots.ts",

@@ -364,7 +364,7 @@ describe("rebuilding after an edit", () => {
             frame: { x: townX, y: 20, w: 8, h: 8 },
             props: { tile: "dirt" },
           },
-          wood(),
+          { ...wood(), props: { ...wood().props, foliage: [] } },
         ],
         { x: 0, y: 0, w: 64, h: 64 },
       ),
@@ -456,7 +456,7 @@ describe("masks", () => {
           type: "forest",
           key: "wood",
           frame: { x: 0, y: 0, w: 40, h: 30 },
-          props: { onlyOn: ["sand"], path: null, density: 100, undergrowthDensity: 0, ...props },
+          props: { onlyOn: ["sand"], path: null, density: 100, foliage: [], bushes: [], ...props },
           children: masks,
         },
       ]),
@@ -499,7 +499,7 @@ describe("masks", () => {
   it("removes only the tiles it lists and leaves the ground the layer was built on", () => {
     const tree = thicket(
       [{ type: "mask", key: "no-trees", props: { shape: "rect", only: ["tree"] } }],
-      { undergrowthDensity: 100 },
+      { bushes: [{ tile: "small-bush", weight: 1 }] },
     );
     const { map } = build(tree);
     expect(cellsWith(map, "tree", 40, 30)).toEqual([]);
@@ -575,7 +575,12 @@ describe("layer masks and clearing", () => {
           {
             type: "forest",
             key: "wood",
-            props: { onlyOn: ["sand"], path: null, density: 100, undergrowthDensity: 100 },
+            props: {
+              onlyOn: ["sand"],
+              path: null,
+              density: 100,
+              bushes: [{ tile: "small-bush", weight: 1 }],
+            },
           },
           {
             type: "clear",

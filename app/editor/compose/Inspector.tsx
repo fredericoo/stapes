@@ -16,7 +16,7 @@ const DEFAULT_FRAME_SPAN = 16;
 /** The select's value for "this node's frame"; an empty string reads as no selection. */
 const OWN_FRAME = "@own";
 
-/** A prop's name as a label: `undergrowthDensity` reads as "undergrowth density". */
+/** A prop's name as a label: `pathWidth` reads as "path width". */
 function spaced(name: string): string {
   return name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }

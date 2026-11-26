@@ -645,7 +645,11 @@ export class RemoteSession implements PlaySession {
     this.applyPvp(message.pvp);
     this.applyExtractions(message.extractions);
     this.applyCastings(message.castings);
-    for (const event of message.events) this.applyEvent(event);
+    const back = rejoined(message.events);
+    for (const event of message.events) {
+      if (event.kind === "left" && back.has(event.actorId)) continue;
+      this.applyEvent(event);
+    }
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
   };
@@ -1869,6 +1873,23 @@ const NO_STATUSES: readonly StatusInstance[] = [];
 const NO_SPELLS: readonly NaturalSpell[] = [];
 
 const NO_OWNERS: readonly string[] = [];
+
+/**
+ * Actors whose last `joined` or `left` in one patch is `joined`. A tab that drops
+ * its socket and reconnects inside a tick is sent both, and the cells and hit
+ * points in the same patch already describe it back, so its `left` must not
+ * forget them.
+ */
+function rejoined(events: readonly MotionEvent[]): ReadonlySet<string> {
+  let back: Set<string> | null = null;
+  for (const event of events) {
+    if (event.kind === "joined") (back ??= new Set()).add(event.actorId);
+    else if (event.kind === "left") back?.delete(event.actorId);
+  }
+  return back ?? NO_ACTOR_IDS;
+}
+
+const NO_ACTOR_IDS: ReadonlySet<string> = new Set();
 
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, strike: null, lastSeen: null };

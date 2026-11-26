@@ -64,14 +64,19 @@ function awayOf(level: LevelChunks | undefined): LevelChunks | null {
   return proto === Object.prototype || proto === null ? null : proto;
 }
 
-function awayRecord(keys: Iterable<string>): LevelChunks | null {
+/**
+ * An away record's keys, kept beside it because listing a record of thousands
+ * of keys took longer than putting a chunk back.
+ */
+const awayKeys = new WeakMap<LevelChunks, ReadonlySet<string>>();
+
+/** Keeps `keys` as the record's key set, so the caller must not change it afterwards. */
+function awayRecord(keys: Set<string>): LevelChunks | null {
+  if (keys.size === 0) return null;
   const record: LevelChunks = {};
-  let any = false;
-  for (const chk of keys) {
-    record[chk] = UNLOADED_CHUNK;
-    any = true;
-  }
-  return any ? Object.freeze(record) : null;
+  for (const chk of keys) record[chk] = UNLOADED_CHUNK;
+  awayKeys.set(record, keys);
+  return Object.freeze(record);
 }
 
 function levelOver(away: LevelChunks | null, own: LevelChunks): LevelChunks {
@@ -84,27 +89,39 @@ export function copyLevel(level: LevelChunks): LevelChunks {
 
 /** `levels` holds only loaded chunks; every level is given `away` as unloaded. */
 export function boardWithAway(levels: MapFile["levels"], away: Iterable<string>): MapFile {
-  const record = awayRecord(away);
+  const record = awayRecord(new Set(away));
   const out: MapFile["levels"] = {};
   for (const zk in levels) out[zk] = levelOver(record, levels[zk]!);
   return { version: MAP_FILE_VERSION, levels: out };
 }
 
-/** Every chunk key that some level holds as `UNLOADED_CHUNK`. */
+/** Every chunk key that some level holds as `UNLOADED_CHUNK`, which is only ever in its prototype. */
 export function unloadedChunkKeys(map: MapFile): Set<string> {
-  const out = new Set<string>();
-  const seen = new Set<LevelChunks>();
+  return new Set(awaySet(map));
+}
+
+/** `unloadedChunkKeys` without the copy when every level has the same away record, as it usually does. */
+function awaySet(map: MapFile): ReadonlySet<string> {
+  let out: ReadonlySet<string> = NO_KEYS;
+  let merged: Set<string> | null = null;
+  let first: LevelChunks | null = null;
   for (const zk in map.levels) {
-    const level = map.levels[zk]!;
-    const away = awayOf(level);
-    if (away && !seen.has(away)) {
-      seen.add(away);
-      for (const chk of Object.keys(away)) out.add(chk);
+    const away = awayOf(map.levels[zk]);
+    if (!away || away === first) continue;
+    const keys = awayKeys.get(away) ?? new Set(Object.keys(away));
+    if (!first) {
+      first = away;
+      out = keys;
+      continue;
     }
-    for (const chk of Object.keys(level)) if (level[chk] === UNLOADED_CHUNK) out.add(chk);
+    merged ??= new Set(out);
+    for (const chk of keys) merged.add(chk);
+    out = merged;
   }
   return out;
 }
+
+const NO_KEYS: ReadonlySet<string> = new Set();
 
 /**
  * Puts `UNLOADED_CHUNK` in every present level for each key, including levels
@@ -114,7 +131,7 @@ export function unloadedChunkKeys(map: MapFile): Set<string> {
 export function unloadChunks(map: MapFile, chunkKeys: Iterable<string>): MapFile {
   const keys = new Set(chunkKeys);
   if (keys.size === 0) return map;
-  const away = awayRecord([...unloadedChunkKeys(map), ...keys]);
+  const away = awayRecord(new Set([...awaySet(map), ...keys]));
   const levels: MapFile["levels"] = {};
   for (const zk in map.levels) {
     const source = map.levels[zk]!;
@@ -138,29 +155,34 @@ export function loadChunks(
   map: MapFile,
   stored: ReadonlyMap<string, ReadonlyMap<string, ChunkCells>>,
 ): MapFile {
-  const before = unloadedChunkKeys(map);
+  const before = awaySet(map);
   const coming = [...stored.keys()].filter((chk) => before.has(chk));
-  const away = coming.length > 0 ? awayRecord([...before].filter((chk) => !stored.has(chk))) : null;
+  let away: LevelChunks | null = null;
+  if (coming.length > 0) {
+    const rest = new Set(before);
+    for (const chk of coming) rest.delete(chk);
+    away = awayRecord(rest);
+  }
   const levels = { ...map.levels };
   const levelKeys = new Set(Object.keys(levels));
   for (const records of stored.values()) for (const zk of records.keys()) levelKeys.add(zk);
   for (const zk of levelKeys) {
     const source = levels[zk];
     const written: string[] = [];
-    const own: LevelChunks = {};
-    if (source) for (const chk of Object.keys(source)) own[chk] = source[chk]!;
     for (const [chk, records] of stored) {
-      const cells = records.get(zk);
       const unloaded = source?.[chk] === UNLOADED_CHUNK;
-      if (!unloaded && (!cells || source?.[chk])) continue;
-      if (cells && !isEmptyRecord(cells)) own[chk] = cells;
-      else delete own[chk];
+      if (!unloaded && (!records.get(zk) || source?.[chk])) continue;
       written.push(chk);
     }
     if (written.length === 0 && coming.length === 0) continue;
-    const level = levelOver(coming.length > 0 ? away : awayOf(source), own);
+    const level = levelOver(coming.length > 0 ? away : awayOf(source), source ?? {});
+    for (const chk of written) {
+      const cells = stored.get(chk)!.get(zk);
+      if (cells && !isEmptyRecord(cells)) level[chk] = cells;
+      else delete level[chk];
+    }
     if (source) lineage.set(level, { parent: new WeakRef(source), keys: written });
-    if (isEmptyRecord(level)) delete levels[zk];
+    if (isEmptyLevel(level)) delete levels[zk];
     else levels[zk] = level;
   }
   return { version: MAP_FILE_VERSION, levels };
@@ -793,6 +815,14 @@ function isEmptyRecord(record: Record<string, unknown>): boolean {
   return true;
 }
 
+/**
+ * A level with unloaded chunks is never empty, and asking first matters: `for...in`
+ * lists the prototype's thousands of keys before it yields the first one.
+ */
+function isEmptyLevel(level: LevelChunks): boolean {
+  return awayOf(level) === null && isEmptyRecord(level);
+}
+
 export type StackEdit = {
   x: number;
   y: number;
@@ -945,7 +975,7 @@ function pruneEmpty(levels: Record<string, LevelChunks>, copied: Map<string, Chu
     if (level && isEmptyRecord(level[chk!]!)) delete level[chk!];
   }
   for (const zk of touchedLevels) {
-    if (isEmptyRecord(levels[zk]!)) delete levels[zk];
+    if (isEmptyLevel(levels[zk]!)) delete levels[zk];
   }
 }
 
