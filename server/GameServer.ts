@@ -260,10 +260,10 @@ const UNLOAD_IDLE_MS = 120_000;
 const RESIDENCY_EVERY_MS = 10_000;
 
 /**
- * Putting chunks back costs about 2ms each on a board of two million cells,
- * most of it copying the level records, so a tick takes a few and a player
- * crossing into new chunks is not a stall. The reach's two spare chunks are
- * what this can lag by.
+ * A batch put back costs about 3ms on the showcase island and each chunk in it
+ * about 1ms more, so a tick takes a few and a player crossing into new chunks
+ * is not a stall. Fewer a tick would make a join far from the kept chunks wait
+ * longer for its 121. The reach's two spare chunks are what this can lag by.
  */
 const CHUNKS_LOADED_PER_TICK = 4;
 

@@ -20447,6 +20447,61 @@ so a chunk is back before anybody can see it.
   board's share because JSC keeps the structures and partly used blocks the
   chunk records left.
 
+### Putting a chunk back costs a millisecond, not a tick
+
+A player walking north from the spawn crosses a chunk boundary every 16 cells,
+about every 3.2s, and comes near a row of 15 chunks. On the showcase island
+that took one tick of 7–12ms to start the reads and then four ticks of
+10–35ms to put the chunks back, four a tick. With the rest of the tick on top,
+a few ticks a crossing ran past 33ms, which is the stutter players felt.
+`bun run bench:walk` reproduces it. What it cost, and why:
+
+- **`for...in` on a level walks the away record.** A level's prototype is the
+  frozen record of every unloaded chunk, about 4,700 keys on the island, and
+  `for...in` lists the whole prototype chain before it yields the first key.
+  `isEmptyRecord(level)` ran once per level in every `loadChunks` and in
+  `pruneEmpty`, and was the largest single cost. `isEmptyLevel` answers from
+  the prototype instead. Any new `for...in` over a level pays this too.
+- **The away record's keys are kept beside it** (`awayKeys`). Listing them
+  with `Object.keys` on every batch, and scanning every level's own keys for
+  an `UNLOADED_CHUNK` that is only ever in the prototype, took about 3ms a
+  batch. Building the next record is still about 1ms for 4,700 keys, and is
+  most of what a batch costs before its chunks: it grows with the island, not
+  with the players.
+- **A prepared statement costs more than the row it reads.**
+  `WorldStore.get` prepares its `SELECT` every call, and a crossing read 15
+  chunks on 21 levels that way, all before the tick's first `await`: 7.7ms.
+  `getMany` reads them in one statement, 0.5ms; a join far from the kept
+  chunks reads 2,541 rows in 2.7ms rather than 61ms. One statement cannot be
+  shared by overlapping reads, because the driver binds parameters before it
+  takes its exec lock.
+- **`reindexCells` read each cell's stack eight times**, once per index it
+  asks. It reads it once now, and keeps the eight answers as bits per pooled
+  stack, which is frozen and holds nothing nested; a chunk read from the store
+  shares its stacks through `reloadPool`, so most of its cells hit. A chunk
+  just put back is reindexed `fresh`: no index holds a cell of it, so nothing
+  is deleted. A chunk of woods went from about 7ms to 1.2ms.
+
+`bench:walk`, three runs each of 150 cells north from the spawn on a dev
+container:
+
+| | before | after |
+|---|---|---|
+| tick p99 | 23–45ms | 13–16ms |
+| tick max | 69–110ms | 29–36ms |
+| ticks over 33ms | 5–13 | 0–1 |
+| longest put-back in a tick | 33–41ms | 9–14ms |
+| put-back over the walk | 450–620ms | 190–240ms |
+
+**What is left on that walk is brains, not chunks.** The slowest ticks of
+both runs are `tickBrains`, 45–130ms on some runs and absent on others: one
+rat's `setWalkOrder` route search at about 20ms, and a wolf pack each running
+`nearestShelter` at 5–10ms a wolf in the same tick. A round with fewer than
+`BRAIN_TURNS_PER_TICK_MIN` turns takes them all on one tick, so a few
+expensive turns land together. They come once per crossing because a crossing
+brings creatures into attention range, but they are the same with every chunk
+in memory.
+
 ### A world starts with only the chunks it keeps
 
 A restart reads `residency`, the `ResidencyIndex` written with every board
