@@ -972,15 +972,6 @@
     "lightPassing": true,
     "walkSpeedPercent": -50,
     "wade": true,
-    "reflective": {
-      "colors": [
-        "#335c8c",
-        "#24436b"
-      ],
-      "opacity": 0.4,
-      "fadePx": 24,
-      "turbulence": 1
-    },
     "interactions": {
       "removeStatus": {
         "trigger": "step",
@@ -97353,15 +97344,6 @@
     },
     "lightPassing": true,
     "walkable": false,
-    "reflective": {
-      "colors": [
-        "#323353",
-        "#484a77"
-      ],
-      "opacity": 0.3,
-      "fadePx": 24,
-      "turbulence": 1
-    },
     "slices": {
       "0": {
         "frames": [
@@ -98298,14 +98280,6 @@
     "lightPassing": true,
     "walkSpeedPercent": -75,
     "wade": true,
-    "reflective": {
-      "colors": [
-        "#165a4c"
-      ],
-      "opacity": 0.25,
-      "fadePx": 16,
-      "turbulence": 0
-    },
     "interactions": {
       "removeStatus": {
         "trigger": "step",

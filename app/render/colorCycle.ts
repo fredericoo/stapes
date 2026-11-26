@@ -14,7 +14,7 @@ import {
 
 export const MAX_CYCLE_STEPS = 32;
 
-/** The squared sRGB distance under which an art pixel counts as the key colour, as in the reflection mask. */
+/** The squared sRGB distance under which an art pixel counts as the key colour. */
 const KEY_TOLERANCE_SQ = 1e-5;
 
 /** Larger noise in art pixels bends the bands; the smaller one roughens their edges. */
@@ -340,9 +340,7 @@ float cycleNoise(vec2 p) {
 /**
  * `uCycleRamp[0]` is the water's own colour: a gap in a band shows it.
  *
- * Runs straight after the texture is sampled, before the reflection reads
- * `sampledDiffuseColor`, so the reflection mask sees the cycled colour and a
- * crest can be left out of it. The cell's corners are blended bilinearly at
+ * The cell's corners are blended bilinearly at
  * the art pixel's centre: a quad is two triangles, and leaving the blend to
  * the varying would crease every band along the diagonal.
  */

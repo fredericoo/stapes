@@ -91,7 +91,6 @@ import type {
 import { isSpanPart } from "../lib/footprint";
 import {
   CELL_SIZE,
-  CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
   coordKey,
   cellPhaseMs,
@@ -124,25 +123,9 @@ import { GpuLighting } from "./gpuLighting";
 import { LevelLights } from "./levelLights";
 import { PalettePass } from "./palettePass";
 import {
-  NEIGHBOURHOOD,
-  NO_REFLECTION_CUT,
-  REFLECTION_LEVELS_BELOW,
-  type ReflectionPivot,
-  ReflectiveCells,
-  createReflectionMaterial,
-  createReflectionUniforms,
-  mirrorUvShift,
-  reflectiveTileIndex,
-  waterlinePivot,
-  writePivotAttr,
-  writeMirrorUvAttr,
-  writeReflectionDefs,
-} from "./reflections";
-import {
   type LevelCutUniforms,
   type LevelLightUniforms,
   type Quad,
-  REFLECTING_WORLD_SHADER_CACHE_KEY,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
@@ -266,11 +249,6 @@ function cutOrBlend(mat: THREE.MeshBasicMaterial, texture: THREE.Texture) {
   mat.depthWrite = !translucent;
 }
 
-/** Reflection meshes sit on their own layer, so only the reflection pass draws them. */
-const REFLECTION_LAYER = 1;
-const REFLECTION_CLEAR = 0x000000;
-const WORLD_LAYER = 0;
-
 const AREA_CELL_OPACITY = 0.35;
 const CELL_FRAME_WIDTH_PX = 1;
 const CELL_FRAME_OPACITY = 0.6;
@@ -292,11 +270,6 @@ type ProjectileMesh = {
 
 type BuildItem = Quad & {
   texture: THREE.Texture;
-  footElev: number;
-  /** A body, whose reflection runs its full length rather than being cut off flat. */
-  standsOnFeet: boolean;
-  /** A body's uv offset to its opposite facing; see `mirrorUvShift`. */
-  mirrorUv?: [number, number];
   stackIndex: number;
   transitionId?: string;
   pivotX: number;
@@ -336,39 +309,6 @@ type TransitionMesh = {
   moves: boolean;
   tileKey?: string;
 };
-
-/**
- * Every reflection turns about the centre of the thing's base cell, lowered to
- * the waterline, so a storey above the water turns about the water's level.
- * Anything but a body is cut off flat partway down: walls are drawn as
- * diagonal bands, and their turned ends left a saw edge along the bottom.
- */
-function reflectionPivot(item: BuildItem, waterElev: number): ReflectionPivot {
-  const pivot = waterlinePivot({ x: item.pivotX, y: item.pivotY }, item.footElev, waterElev);
-  if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT, waterElev };
-  const southEdgeY = pivot.y + CELL_SIZE / 2;
-  const heightPx = (item.box.top - waterElev) * PX_PER_HEIGHT;
-  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION, waterElev };
-}
-
-/** How much of a wall's height its reflection shows before the flat cut. */
-const REFLECTION_LENGTH_FRACTION = 0.5;
-
-/** The chunks around `chunk` on its level and the storeys above, whose reflections can land in it. */
-function markChunksReflectingInto(
-  chunk: string,
-  z: number,
-  wanted: ReadonlySet<string>,
-  dirty: Set<string>,
-) {
-  const [cx, cy] = chunk.split(",").map(Number) as [number, number];
-  for (let above = z; above <= z + REFLECTION_LEVELS_BELOW; above++) {
-    for (const [dx, dy] of NEIGHBOURHOOD) {
-      const addr = chunkAddressKey(above, `${cx + dx},${cy + dy}`);
-      if (wanted.has(addr)) dirty.add(addr);
-    }
-  }
-}
 
 function leftInSlot(taken: PlacedTile | undefined, after: PlacedTile | undefined): number {
   if (!taken || !after || after.tileId !== taken.tileId) return 0;
@@ -610,8 +550,6 @@ function autotileInputOf(
 
 type ChunkGeometry = {
   group: THREE.Group;
-  /** Holds reflective quads, so the reflection target has to be drawn while it is meshed. */
-  reflects: boolean;
   z: number;
   chunk: string;
   animated: AnimatedInstance[];
@@ -803,15 +741,6 @@ export class WorldRenderer {
   private looping = false;
   private raf = 0;
   private palettePass = new PalettePass();
-  private reflectionUniforms = createReflectionUniforms();
-  private reflectionTarget: THREE.WebGLRenderTarget | null = null;
-  private readonly reflectionSize = new THREE.Vector2();
-  private reflectionMaterials = new Map<string, THREE.ShaderMaterial>();
-  private reflectiveState: {
-    for: Record<string, TileDef>;
-    index: Map<string, number>;
-    cells: ReflectiveCells;
-  } | null = null;
   private profiler: FrameProfiler | null = null;
   private particles: ParticleLayer;
   private tintedMeshes = new Map<
@@ -1532,7 +1461,6 @@ export class WorldRenderer {
     const r = this.renderer;
     if (this.debugOn) r.info.reset();
 
-    this.renderReflections(r);
     const target = this.palettePass.sceneTarget(r);
     r.setRenderTarget(target);
     r.setClearColor(VOID_BACKGROUND, 1);
@@ -1576,9 +1504,6 @@ export class WorldRenderer {
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
     this.shelterTexture?.dispose();
-    this.reflectionTarget?.dispose();
-    for (const mat of this.reflectionMaterials.values()) mat.dispose();
-    this.reflectionMaterials.clear();
     this.particles.dispose();
     this.tintedMeshes.clear();
     disposeGroupChildren(this.overlays, this.outlineMaterials);
@@ -2026,12 +1951,11 @@ export class WorldRenderer {
           this.ensureAnimUniforms(z),
           this.depthUniforms,
           undefined,
-          this.reflectionUniforms,
           this.weatherUniforms,
           cycle,
         );
       };
-      mat.customProgramCacheKey = () => REFLECTING_WORLD_SHADER_CACHE_KEY;
+      mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       mat.defines = cycle ? this.cycleDefines : this.weatherDefines;
       this.materials.set(key, mat);
     }
@@ -2186,9 +2110,6 @@ export class WorldRenderer {
     const wanted = visibleChunkKeys(next, window);
     const needed = visibleChunkKeys(next, window, MESH_BUILD_NOW_MARGIN);
     const dirty = prev ? this.dirtyChunks(prev, next, wanted, window.levels) : wanted;
-    if (prev && prev !== next) {
-      this.markReflectionNeighbours(prev, next, wanted, dirty, window.levels);
-    }
 
     for (const key of [...this.chunkGeometry.keys()]) {
       if (!wanted.has(key)) this.dropChunk(key);
@@ -2238,22 +2159,6 @@ export class WorldRenderer {
     this.rebuildAnimatedIndex();
     this.world.updateMatrixWorld(true);
     this.needsRender = true;
-  }
-
-  private markReflectionNeighbours(
-    prev: MapFile,
-    next: MapFile,
-    wanted: ReadonlySet<string>,
-    dirty: Set<string>,
-    levels: LevelRange,
-  ) {
-    const { cells } = this.reflective();
-    for (let z = levels.z0; z <= levels.z1; z++) {
-      if (prev.levels[levelKey(z)] === next.levels[levelKey(z)]) continue;
-      for (const chunk of cells.changedChunks(prev, next, z)) {
-        markChunksReflectingInto(chunk, z, wanted, dirty);
-      }
-    }
   }
 
   private dirtyChunks(
@@ -2390,7 +2295,6 @@ export class WorldRenderer {
 
     const entry: ChunkGeometry = {
       group,
-      reflects: items.some((item) => (item.reflect ?? 0) > 0),
       z,
       chunk,
       animated: [],
@@ -2431,8 +2335,6 @@ export class WorldRenderer {
       mesh.updateMatrix();
       group.add(mesh);
     }
-
-    this.addStaticReflections(map, z, group, staticByTex);
 
     if (entry.emitters.length > 0) this.tileEmittersStale = true;
   }
@@ -2599,7 +2501,6 @@ export class WorldRenderer {
             }))
           : undefined;
       const offsets = spread ? NO_PILE_OFFSET : heap;
-      const standsOnFeet = def.kind === "battler" || resolveActor(def);
       const stackBias = depthStackBias(z, stackIndex);
       const extent = extents[stackIndex] ?? { foot: elev, top: elev };
       const boxFoot = absoluteElevation(z, extent.foot);
@@ -2643,10 +2544,6 @@ export class WorldRenderer {
           box,
           stackBias: stackBias + pileDepthNudge(i, offsets.length),
           texture,
-          footElev: foot,
-          standsOnFeet,
-          mirrorUv: standsOnFeet ? mirrorUvShift(def, art, tileset) : undefined,
-          reflect: this.reflective().index.get(def.id),
           cycle: def.colorCycle
             ? this.cycleCornersAt(map, x, y, z, placed, tileset.translucent === true)
             : undefined,
@@ -2843,7 +2740,6 @@ export class WorldRenderer {
         this.ensureAnimUniforms(z),
         this.depthUniforms,
         uniforms,
-        undefined,
         this.weatherUniforms,
       );
     };
@@ -3003,7 +2899,6 @@ export class WorldRenderer {
 
   private installSeparate(map: MapFile, entry: ChunkGeometry, item: BuildItem) {
     const mesh = this.addQuadMesh(entry.group, item, item.texture, entry.z);
-    this.addSeparateReflection(map, mesh, item, entry.z);
     if (item.tileKey) {
       entry.movableKeys.add(item.tileKey);
       this.movableMeshes.set(item.tileKey, mesh);
@@ -3048,145 +2943,6 @@ export class WorldRenderer {
 
   private updateColorCycles(): boolean {
     return this.colorCycleState().turnTo(this.animClock);
-  }
-
-  private reflective() {
-    if (this.reflectiveState?.for !== this.tilesById) {
-      const index = reflectiveTileIndex(this.tilesById);
-      writeReflectionDefs(this.reflectionUniforms, this.tilesById, index);
-      this.reflectiveState = {
-        for: this.tilesById,
-        index,
-        cells: new ReflectiveCells(this.tilesById, index),
-      };
-    }
-    return this.reflectiveState;
-  }
-
-  /** The waterline a quad reflects onto, or null when it stands nowhere near one or is under it. */
-  private reflectionWaterline(
-    map: MapFile,
-    item: BuildItem,
-    z: number,
-    waterlineAt?: (x: number, y: number) => number | null,
-  ): number | null {
-    if (item.reflect) return null;
-    const waterElev = waterlineAt
-      ? waterlineAt(item.lightX0, item.lightY0)
-      : this.reflective().cells.waterlineNear(map, item.lightX0, item.lightY0, z);
-    if (waterElev == null || item.box.top <= waterElev || item.footElev < waterElev) return null;
-    return waterElev;
-  }
-
-  private addStaticReflections(
-    map: MapFile,
-    z: number,
-    group: THREE.Group,
-    staticByTex: ReadonlyMap<THREE.Texture, BuildItem[]>,
-  ) {
-    const { cells } = this.reflective();
-    const first = staticByTex.values().next().value?.[0];
-    if (!cells.any || !first) return;
-    if (!cells.chunkNeighbourhoodReflects(map, z, first.lightX0, first.lightY0, CHUNK_SIZE)) return;
-
-    const x0 = Math.floor(first.lightX0 / CHUNK_SIZE) * CHUNK_SIZE;
-    const y0 = Math.floor(first.lightY0 / CHUNK_SIZE) * CHUNK_SIZE;
-    const waterlineAt = cells.waterlinesIn(map, x0, y0, z, CHUNK_SIZE);
-    for (const [tex, items] of staticByTex) {
-      const quads: BuildItem[] = [];
-      const pivots: ReflectionPivot[] = [];
-      for (const item of items) {
-        const waterElev = this.reflectionWaterline(map, item, z, waterlineAt);
-        if (waterElev == null) continue;
-        quads.push(item);
-        pivots.push(reflectionPivot(item, waterElev));
-      }
-      if (quads.length === 0) continue;
-      const geo = buildMergedQuadGeometry(quads);
-      writePivotAttr(geo, pivots);
-      const mesh = new THREE.Mesh(geo, this.reflectionMaterialFor(tex, z));
-      mesh.layers.set(REFLECTION_LAYER);
-      mesh.frustumCulled = false;
-      mesh.matrixAutoUpdate = false;
-      mesh.updateMatrix();
-      group.add(mesh);
-    }
-  }
-
-  /** A child of the separate mesh, so it follows every step and wade the mesh is moved by. */
-  private addSeparateReflection(map: MapFile, mesh: THREE.Mesh, item: BuildItem, z: number) {
-    if (!this.reflective().cells.any) return;
-    const waterElev = this.reflectionWaterline(map, item, z);
-    if (waterElev == null) return;
-    const pivot = reflectionPivot(item, waterElev);
-    writePivotAttr(mesh.geometry, [
-      {
-        x: pivot.x - mesh.position.x,
-        y: pivot.y - mesh.position.y,
-        cutY: pivot.cutY - mesh.position.y,
-        waterElev: pivot.waterElev,
-      },
-    ]);
-    if (item.mirrorUv) writeMirrorUvAttr(mesh.geometry, item.mirrorUv);
-    const twin = new THREE.Mesh(mesh.geometry, this.reflectionMaterialFor(item.texture, z));
-    twin.layers.set(REFLECTION_LAYER);
-    twin.frustumCulled = false;
-    mesh.add(twin);
-  }
-
-  private reflectionMaterialFor(texture: THREE.Texture, z: number): THREE.ShaderMaterial {
-    const key = `${texture.uuid}:${z}`;
-    let mat = this.reflectionMaterials.get(key);
-    if (!mat) {
-      mat = createReflectionMaterial(texture, this.ensureAnimUniforms(z));
-      this.reflectionMaterials.set(key, mat);
-    }
-    return mat;
-  }
-
-  /**
-   * Drawn before the world, because the water samples it: a reflective texel
-   * whose pixel here is covered blends in the reflected colour before it is lit.
-   */
-  private renderReflections(r: THREE.WebGLRenderer) {
-    let reflects = false;
-    for (const entry of this.chunkGeometry.values()) {
-      if (!entry.reflects) continue;
-      reflects = true;
-      break;
-    }
-    if (!reflects) return;
-
-    const size = r.getDrawingBufferSize(this.reflectionSize);
-    const target = this.ensureReflectionTarget(size.x, size.y);
-    const u = this.reflectionUniforms;
-    u.uReflectMap.value = target.texture;
-    u.uReflectSize.value.copy(size);
-    u.uReflectFragPerPx.value = size.x / (this.camera.right - this.camera.left);
-    u.uReflectClockMs.value = this.animClock;
-
-    r.setRenderTarget(target);
-    r.setClearColor(REFLECTION_CLEAR, 0);
-    this.camera.layers.set(REFLECTION_LAYER);
-    r.render(this.scene, this.camera);
-    this.camera.layers.set(WORLD_LAYER);
-  }
-
-  private ensureReflectionTarget(w: number, h: number): THREE.WebGLRenderTarget {
-    if (!this.reflectionTarget) {
-      this.reflectionTarget = new THREE.WebGLRenderTarget(w, h, {
-        depthBuffer: true,
-        stencilBuffer: false,
-        type: THREE.UnsignedByteType,
-        format: THREE.RGBAFormat,
-        magFilter: THREE.NearestFilter,
-        minFilter: THREE.NearestFilter,
-        generateMipmaps: false,
-      });
-    } else if (this.reflectionTarget.width !== w || this.reflectionTarget.height !== h) {
-      this.reflectionTarget.setSize(w, h);
-    }
-    return this.reflectionTarget;
   }
 
   private addQuadMesh(
@@ -3324,7 +3080,4 @@ function writeFrameUvs(mesh: THREE.Mesh, def: TileDef, frame: Frame, tileset: Ti
   uvs.setXY(2, u0, v1);
   uvs.setXY(3, u1, v1);
   uvs.needsUpdate = true;
-  if (mesh.geometry.getAttribute("aMirrorUv")) {
-    writeMirrorUvAttr(mesh.geometry, mirrorUvShift(def, frame, tileset));
-  }
 }
