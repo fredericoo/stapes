@@ -214,7 +214,7 @@ if (vReflect > 0.5) {
       vec3 srgb = floor(bytes.rgb / 4.0) / 63.0;
       vec3 reflectedLinear = sRGBTransferEOTF(vec4(srgb, 1.0)).rgb;
       float fade = clamp(1.0 - (bytes.a - 1.0) / uReflectFadePx[reflectSlot], 0.0, 1.0);
-      diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear * 0.65, fade);
+      diffuseColor.rgb = mix(diffuseColor.rgb, reflectedLinear, uReflectOpacity[reflectSlot] * fade);
     }
   }
 }

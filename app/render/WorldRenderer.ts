@@ -346,10 +346,9 @@ type TransitionMesh = {
 function reflectionPivot(item: BuildItem, waterElev: number): ReflectionPivot {
   const pivot = waterlinePivot({ x: item.pivotX, y: item.pivotY }, item.footElev, waterElev);
   if (item.standsOnFeet) return { ...pivot, cutY: NO_REFLECTION_CUT, waterElev };
-  const liftPx = (item.footElev - waterElev) * PX_PER_HEIGHT;
-  const ownHeightPx = (item.box.top - item.footElev) * PX_PER_HEIGHT;
-  const footprintEndY = pivot.y + liftPx + CELL_SIZE / 2;
-  return { ...pivot, cutY: footprintEndY + ownHeightPx * REFLECTION_LENGTH_FRACTION, waterElev };
+  const southEdgeY = pivot.y + CELL_SIZE / 2;
+  const heightPx = (item.box.top - waterElev) * PX_PER_HEIGHT;
+  return { ...pivot, cutY: southEdgeY + heightPx * REFLECTION_LENGTH_FRACTION, waterElev };
 }
 
 /** How much of a wall's height its reflection shows before the flat cut. */
