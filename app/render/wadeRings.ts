@@ -20,9 +20,9 @@ function squashPx(radiusPx: number, frame: number): number {
   return [0, amount, 0, -amount][frame % WADE_RING_FRAMES]!;
 }
 
-/** How far past the wade cut the ring is lifted, up-left: 2px for a sprite a body wide, more for a bigger one. */
+/** How far past the wade cut the ring is lifted, up-left: 1px for a sprite a body wide, more for a bigger one. */
 export function wadeRingLiftPx(spriteWidthPx: number): number {
-  return Math.max(1, Math.round(spriteWidthPx / 8));
+  return Math.max(1, Math.round(spriteWidthPx / 16));
 }
 
 export function wadeRingSidePx(radiusPx: number): number {
