@@ -97,3 +97,53 @@ hill's height there; with `z: 0` it lands on the hilltop.
 Moving the camp, the road or either hill changes all of this at once; check
 from the castaway's cell that the only dry way out of the valley is past the
 camp.
+
+## Rating zones
+
+A player's journey runs through five zones, each sized for what the player
+carries by the time they reach it. A zone's number is the player rating it
+expects, read as the **even level** that `bun run verify ratings` prints for
+a creature: the level at which a player with Sharp, Toughness and Agility all
+at that level, holding that level's sword, wins as often as it loses. A
+player's rating is about that level. The creature's own ⭐ rating is roughly
+twice its even level, so do not place by the star.
+
+| zone | player rating | where | kit on arrival | hostiles (even level) |
+| ---- | ------------- | ----- | -------------- | --------------------- |
+| 0 | 1–5 | the wreck valley, the camp, the old harbour cellar, `wreck-cave` | none | rat 1, bat 1, small slimes 1–2, two snakes 8 off the road |
+| 1 | 5–15 | the roads between the camp, the inn and both towns, and the land beside them: `camp-heath`, `meadow-pests`, `lake-shore`, `south-shore`, `south-downs`, `west-shore`, `woodland-wilds` | bow, hammer or axe, cap and boots (requirement 5) | rats, snakes 8, nature, water and fire slimes 5, and moss and tide wisps by night |
+| 2 | 15–50 | the deep woods off the roads (`wood-wolves`), `north-wilds`, `west-wilds`, the bog, the desert, `sunken-crypt`, `bat-cave`, `bear-den` | the towns' second tier (requirement 10–15), then the third (22–33) | wolf 15, bog imp 14, skeleton 24, snow wolf 28, bear 35, with zone-1 kinds among them |
+| 3 | 50+ | the peak, `ice-caves` | third tier | snow wolf 28 on the way, the yeti 65 for a party |
+| 4 | 65+ | `obsidian-deeps`, the lava gorge | — | cave troll 35 today; the zone has no creature that fits it yet |
+
+Rules that follow from the table:
+
+- **A zone-1 road has no zone-2 hostile within reach of it.** Wolves and bog
+  imps walk up to 10 and 18 cells from where they were placed before their
+  home leash turns them back, and a wolf notices a player 9 cells off at
+  night. Snakes, slimes and skeletons keep to the leash of their `predator`
+  trait (10, 12 and 14 cells), so a skeleton reaches at most 22 cells from
+  its home including its 8-cell sight. A wolf outpaces a player (a step in 140 ms against 200 ms), so one
+  that notices a new player kills them. `wood-wolves` therefore carries a
+  subtract mask `from` each of `camp-to-druids`, `druids-to-inn` and
+  `hamlet-road`, and from `druid-town`, grown 24 cells; `bog-imps` carries
+  one from `witch-path`. A grown mask steps to four neighbours, so 24 steps
+  reach about 17 cells along a diagonal and the nearest wolf home is 24
+  cells from those roads. A road that is moved keeps its mask, because the
+  mask follows the road's own cells.
+- **A dangerous creature beside a road is in a den.** The bear sits inside
+  `bear-den` on its hill, near `hamlet-road`, and a player meets it only by
+  walking in. That is the one kind of danger a zone-1 road may pass.
+- **A scatter of hostiles is a few packs, not a carpet.** At `density` 1 the
+  deep woods held about 1,090 wolves joined into chains of up to 56, and the
+  snowfield 386 snow wolves within sight of one another. `wood-wolves` is at
+  0.15 and `peak-beasts` at 0.3, both with `clumping` 100, which leaves about
+  120 wolves and 67 snow wolves, mostly alone or in twos and threes.
+  `bog-imps` is at 0.6 and `desert-slimes` at 0.3.
+- **Every stretch of land has something on it, and more than one kind.** Each
+  zone-1 and zone-2 area has its own scatter mixing three to six kinds, with
+  `spacing` so they are spread rather than clumped, at about one creature per
+  800 cells. Only the camp's ring (Runa Hask's post) and the wreck valley's
+  hilltops are left empty on purpose. A zone-2 scatter carries a subtract mask
+  `from` each zone-1 road and town it borders, grown 24 cells; a zone-1 scatter
+  needs only to stay off the towns' streets.
