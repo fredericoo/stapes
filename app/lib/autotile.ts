@@ -5,6 +5,7 @@ import {
   type AutotileSlice,
   type MapFile,
   type StateSprites,
+  type TileFalls,
   type TileSprite,
 } from "./types";
 
@@ -106,6 +107,7 @@ export type AutotileIdentity = {
   id: string;
   connectsTo?: readonly string[];
   autotileMask?: "full";
+  fallsInto?: TileFalls;
 };
 
 export function stackConnects(
@@ -129,9 +131,62 @@ export function neighborMask(
 ): number {
   let mask = 0;
   for (const { bit, dx, dy } of NEIGHBOR_OFFSETS) {
-    if (stackConnects(map, x + dx, y + dy, z, tile)) mask |= bit;
+    if (
+      stackConnects(map, x + dx, y + dy, z, tile) ||
+      (tile.fallsInto && joinsOverFall(map, x, y, z, dx, dy, tile.fallsInto, tile))
+    ) {
+      mask |= bit;
+    }
   }
   return mask;
+}
+
+/** The face of a cliff each kind of fall comes down: it stands in the cell this far from the cliff. */
+const FALL_FACES = [
+  { side: "south", dx: 0, dy: 1 },
+  { side: "east", dx: 1, dy: 0 },
+] as const;
+
+function holdsFall(map: MapFile, x: number, y: number, z: number, ids: readonly string[]): boolean {
+  return getStack(map, x, y, z).some((p) => ids.includes(p.tileId));
+}
+
+/**
+ * Whether the neighbour at `(dx, dy)` counts as joined because a fall carries
+ * the water over the cliff between them, which the neighbour test cannot see
+ * as the two are on different levels. Water on a cliff's top joins the open
+ * cell a fall rises out of, when the fall's cliff top is a cell of the same
+ * water. Water at a fall's foot joins the cliff behind the fall, straight
+ * behind it or along the cliff where the next cell has a fall of the same face
+ * too, so a fall wider than a cell has no bank between its columns.
+ */
+function joinsOverFall(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  dx: number,
+  dy: number,
+  falls: TileFalls,
+  tile: AutotileIdentity,
+): boolean {
+  for (const face of FALL_FACES) {
+    const ids = falls[face.side];
+    if (
+      holdsFall(map, x + dx, y + dy, z - 1, ids) &&
+      stackConnects(map, x + dx - face.dx, y + dy - face.dy, z, tile)
+    ) {
+      return true;
+    }
+    if (!holdsFall(map, x, y, z, ids)) continue;
+    const behind = face.dy === 1 ? dy === -1 : dx === -1;
+    if (!behind) continue;
+    const along = face.dy === 1 ? { x: dx, y: 0 } : { x: 0, y: dy };
+    if ((along.x === 0 && along.y === 0) || holdsFall(map, x + along.x, y + along.y, z, ids)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function resolveAutotileSlice(

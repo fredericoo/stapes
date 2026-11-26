@@ -17120,6 +17120,18 @@ the heap churns without ever restarting all at once. The segments are phased
 three frames apart per cell along x, so a wide fall is not one column stamped
 side by side.
 
+**Water joins a fall across the cliff** (`fallsInto` on `water`,
+`joinsOverFall` in `app/lib/autotile.ts`). An autotile reads its neighbours on
+its own level, and a fall's top and its pool are a level apart: the water on
+the cliff found open air where the fall rises and the pool found the cliff
+behind it, so each drew its sandy bank at the drop and the river looked
+dammed by dirt on both sides of every fall. Water on a cliff now counts the
+open cell over a fall as joined when that fall's cliff top is a cell of the
+same water, and water at a fall's foot counts the cliff behind the fall as
+joined, and the corner along the cliff where the next cell falls too. A
+fall put down at runtime does not rebuild the water a level above it, since
+the incremental rebuild only restyles neighbours on one level.
+
 `waterfall-east-top`, `-middle` and `-base` are the same fall down a cliff's
 east face, for a river that flows east off a cliff: they go in the cell east
 of the cliff. The projection draws x and y alike, so they are the south-facing

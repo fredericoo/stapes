@@ -187,6 +187,13 @@ export type TileColorCycle = {
   gaps: number;
 };
 
+/**
+ * Waterfall tiles an autotile liquid carries on into over a cliff, by the
+ * face of the cliff they come down: a `south` fall stands in the cell south
+ * of the cliff, an `east` one in the cell east of it.
+ */
+export type TileFalls = { south: string[]; east: string[] };
+
 export type TileDef = StateSprites & {
   id: string;
   name: string;
@@ -222,6 +229,12 @@ export type TileDef = StateSprites & {
    * can curve through the corner of the cell.
    */
   autotileMask?: "full";
+  /**
+   * Falls this autotile joins across the cliff they come down, so neither the
+   * water above a fall nor the pool under it draws a bank at the drop; see
+   * `joinsOverFall`.
+   */
+  fallsInto?: TileFalls;
   scatterSeed?: number;
   lightPassing?: boolean;
   blocksLight?: boolean;
