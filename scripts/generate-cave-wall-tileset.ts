@@ -159,10 +159,11 @@ const COLUMN = 3;
 /**
  * Near-black with the palette's darkest purple on the lit faces. Columns are
  * `COLUMN` footprint pixels wide with a black joint and a lit edge beside it,
- * and a column's top is a lighter step where the slope breaks it.
+ * and a column's top is a lighter step where the slope breaks it. The top is
+ * black because a cave shows it beside the `basalt` floor, which is the purple.
  */
 const BASALT: Rock = {
-  top: { base: 4, specks: [{ index: 8, percent: 8 }], salt: 21 },
+  top: { base: 0, specks: [{ index: 4, percent: 8 }], salt: 21 },
   south: { base: 4, specks: [{ index: 8, percent: 8 }], salt: 22 },
   bevel: { base: 1, specks: [{ index: 4, percent: 8 }], salt: 23 },
   east: { base: 0, specks: [{ index: 1, percent: 10 }], salt: 24 },
