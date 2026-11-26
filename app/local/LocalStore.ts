@@ -46,6 +46,15 @@ export class LocalStore {
     return Promise.resolve(raw === undefined ? undefined : (decode(raw) as T));
   }
 
+  getMany<T>(keys: readonly string[]): Promise<Map<string, T>> {
+    const out = new Map<string, T>();
+    for (const key of keys) {
+      const raw = this.values.get(key);
+      if (raw !== undefined) out.set(key, decode(raw) as T);
+    }
+    return Promise.resolve(out);
+  }
+
   /** Sorted because the server's is — `pruneOldest` walks the result expecting the oldest first. */
   list<T>(options: { prefix: string }): Promise<Map<string, T>> {
     const keys = [...this.values.keys()].filter((key) => key.startsWith(options.prefix)).sort();
