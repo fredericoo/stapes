@@ -1555,17 +1555,22 @@ export class GameServer {
   }
 
   /**
-   * Every level's row of each chunk asked for, as the last checkpoint wrote
-   * it. A viewer reads the board this way so that neither side ever holds the
-   * whole map for it.
+   * The row of each chunk asked for on every level from `levels.from` to
+   * `levels.to`, as the last checkpoint wrote it. A viewer reads the board
+   * this way so that neither side ever holds the whole map for it.
    */
-  async readBoardChunks(chunkKeys: readonly string[]): Promise<ChangedChunk[]> {
+  async readBoardChunks(
+    chunkKeys: readonly string[],
+    levels: { from: number; to: number },
+  ): Promise<ChangedChunk[]> {
     await this.ensureLoaded();
     const wanted = new Set(chunkKeys);
     const reads: Promise<ChangedChunk | null>[] = [];
     for (const key of await this.ctx.storage.listKeys(CHUNK_KEY_PREFIX)) {
       const parsed = parseBoardKey(key);
       if (!parsed || !wanted.has(parsed.chunkKey)) continue;
+      const z = Number(parsed.levelKey);
+      if (z < levels.from || z > levels.to) continue;
       reads.push(
         this.ctx.storage
           .get<ChunkCells>(key)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BoardChunks, chunksInView } from "./boardView";
+import { BoardChunks, chunksInView, drawnLevels, topLevelShown } from "./boardView";
 import type { ChangedChunk } from "./mapData";
 
 /** A screen that shows only chunk 0,0 of the ground level. */
@@ -23,46 +23,79 @@ describe("chunksInView", () => {
     expect(chunksInView(CHUNK_ZERO, 0, [0, 8])).toContain("2,2");
     expect(chunksInView(CHUNK_ZERO, 0, [0])).not.toContain("2,2");
   });
+});
 
-  it("leaves out the chunks only a level above an isolated one would show", () => {
-    expect(chunksInView(CHUNK_ZERO, 0, [0, 8], 0)).not.toContain("2,2");
+describe("drawnLevels", () => {
+  it("keeps the board's levels within eight of the view", () => {
+    expect(drawnLevels(0, [-9, -8, 0, 8, 9])).toEqual([-8, 0, 8]);
   });
 
-  it("reads nothing when no level the board has is drawn", () => {
-    expect(chunksInView(CHUNK_ZERO, -20, [0, 1])).toEqual([]);
+  it("leaves out every level above the top one shown", () => {
+    expect(drawnLevels(0, [0, 8], 0)).toEqual([0]);
+  });
+});
+
+describe("topLevelShown", () => {
+  it("hides the surface from a view below ground, isolated or not", () => {
+    expect(drawnLevels(-3, [-4, -3, -1, 0, 2], topLevelShown(-3, false))).toEqual([-4, -3, -1]);
+  });
+
+  it("hides nothing above ground unless a level is isolated", () => {
+    expect(topLevelShown(0, false)).toBe(Number.POSITIVE_INFINITY);
+    expect(topLevelShown(-3, true)).toBe(-3);
   });
 });
 
 describe("BoardChunks", () => {
-  it("asks only for chunks the board has and nobody has read yet", () => {
+  it("asks only for chunks the board has and nobody has read on every drawn level", () => {
+    const board = new BoardChunks(["0,0", "1,0", "2,0"]);
+    board.add(["0,0"], [0, 1], [row("0", "0,0")]);
+    board.add(["2,0"], [0], [row("0", "2,0")]);
+
+    expect(board.missing(["0,0", "1,0", "2,0", "5,5"], [0, 1])).toEqual(["1,0", "2,0"]);
+  });
+
+  it("asks for the narrowest range of levels that some chunk lacks", () => {
     const board = new BoardChunks(["0,0", "1,0"]);
-    board.add(["0,0"], [row("0", "0,0")]);
+    board.add(["0,0", "1,0"], [-1, 0, 1], []);
+    board.add(["1,0"], [2], []);
 
-    expect(board.missing(["0,0", "1,0", "5,5"])).toEqual(["1,0"]);
+    expect(board.missingRange(["0,0", "1,0"], [-1, 0, 1, 2, 3])).toEqual({ z0: 2, z1: 3 });
+    expect(board.missingRange(["1,0"], [-1, 0, 1, 2])).toBeNull();
   });
 
-  it("does not ask again for a chunk that came back with no rows", () => {
+  it("does not ask again for a level that came back with no row", () => {
     const board = new BoardChunks(["0,0"]);
-    board.add(["0,0"], []);
+    board.add(["0,0"], [0], []);
 
-    expect(board.missing(["0,0"])).toEqual([]);
+    expect(board.missing(["0,0"], [0])).toEqual([]);
   });
 
-  it("draws every level of what it read, or only up to an isolated level", () => {
+  it("draws every level of what it read, or only up to the top level shown", () => {
     const board = new BoardChunks(["0,0"]);
-    board.add(["0,0"], [row("-1", "0,0"), row("0", "0,0"), row("2", "0,0")]);
+    board.add(["0,0"], [-1, 0, 2], [row("-1", "0,0"), row("0", "0,0"), row("2", "0,0")]);
 
     expect(Object.keys(board.map().levels).sort()).toEqual(["-1", "0", "2"]);
     expect(Object.keys(board.map(0).levels).sort()).toEqual(["-1", "0"]);
   });
 
-  it("drops the chunks read longest ago, never one still in view", () => {
-    const board = new BoardChunks(["0,0", "1,0", "2,0", "3,0"]);
-    for (const key of ["0,0", "1,0", "2,0", "3,0"]) board.add([key], [row("0", key)]);
+  it("forgets chunks further than the margin from the view, and keeps those within it", () => {
+    const board = new BoardChunks(["0,0", "2,0", "3,0"]);
+    for (const key of ["0,0", "2,0", "3,0"]) board.add([key], [0], [row("0", key)]);
 
-    board.trim(["0,0"], 2);
+    expect(board.trim(["0,0"], { z0: -8, z1: 8 }, 2)).toBe(true);
 
-    expect(Object.keys(board.map().levels["0"]!).sort()).toEqual(["0,0", "3,0"]);
-    expect(board.missing(["1,0", "2,0"])).toEqual(["1,0", "2,0"]);
+    expect(Object.keys(board.map().levels["0"]!).sort()).toEqual(["0,0", "2,0"]);
+    expect(board.missing(["3,0"], [0])).toEqual(["3,0"]);
+  });
+
+  it("forgets the levels that left the view's reach", () => {
+    const board = new BoardChunks(["0,0"]);
+    board.add(["0,0"], [0, 9], [row("0", "0,0"), row("9", "0,0")]);
+
+    board.trim(["0,0"], { z0: -8, z1: 8 }, 2);
+
+    expect(Object.keys(board.map().levels)).toEqual(["0"]);
+    expect(board.missing(["0,0"], [9])).toEqual(["0,0"]);
   });
 });
