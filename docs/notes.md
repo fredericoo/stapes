@@ -3005,8 +3005,12 @@ reads as pixel art.
 The cut alone took nearly all of a rat, whose art sits low in its slot, and
 left a player looking cropped rather than in water. The ring is a filled
 ellipse in `deep-water`'s base colour, `WADE_RING_COLOR`, with a radius of a
-quarter of the sprite's width and at least 2px, centred on the same sunk feet
-the cut measures from. It is a child mesh of the body, so it moves and sinks
+quarter of the sprite's width and at least 2px. It is centred on the sunk feet
+the cut measures from, lifted up-left by the cut's own `WADE_EDGE_PX`, so its
+middle sits on the waterline drawn on the body. The cut's corner is rounded to
+a quarter circle of the ring's radius (the third component of `aWade`), so the
+body's bottom edge curves into the ring instead of meeting it in a square
+corner. It is a child mesh of the body, so it moves and sinks
 with it, and it is drawn with the world material, so it is lit, fogged and
 palette-snapped like the water under it. It shares the body's depth box and is
 drawn at `WADE_RING_RENDER_ORDER`, after the level and before the wading body,

@@ -210,7 +210,7 @@ const BOX_COMPONENTS = 4;
  * attribute reads as zero, and the shader clamps it up to one cell.
  */
 const SPAN_COMPONENTS = 2;
-const WADE_COMPONENTS = 2;
+const WADE_COMPONENTS = 3;
 
 const WADE_ALPHA = 0.5;
 
@@ -231,7 +231,7 @@ const SPLASH_STEPS = 3;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v21-color-cycle-calm";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v22-rounded-wade";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -511,14 +511,20 @@ export function writeLightUvAttr(
   attr.needsUpdate = true;
 }
 
-export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx: number): boolean {
+export function writeWadeAttr(
+  geo: THREE.BufferGeometry,
+  sinkPx: number,
+  edgePx: number,
+  cornerPx: number,
+): boolean {
   const attr = geo.getAttribute("aWade") as THREE.BufferAttribute | undefined;
   if (!attr) return false;
   const arr = attr.array as Float32Array;
-  if (arr[0] === sinkPx && arr[1] === edgePx) return false;
+  if (arr[0] === sinkPx && arr[1] === edgePx && arr[2] === cornerPx) return false;
   for (let v = 0; v < attr.count; v++) {
     arr[v * WADE_COMPONENTS] = sinkPx;
     arr[v * WADE_COMPONENTS + 1] = edgePx;
+    arr[v * WADE_COMPONENTS + 2] = cornerPx;
   }
   attr.needsUpdate = true;
   return true;
@@ -582,7 +588,7 @@ attribute float aStack;
 attribute vec2 aSpan;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
-attribute vec2 aWade;
+attribute vec3 aWade;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -590,7 +596,7 @@ varying float vStack;
 varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
-varying vec2 vWade;
+varying vec3 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 ${COLOR_CYCLE_GLSL_VERTEX_COMMON}
 
@@ -652,7 +658,7 @@ varying float vStack;
 varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
-varying vec2 vWade;
+varying vec3 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
 ${COLOR_CYCLE_GLSL_COMMON}
@@ -858,6 +864,12 @@ if (vWade.y > 0.0) {
     vBox.xy - ${glsl(CELL_SIZE / 2)} - vBox.z * ${glsl(PX_PER_HEIGHT)} + vWade.x;
   vec2 fromFeet = sunkFeet - depthPx;
   float fromLine = min(fromFeet.x, fromFeet.y);
+  // Rounds the corner between the cut's bottom and right edges to a quarter
+  // circle of radius vWade.z, so the waterline curves round the body.
+  if (vWade.z > 0.0) {
+    vec2 inCorner = max(vec2(vWade.z) - fromFeet, 0.0);
+    fromLine = min(fromLine, vWade.z - length(inCorner));
+  }
   if (fromLine < 1.0) discard;
   if (fromLine < vWade.y) diffuseColor.a *= ${glsl(WADE_ALPHA)};
 }`,

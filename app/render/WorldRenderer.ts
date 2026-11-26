@@ -1575,14 +1575,15 @@ export class WorldRenderer {
       const edgePx = Math.round(wade * WADE_EDGE_PX);
       mesh.position.x = base.x + (motion?.ox ?? 0) + sinkPx;
       mesh.position.y = base.y + (motion?.oy ?? 0) + sinkPx;
-      writeWadeAttr(mesh.geometry, sinkPx, edgePx);
+      const cornerPx = edgePx > 0 ? wadeRingRadiusPx(baseBox.widthPx) : 0;
+      writeWadeAttr(mesh.geometry, sinkPx, edgePx, cornerPx);
       mesh.renderOrder = edgePx > 0 ? WADING_RENDER_ORDER : restingRenderOrder(mesh);
       const box = motion
         ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
         : baseBox.box;
       const stackBias = motion ? motion.box.stackBias : baseBox.stackBias;
       writeBoxAttr(mesh.geometry, box, stackBias);
-      this.syncWadeRing(key, mesh, base, baseBox, edgePx > 0, box, stackBias);
+      this.syncWadeRing(key, mesh, base, baseBox, edgePx, box, stackBias);
       /**
        * The scene has matrixWorldAutoUpdate false, so world matrices are not
        * recomputed automatically: without this the mesh never moves on
@@ -2968,20 +2969,22 @@ export class WorldRenderer {
 
   /**
    * A wading body stands in a circle of dark water a quarter of its sprite's
-   * width across each way, centred on its feet. It is a child of the body, so
-   * it moves and sinks with it, and it shares the body's depth box and light.
+   * width across each way, centred on its feet and lifted by the pixels the
+   * wade cut takes, so it sits at the waterline drawn on the body. It is a
+   * child of the body, so it moves and sinks with it, and it shares the body's
+   * depth box and light.
    */
   private syncWadeRing(
     key: string,
     body: THREE.Mesh,
     base: { x: number; y: number },
     rest: { box: DepthBox; z: number; widthPx: number },
-    wading: boolean,
+    edgePx: number,
     box: DepthBox,
     stackBias: number,
   ) {
     let ring = this.wadeRings.get(key);
-    if (!wading) {
+    if (edgePx <= 0) {
       if (ring) ring.mesh.visible = false;
       return;
     }
@@ -3009,16 +3012,16 @@ export class WorldRenderer {
         geo,
         this.materialFor(this.wadeRingSheets.sheet(radiusPx), rest.z),
       );
-      const feet = feetPx(rest.box);
-      mesh.position.set(feet.x - base.x, feet.y - base.y, 0);
       mesh.renderOrder = WADE_RING_RENDER_ORDER;
       mesh.matrixAutoUpdate = false;
-      mesh.updateMatrix();
       body.add(mesh);
       ring = { mesh, frame, phaseMs };
       this.wadeRings.set(key, ring);
     }
     ring.mesh.visible = true;
+    const feet = feetPx(rest.box);
+    ring.mesh.position.set(feet.x - base.x - edgePx, feet.y - base.y - edgePx, 0);
+    ring.mesh.updateMatrix();
     writeBoxAttr(ring.mesh.geometry, box, stackBias);
   }
 
