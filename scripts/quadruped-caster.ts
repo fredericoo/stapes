@@ -29,6 +29,8 @@ export type Ellipsoid<P extends string> = {
   radii: Vec3;
   /** Repaints a point of this ellipsoid as another part, for markings that follow the body. */
   marking?: (along: number, across: number, up: number) => P | null;
+  /** Ellipsoids sharing a group are one piece to `lines`; the rest are the body. */
+  group?: string;
 };
 
 type Four = [number, number, number, number];
@@ -43,7 +45,7 @@ export type Pose = { swing: Four; dropPx: number; lifts: boolean; lift?: Four };
 /** A joint of a leg drawn as a chain, swept to the next joint with its radius blended between them. */
 export type LimbPoint = { at: Vec3; r: number; paw?: boolean };
 
-type Hit<P extends string> = { part: P; normal: Vec3 };
+type Hit<P extends string> = { part: P; normal: Vec3; group: string };
 
 export type Beast<P extends string> = {
   id: string;
@@ -79,6 +81,12 @@ export type Beast<P extends string> = {
    * projection lays its length over its height until it reads as a short lump.
    */
   stretch?: Partial<Record<Facing, number>>;
+  /**
+   * Draws the outline colour where one piece (the body, a group of the trunk,
+   * a leg) is seen next to another at least this many pixels nearer the
+   * viewer, as the yeti's lines are, and none where two pieces join.
+   */
+  lines?: number;
 };
 
 /** The walk's one-pixel sink in model units. */
@@ -137,7 +145,11 @@ function fromSegment(p: Vec3, a: Vec3, b: Vec3): { off: Vec3; t: number } {
   return { off: [rel[0] - d[0] * t, rel[1] - d[1] * t, rel[2] - d[2] * t], t };
 }
 
-function legHit<P extends string>(beast: Beast<P>, p: Vec3, joint: Joint): Hit<P> | null {
+function legHit<P extends string>(
+  beast: Beast<P>,
+  p: Vec3,
+  joint: Joint,
+): Omit<Hit<P>, "group"> | null {
   const upper = fromSegment(p, joint.hip, joint.knee);
   if (Math.hypot(...upper.off) <= beast.thigh + (beast.knee - beast.thigh) * upper.t) {
     return { part: beast.fur, normal: upper.off };
@@ -148,7 +160,11 @@ function legHit<P extends string>(beast: Beast<P>, p: Vec3, joint: Joint): Hit<P
   return { part: lower.t > 1 - beast.footShare ? beast.footPart : beast.fur, normal: lower.off };
 }
 
-function chainHit<P extends string>(beast: Beast<P>, p: Vec3, chain: LimbPoint[]): Hit<P> | null {
+function chainHit<P extends string>(
+  beast: Beast<P>,
+  p: Vec3,
+  chain: LimbPoint[],
+): Omit<Hit<P>, "group"> | null {
   for (let i = chain.length - 2; i >= 0; i--) {
     const a = chain[i]!;
     const b = chain[i + 1]!;
@@ -183,26 +199,27 @@ export function sampler<P extends string>(beast: Beast<P>, facing: Facing, pose:
     };
 
     for (let i = beast.trunk.length - 1; i >= 0; i--) {
-      const { part, at, radii, marking } = beast.trunk[i]!;
+      const { part, at, radii, marking, group } = beast.trunk[i]!;
       const d: Vec3 = [along - at[0], across - at[1], up - at[2]];
       if ((d[0] / radii[0]) ** 2 + (d[1] / radii[1]) ** 2 + (d[2] / radii[2]) ** 2 > 1) continue;
       return {
         part: marking?.(along, across, up) ?? part,
         normal: toWorld([d[0] / radii[0] ** 2, d[1] / radii[1] ** 2, d[2] / radii[2] ** 2]),
+        group: group ?? "body",
       };
     }
     const legUp = up - drop;
     if (legUp < 0 || legUp > legTop) return null;
     if (chains) {
-      for (const chain of chains) {
+      for (const [leg, chain] of chains.entries()) {
         const hit = chainHit(beast, [along, across, legUp], chain);
-        if (hit) return { part: hit.part, normal: toWorld(hit.normal) };
+        if (hit) return { part: hit.part, normal: toWorld(hit.normal), group: `leg ${leg}` };
       }
       return null;
     }
-    for (const joint of joints) {
+    for (const [leg, joint] of joints.entries()) {
       const hit = legHit(beast, [along, across, legUp], joint);
-      if (hit) return { part: hit.part, normal: toWorld(hit.normal) };
+      if (hit) return { part: hit.part, normal: toWorld(hit.normal), group: `leg ${leg}` };
     }
     return null;
   };
@@ -254,13 +271,63 @@ function outlined(pixels: Int16Array, size: number): Int16Array {
   return out;
 }
 
-export function projection<P extends string>(beast: Beast<P>) {
+export const LINE_STEP_PX = 1 / 8;
+
+/**
+ * The drawn pixels that a neighbouring pixel of another piece covers from at
+ * least `gap` pixels nearer. A ray down the middle of each pixel finds the
+ * piece it shows and how high it meets it; on the projection's rays, higher
+ * is nearer the viewer.
+ */
+function lineAt<P extends string>(
+  sample: (p: Vec3, scale: number) => Hit<P> | null,
+  { spritePx, groundPx, topPx }: { spritePx: number; groundPx: number; topPx: number },
+  pixels: Int16Array,
+  gap: number,
+): number[] {
+  const seen: ({ group: string; z: number } | null)[] = [];
+  for (let v = 0; v < spritePx; v++) {
+    for (let u = 0; u < spritePx; u++) {
+      let found: { group: string; z: number } | null = null;
+      for (let z = topPx; z >= 0 && !found; z -= LINE_STEP_PX) {
+        const hit = sample([u + 0.5 - groundPx + z, v + 0.5 - groundPx + z, z], 1);
+        if (hit) found = { group: hit.group, z };
+      }
+      seen.push(found);
+    }
+  }
+  const lines: number[] = [];
+  for (let n = 0; n < seen.length; n++) {
+    const here = seen[n];
+    if (!here || pixels[n]! < 0) continue;
+    const u = n % spritePx;
+    const neighbours = [
+      u > 0 ? n - 1 : -1,
+      u < spritePx - 1 ? n + 1 : -1,
+      n - spritePx,
+      n + spritePx,
+    ];
+    const covered = neighbours.some((m) => {
+      const there = m >= 0 ? seen[m] : null;
+      return there && there.group !== here.group && there.z - here.z >= gap;
+    });
+    if (covered) lines.push(n);
+  }
+  return lines;
+}
+
+function projection<P extends string>(beast: Beast<P>) {
   return { spritePx: FRAME_PX, groundPx: BASE_CELL * CELL_SIZE, topPx: beast.topPx };
 }
 
 export function cast<P extends string>(beast: Beast<P>, facing: Facing, pose: Pose): Int16Array {
   const model = { sample: sampler(beast, facing, pose), shade: shader(beast) };
   const pixels = castModel(model, projection(beast));
+  if (beast.lines !== undefined) {
+    for (const n of lineAt(model.sample, projection(beast), pixels, beast.lines)) {
+      pixels[n] = OUTLINE;
+    }
+  }
   for (const { u, v, index } of markPixels(beast, facing, pose)) {
     if (pixels[v * FRAME_PX + u]! >= 0) pixels[v * FRAME_PX + u] = index;
   }

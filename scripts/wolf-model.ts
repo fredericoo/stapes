@@ -1,7 +1,7 @@
 import type { Vec3 } from "./limb-caster";
 import type { Beast, LimbPoint, Pose } from "./quadruped-caster";
 
-type WolfPart = "coat" | "saddle" | "pale" | "tip" | "nose" | "leg" | "paw";
+type WolfPart = "coat" | "saddle" | "pale" | "tail" | "tailSaddle" | "tip" | "nose" | "leg" | "paw";
 
 /** Palette indices, each ramp lit, mid and dark. */
 export type WolfColours = {
@@ -16,6 +16,11 @@ const saddleAbove =
   (up: number) =>
   (_along: number, _across: number, at: number): WolfPart | null =>
     at > up ? "saddle" : null;
+
+const tailSaddleAbove =
+  (up: number) =>
+  (_along: number, _across: number, at: number): WolfPart | null =>
+    at > up ? "tailSaddle" : null;
 
 const paleBelow =
   (up: number) =>
@@ -126,6 +131,11 @@ const POSES: Pose[] = [
   { swing: [PASSING, -PASSING, -PASSING, PASSING], lift: [1, 0, 0, 1], dropPx: 0, lifts: true },
 ];
 
+const TAIL = "tail";
+
+/** Nearer than this, a tail or leg in front of another piece is drawn without a line, as part of it. */
+const LINE_GAP_PX = 1.5;
+
 /** How much longer the wolf is drawn facing the viewer; judged by eye against the west and north frames. */
 const TOWARDS_VIEWER_STRETCH = 1.5;
 
@@ -143,10 +153,28 @@ export function wolfBeast(id: string, name: string, colours: WolfColours): Beast
     size: 1,
     topPx: 13,
     trunk: [
-      { part: "tip", at: [-7.8, 0, 3.8], radii: [0.75, 0.75, 0.75] },
-      { part: "coat", at: [-6.9, 0, 4.4], radii: [1.2, 1.05, 1.0], marking: saddleAbove(5.2) },
-      { part: "coat", at: [-5.9, 0, 5.2], radii: [1.2, 1.05, 1.05], marking: saddleAbove(6.0) },
-      { part: "coat", at: [-4.8, 0, 6.0], radii: [0.9, 0.8, 0.8], marking: saddleAbove(6.5) },
+      { part: "tip", at: [-7.8, 0, 3.8], radii: [0.75, 0.75, 0.75], group: TAIL },
+      {
+        part: "tail",
+        at: [-6.9, 0, 4.4],
+        radii: [1.2, 1.05, 1.0],
+        marking: tailSaddleAbove(5.2),
+        group: TAIL,
+      },
+      {
+        part: "tail",
+        at: [-5.9, 0, 5.2],
+        radii: [1.2, 1.05, 1.05],
+        marking: tailSaddleAbove(6.0),
+        group: TAIL,
+      },
+      {
+        part: "tail",
+        at: [-4.8, 0, 6.0],
+        radii: [0.9, 0.8, 0.8],
+        marking: tailSaddleAbove(6.5),
+        group: TAIL,
+      },
       { part: "coat", at: [-3.3, 0, 6.2], radii: [1.7, 1.6, 1.5], marking: saddleAbove(7.1) },
       { part: "coat", at: [-1.2, 0, 6.5], radii: [1.9, 1.5, 1.2], marking: saddleAbove(7.3) },
       {
@@ -181,7 +209,10 @@ export function wolfBeast(id: string, name: string, colours: WolfColours): Beast
     stride: STRIDE,
     shade: (part, band) => {
       if (part === "nose" || part === "paw") return 0;
-      if (part === "tip") return colours.saddle[2];
+      if (part === "tip") return colours.saddle[1];
+      /** The tail's shadow stays at the mid shade: the darkest is a step from the outline, and a part this thin edged in it loses its outline. */
+      if (part === "tail") return colours.coat[Math.min(band, 1)]!;
+      if (part === "tailSaddle") return colours.saddle[Math.min(band, 1)]!;
       return colours[part][band]!;
     },
     marks: [
@@ -193,5 +224,6 @@ export function wolfBeast(id: string, name: string, colours: WolfColours): Beast
     poses: POSES,
     walk: [1, 2, 3, 4],
     stretch: { s: TOWARDS_VIEWER_STRETCH, e: TOWARDS_VIEWER_STRETCH },
+    lines: LINE_GAP_PX,
   };
 }

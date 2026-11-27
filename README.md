@@ -415,9 +415,10 @@ an agent drives", lists every call.
   from one four-legged model in `scripts/quadruped-caster.ts` with a part list
   each: the boar's bristled ridge and snout, the raccoon's mask and ringed
   tail. The wolf has more: legs jointed at stifle and hock or elbow and wrist,
-  a four-frame trot, and a body drawn half as long again facing south and
-  east, where it walks towards the viewer and the projection lays its length
-  over its height. `PREVIEW=<dir>` writes the sheet
+  a four-frame trot, a body drawn half as long again facing south and east,
+  where it walks towards the viewer and the projection lays its length over
+  its height, and the yeti's kind of line wherever its tail or a leg is seen
+  against another piece well behind it. `PREVIEW=<dir>` writes the sheet
   enlarged instead of touching `data/`, and `LARGE=1` with it also casts each
   facing six times larger, which takes minutes. As with the bear, the brain
   and battler in the script are only what a new tile starts with
