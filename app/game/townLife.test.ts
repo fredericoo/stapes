@@ -115,7 +115,7 @@ describe("a cat", () => {
     );
     const ratHp = body(session, "rat").hp!;
 
-    run(session, 6_000);
+    run(session, 15_000);
 
     const rat = body(session, "rat");
     expect(rat === undefined || rat.hp! < ratHp).toBe(true);

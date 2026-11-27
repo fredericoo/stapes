@@ -658,6 +658,26 @@
     }
   },
   {
+    "id": "pouncing",
+    "name": "Pouncing",
+    "description": "Darting at its prey faster than the prey can run.",
+    "tone": "good",
+    "fromMs": 2000,
+    "toMs": 2000,
+    "stacks": false,
+    "maxMs": 2000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {},
+    "walkSpeedPercent": 200,
+    "vfx": {
+      "tint": null,
+      "particles": null,
+      "light": null,
+      "taperMs": 0
+    }
+  },
+  {
     "id": "winded",
     "name": "Winded",
     "description": "Out of breath after a charge, and cannot charge again until it recovers.",

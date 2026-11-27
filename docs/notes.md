@@ -13372,6 +13372,15 @@ apart from rows that could never be the first to hold.
   tick and returns to `mauling`. The charge cannot be a line in `mauling`'s
   list ahead of `step_toward`: `attack` fails between swings as well as out of
   reach, so the bear charged at somebody standing beside it.
+- **The cat pounces the same way, and only at what it hunts.** Its
+  `hunts-on-sight` fights in `hunting` over the slot `prey`, apart from
+  `fights-back`'s `fighting` over `foe`, so the `danger` trigger into
+  `pouncing` names `prey` and a cat turning on a player never pounces at them.
+  It fires with the prey more than 2 cells off and in sight within 6, unless
+  the cat is `winded`. Pounce grants `pouncing` (walk +200% for 2 s, 133 ms a
+  step against the rat's 150) and `winded`. The twelve cat variants carry
+  copies of this brain and spell; `generate:cats` does not rewrite a variant
+  that already exists, so a change to the cat's brain is copied to them by hand.
 - **The rat** calls `flees-the-stronger`, `fights-back`, `hunts-the-weaker`,
   `scavenges` and `returns-home`. Its pack-following and its sniffing when stuck are still its
   own rows. See *A creature can hunt only what is rated below a number, and scavenge*.
