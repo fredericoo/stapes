@@ -325,7 +325,7 @@
     "name": "Spoils",
     "file": "spoils.png",
     "width": 64,
-    "height": 16
+    "height": 24
   },
   {
     "id": "lighthouse",
@@ -383,5 +383,12 @@
     "file": "cauldron.png",
     "width": 64,
     "height": 16
+  },
+  {
+    "id": "forest-beasts",
+    "name": "Forest beasts",
+    "file": "forest-beasts.png",
+    "width": 96,
+    "height": 256
   }
 ]

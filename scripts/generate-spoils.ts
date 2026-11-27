@@ -215,6 +215,36 @@ const SPOILS: Spoil[] = [
     name: "Wisp Spore",
     ...dust(6, 15, 20, 21),
   },
+  {
+    id: "boar-tusk",
+    name: "Boar Tusk",
+    pixels: [
+      "........",
+      "..W.....",
+      ".WWs....",
+      ".Ws.....",
+      ".Ws.....",
+      "..Ws..T.",
+      "...WWsT.",
+      "....ss..",
+    ],
+    key: { W: 27, s: 25, T: 11 },
+  },
+  {
+    id: "raccoon-tail",
+    name: "Raccoon Tail",
+    pixels: [
+      "........",
+      "......gg",
+      ".....kgk",
+      "....gkg.",
+      "...kgk..",
+      "..gkg...",
+      ".kgk....",
+      ".gg.....",
+    ],
+    key: { g: 25, k: 1 },
+  },
 ];
 
 const sheet = new PNG({ width: COLUMNS * CELL, height: Math.ceil(SPOILS.length / COLUMNS) * CELL });
