@@ -422,6 +422,13 @@ an agent drives", lists every call.
   enlarged instead of touching `data/`, and `LARGE=1` with it also casts each
   facing six times larger, which takes minutes. As with the bear, the brain
   and battler in the script are only what a new tile starts with
+- `bun run generate:snake` — draw `data/tilesets/snake.png` and point the
+  `snake` tile at it, cast through `scripts/quadruped-caster.ts` from
+  `scripts/snake-model.ts`: a body with no legs, swept as a tube along an
+  S-shaped wave under a flat head. Four slither frames each move the wave a
+  quarter on towards the tail; the standing frame holds the head up with the
+  tongue out. Only the drawing is generated, and the snake's brain and battler
+  stay as authored. `PREVIEW=<dir>` writes the sheet enlarged instead
 - `bun run generate:gold` — draw `data/tilesets/gold.png` and write the money:
   `gold`, worth 1, and `gold-bar`, worth 100, both piling to 100. Drawn by
   hand, a coin from above and the bar as a 2 px box

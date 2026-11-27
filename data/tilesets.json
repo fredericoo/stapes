@@ -390,5 +390,12 @@
     "file": "forest-beasts.png",
     "width": 160,
     "height": 384
+  },
+  {
+    "id": "snake",
+    "name": "Snake",
+    "file": "snake.png",
+    "width": 160,
+    "height": 128
   }
 ]

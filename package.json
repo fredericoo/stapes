@@ -49,6 +49,7 @@
     "generate:lighthouse": "bun scripts/generate-lighthouse.ts",
     "generate:bear": "bun scripts/generate-bear.ts",
     "generate:forest-beasts": "bun scripts/generate-forest-beasts.ts",
+    "generate:snake": "bun scripts/generate-snake.ts",
     "generate:gold": "bun scripts/generate-gold.ts",
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "build:map": "bun scripts/build-map.ts",
