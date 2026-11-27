@@ -1,0 +1,5 @@
+---
+"the-last-stones": minor
+---
+
+The druids' town is now more than twice the size, and its people have moved in. It is ringed by trees instead of a stone wall, its houses are thatched, and a brook runs through it under four wooden bridges to a lake past the south gate. Stone stairs climb to a raised quarter in the north-east. The rune temple stands on a square in the middle, with the council house, the weaving house, the ledger house, the bakehouse, the apothecary and the granary round it, each with a sign at its door. Mirela Dobos keeps the depot, open at one corner, day and night, and explains how its chests work. There are also garden plots and an orchard, a builder's yard by the long house, and rows of cottages. The other fourteen townsfolk keep their shops and posts by day and go home to their own beds at night. Taavi Kask at the temple door can tell you where each shop is, and Casimir Wren lights twelve lamp posts at dusk and puts them out after sunrise. The depot in the druids' town is now the only one: the silver chests in the bat cave, the bear den and the ice caves are gone, and anything you kept in them can no longer be reached.

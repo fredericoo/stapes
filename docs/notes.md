@@ -1767,6 +1767,54 @@ On the generated island every character with `keeps-hours` sleeps in their own
 bed and is back at their post by morning. Liv Sandvik and Hamid Sarraf have no
 bedtime.
 
+### Placing a town's cast in the compose tree
+
+In `data/world.json` the cast is placed by hand, one `tile` node per body, and
+its `placement.spots.bed` is an absolute map cell read off the built map. A
+change to a house's frame, rooms or seed can move its beds out from under
+those spots, so build the map again and check them after one. The druids' town
+was placed this way, and these are what the first attempt got wrong.
+
+- **A `shop` floor's counter needs its row.** The counter runs across the room
+  two rows in from the north wall. When the stairs to the floor above land on
+  that row, no counter is built and nothing says so. A `seed` on the floor
+  nodes moves the stairs; the weaving house has seed 5 for this.
+- **A shop's door goes south of its counter**, in the south wall or a side
+  wall below the counter row. A door in the north wall lets a customer in on
+  the shopkeeper's side.
+- **A `house` floor with `rooms: n` has at most n - 1 beds**, one in each room
+  but the living room, so two sleepers upstairs need `rooms: 3`, and a small
+  floor may fit fewer than that.
+- **A post is never the only cell inside a door.** A body standing there shuts
+  the house to everyone, its own housemates included.
+- **The bed spot is within 48 steps of the post**, counting a level as a step
+  (`ownWithin`), or the body sleeps where it stands.
+- **A lamplighter's round has to fit between waking and bed.** Casimir Wren
+  walks at 750 ms a step, and seventeen posts across the druids' town took him
+  five game hours to light; in the two hours between dawn and his bedtime he put
+  out half of them, and the rest burned all day.
+- **A townsperson never wades.** A brain's plan is thrown away when any step
+  of it is in water and the body is not already in water (`keepsDry` in
+  `settlePlan`), so a street that stops at a river's bank strands the cast on
+  the far side even though a player can wade across. A road lays a bridge only
+  where its own route crosses the water, so the street has to run on over the
+  river; the druids' main street ended at the edge of the square, the brook ran
+  along that edge, and Casimir Wren stood beside it all night.
+- **Two bodies meeting head on in a passage two cells wide can mirror each
+  other.** Each sidesteps into the row the other is leaving, every step, until
+  one gives up. Orrin Fask met Casimir Wren that way between the main street
+  and the long house's north wall and slept on the street; the long house's
+  door now faces his yard, so his walk to bed is a few steps across it. The
+  run that showed it was a whole day on the real clock with the full map; the
+  same day on the town alone, without the lamplighter's evening route crossing
+  his, did not.
+- **A hill's foot is an ellipse inside its frame.** A raised block with
+  straight sides is a hill whose frame is large enough for the ellipse to cover
+  the block, with a `rect` mask that `intersect`s it down to the block, as
+  `druid-high-quarter` is. Laid before the houses and roads, it carries them
+  up, and a road that crosses its cliff gets the hill's `ramp`, here
+  `stone-stairs` on `brick-slab`.
+
 ### A cat is judged by who hits it
 
 Every cat (the shared `cat`, the seven coats and the named cats, every
