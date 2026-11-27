@@ -410,6 +410,13 @@ an agent drives", lists every call.
   larger instead of touching `data/`. The brain and battler in the script are
   only what a new tile starts with; a re-run leaves the ones in `tiles.json`
   alone
+- `bun run generate:forest-beasts` — draw `data/tilesets/forest-beasts.png`
+  and write the `boar` and `raccoon` tiles, cast the way the bear is from one
+  four-legged model with a part list each: the boar's bristled ridge and
+  snout, the raccoon's mask and ringed tail. `PREVIEW=<dir>` writes the sheet
+  enlarged instead of touching `data/`, and `LARGE=1` with it also casts each
+  facing six times larger, which takes minutes. As with the bear, the brain
+  and battler in the script are only what a new tile starts with
 - `bun run generate:gold` — draw `data/tilesets/gold.png` and write the money:
   `gold`, worth 1, and `gold-bar`, worth 100, both piling to 100. Drawn by
   hand, a coin from above and the bar as a 2 px box

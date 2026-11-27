@@ -203485,5 +203485,1165 @@
         }
       ]
     }
+  },
+  {
+    "id": "boar",
+    "name": "Boar",
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "forest-beasts",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 8,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 12,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          }
+        }
+      }
+    },
+    "height": 2,
+    "walkDurationMs": 170,
+    "interactions": {
+      "brain": {
+        "initial": "rooting",
+        "states": {
+          "rooting": {
+            "do": [
+              {
+                "action": "wait",
+                "ms": 1500
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "goring": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "GRUNT",
+                "style": "shake"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "charging": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "triggers": [
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 3
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 8
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "charging"
+          }
+        ],
+        "transitions": [
+          {
+            "from": "charging",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "goring"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "goring",
+              "target": "prey",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "hunts-on-sight",
+            "with": {
+              "prey": [
+                "player"
+              ],
+              "within": 3,
+              "fight": "goring",
+              "target": "prey",
+              "calm": 10
+            }
+          },
+          {
+            "trait": "eats-when-hungry",
+            "with": {
+              "food": [
+                "apple",
+                "berry",
+                "rotten-apple",
+                "stale-berry"
+              ],
+              "cry": "snf"
+            }
+          },
+          {
+            "trait": "forages",
+            "with": {
+              "bush": [
+                "bush"
+              ],
+              "berry": "berry"
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
+          },
+          {
+            "trait": "unsticks",
+            "with": {}
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 24,
+        "masteries": {
+          "blunt": 18,
+          "arcane": 4,
+          "toughness": 22,
+          "agility": 10
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Tusks",
+          "damage": 3,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 40,
+          "spd": 42,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt"
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "immuneTo": [
+          "food-poisoning"
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "boar-tusk",
+                "chance": 70
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 100
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 40
+              },
+              {
+                "tileId": "skin",
+                "chance": 50
+              }
+            ]
+          }
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Charge",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "charging",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "snort"
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 150000,
+        "toMs": 300000
+      }
+    }
+  },
+  {
+    "id": "raccoon",
+    "name": "Raccoon",
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "forest-beasts",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 16,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 180
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 20,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 180
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 24,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 180
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 28,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 180
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 90
+              }
+            ]
+          }
+        }
+      }
+    },
+    "height": 1,
+    "walkDurationMs": 150,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "snuffling",
+        "states": {
+          "snuffling": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "sniffing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "scratching": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "hsss"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "snuffling",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sniffing"
+          },
+          {
+            "from": "sniffing",
+            "if": {
+              "cond": "after",
+              "ms": 900
+            },
+            "to": "snuffling"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "flees-the-stronger",
+            "with": {
+              "threats": [
+                "player"
+              ],
+              "sight": 6,
+              "below": 16,
+              "cry": "chrr!"
+            }
+          },
+          {
+            "trait": "flees-when-hurt",
+            "with": {
+              "threat": "prey",
+              "below": 30,
+              "near": 8,
+              "cry": "eek"
+            }
+          },
+          {
+            "trait": "fights-back",
+            "with": {
+              "fight": "scratching",
+              "target": "prey",
+              "calm": 8
+            }
+          },
+          {
+            "trait": "scavenges",
+            "with": {
+              "cry": "chitter"
+            }
+          },
+          {
+            "trait": "forages",
+            "with": {
+              "bush": [
+                "bush"
+              ],
+              "berry": "berry"
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 12
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 10,
+        "masteries": {
+          "sharp": 9,
+          "arcane": 3,
+          "toughness": 8,
+          "agility": 26
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Claws",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 60,
+          "spd": 56,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "sharp"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "immuneTo": [
+          "food-poisoning"
+        ],
+        "kit": [
+          {
+            "slot": "offhand",
+            "tileId": "bread",
+            "chance": 10
+          },
+          {
+            "slot": "weapon",
+            "tileId": "apple",
+            "chance": 10
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "raccoon-tail",
+                "chance": 70
+              },
+              {
+                "tileId": "skin",
+                "chance": 20
+              }
+            ]
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 90000,
+        "toMs": 180000
+      }
+    }
   }
 ]

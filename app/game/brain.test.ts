@@ -3557,6 +3557,85 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
   });
 });
 
+describe("the boar and the raccoon we ship", () => {
+  const authored = shippedTiles();
+  const statuses = statusesById(statusesJson as unknown[]);
+  const NOON = 12 * 60;
+
+  function field(creature: string, aliceX: number): GameSession {
+    let map = emptyMap();
+    for (let x = -20; x <= 20; x++) {
+      for (let y = -20; y <= 20; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    map = replaceStack(map, aliceX, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "w", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
+      seed: 20261127,
+      clock: () => NOON,
+      statuses,
+    });
+    session.runCommand("/health 999", "alice");
+    return session;
+  }
+
+  function body(session: GameSession, tileId: string) {
+    return session.actorSnapshots().find((a) => a.tileId === tileId)!;
+  }
+
+  function noisesOver(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+    return heard;
+  }
+
+  it("leaves somebody alone outside the boar's three cells", () => {
+    const session = field("boar", 8);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).not.toContain("GRUNT");
+  });
+
+  it("has the boar go for somebody who walks within three cells", () => {
+    const session = field("boar", 2);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("GRUNT");
+  });
+
+  it("has the boar charge somebody it is fighting who backs off", () => {
+    const session = field("boar", 2);
+    noisesOver(session, BRAIN_TICK_MS * 4);
+    const boar = body(session, "boar");
+    session.runCommand(`/goto ${boar.x + 6} ${boar.y} 0`, "alice");
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("snort");
+    expect(session.statusesOf(boar.id)?.some((s) => s.defId === "charging")).toBe(true);
+  });
+
+  it("has the raccoon bolt from a player rated past it", () => {
+    const session = field("raccoon", 3);
+    for (const mastery of ["sharp", "toughness", "agility"]) {
+      session.runCommand(`/mastery ${mastery} 30`, "alice");
+    }
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("chrr!");
+  });
+
+  it("does not bolt from a player who has just arrived", () => {
+    const session = field("raccoon", 3);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).not.toContain("chrr!");
+  });
+});
+
 describe("knowing where it belongs", () => {
   const HOME: Selector = { type: "home" };
   const BURROW = { x: 4, y: 0, z: 0 };

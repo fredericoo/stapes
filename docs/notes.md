@@ -2017,7 +2017,9 @@ sell.
 | rat | `rat-tail` | 75% | Idris Kaya | 1 |
 | bat | `bat-wing` | 70% | Idris Kaya | 1 |
 | rabbit | `rabbit-foot` | 60% | Idris Kaya | 1 |
+| raccoon | `raccoon-tail` | 70% | Idris Kaya | 1 |
 | snake | `snake-fang` | 70% | Idris Kaya | 2 |
+| boar | `boar-tusk` | 70% | Idris Kaya | 2 |
 | bog imp | `imp-horn` | 60% | Idris Kaya | 3 |
 | bear | `bear-claw` | 75% | Idris Kaya | 5 |
 | cave troll | `troll-tusk` | 60% | Idris Kaya | 6 |
@@ -2025,7 +2027,7 @@ sell.
 | cyclops | `cyclops-eye` | 80% | Idris Kaya | 25 |
 | the three slimes | `*-slime-jelly` | 75% | Noor Halabi | 1 |
 | the three wisps | `wisp-ash`, `wisp-dew`, `wisp-spore` | 70% | Noor Halabi | 3 |
-| deer, rabbit, bear | `skin` | 80%, 25%, 80% | Idris Kaya | 2 |
+| deer, rabbit, bear, boar, raccoon | `skin` | 80%, 25%, 80%, 50%, 20% | Idris Kaya | 2 |
 | wolf, snow wolf | `wolf-skin` | 100% | Idris Kaya | 3 |
 | skeleton | `bone` | 100% | Idris Kaya | 1 |
 
