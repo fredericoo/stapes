@@ -16611,6 +16611,13 @@ A hidden child is left out, so hiding the roof builds the house without one.
   `storage`, `smithy`, `barracks` or `empty`. The node's seed moves the stairs, the walls and the
   furniture together; re-rolling one floor leaves the others, except that the
   floor above has its hole where this one's stair now is.
+- **A shop is always lit.** Under its roof a storey gets no daylight, and a
+  shop's counter and shelves leave nothing else that glows, so a shop was
+  black inside at noon. Its shop room gets `lantern`s against the walls, each
+  further than a lantern's reach (`LANTERN_REACH`, its emitter's six cells)
+  from the last, laid after the counter and before the shelves so they find
+  wall to stand on. A storage storey or a cellar gets one lantern, and the
+  other uses light a table with a candle.
 - **A bed is two cells with one `span` id**, made from its cell and level so
   two beds never share one.
 - **Every part fills the house's frame.** A frame on a part is not read, and
