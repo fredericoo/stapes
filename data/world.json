@@ -11798,21 +11798,6 @@
           },
           {
             "type": "tile",
-            "key": "bat-cave-silver-chest-3",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 553,
-                "y": 646,
-                "z": -3
-              },
-              "placement": {
-                "depotTag": "bat-cave"
-              }
-            }
-          },
-          {
-            "type": "tile",
             "key": "bear-den-bear-0",
             "props": {
               "tile": "bear",
@@ -11820,21 +11805,6 @@
                 "x": 232,
                 "y": 445,
                 "z": 0
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "bear-den-silver-chest-1",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 231,
-                "y": 441,
-                "z": 0
-              },
-              "placement": {
-                "depotTag": "bear-den"
               }
             }
           },
@@ -11991,21 +11961,6 @@
                 "x": 570,
                 "y": 113,
                 "z": -4
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "ice-deep-silver-chest-3",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 560,
-                "y": 123,
-                "z": -4
-              },
-              "placement": {
-                "depotTag": "ice-caves"
               }
             }
           },
