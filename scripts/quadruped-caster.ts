@@ -112,7 +112,18 @@ export type Beast<P extends string> = {
   lines?: number;
   /** Bodies swept along a line for each frame, drawn under the trunk and over the legs. */
   tubes?: (pose: Pose) => Tube<P>[];
+  /** Its frame, `cells` square with the beast standing on cell `base` from the top left, in place of four with the third. */
+  frame?: Frame;
 };
+
+export type Frame = { cells: number; base: number };
+
+const DEFAULT_FRAME: Frame = { cells: FRAME_CELLS, base: BASE_CELL };
+
+export function frameOf<P extends string>(beast: Beast<P>): Frame & { px: number } {
+  const frame = beast.frame ?? DEFAULT_FRAME;
+  return { ...frame, px: frame.cells * CELL_SIZE };
+}
 
 function trunkOf<P extends string>(beast: Beast<P>, pose: Pose): Ellipsoid<P>[] {
   return typeof beast.trunk === "function" ? beast.trunk(pose) : beast.trunk;
@@ -290,7 +301,7 @@ export function shader<P extends string>(beast: Beast<P>) {
 function markPixels<P extends string>(beast: Beast<P>, facing: Facing, pose: Pose) {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
-  const ground = BASE_CELL * CELL_SIZE;
+  const ground = frameOf(beast).base * CELL_SIZE;
   const seen: { u: number; v: number; index: number; free: boolean }[] = [];
   for (const { at, index, side, free } of marksOf(beast, pose)) {
     const [along, across, raised] = at;
@@ -373,7 +384,8 @@ function lineAt<P extends string>(
 }
 
 function projection<P extends string>(beast: Beast<P>) {
-  return { spritePx: FRAME_PX, groundPx: BASE_CELL * CELL_SIZE, topPx: beast.topPx };
+  const { px, base } = frameOf(beast);
+  return { spritePx: px, groundPx: base * CELL_SIZE, topPx: beast.topPx };
 }
 
 export function cast<P extends string>(beast: Beast<P>, facing: Facing, pose: Pose): Int16Array {
@@ -384,40 +396,44 @@ export function cast<P extends string>(beast: Beast<P>, facing: Facing, pose: Po
       pixels[n] = OUTLINE;
     }
   }
+  const size = frameOf(beast).px;
   const marks = markPixels(beast, facing, pose);
   for (const { u, v, index, free } of marks) {
-    if (!free && pixels[v * FRAME_PX + u]! >= 0) pixels[v * FRAME_PX + u] = index;
+    if (!free && pixels[v * size + u]! >= 0) pixels[v * size + u] = index;
   }
   const onEdge = (n: number) =>
-    n < FRAME_PX ||
-    n >= FRAME_PX * (FRAME_PX - 1) ||
-    n % FRAME_PX === 0 ||
-    n % FRAME_PX === FRAME_PX - 1;
+    n < size || n >= size * (size - 1) || n % size === 0 || n % size === size - 1;
   if (pixels.some((index, n) => index >= 0 && onEdge(n))) {
     throw new Error(`the ${beast.id} facing ${facing} runs off its frame`);
   }
-  const edged = outlined(pixels, FRAME_PX);
+  const edged = outlined(pixels, size);
   for (const { u, v, index, free } of marks) {
-    if (free) edged[v * FRAME_PX + u] = index;
+    if (free) edged[v * size + u] = index;
   }
   return edged;
 }
 
-function frame(pose: number, row: number, durationMs: number) {
+function frameSprite(pose: number, row: number, durationMs: number, { cells, base }: Frame) {
   return {
     sprite: {
-      rect: { x: pose * FRAME_CELLS, y: row * FRAME_CELLS, w: FRAME_CELLS, h: FRAME_CELLS },
-      base: { x: BASE_CELL, y: BASE_CELL },
+      rect: { x: pose * cells, y: row * cells, w: cells, h: cells },
+      base: { x: base, y: base },
     },
     durationMs,
   };
 }
 
-export function facingFrames(firstRow: number, poses: readonly number[], durationMs: number) {
+/** `firstRow` counts frames of this size from the top of the sheet. */
+export function facingFrames(
+  firstRow: number,
+  poses: readonly number[],
+  durationMs: number,
+  frame: Frame = DEFAULT_FRAME,
+) {
   return Object.fromEntries(
     FACINGS.map((facing, row) => [
       facing,
-      { frames: poses.map((pose) => frame(pose, firstRow + row, durationMs)) },
+      { frames: poses.map((pose) => frameSprite(pose, firstRow + row, durationMs, frame)) },
     ]),
   );
 }
@@ -425,13 +441,14 @@ export function facingFrames(firstRow: number, poses: readonly number[], duratio
 /** Paints every facing and walking pose of `beast` into `sheet`, a row of frames per facing from `firstRow`. */
 export function paintBeast<P extends string>(sheet: PNG, beast: Beast<P>, firstRow: number) {
   const poses = posesOf(beast);
+  const { px } = frameOf(beast);
   FACINGS.forEach((facing, f) => {
     const row = firstRow + f;
     poses.forEach((pose, column) => {
       cast(beast, facing, pose).forEach((index, n) => {
         if (index < 0) return;
-        const x = column * FRAME_PX + (n % FRAME_PX);
-        paint(sheet, x, row * FRAME_PX + Math.floor(n / FRAME_PX), index);
+        const x = column * px + (n % px);
+        paint(sheet, x, row * px + Math.floor(n / px), index);
       });
     });
   });
@@ -465,7 +482,8 @@ export async function writePreview(dir: string, name: string, sheet: PNG, beasts
         shade: shader(beast),
       };
       const pixels = castModel(model, projection(beast), large);
-      await writeCast(path.join(dir, `${beast.id}-${facing}.png`), pixels, FRAME_PX * large);
+      const { px } = frameOf(beast);
+      await writeCast(path.join(dir, `${beast.id}-${facing}.png`), pixels, px * large);
     }
   }
 }
