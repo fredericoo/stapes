@@ -7567,6 +7567,372 @@
     }
   },
   {
+    "id": "thatch-roof",
+    "name": "Thatched Roof",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 0,
+      "y": 8
+    },
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "thatch-roof-ridge",
+    "name": "Thatched Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 8,
+      "y": 8
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-thatch",
+    "name": "Low Thatched Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 0,
+      "y": 10
+    },
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "low-roof-thatch-ridge",
+    "name": "Low Thatched Roof",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "roofs",
+      "x": 8,
+      "y": 10
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "plaster",
     "name": "Roof",
     "height": 2,
@@ -9139,6 +9505,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -10078,6 +10445,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -11931,6 +12299,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -12966,6 +13335,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -13697,6 +14067,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -14619,6 +14990,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -16779,6 +17151,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -17988,6 +18361,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -18944,6 +19318,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -19956,6 +20331,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -21049,6 +21425,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -21956,6 +22333,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -22856,7 +23234,7 @@
                 {
                   "cond": "time_of_day",
                   "fromHour": 18,
-                  "toHour": 6
+                  "toHour": 5
                 },
                 {
                   "cond": "in_range",
@@ -22896,7 +23274,7 @@
                     {
                       "cond": "time_of_day",
                       "fromHour": 18,
-                      "toHour": 6
+                      "toHour": 5
                     }
                   ]
                 },
@@ -22996,6 +23374,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -23040,8 +23419,8 @@
           {
             "trait": "keeps-hours",
             "with": {
-              "from": 8,
-              "to": 16,
+              "from": 9,
+              "to": 17,
               "spell": 2
             }
           },
@@ -23835,6 +24214,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -25087,6 +25467,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -25505,6 +25886,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -26253,6 +26635,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -27558,6 +27941,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -27641,6 +28025,111 @@
                   {
                     "kind": "goto",
                     "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Where is everything?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "The temple's the middle of town. The four streets run from it to the four gates."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "where"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Runes",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Dagny sells them at the desk inside, by the steps. Hesper carves them at the back, between the forges."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Robes",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Amaru's weaving house. East side of the square, over the little bridge."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Potions",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Noor's apothecary, south of the square, on the east side of the street."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Food",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Pell's bakehouse is across the street from the apothecary. Suvi sells apples at the garden plots, in the south-west corner."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "A place to keep my things",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "The depot, west of the square, past the wardens' house. Every chest there opens on your own things, and nobody else sees them."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "The council",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "The council house, west side of the square. Iolanthe hears people there."
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "where"
+                          }
+                        ]
+                      },
+                      {
+                        "label": "That's all",
+                        "then": [
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ]
               },
@@ -28794,6 +29283,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -29553,6 +30043,767 @@
     }
   },
   {
+    "id": "mirela-dobos",
+    "name": "Mirela Dobos",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "people",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "raises-the-alarm",
+            "with": {
+              "town": [
+                "tove-arnesdatter",
+                "idris-kaya",
+                "ifeoma-nwachukwu",
+                "peregrine-voss",
+                "wenna-pascoe",
+                "jory-thistlewood",
+                "iolanthe-sarno",
+                "hesper-vaun",
+                "dagny-rook",
+                "amaru-quispe",
+                "noor-halabi",
+                "pell-marrow",
+                "suvi-kallio",
+                "casimir-wren",
+                "mina-dross",
+                "rosalind-peake",
+                "orrin-fask",
+                "fen-achterberg",
+                "taavi-kask",
+                "nadia-ferreira",
+                "mirela-dobos",
+                "ragna-holt",
+                "absalom-grieve",
+                "brannoc-hale",
+                "selin-arslan",
+                "mateo-ferran",
+                "halina-brzeska",
+                "bertha-oyelaran",
+                "magda-fenwick",
+                "tobiah-marsh",
+                "rukmini-desai",
+                "edda-kell",
+                "aurelio-benedetti",
+                "sigrun-halde",
+                "gideon-okafor",
+                "liv-sandvik",
+                "margit-oslund",
+                "kofi-asante",
+                "rodrigo-vela",
+                "morwen-teague",
+                "anselm-quaye",
+                "hamid-sarraf",
+                "yeva-kostenko",
+                "runa-hask"
+              ],
+              "guards": [
+                "edda-kell",
+                "gideon-okafor",
+                "liv-sandvik",
+                "taavi-kask",
+                "nadia-ferreira",
+                "runa-hask"
+              ]
+            }
+          },
+          {
+            "trait": "townsfolk-flee",
+            "with": {
+              "snack": 1
+            }
+          },
+          {
+            "trait": "calls-out",
+            "with": {
+              "line": "Your things are safe here. Come and see."
+            }
+          },
+          {
+            "trait": "returns-home",
+            "with": {
+              "leash": 2,
+              "near": 1
+            }
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Welcome to the depot, {partner}. The chests along the back wall are yours."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "How does the depot work?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Open any chest here and you see your own things, nobody else's. Put something in, and it is waiting for you the next time you open any of them."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Three chests, one store. Use whichever is free; the stranger at the next one sees only theirs."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "What happens when I die?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Death takes your bag. It does not take what you left here. Most people come straight back to this counter after."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Does anything spoil in there?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Nothing. Bread you leave today is bread in a hundred years. I would know."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Are there other depots?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Not on this island. If you want something kept, bring it here."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Who are you?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mirela Dobos. Before Wyrd I kept the bonded warehouse on the harbour: every crate that came off a ship sat with me until its duty was paid."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "The warehouse never shut, so I never learned to. I don't sleep here either. Somebody always wants their things at three in the morning."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Goodbye",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mind your bag on the road."
+                  },
+                  {
+                    "kind": "exit"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 25,
+        "masteries": {
+          "fist": 10,
+          "sharp": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 20,
+          "agility": 30,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Bare hands",
+          "damage": 2,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 100
+          },
+          {
+            "slot": "footwear",
+            "tileId": "worn-boots",
+            "chance": 100
+          }
+        ],
+        "remains": "skull-player",
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Eat a snack",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "fed",
+                  "chance": 100,
+                  "fromMs": 300000,
+                  "toMs": 300000
+                }
+              ]
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 30,
+                "ttlFromMs": 300,
+                "ttlToMs": 500,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 4,
+                "driftCellsPerSecond": 0.4,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -14,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#f2dca8"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c79a5a"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7a4f26"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "stone",
+            "name": "Go to sleep",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 1800000,
+        "toMs": 3600000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    },
+    "human": {
+      "skin": "default",
+      "hair": "grey",
+      "head": "long-hair",
+      "outfit": {
+        "clothes": "purple-robe",
+        "shoes": "grey-boots"
+      }
+    }
+  },
+  {
     "id": "ragna-holt",
     "name": "Ragna Holt",
     "height": 4,
@@ -29640,6 +30891,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -30471,6 +31723,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -31270,6 +32523,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -32725,6 +33979,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -33672,6 +34927,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -34832,6 +36088,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -35962,6 +37219,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -36869,6 +38127,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -38108,6 +39367,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -38943,6 +40203,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -40260,6 +41521,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -41063,6 +42325,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -41803,6 +43066,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -42968,6 +44232,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -44885,6 +46150,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -45604,6 +46870,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -46506,6 +47773,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -47485,6 +48753,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -48212,6 +49481,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -49116,6 +50386,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -50331,6 +51602,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -51089,6 +52361,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",
@@ -201087,6 +202360,7 @@
                 "fen-achterberg",
                 "taavi-kask",
                 "nadia-ferreira",
+                "mirela-dobos",
                 "ragna-holt",
                 "absalom-grieve",
                 "brannoc-hale",

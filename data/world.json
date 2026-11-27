@@ -2315,13 +2315,121 @@
             }
           },
           {
+            "type": "fill",
+            "key": "druid-lake",
+            "frame": {
+              "x": 338,
+              "y": 460,
+              "w": 18,
+              "h": 10
+            },
+            "props": {
+              "tiles": [
+                "water",
+                "deep-water"
+              ],
+              "edge": [
+                "water"
+              ],
+              "edgeWidth": 4,
+              "mode": "replace"
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "druid-lake-shape",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 18,
+                  "h": 10
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect",
+                  "ragged": 0
+                }
+              }
+            ]
+          },
+          {
+            "type": "river",
+            "key": "druid-brook",
+            "props": {
+              "from": {
+                "x": 332,
+                "y": 354
+              },
+              "via": [
+                {
+                  "x": 332,
+                  "y": 383
+                },
+                {
+                  "x": 332,
+                  "y": 457
+                }
+              ],
+              "to": {
+                "in": "druid-lake",
+                "x": 0.3,
+                "y": 0.3,
+                "pinX": "scale",
+                "pinY": "scale"
+              },
+              "width": 2,
+              "wander": 0,
+              "bendLength": 12
+            }
+          },
+          {
+            "type": "scatter",
+            "key": "druid-lake-lilies",
+            "frame": {
+              "x": 338,
+              "y": 460,
+              "w": 18,
+              "h": 10
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "lilypad",
+                  "weight": 1
+                }
+              ],
+              "density": 45,
+              "clumping": 30,
+              "clumpSize": 4,
+              "onlyOn": [
+                "water"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "druid-lake-lilies-inside",
+                "frame": {
+                  "x": 3,
+                  "y": 3,
+                  "w": 12,
+                  "h": 4
+                },
+                "props": {
+                  "shape": "oval",
+                  "op": "intersect"
+                }
+              }
+            ]
+          },
+          {
             "type": "group",
             "key": "druid-town",
             "frame": {
-              "x": 288,
-              "y": 400,
-              "w": 58,
-              "h": 46
+              "x": 268,
+              "y": 384,
+              "w": 96,
+              "h": 72
             },
             "children": [
               {
@@ -2342,18 +2450,60 @@
                     "saguaro",
                     "barrel-cactus",
                     "prickly-pear",
-                    "snowy-pine"
+                    "snowy-pine",
+                    "tuft",
+                    "fern",
+                    "undergrowth",
+                    "red-flowers",
+                    "yellow-flowers",
+                    "mushroom-patch",
+                    "blue-mushroom-patch"
                   ]
                 }
+              },
+              {
+                "type": "hill",
+                "key": "druid-high-quarter",
+                "frame": {
+                  "x": 72,
+                  "y": -12,
+                  "w": 32,
+                  "h": 58
+                },
+                "props": {
+                  "levels": 1,
+                  "terrace": 0,
+                  "roughness": 0,
+                  "ground": "sand",
+                  "cover": "grass",
+                  "ramp": "stone-stairs",
+                  "rampBlock": "brick-slab"
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "druid-high-quarter-shape",
+                    "frame": {
+                      "x": 8,
+                      "y": 12,
+                      "w": 16,
+                      "h": 34
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "intersect"
+                    }
+                  }
+                ]
               },
               {
                 "type": "fill",
                 "key": "druid-plaza",
                 "frame": {
-                  "x": 16,
-                  "y": 10,
-                  "w": 26,
-                  "h": 22
+                  "x": 30,
+                  "y": 12,
+                  "w": 37,
+                  "h": 35
                 },
                 "props": {
                   "tiles": [
@@ -2369,70 +2519,226 @@
                 }
               },
               {
-                "type": "wall",
-                "key": "druid-wall",
-                "frame": {
-                  "x": 0,
-                  "y": 0,
-                  "w": 58,
-                  "h": 46
-                },
+                "type": "road",
+                "key": "druid-north-street",
                 "props": {
                   "from": {
-                    "x": 1,
-                    "y": 1
+                    "x": 48,
+                    "y": -1
                   },
-                  "via": [
-                    {
-                      "x": 1,
-                      "y": 1,
-                      "pinX": "right"
-                    },
-                    {
-                      "x": 1,
-                      "y": 1,
-                      "pinX": "right",
-                      "pinY": "bottom"
-                    }
-                  ],
                   "to": {
-                    "x": 1,
-                    "y": 1,
-                    "pinY": "bottom"
+                    "x": 48,
+                    "y": 12
                   },
-                  "closed": true,
-                  "height": 2,
-                  "thickness": 2,
-                  "gates": [
-                    {
-                      "x": 0,
-                      "y": 1,
-                      "pinX": "center",
-                      "pinY": "bottom"
-                    },
-                    {
-                      "x": 1,
-                      "y": 0,
-                      "pinX": "right",
-                      "pinY": "center"
-                    },
-                    {
-                      "x": 0,
-                      "y": 1,
-                      "pinX": "center"
-                    }
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-south-street",
+                "props": {
+                  "from": {
+                    "x": 48,
+                    "y": 72
+                  },
+                  "to": {
+                    "x": 48,
+                    "y": 46
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-west-street",
+                "props": {
+                  "from": {
+                    "x": -1,
+                    "y": 36
+                  },
+                  "to": {
+                    "x": 30,
+                    "y": 36
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-east-street",
+                "props": {
+                  "from": {
+                    "x": 96,
+                    "y": 36
+                  },
+                  "to": {
+                    "x": 58,
+                    "y": 36
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 2,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-weaving-lane",
+                "props": {
+                  "from": {
+                    "x": 58,
+                    "y": 17
+                  },
+                  "to": {
+                    "x": 67,
+                    "y": 17
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 1,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-ledger-lane",
+                "props": {
+                  "from": {
+                    "x": 58,
+                    "y": 29
+                  },
+                  "to": {
+                    "x": 67,
+                    "y": 29
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 1,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-south-lane",
+                "props": {
+                  "from": {
+                    "x": 50,
+                    "y": 60
+                  },
+                  "to": {
+                    "x": 76,
+                    "y": 60
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 1,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "road",
+                "key": "druid-high-lane",
+                "props": {
+                  "from": {
+                    "x": 81,
+                    "y": 35
+                  },
+                  "to": {
+                    "x": 81,
+                    "y": 4
+                  },
+                  "tile": "moss-flagstone",
+                  "width": 1,
+                  "wander": 0
+                }
+              },
+              {
+                "type": "fill",
+                "key": "druid-garden-bed-0",
+                "frame": {
+                  "x": 5,
+                  "y": 53,
+                  "w": 15,
+                  "h": 2
+                },
+                "props": {
+                  "tiles": [
+                    "dirt"
                   ],
-                  "stairs": [
-                    {
-                      "x": 20,
-                      "y": 4
-                    },
-                    {
-                      "x": 20,
-                      "y": 4,
-                      "pinX": "right",
-                      "pinY": "bottom"
-                    }
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
+                }
+              },
+              {
+                "type": "fill",
+                "key": "druid-garden-bed-1",
+                "frame": {
+                  "x": 5,
+                  "y": 57,
+                  "w": 15,
+                  "h": 2
+                },
+                "props": {
+                  "tiles": [
+                    "dirt"
+                  ],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
+                }
+              },
+              {
+                "type": "fill",
+                "key": "druid-garden-bed-2",
+                "frame": {
+                  "x": 5,
+                  "y": 61,
+                  "w": 15,
+                  "h": 2
+                },
+                "props": {
+                  "tiles": [
+                    "dirt"
+                  ],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
+                }
+              },
+              {
+                "type": "fill",
+                "key": "druid-garden-bed-3",
+                "frame": {
+                  "x": 5,
+                  "y": 65,
+                  "w": 15,
+                  "h": 2
+                },
+                "props": {
+                  "tiles": [
+                    "dirt"
+                  ],
+                  "edge": [],
+                  "mode": "replace",
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
                   ]
                 }
               },
@@ -2440,8 +2746,8 @@
                 "type": "temple",
                 "key": "rune-temple",
                 "frame": {
-                  "x": 19,
-                  "y": 12,
+                  "x": 38,
+                  "y": 14,
                   "w": 20,
                   "h": 15
                 },
@@ -2458,8 +2764,8 @@
                 "props": {
                   "tile": "bone-forge",
                   "at": {
-                    "x": 25,
-                    "y": 17
+                    "x": 44,
+                    "y": 19
                   }
                 }
               },
@@ -2469,8 +2775,8 @@
                 "props": {
                   "tile": "crystal-forge",
                   "at": {
-                    "x": 29,
-                    "y": 17
+                    "x": 48,
+                    "y": 19
                   }
                 }
               },
@@ -2480,8 +2786,41 @@
                 "props": {
                   "tile": "obsidian-forge",
                   "at": {
-                    "x": 33,
-                    "y": 17
+                    "x": 52,
+                    "y": 19
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-carving-table",
+                "props": {
+                  "tile": "table",
+                  "at": {
+                    "x": 50,
+                    "y": 20
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-clerk-desk-0",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 43,
+                    "y": 24
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-clerk-desk-1",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 44,
+                    "y": 24
                   }
                 }
               },
@@ -2491,27 +2830,27 @@
                 "props": {
                   "tile": "respawn-point",
                   "at": {
-                    "x": 29,
-                    "y": 30
+                    "x": 48,
+                    "y": 42
                   }
                 }
               },
               {
                 "type": "house",
-                "key": "druid-library",
+                "key": "druid-council-house",
                 "frame": {
-                  "x": 5,
-                  "y": 5,
-                  "w": 11,
-                  "h": 9
+                  "x": 16,
+                  "y": 12,
+                  "w": 13,
+                  "h": 12
                 },
                 "children": [
                   {
                     "type": "floor",
-                    "key": "druid-library-f0",
+                    "key": "druid-council-house-f0",
                     "props": {
                       "use": "library",
-                      "rooms": 2,
+                      "rooms": 1,
                       "doors": [
                         {
                           "x": 0,
@@ -2524,28 +2863,530 @@
                   },
                   {
                     "type": "floor",
-                    "key": "druid-library-f1",
+                    "key": "druid-council-house-f1",
                     "props": {
-                      "use": "library"
+                      "use": "house",
+                      "rooms": 2
                     }
                   },
                   {
                     "type": "roof",
-                    "key": "druid-library-roof",
+                    "key": "druid-council-house-roof",
                     "props": {
-                      "colour": "blue"
+                      "colour": "thatch"
                     }
                   }
                 ]
               },
               {
                 "type": "house",
-                "key": "druid-cottage-1",
+                "key": "druid-wardens-house",
                 "frame": {
-                  "x": 5,
-                  "y": 17,
+                  "x": 18,
+                  "y": 26,
+                  "w": 11,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-wardens-house-f0",
+                    "props": {
+                      "use": "barracks",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-wardens-house-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-depot",
+                "frame": {
+                  "x": 16,
+                  "y": 39,
+                  "w": 13,
+                  "h": 10
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-depot-f0",
+                    "props": {
+                      "use": "empty"
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-depot-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  },
+                  {
+                    "type": "mask",
+                    "key": "druid-depot-open-north",
+                    "frame": {
+                      "x": 6,
+                      "y": 0,
+                      "w": 6,
+                      "h": 1
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "subtract",
+                      "only": [
+                        "sw2",
+                        "window-1",
+                        "window-2"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "mask",
+                    "key": "druid-depot-open-east",
+                    "frame": {
+                      "x": 12,
+                      "y": 1,
+                      "w": 1,
+                      "h": 5
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "subtract",
+                      "only": [
+                        "sw2",
+                        "window-1",
+                        "window-2"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-weaving-house",
+                "frame": {
+                  "x": 68,
+                  "y": 12,
+                  "w": 11,
+                  "h": 10
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-weaving-house-f0",
+                    "props": {
+                      "use": "shop",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    },
+                    "seed": 5
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-weaving-house-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1
+                    },
+                    "seed": 5
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-weaving-house-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-ledger-house",
+                "frame": {
+                  "x": 68,
+                  "y": 24,
+                  "w": 12,
+                  "h": 10
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-ledger-house-f0",
+                    "props": {
+                      "use": "library",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-ledger-house-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 3
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-ledger-house-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-bakehouse",
+                "frame": {
+                  "x": 35,
+                  "y": 48,
+                  "w": 10,
+                  "h": 9
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-bakehouse-f0",
+                    "props": {
+                      "use": "shop",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-bakehouse-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-bakehouse-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-apothecary",
+                "frame": {
+                  "x": 52,
+                  "y": 48,
+                  "w": 12,
+                  "h": 10
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-apothecary-f0",
+                    "props": {
+                      "use": "shop",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    },
+                    "seed": 1
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-apothecary-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 3
+                    },
+                    "seed": 1
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-apothecary-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-hesper-cell",
+                "frame": {
+                  "x": 37,
+                  "y": 3,
                   "w": 8,
                   "h": 7
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-hesper-cell-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-hesper-cell-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-granary",
+                "frame": {
+                  "x": 54,
+                  "y": 3,
+                  "w": 10,
+                  "h": 9
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-granary-f0",
+                    "props": {
+                      "use": "storage",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-granary-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-granary-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ],
+                "props": {
+                  "window": null
+                }
+              },
+              {
+                "type": "house",
+                "key": "druid-long-house",
+                "frame": {
+                  "x": 79,
+                  "y": 40,
+                  "w": 14,
+                  "h": 9
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-long-house-f0",
+                    "props": {
+                      "use": "pub",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "floor",
+                    "key": "druid-long-house-f1",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-long-house-roof",
+                    "props": {
+                      "colour": "thatch"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-0",
+                "props": {
+                  "tile": "fallen-log",
+                  "at": {
+                    "x": 68,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-1",
+                "props": {
+                  "tile": "fallen-log",
+                  "at": {
+                    "x": 70,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-2",
+                "props": {
+                  "tile": "fallen-log",
+                  "at": {
+                    "x": 68,
+                    "y": 44
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-3",
+                "props": {
+                  "tile": "timber-block",
+                  "at": {
+                    "x": 73,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-4",
+                "props": {
+                  "tile": "timber-block",
+                  "at": {
+                    "x": 74,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-5",
+                "props": {
+                  "tile": "timber-block",
+                  "at": {
+                    "x": 73,
+                    "y": 43
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-6",
+                "props": {
+                  "tile": "tree-stump",
+                  "at": {
+                    "x": 76,
+                    "y": 45
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-7",
+                "props": {
+                  "tile": "crate-chest",
+                  "at": {
+                    "x": 70,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-yard-8",
+                "props": {
+                  "tile": "barrel",
+                  "at": {
+                    "x": 71,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-1",
+                "frame": {
+                  "x": 4,
+                  "y": 4,
+                  "w": 10,
+                  "h": 8
                 },
                 "children": [
                   {
@@ -2553,6 +3394,7 @@
                     "key": "druid-cottage-1-f0",
                     "props": {
                       "use": "house",
+                      "rooms": 2,
                       "doors": [
                         {
                           "x": 0,
@@ -2567,7 +3409,7 @@
                     "type": "roof",
                     "key": "druid-cottage-1-roof",
                     "props": {
-                      "colour": "blue",
+                      "colour": "thatch",
                       "pitch": "low"
                     }
                   }
@@ -2577,15 +3419,339 @@
                 "type": "house",
                 "key": "druid-cottage-2",
                 "frame": {
-                  "x": 5,
-                  "y": 28,
+                  "x": 4,
+                  "y": 14,
                   "w": 10,
-                  "h": 10
+                  "h": 8
                 },
                 "children": [
                   {
                     "type": "floor",
                     "key": "druid-cottage-2-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-2-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-3",
+                "frame": {
+                  "x": 4,
+                  "y": 25,
+                  "w": 10,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-3-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-3-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-suvi-cottage",
+                "frame": {
+                  "x": 4,
+                  "y": 41,
+                  "w": 9,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-suvi-cottage-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-suvi-cottage-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-4",
+                "frame": {
+                  "x": 68,
+                  "y": 3,
+                  "w": 9,
+                  "h": 7
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-4-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-4-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-5",
+                "frame": {
+                  "x": 84,
+                  "y": 3,
+                  "w": 8,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-5-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-5-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-dagny-house",
+                "frame": {
+                  "x": 26,
+                  "y": 3,
+                  "w": 10,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-dagny-house-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "center",
+                          "pinY": "bottom"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-dagny-house-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-13",
+                "frame": {
+                  "x": 84,
+                  "y": 13,
+                  "w": 8,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-13-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-13-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-12",
+                "frame": {
+                  "x": 84,
+                  "y": 24,
+                  "w": 8,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-12-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 2,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-12-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-6",
+                "frame": {
+                  "x": 66,
+                  "y": 52,
+                  "w": 9,
+                  "h": 7
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-6-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "left",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-6-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "house",
+                "key": "druid-cottage-7",
+                "frame": {
+                  "x": 78,
+                  "y": 52,
+                  "w": 13,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-7-f0",
                     "props": {
                       "use": "house",
                       "rooms": 2,
@@ -2601,78 +3767,38 @@
                   },
                   {
                     "type": "porch",
-                    "key": "druid-cottage-2-p0",
+                    "key": "druid-cottage-7-p0",
                     "props": {
-                      "side": "e",
+                      "side": "s",
                       "use": "seating",
-                      "depth": 3
+                      "depth": 2
                     }
                   },
                   {
                     "type": "roof",
-                    "key": "druid-cottage-2-roof",
+                    "key": "druid-cottage-7-roof",
                     "props": {
-                      "colour": "blue"
+                      "colour": "thatch"
                     }
                   }
                 ]
               },
               {
                 "type": "house",
-                "key": "druid-herbalist",
+                "key": "druid-cottage-8",
                 "frame": {
-                  "x": 43,
-                  "y": 4,
-                  "w": 11,
-                  "h": 8
-                },
-                "children": [
-                  {
-                    "type": "floor",
-                    "key": "druid-herbalist-f0",
-                    "props": {
-                      "use": "shop",
-                      "doors": [
-                        {
-                          "x": 0,
-                          "y": 0,
-                          "pinX": "center",
-                          "pinY": "bottom"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "type": "floor",
-                    "key": "druid-herbalist-f1",
-                    "props": {
-                      "use": "house"
-                    }
-                  },
-                  {
-                    "type": "roof",
-                    "key": "druid-herbalist-roof",
-                    "props": {
-                      "colour": "yellow"
-                    }
-                  }
-                ]
-              },
-              {
-                "type": "house",
-                "key": "druid-cottage-3",
-                "frame": {
-                  "x": 44,
-                  "y": 14,
+                  "x": 66,
+                  "y": 62,
                   "w": 9,
-                  "h": 6
+                  "h": 7
                 },
                 "children": [
                   {
                     "type": "floor",
-                    "key": "druid-cottage-3-f0",
+                    "key": "druid-cottage-8-f0",
                     "props": {
                       "use": "house",
+                      "rooms": 1,
                       "doors": [
                         {
                           "x": 0,
@@ -2685,9 +3811,9 @@
                   },
                   {
                     "type": "roof",
-                    "key": "druid-cottage-3-roof",
+                    "key": "druid-cottage-8-roof",
                     "props": {
-                      "colour": "blue",
+                      "colour": "thatch",
                       "pitch": "low"
                     }
                   }
@@ -2695,19 +3821,19 @@
               },
               {
                 "type": "house",
-                "key": "druid-pub",
+                "key": "druid-cottage-9",
                 "frame": {
-                  "x": 40,
-                  "y": 28,
-                  "w": 14,
-                  "h": 12
+                  "x": 79,
+                  "y": 62,
+                  "w": 12,
+                  "h": 7
                 },
                 "children": [
                   {
                     "type": "floor",
-                    "key": "druid-pub-f0",
+                    "key": "druid-cottage-9-f0",
                     "props": {
-                      "use": "pub",
+                      "use": "house",
                       "rooms": 2,
                       "doors": [
                         {
@@ -2720,44 +3846,31 @@
                     }
                   },
                   {
-                    "type": "floor",
-                    "key": "druid-pub-f1",
-                    "props": {
-                      "use": "inn",
-                      "rooms": 3
-                    }
-                  },
-                  {
-                    "type": "cellar",
-                    "key": "druid-pub-c0",
-                    "props": {
-                      "use": "storage"
-                    }
-                  },
-                  {
                     "type": "roof",
-                    "key": "druid-pub-roof",
+                    "key": "druid-cottage-9-roof",
                     "props": {
-                      "colour": "red"
+                      "colour": "thatch",
+                      "pitch": "low"
                     }
                   }
                 ]
               },
               {
                 "type": "house",
-                "key": "druid-cottage-4",
+                "key": "druid-cottage-10",
                 "frame": {
-                  "x": 17,
-                  "y": 35,
-                  "w": 8,
-                  "h": 7
+                  "x": 33,
+                  "y": 59,
+                  "w": 10,
+                  "h": 8
                 },
                 "children": [
                   {
                     "type": "floor",
-                    "key": "druid-cottage-4-f0",
+                    "key": "druid-cottage-10-f0",
                     "props": {
                       "use": "house",
+                      "rooms": 2,
                       "doors": [
                         {
                           "x": 0,
@@ -2770,142 +3883,474 @@
                   },
                   {
                     "type": "roof",
-                    "key": "druid-cottage-4-roof",
+                    "key": "druid-cottage-10-roof",
                     "props": {
-                      "colour": "blue",
+                      "colour": "thatch",
                       "pitch": "low"
                     }
                   }
                 ]
               },
               {
-                "type": "road",
-                "key": "druid-south-street",
+                "type": "house",
+                "key": "druid-cottage-11",
+                "frame": {
+                  "x": 22,
+                  "y": 59,
+                  "w": 9,
+                  "h": 8
+                },
+                "children": [
+                  {
+                    "type": "floor",
+                    "key": "druid-cottage-11-f0",
+                    "props": {
+                      "use": "house",
+                      "rooms": 1,
+                      "doors": [
+                        {
+                          "x": 0,
+                          "y": 0,
+                          "pinX": "right",
+                          "pinY": "center"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "roof",
+                    "key": "druid-cottage-11-roof",
+                    "props": {
+                      "colour": "thatch",
+                      "pitch": "low"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-0",
                 "props": {
-                  "from": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 23,
+                    "y": 51
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-1",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 27,
+                    "y": 51
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-2",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 25,
+                    "y": 54
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-3",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
                     "x": 29,
+                    "y": 54
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-4",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 23,
+                    "y": 57
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-0",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 45,
+                    "y": 5
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-1",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 31,
+                    "y": 13
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-2",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 62,
+                    "y": 13
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-3",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 35,
+                    "y": 21
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-4",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 61,
+                    "y": 21
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-5",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 8,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-6",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 20,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-7",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 76,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-8",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 88,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-lamp-9",
+                "props": {
+                  "tile": "lamppost-off",
+                  "at": {
+                    "x": 31,
                     "y": 46
-                  },
-                  "to": {
-                    "x": 29,
-                    "y": 27
-                  },
-                  "tile": "moss-flagstone",
-                  "width": 2
-                }
-              },
-              {
-                "type": "road",
-                "key": "druid-east-street",
-                "props": {
-                  "from": {
-                    "x": 58,
-                    "y": 22
-                  },
-                  "to": {
-                    "x": 39,
-                    "y": 22
-                  },
-                  "tile": "moss-flagstone",
-                  "width": 2
-                }
-              },
-              {
-                "type": "road",
-                "key": "druid-north-street",
-                "props": {
-                  "from": {
-                    "x": 29,
-                    "y": -1
-                  },
-                  "to": {
-                    "x": 29,
-                    "y": 10
-                  },
-                  "tile": "moss-flagstone",
-                  "width": 2
-                }
-              },
-              {
-                "type": "road",
-                "key": "druid-west-street",
-                "props": {
-                  "from": {
-                    "x": -1,
-                    "y": 25
-                  },
-                  "to": {
-                    "x": 16,
-                    "y": 25
-                  },
-                  "tile": "moss-flagstone",
-                  "width": 2,
-                  "wander": 0
-                }
-              },
-              {
-                "type": "tile",
-                "key": "druid-lamp-n1",
-                "props": {
-                  "tile": "lamppost",
-                  "at": {
-                    "x": 27,
-                    "y": 9
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "druid-lamp-n2",
+                "key": "druid-lamp-10",
                 "props": {
-                  "tile": "lamppost",
+                  "tile": "lamppost-off",
                   "at": {
-                    "x": 32,
-                    "y": 9
+                    "x": 62,
+                    "y": 46
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "druid-lamp-e1",
+                "key": "druid-lamp-11",
                 "props": {
-                  "tile": "lamppost",
+                  "tile": "lamppost-off",
                   "at": {
-                    "x": 40,
-                    "y": 20
+                    "x": 51,
+                    "y": 67
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "druid-lamp-e2",
+                "key": "druid-depot-counter-0",
                 "props": {
-                  "tile": "lamppost",
+                  "tile": "counter-top",
                   "at": {
-                    "x": 40,
-                    "y": 25
-                  }
-                }
-              },
-              {
-                "type": "tile",
-                "key": "druid-lamp-s1",
-                "props": {
-                  "tile": "lamppost",
-                  "at": {
-                    "x": 27,
+                    "x": 17,
                     "y": 42
                   }
                 }
               },
               {
                 "type": "tile",
-                "key": "druid-lamp-s2",
+                "key": "druid-depot-counter-1",
                 "props": {
-                  "tile": "lamppost",
+                  "tile": "counter-top",
                   "at": {
-                    "x": 32,
+                    "x": 18,
                     "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-2",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 19,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-3",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 20,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-4",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 21,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-5",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 22,
+                    "y": 42
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-6",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 22,
+                    "y": 41
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-counter-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 22,
+                    "y": 40
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-chest-0",
+                "props": {
+                  "tile": "silver-chest",
+                  "at": {
+                    "x": 19,
+                    "y": 47
+                  },
+                  "placement": {
+                    "depotTag": "druid-town"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-0--1-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 18,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-0--1-8",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 18,
+                    "y": 47
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-0-1-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 20,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-0-1-8",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 20,
+                    "y": 47
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-chest-1",
+                "props": {
+                  "tile": "silver-chest",
+                  "at": {
+                    "x": 23,
+                    "y": 47
+                  },
+                  "placement": {
+                    "depotTag": "druid-town"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-1--1-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 22,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-1--1-8",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 22,
+                    "y": 47
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-1-1-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 24,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-1-1-8",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 24,
+                    "y": 47
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-chest-2",
+                "props": {
+                  "tile": "silver-chest",
+                  "at": {
+                    "x": 27,
+                    "y": 47
+                  },
+                  "placement": {
+                    "depotTag": "druid-town"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-2--1-7",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 26,
+                    "y": 46
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-depot-booth-2--1-8",
+                "props": {
+                  "tile": "counter-top",
+                  "at": {
+                    "x": 26,
+                    "y": 47
                   }
                 }
               },
@@ -2915,8 +4360,8 @@
                 "frame": {
                   "x": 3,
                   "y": 3,
-                  "w": 52,
-                  "h": 40
+                  "w": 90,
+                  "h": 66
                 },
                 "props": {
                   "tiles": [
@@ -2931,13 +4376,2269 @@
                     {
                       "tile": "blue-mushroom-patch",
                       "weight": 1
+                    },
+                    {
+                      "tile": "mushroom-patch",
+                      "weight": 1
+                    },
+                    {
+                      "tile": "fern",
+                      "weight": 1
                     }
                   ],
-                  "density": 10,
+                  "density": 8,
                   "onlyOn": [
                     "grass"
                   ],
                   "clumping": 70
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-0",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 4,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-1",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 4,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-2",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 8,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-3",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 12,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-4",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 12,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-5",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 16,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-6",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 68,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-7",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 72,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-8",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 76,
+                    "y": 39
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-9",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 84,
+                    "y": 34
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-10",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 51,
+                    "y": 4
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-11",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 46,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-12",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 51,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-13",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 46,
+                    "y": 56
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-14",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 46,
+                    "y": 60
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-15",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 46,
+                    "y": 64
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-tree-16",
+                "props": {
+                  "tile": "tree",
+                  "at": {
+                    "x": 51,
+                    "y": 64
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-17",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 15,
+                    "y": 8
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-18",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 9,
+                    "y": 23
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-19",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 15,
+                    "y": 29
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-20",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 14,
+                    "y": 45
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-21",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 78,
+                    "y": 6
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-22",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 76,
+                    "y": 55
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-23",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 76,
+                    "y": 64
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-24",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 44,
+                    "y": 63
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-apple-tree-25",
+                "props": {
+                  "tile": "apple-tree",
+                  "at": {
+                    "x": 24,
+                    "y": 7
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-old-tree-26",
+                "props": {
+                  "tile": "old-tree",
+                  "at": {
+                    "x": 40,
+                    "y": 41
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-old-tree-27",
+                "props": {
+                  "tile": "old-tree",
+                  "at": {
+                    "x": 56,
+                    "y": 41
+                  }
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-living-wall",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": 72
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "tree",
+                      "weight": 6
+                    },
+                    {
+                      "tile": "old-tree",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "bush",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "small-bush",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 100,
+                  "clumping": 0,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "druid-living-wall-inside",
+                    "frame": {
+                      "x": 3,
+                      "y": 3,
+                      "w": 90,
+                      "h": 66
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "subtract"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "scatter",
+                "key": "druid-living-wall-brambles",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": 72
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "bush",
+                      "weight": 2
+                    },
+                    {
+                      "tile": "small-bush",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 100,
+                  "clumping": 0,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2"
+                  ]
+                },
+                "children": [
+                  {
+                    "type": "mask",
+                    "key": "druid-living-wall-brambles-inside",
+                    "frame": {
+                      "x": 3,
+                      "y": 3,
+                      "w": 90,
+                      "h": 66
+                    },
+                    "props": {
+                      "shape": "rect",
+                      "op": "subtract"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "scatter",
+                "key": "druid-council-house-ivy-s",
+                "frame": {
+                  "x": 16,
+                  "y": 24,
+                  "w": 13,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-council-house-ivy-e",
+                "frame": {
+                  "x": 29,
+                  "y": 12,
+                  "w": 1,
+                  "h": 12
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-wardens-house-ivy-s",
+                "frame": {
+                  "x": 18,
+                  "y": 34,
+                  "w": 11,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-wardens-house-ivy-e",
+                "frame": {
+                  "x": 29,
+                  "y": 26,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-depot-ivy-s",
+                "frame": {
+                  "x": 16,
+                  "y": 49,
+                  "w": 13,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-depot-ivy-e",
+                "frame": {
+                  "x": 29,
+                  "y": 39,
+                  "w": 1,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-weaving-house-ivy-s",
+                "frame": {
+                  "x": 68,
+                  "y": 22,
+                  "w": 11,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-weaving-house-ivy-e",
+                "frame": {
+                  "x": 79,
+                  "y": 12,
+                  "w": 1,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-ledger-house-ivy-s",
+                "frame": {
+                  "x": 68,
+                  "y": 34,
+                  "w": 12,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-ledger-house-ivy-e",
+                "frame": {
+                  "x": 80,
+                  "y": 24,
+                  "w": 1,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-bakehouse-ivy-s",
+                "frame": {
+                  "x": 35,
+                  "y": 57,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-bakehouse-ivy-e",
+                "frame": {
+                  "x": 45,
+                  "y": 48,
+                  "w": 1,
+                  "h": 9
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-apothecary-ivy-s",
+                "frame": {
+                  "x": 52,
+                  "y": 58,
+                  "w": 12,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-apothecary-ivy-e",
+                "frame": {
+                  "x": 64,
+                  "y": 48,
+                  "w": 1,
+                  "h": 10
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-hesper-cell-ivy-s",
+                "frame": {
+                  "x": 37,
+                  "y": 10,
+                  "w": 8,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-hesper-cell-ivy-e",
+                "frame": {
+                  "x": 45,
+                  "y": 3,
+                  "w": 1,
+                  "h": 7
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-granary-ivy-s",
+                "frame": {
+                  "x": 54,
+                  "y": 12,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-granary-ivy-e",
+                "frame": {
+                  "x": 64,
+                  "y": 3,
+                  "w": 1,
+                  "h": 9
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-long-house-ivy-s",
+                "frame": {
+                  "x": 79,
+                  "y": 49,
+                  "w": 14,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-long-house-ivy-e",
+                "frame": {
+                  "x": 93,
+                  "y": 40,
+                  "w": 1,
+                  "h": 9
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-1-ivy-s",
+                "frame": {
+                  "x": 4,
+                  "y": 12,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-1-ivy-e",
+                "frame": {
+                  "x": 14,
+                  "y": 4,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-2-ivy-s",
+                "frame": {
+                  "x": 4,
+                  "y": 22,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-2-ivy-e",
+                "frame": {
+                  "x": 14,
+                  "y": 14,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-3-ivy-s",
+                "frame": {
+                  "x": 4,
+                  "y": 33,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-3-ivy-e",
+                "frame": {
+                  "x": 14,
+                  "y": 25,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-suvi-cottage-ivy-s",
+                "frame": {
+                  "x": 4,
+                  "y": 49,
+                  "w": 9,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-suvi-cottage-ivy-e",
+                "frame": {
+                  "x": 13,
+                  "y": 41,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-4-ivy-s",
+                "frame": {
+                  "x": 68,
+                  "y": 10,
+                  "w": 9,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-4-ivy-e",
+                "frame": {
+                  "x": 77,
+                  "y": 3,
+                  "w": 1,
+                  "h": 7
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-5-ivy-s",
+                "frame": {
+                  "x": 84,
+                  "y": 11,
+                  "w": 8,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-5-ivy-e",
+                "frame": {
+                  "x": 92,
+                  "y": 3,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-dagny-house-ivy-s",
+                "frame": {
+                  "x": 26,
+                  "y": 11,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-dagny-house-ivy-e",
+                "frame": {
+                  "x": 36,
+                  "y": 3,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-13-ivy-s",
+                "frame": {
+                  "x": 84,
+                  "y": 21,
+                  "w": 8,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-13-ivy-e",
+                "frame": {
+                  "x": 92,
+                  "y": 13,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-12-ivy-s",
+                "frame": {
+                  "x": 84,
+                  "y": 32,
+                  "w": 8,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-12-ivy-e",
+                "frame": {
+                  "x": 92,
+                  "y": 24,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-6-ivy-s",
+                "frame": {
+                  "x": 66,
+                  "y": 59,
+                  "w": 9,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-6-ivy-e",
+                "frame": {
+                  "x": 75,
+                  "y": 52,
+                  "w": 1,
+                  "h": 7
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-7-ivy-s",
+                "frame": {
+                  "x": 78,
+                  "y": 60,
+                  "w": 13,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-7-ivy-e",
+                "frame": {
+                  "x": 91,
+                  "y": 52,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-8-ivy-s",
+                "frame": {
+                  "x": 66,
+                  "y": 69,
+                  "w": 9,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-8-ivy-e",
+                "frame": {
+                  "x": 75,
+                  "y": 62,
+                  "w": 1,
+                  "h": 7
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-9-ivy-s",
+                "frame": {
+                  "x": 79,
+                  "y": 69,
+                  "w": 12,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-9-ivy-e",
+                "frame": {
+                  "x": 91,
+                  "y": 62,
+                  "w": 1,
+                  "h": 7
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-10-ivy-s",
+                "frame": {
+                  "x": 33,
+                  "y": 67,
+                  "w": 10,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-10-ivy-e",
+                "frame": {
+                  "x": 43,
+                  "y": 59,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-11-ivy-s",
+                "frame": {
+                  "x": 22,
+                  "y": 67,
+                  "w": 9,
+                  "h": 1
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-north",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "scatter",
+                "key": "druid-cottage-11-ivy-e",
+                "frame": {
+                  "x": 31,
+                  "y": 59,
+                  "w": 1,
+                  "h": 8
+                },
+                "props": {
+                  "tiles": [
+                    {
+                      "tile": "ivy-tall-west",
+                      "weight": 1
+                    }
+                  ],
+                  "density": 45,
+                  "clumping": 70,
+                  "clumpSize": 4,
+                  "onlyOn": [
+                    "grass",
+                    "sand",
+                    "grass-2",
+                    "moss-flagstone"
+                  ]
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-council-house",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 29,
+                    "y": 18
+                  },
+                  "placement": {
+                    "inscription": "The council house"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-wardens-house",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 29,
+                    "y": 30
+                  },
+                  "placement": {
+                    "inscription": "The wardens' house"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-weaving-house",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 67,
+                    "y": 15
+                  },
+                  "placement": {
+                    "inscription": "The weaving house\nRobes, rings and amulets"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-ledger-house",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 67,
+                    "y": 27
+                  },
+                  "placement": {
+                    "inscription": "The ledger house"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-bakehouse",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 45,
+                    "y": 53
+                  },
+                  "placement": {
+                    "inscription": "The bakehouse"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-apothecary",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 51,
+                    "y": 51
+                  },
+                  "placement": {
+                    "inscription": "The apothecary\nPotions, and bottles bought"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-granary",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 59,
+                    "y": 12
+                  },
+                  "placement": {
+                    "inscription": "The granary"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-long-house",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 78,
+                    "y": 42
+                  },
+                  "placement": {
+                    "inscription": "The long house"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-depot",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 29,
+                    "y": 46
+                  },
+                  "placement": {
+                    "inscription": "The depot"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-temple",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 36,
+                    "y": 29
+                  },
+                  "placement": {
+                    "inscription": "The rune temple"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-sign-garden-plots",
+                "props": {
+                  "tile": "sign",
+                  "at": {
+                    "x": 21,
+                    "y": 50
+                  },
+                  "placement": {
+                    "inscription": "The garden plots"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-iolanthe-sarno",
+                "props": {
+                  "tile": "iolanthe-sarno",
+                  "at": {
+                    "x": 25,
+                    "y": 18
+                  },
+                  "facing": "e",
+                  "placement": {
+                    "direction": "e",
+                    "spots": {
+                      "bed": {
+                        "x": 332,
+                        "y": 437,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-hesper-vaun",
+                "props": {
+                  "tile": "hesper-vaun",
+                  "at": {
+                    "x": 50,
+                    "y": 19
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 351,
+                        "y": 428,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-dagny-rook",
+                "props": {
+                  "tile": "dagny-rook",
+                  "at": {
+                    "x": 44,
+                    "y": 23
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 341,
+                        "y": 429,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-amaru-quispe",
+                "props": {
+                  "tile": "amaru-quispe",
+                  "at": {
+                    "x": 73,
+                    "y": 14
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 384,
+                        "y": 437,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-noor-halabi",
+                "props": {
+                  "tile": "noor-halabi",
+                  "at": {
+                    "x": 57,
+                    "y": 50
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 362,
+                        "y": 473,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-pell-marrow",
+                "props": {
+                  "tile": "pell-marrow",
+                  "at": {
+                    "x": 39,
+                    "y": 50
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 350,
+                        "y": 473,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-suvi-kallio",
+                "props": {
+                  "tile": "suvi-kallio",
+                  "at": {
+                    "x": 13,
+                    "y": 59
+                  },
+                  "facing": "e",
+                  "placement": {
+                    "direction": "e",
+                    "spots": {
+                      "bed": {
+                        "x": 313,
+                        "y": 467,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-casimir-wren",
+                "props": {
+                  "tile": "casimir-wren",
+                  "at": {
+                    "x": 46,
+                    "y": 47
+                  },
+                  "facing": "n",
+                  "placement": {
+                    "direction": "n",
+                    "spots": {
+                      "bed": {
+                        "x": 367,
+                        "y": 473,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-mina-dross",
+                "props": {
+                  "tile": "mina-dross",
+                  "at": {
+                    "x": 60,
+                    "y": 6
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 367,
+                        "y": 428,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-cat-soot",
+                "props": {
+                  "tile": "cat-soot",
+                  "at": {
+                    "x": 56,
+                    "y": 6
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s"
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-rosalind-peake",
+                "props": {
+                  "tile": "rosalind-peake",
+                  "at": {
+                    "x": 74,
+                    "y": 29
+                  },
+                  "facing": "w",
+                  "placement": {
+                    "direction": "w",
+                    "spots": {
+                      "bed": {
+                        "x": 380,
+                        "y": 449,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-fen-achterberg",
+                "props": {
+                  "tile": "fen-achterberg",
+                  "at": {
+                    "x": 53,
+                    "y": 30
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 378,
+                        "y": 455,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-orrin-fask",
+                "props": {
+                  "tile": "orrin-fask",
+                  "at": {
+                    "x": 72,
+                    "y": 44
+                  },
+                  "facing": "n",
+                  "placement": {
+                    "direction": "n",
+                    "spots": {
+                      "bed": {
+                        "x": 399,
+                        "y": 465,
+                        "z": 1
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-taavi-kask",
+                "props": {
+                  "tile": "taavi-kask",
+                  "at": {
+                    "x": 45,
+                    "y": 30
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s",
+                    "spots": {
+                      "bed": {
+                        "x": 327,
+                        "y": 451,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-nadia-ferreira",
+                "props": {
+                  "tile": "nadia-ferreira",
+                  "at": {
+                    "x": 33,
+                    "y": 33
+                  },
+                  "facing": "e",
+                  "placement": {
+                    "direction": "e",
+                    "spots": {
+                      "bed": {
+                        "x": 332,
+                        "y": 451,
+                        "z": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "tile",
+                "key": "druid-mirela-dobos",
+                "props": {
+                  "tile": "mirela-dobos",
+                  "at": {
+                    "x": 19,
+                    "y": 41
+                  },
+                  "facing": "s",
+                  "placement": {
+                    "direction": "s"
+                  }
                 }
               }
             ]
@@ -6611,7 +10312,7 @@
               },
               "to": {
                 "in": "druid-town",
-                "x": 29,
+                "x": 48,
                 "y": 0,
                 "pinX": "left",
                 "pinY": "bottom"
@@ -6629,7 +10330,7 @@
               "from": {
                 "in": "druid-town",
                 "x": 0,
-                "y": 22,
+                "y": 36,
                 "pinX": "right",
                 "pinY": "top"
               },
@@ -6721,7 +10422,7 @@
             "props": {
               "from": {
                 "in": "druid-town",
-                "x": 29,
+                "x": 48,
                 "y": 0,
                 "pinX": "left",
                 "pinY": "top"
@@ -6846,7 +10547,7 @@
               "to": {
                 "in": "druid-town",
                 "x": -1,
-                "y": 25,
+                "y": 36,
                 "pinX": "left",
                 "pinY": "top"
               },
@@ -7696,10 +11397,10 @@
                 "type": "mask",
                 "key": "flowers-off-druids",
                 "frame": {
-                  "x": 288,
-                  "y": 400,
-                  "w": 58,
-                  "h": 46
+                  "x": 268,
+                  "y": 384,
+                  "w": 96,
+                  "h": 72
                 },
                 "props": {
                   "shape": "rect",
@@ -7909,10 +11610,10 @@
                 "type": "mask",
                 "key": "game-off-druids",
                 "frame": {
-                  "x": -192,
-                  "y": -80,
-                  "w": 58,
-                  "h": 46
+                  "x": -212,
+                  "y": -96,
+                  "w": 96,
+                  "h": 72
                 },
                 "props": {
                   "shape": "rect",
@@ -7965,10 +11666,10 @@
                 "type": "mask",
                 "key": "wolves-off-druids",
                 "frame": {
-                  "x": 168,
-                  "y": 256,
-                  "w": 58,
-                  "h": 46
+                  "x": 148,
+                  "y": 240,
+                  "w": 96,
+                  "h": 72
                 },
                 "props": {
                   "shape": "rect",
@@ -8798,10 +12499,10 @@
             "type": "clear",
             "key": "druid-town-weeding",
             "frame": {
-              "x": 288,
-              "y": 400,
-              "w": 58,
-              "h": 46
+              "x": 268,
+              "y": 384,
+              "w": 96,
+              "h": 72
             },
             "props": {
               "remove": [
@@ -8940,21 +12641,6 @@
           },
           {
             "type": "tile",
-            "key": "bat-cave-silver-chest-3",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 553,
-                "y": 646,
-                "z": -3
-              },
-              "placement": {
-                "depotTag": "bat-cave"
-              }
-            }
-          },
-          {
-            "type": "tile",
             "key": "bear-den-bear-0",
             "props": {
               "tile": "bear",
@@ -8962,21 +12648,6 @@
                 "x": 232,
                 "y": 445,
                 "z": 0
-              }
-            }
-          },
-          {
-            "type": "tile",
-            "key": "bear-den-silver-chest-1",
-            "props": {
-              "tile": "silver-chest",
-              "at": {
-                "x": 231,
-                "y": 441,
-                "z": 0
-              },
-              "placement": {
-                "depotTag": "bear-den"
               }
             }
           },
@@ -9258,8 +12929,8 @@
                   "tile": "sign",
                   "at": {
                     "in": "druid-town",
-                    "x": 32,
-                    "y": 47
+                    "x": 51,
+                    "y": 73
                   },
                   "placement": {
                     "inscription": "The druids' town"
