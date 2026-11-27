@@ -11433,9 +11433,17 @@
                 {
                   "tile": "rat",
                   "weight": 2
+                },
+                {
+                  "tile": "raccoon",
+                  "weight": 3
+                },
+                {
+                  "tile": "boar",
+                  "weight": 2
                 }
               ],
-              "density": 0.06,
+              "density": 0.09,
               "clumping": 0,
               "spacing": 4,
               "onlyOn": [
@@ -11450,6 +11458,15 @@
                 "props": {
                   "op": "subtract",
                   "from": "druid-town",
+                  "grow": 8
+                }
+              },
+              {
+                "type": "mask",
+                "key": "woodland-wilds-off-west-hamlet",
+                "props": {
+                  "op": "subtract",
+                  "from": "west-hamlet",
                   "grow": 8
                 }
               }
