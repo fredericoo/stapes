@@ -3001,6 +3001,41 @@ The blend goes through the palette pass like everything else, so what shows
 is the nearest palette colour to half body, half water. That is coarse, and it
 reads as pixel art.
 
+**A wading body stands in a ring of dark water** (`app/render/wadeRings.ts`).
+The cut alone took nearly all of a rat, whose art sits low in its slot, and
+left a player looking cropped rather than in water. The ring is a filled
+ellipse in `deep-water`'s base colour, `WADE_RING_COLOR`, with a radius of a
+quarter of the sprite's width and at least 2px. It is centred on the sunk feet
+the cut measures from, lifted up-left by the cut's own `WADE_EDGE_PX` and
+then by `wadeRingLiftPx` more (a sixteenth of the sprite's width, 1px on a
+player, never less than 1px). The cut's corner is rounded to a quarter circle
+of the ring's radius (the third component of `aWade`), so the body's bottom
+edge curves into the ring instead of meeting it in a square corner.
+
+The water draws the ring, not a mesh of the body's. `applyTileMotions` writes
+each wading body's ring (centre, radius, foot and phase) into
+`wadeRingUniforms`, which every colour-cycled material carries, and the
+colour-cycle fragment code paints it over the key-coloured pixels it is
+already recolouring. So a ring stops at the bank, the rim and anything else
+that is not open water, and it is lit, fogged and palette-snapped like the
+water. A ring is drawn only on a surface whose top is within
+`SAME_SURFACE_ELEV` of the body's foot, so a pond on the level below does not
+show it. At most `MAX_WADE_RINGS` fit the uniforms; past that the bodies
+nearest the camera keep theirs. A wade tile that is not colour-cycled shows no
+ring.
+
+The ring moves through `WADE_RING_FRAMES` frames, `WADE_RING_FRAME_MS` apart:
+the circle squashes one way and then the other, and a one-pixel ripple in
+`water`'s crest shade, `WADE_RIPPLE_COLOR`, leaves its edge, travels out three
+quarters of its radius and breaks into every other pixel and then every third
+as it fades. The phase comes from the body's id, not its cell, because a body's
+render key is its cell and changes with every step: keyed by cell, the loop
+restarted each time the body crossed into a new one.
+
+`bun run scene` asks `wadingFor` about every battler and actor it places, as
+if each stood still, so a scene shows wading as the game does
+(`scripts/scenes/wading.json`).
+
 The shipped `water` tile is shallow: it is walkable, and it carries
 `wade: true`. `deep-water` is the liquid tile with `walkable: false`, and
 everything above about a plane something unstandable is lying on is about that
@@ -3191,94 +3226,6 @@ behind it.
   `TRANSLUCENT_SEPARATE_RENDER_ORDER`, after the merged batches, because those
   are flat ground (`grass`) and liquids that anything with a mesh of its own
   stands over.
-
-### A `reflective` tile shows what stands beside it, blended over the water
-
-A tile with `reflective` has three fields: `colors`, the pixels of its own art
-that act as a mirror (the shipped water lists its two body colours and leaves
-the crest out); `opacity`, how much of the reflected sprite's own colour is
-blended over the water; `fadePx`, how many art pixels above the waterline the
-reflection takes to fade to nothing; and `turbulence`, how many pixels a row
-of the reflection may sway sideways. A tile saved without `opacity` reads
-`DEFAULT_REFLECTION_OPACITY`.
-
-In the cabinet projection a box turned half a turn about the centre of its
-footprint is exactly its reflection, so that is the transform:
-`reflected = 2 * pivot - world`. Everything turns about the centre of its base
-cell, bodies and walls alike, with the pivot moved down-right to the water's
-height (`waterlinePivot`). A storey above the water therefore turns about the
-water's level, not its own floor.
-
-How it is drawn (`app/render/reflections.ts`, wired in `WorldRenderer`):
-
-- **A second pass into an RGBA target.** Every mesh that can reflect has a
-  twin on layer 1 (`REFLECTION_LAYER`) with the reflection material, which
-  writes the sprite's texel sRGB-encoded. Before the main pass the camera draws
-  layer 1 into a target the size of the drawing buffer. Nothing is drawn when
-  no loaded chunk reflects.
-- **A texel carries a waterline tag and a height.** The target is in screen
-  space, so water on one level shares pixels with reflections meant for water
-  on another: a pool on a cliff top sits on screen right where the cliff's own
-  reflection in the pond below lands. `REFLECTION_PACKING_GLSL` keeps six bits
-  of colour per channel, puts `waterlineTag` of the waterline in the two low
-  bits of r, g and b, and puts the art pixel's height above the waterline in
-  alpha. Water takes only a reflection whose tag matches its own foot elevation
-  (`vBox.z`), and fades it by that height over `fadePx`. Height is measured from
-  the waterline pivot, so an upper storey, pivoted at the water, fades from
-  where the ground floor left off.
-- **The pass has its own depth.** A thing nearer the viewer also stands in
-  front of a farther thing's reflection: a waterfall hides the cliff behind it,
-  and so must its reflection. Each twin's depth is `x + y` of its base cell,
-  relative to the camera, over `REFLECTION_DEPTH_SPAN_PX`.
-- **The water reads that target in the world shader.** A texel whose sRGB
-  colour is in the tile's mask samples the target at its own screen position,
-  shifted by the turbulence, and on a hit decodes the colour and mixes it over
-  the water's at `opacity`, in linear space. It is lit after that, so a
-  reflection darkens at night like the water around it.
-- **Only what stands near water gets a twin.** `ReflectiveCells` keeps each
-  chunk's reflective cells in a `WeakMap` keyed by the chunk object, so the
-  copy-on-write map makes a lookup free until the chunk is edited. A thing has
-  a twin only when water lies within `REFLECTION_REACH_CELLS` south-east of it,
-  or one cell north-west, on its own level or up to `REFLECTION_LEVELS_BELOW`
-  below. An edit to a reflective cell rebuilds the chunks around it and the
-  storeys above, because what reflects in it lives there
-  (`markReflectionNeighbours`).
-
-Three things look wrong and are not:
-
-- **A wall's reflection has a straight bottom edge.** Wall art is thin
-  diagonal bands, and turned half a turn their ends make spikes. The reflection
-  is cut at the footprint's south edge plus `REFLECTION_LENGTH_FRACTION` of the
-  thing's height above the water.
-- **A body's reflection draws its opposite facing's art.** The half turn is
-  exact for a box drawn in the projection, but a body is drawn upright, so
-  turning it also turns it round left to right. Its twin reads the art of the
-  opposite facing instead (east for west, north-east for north-west), through
-  the `aMirrorUv` offset `writeFrameUvs` keeps in step with the frame, so the
-  reflection faces the way the body does. North and south are their own
-  mirror. Walls and other boxes keep their own art.
-- **A wading body turns about its dry-ground pivot, not its sunk position.**
-  The mesh is moved by the wade sink and the pivot, a child of it, moves too,
-  so the shader takes the sink back off the pivot. What is turned is the body
-  as drawn, sunk and cropped, so the reflection shows the same cut.
-- **The target holds sRGB, not linear, colour.** In an 8-bit target linear
-  values crush the dark shades of the palette together, so the reflection
-  material encodes and the world shader decodes.
-- **The material compares the mask in sRGB.** The texture is decoded to linear
-  on sampling, and an author picks the mask from the sheet's sRGB hex, so the
-  shader re-encodes before comparing (`MASK_TOLERANCE_SQ`).
-
-Only `WorldRenderer`'s tile materials compile the lookup, under
-`REFLECTING_WORLD_SHADER_CACHE_KEY`. The editor's and a transition's
-materials leave it out: compiled in but never taken, the branch still cost the
-editor's frame budget about 0.3ms at p95. So a tile mid-transition shows no
-reflection.
-
-Not done: the map editor's `EditorRenderer` draws no reflections; turbulence
-only moves when the scene redraws, which water's own animation does every
-frame change; particles over water are not mirrored; and at most
-`MAX_REFLECTIVE_TILES` tiles and `MAX_REFLECTIVE_COLORS` mask colours each fit
-the uniforms.
 
 ### A creature that cannot swim does not walk into water
 
@@ -10798,7 +10745,7 @@ be in one particular state for the thing being checked to happen.
 ### `/face` turns a body to look one way
 
 `/face <body> <n|e|s|w>` sets the facing a body is drawn with, through the same
-`turnActor` a step uses, so a reflection, a lantern's beam or anything else
+`turnActor` a step uses, so a lantern's beam or anything else
 that depends on facing can be looked at from each side without walking the
 body there. Only the four cardinals are accepted, because `turnActor` stores a
 `Direction`. A brain that is on turns the body again on its next step, so put
@@ -17646,34 +17593,13 @@ by it. If it ever does matter, the lever is re-merging a level's chunk batches
 for the draw while keeping the build per chunk, which is real work and has not
 been needed.
 
-### Reflections are asked about what changed, and answered from a grid
-
-`ReflectiveCells` answers two questions for the renderer, and both used to
-read far more of the map than the question needed. Walking `/online` among
-20 bots in headless Chromium, they were half of the `map` phase.
-
-- **Which chunks' water changed** (`changedChunks`), so that whatever
-  reflects into them is rebuilt, listed every chunk of every changed level
-  and rescanned each changed chunk cell by cell. It now takes the chunks
-  written since the last frame and compares only the cells written, through
-  the same per-stack reading `cellsIn` uses. `cellsIn` itself reads a copied
-  chunk from its source's answer plus the cells the copy wrote.
-- **Where a quad's waterline is** probed the 5×5 cells around it on four
-  levels, building a chunk key and a cell key per probe, for every quad of a
-  chunk being built. `waterlinesIn` fills one dense grid per level for the
-  chunk and its reach and answers from it. `reflections.test.ts` checks it
-  against `waterlineNear` cell by cell, ties included.
-
-Building chunks took 448ms of a 40-second walk, 285ms of it reflections;
-after, reflections were 46ms of a 60-second walk.
-
 ### A chunk entering the margin is built a few a frame
 
 The mesh window reaches `MESH_WINDOW_MARGIN` cells past the view so that a
 chunk exists before it is seen. Every chunk entering it used to be built on
 the frame it entered, so walking into a fresh chunk column built several
 chunks on one frame. Now only a chunk within `MESH_BUILD_NOW_MARGIN` of the
-view is built at once: art stands up to `REFLECTION_REACH_CELLS` above its
+view is built at once: the tallest art stands that many cells above its
 cell, so anything nearer could already be drawn into the frame. The rest are
 queued and built nearest first by `buildQueuedChunks`, for
 `CHUNK_BUILD_BUDGET_MS` a frame and always at least one.
@@ -17946,7 +17872,7 @@ here has one winding, so one of the two draws covered no pixel.
 
 `SINGLE_PASS_DOUBLE_SIDE` (`app/render/doubleSided.ts`) is the pair of
 settings to spread into a sprite material instead of `side: DoubleSide`. A
-material that is not transparent (the reflection pass, the VFX preview floor)
+material that is not transparent (the VFX preview floor)
 is drawn once either way and does not need it.
 
 Measured in headless Chromium by wrapping the WebGL context's `draw*` and
@@ -18150,10 +18076,8 @@ two cells. Three things follow:
 
 The rest of the design follows from where the shader sits:
 
-- **It runs straight after the texture is sampled.** The reflection mask reads
-  `sampledDiffuseColor`, which the cycle overwrites, so `reflective.colors`
-  names ramp colours and the crest can still be left out of the mirror. Light,
-  fog and the palette pass all come after, as they do for any other pixel.
+- **It runs straight after the texture is sampled.** Light, fog and the
+  palette pass all come after, as they do for any other pixel.
 - **A material for a colour-cycled sheet carries the `COLOR_CYCLE` define** and
   its own copy of the weather defines (`cycleDefines`), kept in step with
   `weatherDefines`. Every other world material compiles without the code.

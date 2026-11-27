@@ -123,7 +123,7 @@ to open when the question is whether the game still works.
 
 ### A picture of a renderer change: `bun run scene`
 
-When the question is what something looks like (a sprite, a reflection, light,
+When the question is what something looks like (a sprite, light,
 draw order), do not go looking for the case in the real world. Write it:
 
 ```json

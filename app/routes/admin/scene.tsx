@@ -7,6 +7,7 @@ import { baseCellWorldOrigin } from "../../lib/geometry";
 import { buildScene } from "../../lib/scene";
 import { CELL_SIZE } from "../../lib/types";
 import { tilesByIdFromList } from "../../lib/validation";
+import { wadingFor } from "../../render/wadeDepth";
 import { WorldRenderer } from "../../render/WorldRenderer";
 
 export async function clientLoader() {
@@ -56,6 +57,17 @@ export default function ScenePage() {
           weatherAreas: built.weatherAreas,
           viewerCell: built.look,
           viewerZ: built.look.z,
+          wading: wadingFor(
+            built.map,
+            built.bodies.map((body) => ({
+              ...body,
+              id: `${body.x},${body.y},${body.z}:${body.stackIndex}`,
+              walk: null,
+              fall: null,
+              walkProgress: 0,
+            })),
+            tilesById,
+          ),
         };
         world.setView(view);
         world.snapWeather();

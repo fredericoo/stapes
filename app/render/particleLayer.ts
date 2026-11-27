@@ -241,7 +241,6 @@ export class ParticleLayer {
         noAnimUniforms(this.atlas),
         this.depthUniforms,
         undefined,
-        undefined,
         this.weather,
       );
       injectParticleShader(shader);
