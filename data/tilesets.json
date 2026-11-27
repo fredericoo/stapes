@@ -397,5 +397,12 @@
     "file": "snake.png",
     "width": 160,
     "height": 384
+  },
+  {
+    "id": "cyclops",
+    "name": "Cyclops",
+    "file": "cyclops.png",
+    "width": 240,
+    "height": 192
   }
 ]

@@ -410,6 +410,13 @@ an agent drives", lists every call.
   larger instead of touching `data/`. The brain and battler in the script are
   only what a new tile starts with; a re-run leaves the ones in `tiles.json`
   alone
+- `bun run generate:cyclops` — draw `data/tilesets/cyclops.png` and point the
+  `cyclops` tile at it, cast through `scripts/quadruped-caster.ts` from
+  `scripts/cyclops-model.ts`: a hunched one-eyed cave giant whose arms and
+  legs are jointed limbs, in a six-cell frame, standing and in a four-frame
+  stride. Only the drawing is generated, and its brain, battler and spells
+  stay as authored. `PREVIEW=<dir>` writes the sheet enlarged instead; a full
+  cast takes about nine minutes
 - `bun run generate:forest-beasts` — draw `data/tilesets/forest-beasts.png`
   and write the `boar`, `raccoon` and `wolf` tiles, cast the way the bear is
   from one four-legged model in `scripts/quadruped-caster.ts` with a part list
