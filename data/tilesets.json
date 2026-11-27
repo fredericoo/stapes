@@ -253,8 +253,8 @@
     "id": "snow-beasts",
     "name": "Snow Beasts",
     "file": "snow-beasts.png",
-    "width": 144,
-    "height": 232
+    "width": 160,
+    "height": 320
   },
   {
     "id": "shore-foam",
@@ -388,7 +388,7 @@
     "id": "forest-beasts",
     "name": "Forest beasts",
     "file": "forest-beasts.png",
-    "width": 96,
-    "height": 256
+    "width": 160,
+    "height": 384
   }
 ]
