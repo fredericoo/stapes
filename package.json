@@ -48,6 +48,7 @@
     "generate:rune-temple": "bun scripts/generate-rune-temple.ts",
     "generate:lighthouse": "bun scripts/generate-lighthouse.ts",
     "generate:bear": "bun scripts/generate-bear.ts",
+    "generate:cyclops": "bun scripts/generate-cyclops.ts",
     "generate:forest-beasts": "bun scripts/generate-forest-beasts.ts",
     "generate:snake": "bun scripts/generate-snake.ts",
     "generate:gold": "bun scripts/generate-gold.ts",
