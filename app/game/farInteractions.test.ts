@@ -87,6 +87,7 @@ function body(id: string, tileId: string, x: number, y: number, map: MapFile): A
     appearance: null,
     extracting: null,
     casting: null,
+    aiming: null,
     pvp: true,
     hidden: false,
   };

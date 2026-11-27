@@ -137,6 +137,7 @@ import {
   type AfflictedPatch,
   type StatusIdsPatch,
   type PvpPatch,
+  type AimPatch,
   type CastingPatch,
   type ExtractionPatch,
   type HpPatch,
@@ -229,6 +230,7 @@ export class RemoteSession implements PlaySession {
   private readonly extractionsById = new Map<string, ExtractionProgress>();
   private readonly pvpOn = new Set<string>();
   private readonly castingsById = new Map<string, CastProgress>();
+  private readonly aimsById = new Map<string, string>();
   private equipment: Equipment = emptyEquipment();
   private depots: Depots = NO_DEPOTS;
   private spellCooldowns: Readonly<Record<string, number>> = {};
@@ -489,6 +491,7 @@ export class RemoteSession implements PlaySession {
       this.pvpOn.clear();
       this.extractionsById.clear();
       this.castingsById.clear();
+      this.aimsById.clear();
       this.equipment = message.equipment;
       this.depots = message.depots;
       this.spellCooldowns = {};
@@ -515,6 +518,7 @@ export class RemoteSession implements PlaySession {
       this.applyPvp(message.pvp);
       this.applyExtractions(message.extractions);
       this.applyCastings(message.castings);
+      this.applyAims(message.aims);
       this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount ?? null);
       this.death = message.diedAway ?? null;
@@ -645,6 +649,7 @@ export class RemoteSession implements PlaySession {
     this.applyPvp(message.pvp);
     this.applyExtractions(message.extractions);
     this.applyCastings(message.castings);
+    this.applyAims(message.aims);
     const back = rejoined(message.events);
     for (const event of message.events) {
       if (event.kind === "left" && back.has(event.actorId)) continue;
@@ -759,6 +764,13 @@ export class RemoteSession implements PlaySession {
     }
   }
 
+  private applyAims(patches: AimPatch[]) {
+    for (const patch of patches) {
+      if (patch.targetId) this.aimsById.set(patch.actorId, patch.targetId);
+      else this.aimsById.delete(patch.actorId);
+    }
+  }
+
   private applyCastings(patches: CastingPatch[]) {
     for (const patch of patches) {
       if (patch.progress) {
@@ -855,6 +867,7 @@ export class RemoteSession implements PlaySession {
     this.pvpOn.delete(id);
     this.extractionsById.delete(id);
     this.castingsById.delete(id);
+    this.aimsById.delete(id);
     if (this.targetId === id) this.targetId = null;
   }
 
@@ -1490,6 +1503,7 @@ export class RemoteSession implements PlaySession {
       appearance: this.appearances.get(id) ?? null,
       extracting: id === this.selfId ? this.extracting : (this.extractionsById.get(id) ?? null),
       casting: this.castingsById.get(id) ?? null,
+      aiming: this.aimsById.get(id) ?? null,
       pvp: this.pvpOn.has(id),
       hidden: id === this.selfId && this.hidden,
     };
@@ -1924,6 +1938,7 @@ function offscreenActor(id: string): ActorSnapshot {
     appearance: null,
     extracting: null,
     casting: null,
+    aiming: null,
     pvp: false,
     hidden: false,
   };

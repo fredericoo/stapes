@@ -90,6 +90,7 @@ import {
   type CellAffliction,
   type StatusIdsPatch,
   type PvpPatch,
+  type AimPatch,
   type CastingPatch,
   type ExtractionPatch,
   type CellPatch,
@@ -117,6 +118,7 @@ const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
     pvp: [],
     extractions: [],
     castings: [],
+    aims: [],
   };
   const [head, tail] = JSON.stringify(empty).split('"cells":[]');
   return [`${head}"cells":[`, `]${tail}`];
@@ -170,7 +172,8 @@ function isEmptyPatch(
     patch.statusIds.length === 0 &&
     patch.pvp.length === 0 &&
     patch.extractions.length === 0 &&
-    patch.castings.length === 0
+    patch.castings.length === 0 &&
+    patch.aims.length === 0
   );
 }
 
@@ -361,6 +364,15 @@ function actorsInReach(
     (id, where) =>
       id === self || (withinBodyReach(at, where.x, where.y, where.z) && !session.hiddenOf(id)),
   );
+}
+
+function currentAims(actors: ActorSnapshot[]): AimPatch[] {
+  const out: AimPatch[] = [];
+  for (const actor of actors) {
+    if (!actor.aiming) continue;
+    out.push({ actorId: actor.id, targetId: actor.aiming });
+  }
+  return out;
 }
 
 function currentCastings(actors: ActorSnapshot[]): CastingPatch[] {
@@ -749,6 +761,7 @@ const ENTRY_LISTS = [
   "pvp",
   "extractions",
   "castings",
+  "aims",
 ] as const satisfies ReadonlyArray<keyof SharedPatch>;
 
 type EntryList = (typeof ENTRY_LISTS)[number];
@@ -800,7 +813,8 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `,"statusIds":${listJson(cut.statusIds, json.statusIds)}` +
     `,"pvp":${listJson(cut.pvp, json.pvp)}` +
     `,"extractions":${listJson(cut.extractions, json.extractions)}` +
-    `,"castings":${listJson(cut.castings, json.castings)}}`
+    `,"castings":${listJson(cut.castings, json.castings)}` +
+    `,"aims":${listJson(cut.aims, json.aims)}}`
   );
 }
 
@@ -833,6 +847,7 @@ function emptyCut(): Cut {
     pvp: [],
     extractions: [],
     castings: [],
+    aims: [],
   };
 }
 
@@ -898,6 +913,7 @@ export class GameServer {
   private sentOutfits = new Map<string, string>();
   private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   private sentPvp = new Map<string, boolean>();
+  private sentAims = new Map<string, string | null>();
   /**
    * These three are compared by identity: the runtime mutates one object in
    * place for a whole pull, wait or cast and replaces it only when one starts
@@ -1995,6 +2011,7 @@ export class GameServer {
       pvp: currentPvp(actors),
       extractions: currentExtractions(actors),
       castings: currentCastings(actors),
+      aims: currentAims(actors),
       afflicted: session.afflictedPlacements().filter((one) => covers(chunks, one.x, one.y)),
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       depots: this.depots.of(actorId),
@@ -2894,6 +2911,7 @@ export class GameServer {
     this.sentOutfits.clear();
     this.sentStatusIds.clear();
     this.sentPvp.clear();
+    this.sentAims.clear();
     this.queuedIntents.clear();
     this.lastSaidAt.clear();
     this.lingering.clear();
@@ -3216,6 +3234,7 @@ export class GameServer {
     const pvp = this.diffPvp(actors);
     const extractions = this.diffExtractions(actors);
     const castings = this.diffCastings(actors);
+    const aims = this.diffAims(actors);
     const moved = this.broadcastPatch(actors, {
       cells,
       events: this.events,
@@ -3226,6 +3245,7 @@ export class GameServer {
       pvp,
       extractions,
       castings,
+      aims,
     });
     /**
      * The shared baseline advances whatever each client was sent. A cell left out
@@ -3570,6 +3590,16 @@ export class GameServer {
         actorId: actor.id,
         progress: now ? progressOf(now) : null,
       }),
+    );
+  }
+
+  private diffAims(actors: ActorSnapshot[]): AimPatch[] {
+    return this.diffPerActor(
+      actors,
+      this.sentAims,
+      (actor) => actor.aiming,
+      (was, now) => (was ?? null) === now,
+      (actor, now) => ({ actorId: actor.id, targetId: now }),
     );
   }
 
@@ -3962,6 +3992,7 @@ export class GameServer {
         pvp: actorOf(patch.pvp),
         extractions: actorOf(patch.extractions),
         castings: actorOf(patch.castings),
+        aims: actorOf(patch.aims),
       },
       near: {
         cells: nearCells.seal(),
@@ -3991,6 +4022,7 @@ export class GameServer {
         pvp: new Fragments(patch.pvp),
         extractions: new Fragments(patch.extractions),
         castings: new Fragments(patch.castings),
+        aims: new Fragments(patch.aims),
       },
       payloads: new TextByLists(),
     };
@@ -4141,6 +4173,7 @@ export class GameServer {
     cut.pvp = [...currentPvp(arrivals), ...cut.pvp];
     cut.extractions = [...currentExtractions(arrivals), ...cut.extractions];
     cut.castings = [...currentCastings(arrivals), ...cut.castings];
+    cut.aims = [...currentAims(arrivals), ...cut.aims];
     return cut;
   }
 

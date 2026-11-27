@@ -1254,6 +1254,30 @@ describe("shooting at somebody", () => {
     expect(arrows(session)).toHaveLength(0);
   });
 
+  it("says whom the bow is aimed at while the shot would go", () => {
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    const dummyId = bodyOf(session, "dummy")!.id;
+    fight(session, dummyId);
+
+    expect(bodyOf(session, "player")!.aiming).toBe(dummyId);
+  });
+
+  it("aims at nobody through a wall", () => {
+    let map = withBody(field(6), 4, 0, "dummy");
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: WALL }]);
+    const session = new GameSession(map, archerTilesWithWall);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    expect(bodyOf(session, "player")!.aiming).toBeNull();
+  });
+
+  it("aims at nobody with a weapon that is not ranged", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    expect(bodyOf(session, "player")!.aiming).toBeNull();
+  });
+
   it("cannot shoot past the height its reach allows", () => {
     let map = field(6);
     map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "dummy" }]);

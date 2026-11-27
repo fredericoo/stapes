@@ -8405,8 +8405,7 @@ far" below
   shadow is put at the shot itself rather than on the block's top, which
   would draw it above the line it belongs to. A line that runs down and to the right lies
   along its own shadow, which is what the projection does to anything in that
-  direction. It is the one place a target leaves its owner, and only while a
-  spell is being cast at it.
+  direction.
   `advanceCasting` keeps it in step with the caster's target, because a bolt
   lands on whoever is targeted when the bar fills. It replaces the progress
   object when the target changes, since the broadcast is diffed on identity;
@@ -8419,13 +8418,21 @@ far" below
   `combat.rangedWeaponReaches`, which is `canReach` on the same `reachPointAt`
   points `tryAttack` measures with. So a bow's `Reach.min` keeps the line off a
   neighbour, and a wall between the two takes it away, exactly when the shot
-  stops going. It is the viewer's alone because a target is not broadcast;
-  showing somebody else's shots would mean putting their target on the wire the
-  way `CastProgress.targetId` is. Skipped while the viewer is casting at
-  somebody, so one target does not get two lines.
+  stops going. The viewer's own line is worked out in the tab, not read from
+  the broadcast below, so it appears the frame the target is chosen. Skipped
+  while the viewer is casting at somebody, so one target does not get two lines.
   It is drawn at half opacity (`.cast-line--attack`) where a cast line is at
   full strength: the attack line stays up for a whole fight, and at full
   strength it drew more attention than the fight did.
+- **Everybody else's bow draws it too, from `ActorSnapshot.aiming`.** The
+  session sets `windup.ranged` in `tryAttack` from the blow it is winding up,
+  and `aimingOf` reports the windup's target while that blow is ranged, in
+  reach and `nextBlow` is set: the same conditions under which the arrow
+  leaves. The server sends it as the `aims` list, diffed by value, so it costs
+  one entry when an archer draws on somebody and one when it stops. An archer
+  aiming at the viewer is drawn red at full strength, because it is the
+  warning that an arrow is coming; one aiming at somebody else is white at
+  half strength, like the viewer's own attack line.
 - **`advanceCastings` runs late in the tick**, directly after
   `advanceExtractions`, so a cast is resolved against the board the rest of the
   tick left behind: a crate dropped in front of the caster this tick is in the
