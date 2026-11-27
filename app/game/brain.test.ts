@@ -3647,6 +3647,62 @@ describe("the boar and the raccoon we ship", () => {
   });
 });
 
+describe("the cobra and the anaconda we ship", () => {
+  const authored = shippedTiles();
+  const statuses = statusesById(statusesJson as unknown[]);
+  const NOON = 12 * 60;
+
+  function field(creature: string, aliceX: number): GameSession {
+    let map = emptyMap();
+    for (let x = -20; x <= 20; x++) {
+      for (let y = -20; y <= 20; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    map = replaceStack(map, aliceX, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "w", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
+      seed: 20261127,
+      clock: () => NOON,
+      statuses,
+    });
+    session.runCommand("/health 999", "alice");
+    return session;
+  }
+
+  function noisesOver(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+    return heard;
+  }
+
+  it("has the cobra go for somebody five cells off", () => {
+    const session = field("cobra", 5);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("HSSSS");
+  });
+
+  it("leaves somebody alone three cells from the anaconda", () => {
+    const session = field("anaconda", 3);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).not.toContain("HHHSSS");
+  });
+
+  it("has the anaconda take somebody who steps beside it", () => {
+    const session = field("anaconda", 1);
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("HHHSSS");
+  });
+});
+
 describe("knowing where it belongs", () => {
   const HOME: Selector = { type: "home" };
   const BURROW = { x: 4, y: 0, z: 0 };

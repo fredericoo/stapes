@@ -2019,6 +2019,7 @@ sell.
 | rabbit | `rabbit-foot` | 60% | Idris Kaya | 1 |
 | raccoon | `raccoon-tail` | 70% | Idris Kaya | 1 |
 | snake | `snake-fang` | 70% | Idris Kaya | 2 |
+| cobra, anaconda | `snake-fang` ×2 | 90% each | Idris Kaya | 2 |
 | boar | `boar-tusk` | 70% | Idris Kaya | 2 |
 | bog imp | `imp-horn` | 60% | Idris Kaya | 3 |
 | bear | `bear-claw` | 75% | Idris Kaya | 5 |
