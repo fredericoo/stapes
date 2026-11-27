@@ -3,7 +3,6 @@ import { CHUNK_SIZE, levelKey, parseCoordKey } from "../lib/types";
 import type { MapFile } from "../lib/types";
 import type { WorldRect } from "../lib/lightingChunks";
 import { type LevelRange, MESH_WINDOW_MARGIN } from "../lib/view";
-import { REFLECTION_REACH_CELLS } from "./reflections";
 
 /** The camera's rect on level 0, and the levels drawn through it. */
 export type MeshWindow = WorldRect & { levels: LevelRange };
@@ -12,11 +11,11 @@ export { MESH_WINDOW_MARGIN } from "../lib/view";
 
 /**
  * How far past the window a chunk is built in the frame it is first wanted.
- * Art stands up to `REFLECTION_REACH_CELLS` above its own cell, so a chunk
- * this near can already be drawn into the view. The rest of
- * `MESH_WINDOW_MARGIN` is warning, and is built a few chunks a frame.
+ * The tallest art stands this many cells above its own cell, so a chunk this
+ * near can already be drawn into the view. The rest of `MESH_WINDOW_MARGIN` is
+ * warning, and is built a few chunks a frame.
  */
-export const MESH_BUILD_NOW_MARGIN = REFLECTION_REACH_CELLS;
+export const MESH_BUILD_NOW_MARGIN = 3;
 
 export type ChunkAddress = { z: number; chunk: string };
 

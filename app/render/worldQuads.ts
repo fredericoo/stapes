@@ -32,14 +32,6 @@ import {
   type ColorCycleUniforms,
   type CycleCorners,
 } from "./colorCycle";
-import {
-  NO_REFLECTION_UNIFORMS,
-  REFLECT_GLSL_COMMON,
-  REFLECT_GLSL_FRAGMENT,
-  REFLECT_GLSL_VERTEX,
-  REFLECT_GLSL_VERTEX_COMMON,
-  type ReflectionUniforms,
-} from "./reflections";
 import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
   NO_TRANSITION_UNIFORMS,
@@ -70,8 +62,6 @@ export type Quad = {
   lightX1: number;
   lightY1: number;
   unlit: boolean;
-  /** One-based reflective tile slot, or absent; see `reflectiveTileIndex`. */
-  reflect?: number;
   /** The current, wave count and cover at the cell's corners, on a colour-cycled tile. */
   cycle?: CycleCorners;
 };
@@ -220,7 +210,7 @@ const BOX_COMPONENTS = 4;
  * attribute reads as zero, and the shader clamps it up to one cell.
  */
 const SPAN_COMPONENTS = 2;
-const WADE_COMPONENTS = 2;
+const WADE_COMPONENTS = 3;
 
 const WADE_ALPHA = 0.5;
 
@@ -241,10 +231,7 @@ const SPLASH_STEPS = 3;
  * Bump the version suffix whenever this shader's source changes, or three.js
  * reuses the stale compiled program from its cache.
  */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v21-color-cycle-calm";
-
-/** The world shader with the reflection lookup, which only `WorldRenderer`'s tile materials carry. */
-export const REFLECTING_WORLD_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-reflect`;
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v23-wade-rings-on-water";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -334,7 +321,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const spans = new Float32Array(n * VERTS_PER_QUAD * SPAN_COMPONENTS);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
-  const reflects = new Float32Array(n * VERTS_PER_QUAD);
   const cycled = quads.some((q) => q.cycle);
   const cycles = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
   const cycleWaves = cycled ? new Float32Array(n * VERTS_PER_QUAD * 4) : null;
@@ -383,7 +369,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     unlit[vb + 1] = u;
     unlit[vb + 2] = u;
     unlit[vb + 3] = u;
-    reflects.fill(q.reflect ?? 0, vb, vb + VERTS_PER_QUAD);
     if (cycles && cycleWaves && cycleCovers && cycleBanks && q.cycle) {
       for (let v = 0; v < VERTS_PER_QUAD; v++) {
         cycles.set(q.cycle.flow, (vb + v) * 4);
@@ -416,7 +401,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
-  geo.setAttribute("aReflect", new THREE.BufferAttribute(reflects, 1));
   if (cycles && cycleWaves && cycleCovers && cycleBanks) {
     geo.setAttribute("aCycle", new THREE.BufferAttribute(cycles, 4));
     geo.setAttribute("aCycleBank", new THREE.BufferAttribute(cycleBanks, 4));
@@ -462,10 +446,6 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
-  geo.setAttribute(
-    "aReflect",
-    new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD).fill(q.reflect ?? 0), 1),
-  );
   geo.setAttribute(
     "aWade",
     new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD * WADE_COMPONENTS), WADE_COMPONENTS),
@@ -531,14 +511,20 @@ export function writeLightUvAttr(
   attr.needsUpdate = true;
 }
 
-export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx: number): boolean {
+export function writeWadeAttr(
+  geo: THREE.BufferGeometry,
+  sinkPx: number,
+  edgePx: number,
+  cornerPx: number,
+): boolean {
   const attr = geo.getAttribute("aWade") as THREE.BufferAttribute | undefined;
   if (!attr) return false;
   const arr = attr.array as Float32Array;
-  if (arr[0] === sinkPx && arr[1] === edgePx) return false;
+  if (arr[0] === sinkPx && arr[1] === edgePx && arr[2] === cornerPx) return false;
   for (let v = 0; v < attr.count; v++) {
     arr[v * WADE_COMPONENTS] = sinkPx;
     arr[v * WADE_COMPONENTS + 1] = edgePx;
+    arr[v * WADE_COMPONENTS + 2] = cornerPx;
   }
   attr.needsUpdate = true;
   return true;
@@ -577,7 +563,6 @@ export function injectWorldShader(
   anim: LevelAnimUniforms,
   depth: DepthOriginUniforms,
   transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
-  reflect: ReflectionUniforms = NO_REFLECTION_UNIFORMS,
   weather: WeatherUniforms = NO_WEATHER_UNIFORMS,
   cycle: ColorCycleUniforms | null = null,
 ) {
@@ -589,11 +574,9 @@ export function injectWorldShader(
     anim,
     depth,
     transition,
-    reflect,
     weather,
     cycle ?? {},
   );
-  const reflectGlsl = (snippet: string) => (reflect === NO_REFLECTION_UNIFORMS ? "" : snippet);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -605,7 +588,7 @@ attribute float aStack;
 attribute vec2 aSpan;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
-attribute vec2 aWade;
+attribute vec3 aWade;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -613,9 +596,8 @@ varying float vStack;
 varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
-varying vec2 vWade;
+varying vec3 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
-${reflectGlsl(REFLECT_GLSL_VERTEX_COMMON)}
 ${COLOR_CYCLE_GLSL_VERTEX_COMMON}
 
 ${ANIM_GLSL_FUNCTION}`,
@@ -632,7 +614,6 @@ vLightScale = aLightScale;
 vWade = aWade;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
-${reflectGlsl(REFLECT_GLSL_VERTEX)}
 ${COLOR_CYCLE_GLSL_VERTEX}
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
@@ -677,10 +658,9 @@ varying float vStack;
 varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
-varying vec2 vWade;
+varying vec3 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}
-${reflectGlsl(REFLECT_GLSL_COMMON)}
 ${COLOR_CYCLE_GLSL_COMMON}
 float weatherHash(vec2 p) {
   vec3 q = fract(vec3(p.xyx) * 0.1031);
@@ -741,7 +721,6 @@ if (uCutEnabled > 0.5) {
 }
 ${TRANSITION_GLSL_DISCARD}
 ${TINT_GLSL_FRAGMENT}
-${reflectGlsl(REFLECT_GLSL_FRAGMENT)}
 // Sample at the art pixel's centre rather than the fragment: a fragment is
 // smaller than a texel once zoomed, so sampling per fragment would smear a
 // gradient across art that should read flat per pixel.
@@ -885,6 +864,12 @@ if (vWade.y > 0.0) {
     vBox.xy - ${glsl(CELL_SIZE / 2)} - vBox.z * ${glsl(PX_PER_HEIGHT)} + vWade.x;
   vec2 fromFeet = sunkFeet - depthPx;
   float fromLine = min(fromFeet.x, fromFeet.y);
+  // Rounds the corner between the cut's bottom and right edges to a quarter
+  // circle of radius vWade.z, so the waterline curves round the body.
+  if (vWade.z > 0.0) {
+    vec2 inCorner = max(vec2(vWade.z) - fromFeet, 0.0);
+    fromLine = min(fromLine, vWade.z - length(inCorner));
+  }
   if (fromLine < 1.0) discard;
   if (fromLine < vWade.y) diffuseColor.a *= ${glsl(WADE_ALPHA)};
 }`,

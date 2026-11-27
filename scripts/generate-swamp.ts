@@ -63,7 +63,6 @@ const LIQUIDS: Liquid[] = [
     extra: {
       lightPassing: true,
       walkable: false,
-      reflective: { colors: [DEEP_BASE, DEEP_HIGHLIGHT], opacity: 0.3, fadePx: 24, turbulence: 1 },
     },
   },
   {
@@ -88,7 +87,6 @@ const LIQUIDS: Liquid[] = [
       lightPassing: true,
       walkSpeedPercent: -75,
       wade: true,
-      reflective: { colors: [SWAMP_BASE], opacity: 0.25, fadePx: 16, turbulence: 0 },
       interactions: { removeStatus: { trigger: "step", statusId: "burned" } },
     },
   },

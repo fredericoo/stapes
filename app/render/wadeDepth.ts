@@ -9,6 +9,9 @@ type WadingActor = Pick<
   "x" | "y" | "z" | "stackIndex" | "walk" | "walkProgress" | "fall"
 >;
 
+/** How deep a body wades, and its id, which stays the same as it walks from cell to cell. */
+export type Wading = { depth: number; id: string };
+
 export function wadeDepth(
   map: MapFile,
   actor: WadingActor,
@@ -25,13 +28,13 @@ export function wadeDepth(
 
 export function wadingFor(
   map: MapFile,
-  actors: readonly WadingActor[],
+  actors: readonly (WadingActor & { id: string })[],
   tilesById: Record<string, TileDef>,
-): Map<string, number> | undefined {
-  let out: Map<string, number> | undefined;
+): Map<string, Wading> | undefined {
+  let out: Map<string, Wading> | undefined;
   for (const actor of actors) {
     const depth = wadeDepth(map, actor, tilesById);
-    if (depth > 0) (out ??= new Map()).set(tileInstanceKey(actor), depth);
+    if (depth > 0) (out ??= new Map()).set(tileInstanceKey(actor), { depth, id: actor.id });
   }
   return out;
 }

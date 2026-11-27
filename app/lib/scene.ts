@@ -2,7 +2,14 @@ import { emptyMap, replaceStack } from "./mapData";
 import { withFlow } from "./waterFlow";
 import type { WeatherKind } from "./weather";
 import { parseWeatherAreas, type WeatherArea } from "./weatherAreas";
-import { DIRECTIONS, type Direction, type MapFile, type PlacedTile, type TileDef } from "./types";
+import {
+  DIRECTIONS,
+  resolveActor,
+  type Direction,
+  type MapFile,
+  type PlacedTile,
+  type TileDef,
+} from "./types";
 
 export type ScenePlacement =
   | string
@@ -43,7 +50,11 @@ export type BuiltScene = {
   weather: WeatherKind;
   weatherAreas: WeatherArea[];
   clockMs: number;
+  /** Every placed battler or actor, standing still where it was put, for the renderer to ask whether it wades. */
+  bodies: SceneBody[];
 };
+
+type SceneBody = { x: number; y: number; z: number; stackIndex: number };
 
 export const DEFAULT_SCENE_ZOOM = 6;
 const NOON = 12 * 60;
@@ -58,14 +69,23 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
   const xs: number[] = [];
   const ys: number[] = [];
   let lowestZ = Infinity;
+  const bodiesByCell = new Map<string, SceneBody[]>();
 
   for (const entry of scene.cells) {
     const stack = entry.tiles.map((placement) => placed(placement, tilesById));
+    const bodyIndices = stack.flatMap((tile, stackIndex) => {
+      const def = tilesById[tile.tileId]!;
+      return def.kind === "battler" || resolveActor(def) ? [stackIndex] : [];
+    });
     for (const [x, y, z] of cellsOf(entry)) {
       map = replaceStack(map, x, y, z, stack);
       xs.push(x);
       ys.push(y);
       lowestZ = Math.min(lowestZ, z);
+      bodiesByCell.set(
+        `${x},${y},${z}`,
+        bodyIndices.map((stackIndex) => ({ x, y, z, stackIndex })),
+      );
     }
   }
 
@@ -83,6 +103,7 @@ export function buildScene(scene: Scene, tilesById: Record<string, TileDef>): Bu
     weather: scene.weather ?? "clear",
     weatherAreas: parseWeatherAreas(scene.weatherAreas ?? []),
     clockMs: scene.clockMs ?? 0,
+    bodies: [...bodiesByCell.values()].flat(),
   };
 }
 
