@@ -89,6 +89,28 @@ describe("planBuilding", () => {
     },
   );
 
+  it.each(
+    [1, 2, 3, 4, 5, 6, 7, 8].flatMap((seed) => [1, 2, 3].map((rooms) => [seed, rooms] as const)),
+  )("puts a lit lantern in every shop, seed %i, %i rooms", (seed, rooms) => {
+    const spec: BuildingSpec = {
+      floors: [
+        storey("ground", { use: "shop", seed, rooms, doors: [FRONT_DOOR] }),
+        storey("upper", { use: "house", seed, rooms: 2 }),
+      ],
+      cellars: [],
+      roof: null,
+    };
+    const map = built(spec);
+    let lanterns = 0;
+    for (let y = RECT.y0; y <= RECT.y1; y++) {
+      for (let x = RECT.x0; x <= RECT.x1; x++) {
+        if (getStack(map, x, y, 0).some((p) => p.tileId === "lantern")) lanterns++;
+      }
+    }
+    expect(lanterns).toBeGreaterThan(0);
+    expect(levelsWalked(map)).toEqual([0, 1]);
+  });
+
   it("joins every floor and cellar by ladders when asked to", () => {
     const map = built(tower("ladder", "house", 5, 2));
     expect(levelsWalked(map)).toEqual([-2, -1, 0, 1, 2]);

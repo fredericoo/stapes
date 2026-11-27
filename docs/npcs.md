@@ -46,7 +46,7 @@ strong ones stand out.
   Dagny Rook, Amaru Quispe, Noor Halabi, Casimir Wren, Rosalind Peake, Orrin
   Fask, Absalom Grieve, Selin Arslan, Halina Brzeska, Bertha Oyelaran, Magda
   Fenwick, Tobiah Marsh, Rukmini Desai, Gideon Okafor, Margit Oslund, Kofi
-  Asante, Anselm Quaye.
+  Asante, Anselm Quaye, Mirela Dobos.
 - **Plain**: Suvi Kallio, Taavi Kask, Nadia Ferreira, Brannoc Hale, Edda Kell,
   Aurelio Benedetti, Sigrun Halde, Liv Sandvik, Runa Hask.
 
@@ -113,6 +113,7 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Fen Achterberg | Druids' town, temple steps | Retired adventurer |
 | Taavi Kask | Druids' town, temple door | Day warden (guard) |
 | Nadia Ferreira | Druids' town, streets at night | Night warden (guard) |
+| Mirela Dobos | Druids' town, the depot | Keeps the depot, day and night |
 | Ragna Holt | Warriors' town, longhall | Chief; leads the town |
 | Absalom Grieve | Warriors' town, drill yard | Drillmaster; second to Ragna |
 | Brannoc Hale | Warriors' town, smithy | Blacksmith; swords, axes and maces |
@@ -136,7 +137,7 @@ This is new detail, offered as a proposal for `docs/lore.md`.
 | Hamid Sarraf | The roads | Pedlar between the towns |
 | Yeva Kostenko | The roads | Courier between the towns |
 
-That is 43 characters: 7 at the camp, 14 in the druids' town, 16 in the
+That is 45 characters: 7 at the camp, 15 in the druids' town, 16 in the
 warriors' town, 3 at the inn, 1 at the witch's house and 3 on the roads. Each
 town has a leader (Iolanthe Sarno and Ragna Holt) and guards (Taavi Kask and
 Nadia Ferreira for the druids; Edda Kell, Gideon Okafor and Liv Sandvik for the
@@ -369,6 +370,34 @@ Built round the rune temple, on the road from the camp to the deep woods. Every
 druid is expected to be able to manifest a flame to cook, light a room or warm
 water; they talk about runes as tools.
 
+The druids live with the elements rather than against them, and the town shows
+it. In place of a stone wall a ring of trees and bramble grows round it, three
+cells deep, open only where the four streets go out. Every house is thatched.
+Trees line the streets, apple trees stand in the yards, ivy climbs the house
+walls, and two old trees shade the temple square. A brook rises in the woods to
+the north, runs down the east side of the square and out past the south gate
+into a lake, and the main street and three lanes cross it on wooden bridges.
+The north-east corner of the town is a level higher than the rest, and its lane
+climbs to it by stone stairs from the main street.
+
+The four streets run from the gaps in the ring to the temple square in the
+middle. The rune temple, which is the druids' guild, stands on the square, and
+the shops face it: the council house, the wardens' house and the depot on the
+west side, the weaving house and the ledger house on the east across the
+brook, and the bakehouse and the apothecary on the south, either side of the
+south street. Hesper's cell, Dagny's house and the granary are behind the
+temple. The long house and Orrin's builder's yard are at the east end of the
+main street, with the long house's door on the yard. The garden plots and
+orchard fill the south-west corner, and the rest of the town is cottages. Each
+shop has a sign at its door.
+The depot is a house with its north-east corner open: two `mask` children take
+the wall and window tiles out of the east half of the north wall and the north
+half of the east wall, and the corner cell keeps its wall as a lone post under
+the roof. Mirela Dobos stands behind a counter in the north-west of the room.
+Its three chests stand in booths along the south wall, and all carry the tag
+`druid-town`, so each opens the same stash, and players at one chest do not
+get in each other's way. It is the only depot on the island.
+
 ### Iolanthe Sarno
 
 - **Where**: the druids' town, the council house on the temple square. She sleeps
@@ -556,7 +585,7 @@ water; they talk about runes as tools.
 
 ### Suvi Kallio
 
-- **Where**: the druids' town, the garden plots on the town's west side.
+- **Where**: the druids' town, the garden plots in the town's south-west corner.
 - **What she does**: grower. She raises vegetables and fruit trees with nature
   runes and sells apples, greens and roots. She works the plots by day and sits
   on her doorstep in the evening. She pays for rabbit feet, which she buries in
@@ -604,7 +633,11 @@ water; they talk about runes as tools.
   - "The light on the lighthouse is the only lamp on this island I'd put out if
     I could."
 - **Game support**: the lamplighter brain that exists today (light at dusk, put
-  out at dawn, `switch` on lamp posts) works for him as it is.
+  out at dawn, `switch` on lamp posts). He lights from 18:00 and puts the lamps
+  out from 05:00, the sunrise in `app/lib/clock.ts`, and sleeps from 09:00 to
+  17:00. He walks at 750 ms a step, so a round of the town's twelve posts takes
+  him about three game hours; a post added to the town lengthens both rounds,
+  and a morning round that runs past his bedtime leaves lamps burning all day.
 
 ### Mina Dross
 
@@ -719,7 +752,7 @@ water; they talk about runes as tools.
 - **What he does**: day warden. He stands at the temple door from dawn to dusk,
   fights anyone who attacks a townsperson, and goes after wolves and bog imps
   that come into the town. He fights with Thorns and Ember runes and a staff.
-  He sells nothing; he gives directions round the temple.
+  He sells nothing; he gives directions round the town.
 - **Before Wyrd**: aged 33. Born on the island. A watchman in the harbour watch
   under Absalom Grieve.
 - **Backstory**: he stayed with the temple when the watch split, because the
@@ -740,7 +773,9 @@ water; they talk about runes as tools.
     year."
 - **Game support**: a dialog and a guard's brain: `keeps-the-peace` and
   `raises-the-alarm` over the town's list, and `hunts-on-sight` over a named
-  list of monsters. Casting single-target spells as Lord Corvin does.
+  list of monsters. Casting single-target spells as Lord Corvin does. "Where is
+  everything?" in his dialog says which shop sells what and where it stands, so
+  it changes when a shop moves.
 
 ### Nadia Ferreira
 
@@ -771,6 +806,29 @@ water; they talk about runes as tools.
 - **Game support**: a guard's brain with a night patrol on `time_of_day` and a
   day's sleep in a bed. Her Light rune is a carried light, which an NPC can
   hold.
+
+### Mirela Dobos
+
+- **Where**: the druids' town, behind the counter in the depot, west of the
+  temple square. She never leaves it.
+- **What she does**: keeps the depot. She explains how it works to anybody
+  who asks: every chest there opens on that person's own things, what is left
+  in it survives a death, and nothing in it spoils. She sells nothing. She does
+  not sleep, so the depot is never shut.
+- **Before Wyrd**: aged 54. She came from abroad as a customs clerk and kept the
+  bonded warehouse on the harbour, where every crate off a ship waited until its
+  duty was paid.
+- **Backstory**: the bonded warehouse never shut, and she never learned to. When
+  the harbour flooded she carried its ledgers inland before anything else.
+- **Ties**: Noor Halabi ran the spice warehouse next door to hers on the quay.
+- **Voice**: precise and dry, with the patience of somebody who has explained
+  the same rule ten thousand times. She closes on practical advice ("Mind your
+  bag on the road").
+  - "Open any chest here and you see your own things, nobody else's."
+  - "Bread you leave today is bread in a hundred years. I would know."
+- **Game support**: a dialog and a brain that holds her post. She has no
+  `keeps-hours`, no `potters` and no bed: the counter pens her in, and
+  `returns-home` brings her back to her cell if anything moves her.
 
 ## The warriors' town
 

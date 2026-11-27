@@ -24,7 +24,7 @@ export function resolveRoofOrientation(
   return width > depth ? "horizontal" : "vertical";
 }
 
-export type RoofColour = "red" | "yellow" | "blue";
+export type RoofColour = "red" | "yellow" | "blue" | "thatch";
 
 export type RoofPitch = "steep" | "low";
 
@@ -47,6 +47,11 @@ export const ROOF_COLOURS: Record<RoofColour, { label: string } & Record<RoofPit
     label: "Blue",
     steep: { eaveTileId: "roof-4", ridgeTileId: "roof-6" },
     low: { eaveTileId: "low-roof-blue", ridgeTileId: "low-roof-blue-ridge" },
+  },
+  thatch: {
+    label: "Thatch",
+    steep: { eaveTileId: "thatch-roof", ridgeTileId: "thatch-roof-ridge" },
+    low: { eaveTileId: "low-roof-thatch", ridgeTileId: "low-roof-thatch-ridge" },
   },
 };
 

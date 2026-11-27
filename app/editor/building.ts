@@ -686,6 +686,25 @@ function counter(f: Furnisher, room: Room, goods: readonly string[]): boolean {
 
 const SHELVES = ["bookshelf", "bookshelf-sparse", "bookshelf-tomes"];
 
+/** How far a `lantern`'s light reaches, its emitter's `radius` in cells. */
+const LANTERN_REACH = 6;
+
+/**
+ * Lanterns against a room's walls, each further than a lantern's reach from
+ * the last, until every wall cell has one in reach. A shop has no window
+ * light worth the name once its counter and shelves are in, and a customer
+ * should never walk into a dark one.
+ */
+function lightRoom(f: Furnisher, room: Room) {
+  const lit: Array<{ x: number; y: number }> = [];
+  const inReach = (c: { x: number; y: number }) =>
+    lit.some((l) => Math.max(Math.abs(l.x - c.x), Math.abs(l.y - c.y)) < LANTERN_REACH);
+  for (const cell of f.wallCells(room)) {
+    if (inReach(cell)) continue;
+    if (f.put(cell.x, cell.y, [f.tile("lantern")])) lit.push(cell);
+  }
+}
+
 function largest(rooms: readonly Room[]): Room {
   const area = (r: Room) => (r.maxX - r.minX + 1) * (r.maxY - r.minY + 1);
   return rooms.reduce((best, room) => (area(room) > area(best) ? room : best));
@@ -726,6 +745,7 @@ const FURNISH: Record<FloorUse, (f: Furnisher, rooms: readonly Room[]) => void> 
   shop(f, rooms) {
     const front = largest(rooms);
     const served = counter(f, front, SHELVES);
+    lightRoom(f, front);
     const shopFloor = served ? { ...front, minY: front.minY + 3 } : front;
     alongWalls(f, shopFloor, 0.25, SHELVES);
     heaps(f, shopFloor, 0.06);
