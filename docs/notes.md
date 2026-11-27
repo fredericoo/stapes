@@ -8393,8 +8393,20 @@ far" below
   stroked, dashed SVG line drew dashes turned to the line's angle and
   antialiased at screen resolution, which no other pixel in the world is. The
   march is `castLinePhase` on the frame clock, a pixel every 100ms, and holds
-  still under `prefers-reduced-motion`. It is the one place a
-  target leaves its owner, and only while a spell is being cast at it.
+  still under `prefers-reduced-motion`. Each dot's shadow is drawn on the
+  floor rather than a pixel under it. `shotShadow` takes the point a fraction
+  of the way along the shot in cells and height, finds the highest standing
+  surface in that column at or below it (`standingSurfacesBetween`) and
+  projects that; `castLineDots` with `onto` asks it once per dot. Between two
+  bodies of height 4 on flat ground the shadow is 4 pixels down and right of
+  the line; a shot off a cliff casts it on the cliff top up to the edge and
+  on the ground beneath after it. The line runs at mid-body height, so it
+  often passes just inside a half-height block, below its top; there the
+  shadow is put at the shot itself rather than on the block's top, which
+  would draw it above the line it belongs to. A line that runs down and to the right lies
+  along its own shadow, which is what the projection does to anything in that
+  direction. It is the one place a target leaves its owner, and only while a
+  spell is being cast at it.
   `advanceCasting` keeps it in step with the caster's target, because a bolt
   lands on whoever is targeted when the bar fills. It replaces the progress
   object when the target changes, since the broadcast is diffed on identity;

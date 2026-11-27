@@ -126,6 +126,7 @@ import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { areaFloorCells } from "../game/area";
 import { heldWeaponReaches, rangedWeaponReaches, reachPointAt } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
+import { type ShotEnd, shotShadow } from "./shotShadow";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { HitFlash, HIT_FLASH_TINT } from "./hitFlash";
@@ -2449,6 +2450,12 @@ export class GameRenderer {
         id: caster.id,
         from: this.bodyMiddle(snap.map, caster),
         to: this.bodyMiddle(snap.map, target),
+        shadowAt: shotShadow(
+          snap.map,
+          this.tilesById,
+          this.shotEnd(snap.map, caster),
+          this.shotEnd(snap.map, target),
+        ),
         atYou: target.id === snap.self.id,
       });
     }
@@ -2476,8 +2483,23 @@ export class GameRenderer {
       id: `attack:${self.id}`,
       from: this.bodyMiddle(snap.map, self),
       to: this.bodyMiddle(snap.map, target),
+      shadowAt: shotShadow(
+        snap.map,
+        this.tilesById,
+        this.shotEnd(snap.map, self),
+        this.shotEnd(snap.map, target),
+      ),
       atYou: false,
       attack: true,
+    };
+  }
+
+  private shotEnd(map: MapFile, actor: ActorSnapshot): ShotEnd {
+    const footAbs = this.standingFootAbs(map, actor, actor.stackIndex);
+    return {
+      ground: this.actorVisualWorld(map, actor),
+      footAbs,
+      shotAbs: footAbs + this.bodyOwnHeight(map, actor, actor.stackIndex) / 2,
     };
   }
 
