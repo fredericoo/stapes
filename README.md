@@ -143,6 +143,12 @@ an agent drives", lists every call.
   an eave rising two units across its cell, and `low-roof-<colour>-ridge`, a
   one-unit ridge on the same pitch, in red, yellow and blue. Geometry drawn
   through the game's own projection, shaded with `roof-1`'s shingle pattern
+- `bun run generate:thatched-roofs` — draw the thatched roof into rows 8 to 11
+  of `data/tilesets/roofs.png`, growing the sheet, and write its four tiles:
+  `thatch-roof` and `thatch-roof-ridge` for a steep roof, `low-roof-thatch` and
+  `low-roof-thatch-ridge` for a low one. Cast with the low roofs' caster
+  (`scripts/roof-caster.ts`) in courses of straw with moss; the steep pair
+  takes its outline from `roof-1` and `roof-3`
 - `bun run generate:ramps` — redraw `data/tilesets/ramps.png`, the `ramp` and
   `stone-stairs` sprites in all four facings, cast through the game's own
   projection in the colours of the single sprite each had before. Rewrites only

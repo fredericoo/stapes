@@ -16473,6 +16473,19 @@ which cell a click on raised ground lands on (`pressedCell`).
 
 A river across a cliff is laid on both levels with nothing joining them.
 
+### Thatch is cast, and the steep pitch takes its outline from `roof-1`
+
+`bun run generate:thatched-roofs` draws `thatch-roof`, `low-roof-thatch` and
+their ridges with the caster `generate:low-roofs` uses, moved to
+`scripts/roof-caster.ts` and textured with straw instead of shingles. The low
+pitch casts cleanly. A steep eave rises a level a cell, which is the slope of
+the view ray, so a slope facing north or west is seen exactly edge on and
+the cast draws only its gable. The hand-drawn `roof-1` draws those facings as
+a line of roof along the gable's edge, so the steep thatch uses `roof-1` and
+`roof-3` as its outline: their roof pixels take the cast's thatch, or the
+courses' shadow where the cast has none. A thatched steep roof therefore meets
+its neighbours exactly where a red one does.
+
 ### A house is built from its Floor, Cellar and Roof children
 
 A `house` node holds the tiles the whole building shares (wall, floor,
