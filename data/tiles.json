@@ -206500,5 +206500,1102 @@
         "toMs": 180000
       }
     }
+  },
+  {
+    "id": "cobra",
+    "name": "Cobra",
+    "type": "directional",
+    "anchor": {
+      "tilesetId": "snake",
+      "x": 0,
+      "y": 0
+    },
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 16,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 20,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 24,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 28,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 220
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          }
+        }
+      }
+    },
+    "kind": "battler",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "height": 1,
+    "walkDurationMs": 260,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "coiled",
+        "states": {
+          "coiled": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "slither": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "striking": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "HSSSS"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "coiled",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "slither"
+          },
+          {
+            "from": "slither",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "coiled"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "striking",
+              "prey": [
+                "player",
+                "rabbit",
+                "rat"
+              ],
+              "within": 6,
+              "calm": 12,
+              "leash": 12,
+              "target": "prey"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 30,
+        "masteries": {
+          "sharp": 40,
+          "arcane": 16,
+          "toughness": 32,
+          "agility": 36
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Venomous bite",
+          "damage": 6,
+          "def": 0,
+          "accuracy": 90,
+          "variance": 45,
+          "spd": 56,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "sharp",
+          "statuses": [
+            {
+              "id": "poison",
+              "chance": 40,
+              "fromMs": 30000,
+              "toMs": 90000
+            }
+          ]
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "elements": [
+          "nature"
+        ],
+        "immuneTo": [
+          "poison"
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Spit venom",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "statuses": [
+                {
+                  "id": "poison",
+                  "chance": 100,
+                  "fromMs": 20000,
+                  "toMs": 40000
+                },
+                {
+                  "id": "dazed",
+                  "chance": 60,
+                  "fromMs": 3000,
+                  "toMs": 5000
+                }
+              ]
+            },
+            "reach": {
+              "cells": 4.5,
+              "height": 2
+            },
+            "cooldownMs": 14000,
+            "castTimeMs": 600,
+            "sound": "ptth"
+          }
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "essence-nature",
+                "chance": 3
+              },
+              {
+                "tileId": "snake-fang",
+                "chance": 90
+              },
+              {
+                "tileId": "snake-fang",
+                "chance": 90
+              }
+            ]
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 90000,
+        "toMs": 300000
+      }
+    }
+  },
+  {
+    "id": "anaconda",
+    "name": "Anaconda",
+    "type": "directional",
+    "anchor": {
+      "tilesetId": "snake",
+      "x": 0,
+      "y": 0
+    },
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 32,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 280
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 36,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 280
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 40,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 280
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 44,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 280
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 140
+              }
+            ]
+          }
+        }
+      }
+    },
+    "kind": "battler",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "height": 2,
+    "walkable": false,
+    "walkDurationMs": 360,
+    "swims": true,
+    "interactions": {
+      "brain": {
+        "initial": "lying",
+        "states": {
+          "lying": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "gliding": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "crushing": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "HHHSSS"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "lying",
+            "if": {
+              "cond": "after",
+              "ms": 9000
+            },
+            "to": "gliding"
+          },
+          {
+            "from": "gliding",
+            "if": {
+              "cond": "after",
+              "ms": 1500
+            },
+            "to": "lying"
+          },
+          {
+            "from": "gliding",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "lying"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "predator",
+            "with": {
+              "fight": "crushing",
+              "prey": [
+                "player",
+                "deer",
+                "boar",
+                "rabbit",
+                "raccoon"
+              ],
+              "within": 2,
+              "calm": 9,
+              "leash": 8,
+              "target": "prey"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 170,
+        "masteries": {
+          "blunt": 60,
+          "arcane": 12,
+          "toughness": 64,
+          "agility": 10
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Coils",
+          "damage": 9,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 30,
+          "spd": 30,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt"
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "elements": [
+          "nature"
+        ],
+        "immuneTo": [
+          "food-poisoning"
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Constrict",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 12,
+              "variance": 30,
+              "statuses": [
+                {
+                  "id": "paralysed",
+                  "chance": 100,
+                  "fromMs": 3000,
+                  "toMs": 3500
+                }
+              ]
+            },
+            "cooldownMs": 11000,
+            "castTimeMs": 800,
+            "sound": "*creak*"
+          }
+        ],
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "essence-nature",
+                "chance": 5
+              },
+              {
+                "tileId": "snake-fang",
+                "chance": 90
+              },
+              {
+                "tileId": "snake-fang",
+                "chance": 90
+              }
+            ]
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 240000,
+        "toMs": 420000
+      }
+    }
   }
 ]

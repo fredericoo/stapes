@@ -393,9 +393,9 @@
   },
   {
     "id": "snake",
-    "name": "Snake",
+    "name": "Snakes",
     "file": "snake.png",
     "width": 160,
-    "height": 128
+    "height": 384
   }
 ]

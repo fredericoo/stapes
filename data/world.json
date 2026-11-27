@@ -10862,6 +10862,122 @@
           },
           {
             "type": "scatter",
+            "key": "deep-woods-anacondas",
+            "frame": {
+              "x": 120,
+              "y": 144,
+              "w": 400,
+              "h": 464
+            },
+            "props": {
+              "tiles": [
+                {
+                  "tile": "anaconda",
+                  "weight": 1
+                }
+              ],
+              "density": 0.012,
+              "spacing": 6,
+              "clumping": 0,
+              "onlyOn": [
+                "grass",
+                "grass-2"
+              ]
+            },
+            "children": [
+              {
+                "type": "mask",
+                "key": "anacondas-off-druids",
+                "frame": {
+                  "x": 148,
+                  "y": 240,
+                  "w": 96,
+                  "h": 72
+                },
+                "props": {
+                  "shape": "rect",
+                  "op": "subtract"
+                }
+              },
+              {
+                "type": "mask",
+                "key": "anacondas-off-camp-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "camp-to-druids",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "anacondas-off-inn-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "druids-to-inn",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "anacondas-off-hamlet-road",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "hamlet-road",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "anacondas-off-druid-town",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "druid-town",
+                  "grow": 24
+                }
+              },
+              {
+                "type": "mask",
+                "key": "anacondas-off-west-hamlet",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "props": {
+                  "op": "subtract",
+                  "from": "west-hamlet",
+                  "grow": 24
+                }
+              }
+            ]
+          },
+          {
+            "type": "scatter",
             "key": "bog-imps",
             "frame": {
               "x": 64,
@@ -10882,6 +10998,10 @@
                 {
                   "tile": "moss-wisp",
                   "weight": 0.5
+                },
+                {
+                  "tile": "anaconda",
+                  "weight": 0.3
                 }
               ],
               "density": 0.6,
@@ -10934,6 +11054,10 @@
                 {
                   "tile": "ember-wisp",
                   "weight": 0.5
+                },
+                {
+                  "tile": "cobra",
+                  "weight": 1.5
                 }
               ],
               "density": 0.3,
