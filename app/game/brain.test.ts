@@ -3335,7 +3335,7 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
   function field(
     creature: string,
     minutes: number,
-    extras: { flameX?: number; aliceX?: number; twinX?: number; seed?: number } = {},
+    extras: { flameX?: number; aliceX?: number; twinX?: number; ratX?: number; seed?: number } = {},
     tiles: TileDef[] = authored,
   ): GameSession {
     let map = emptyMap();
@@ -3350,6 +3350,9 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
     }
     if (extras.flameX !== undefined) {
       map = replaceStack(map, extras.flameX, 0, 0, [{ tileId: "dirt" }, { tileId: "flame" }]);
+    }
+    if (extras.ratX !== undefined) {
+      map = replaceStack(map, extras.ratX, 0, 0, [{ tileId: "dirt" }, { tileId: "rat" }]);
     }
     if (extras.aliceX !== undefined) {
       map = replaceStack(map, extras.aliceX, 0, 0, [
@@ -3543,6 +3546,14 @@ describe("the bog imp, the cyclops and the bear we ship", () => {
     session.runCommand(`/health ${FULL_HEALTH}`, "alice");
 
     expect(noisesOver(session, BRAIN_TICK_MS * 4)).not.toContain("*snort*");
+  });
+
+  it("has the cat pounce at a rat it spots across the room", () => {
+    const session = field("cat", NOON, { ratX: 5 });
+    const cat = body(session, "cat").id;
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 4)).toContain("*mrrow*");
+    expect(hasStatus(session, cat, "pouncing")).toBe(true);
   });
 
   it("enrages the bear once it is down to a third of its health", () => {

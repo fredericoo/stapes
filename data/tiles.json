@@ -8446,6 +8446,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -8485,6 +8531,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -8503,6 +8557,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -8536,8 +8629,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -8592,7 +8685,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -53128,6 +53243,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -53167,6 +53328,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -53185,6 +53354,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -53218,8 +53426,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -53275,7 +53483,29 @@
           "up": 0,
           "down": 0
         },
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -53722,6 +53952,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -53761,6 +54037,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -53779,6 +54063,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -53812,8 +54135,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -53869,7 +54192,29 @@
           "up": 0,
           "down": 0
         },
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -54316,6 +54661,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -54355,6 +54746,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -54373,6 +54772,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -54406,8 +54844,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -54463,7 +54901,29 @@
           "up": 0,
           "down": 0
         },
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -54910,6 +55370,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -54949,6 +55455,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -54967,6 +55481,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -55000,8 +55553,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -55057,7 +55610,29 @@
           "up": 0,
           "down": 0
         },
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -55504,6 +56079,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -55543,6 +56164,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -55561,6 +56190,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -55594,8 +56262,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -55651,7 +56319,29 @@
           "up": 0,
           "down": 0
         },
-        "pvp": true
+        "pvp": true,
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -189216,6 +189906,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -189255,6 +189991,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -189273,6 +190017,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -189306,8 +190089,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -189362,7 +190145,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -189809,6 +190614,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -189848,6 +190699,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -189866,6 +190725,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -189899,8 +190797,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -189955,7 +190853,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -190402,6 +191322,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -190441,6 +191407,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -190459,6 +191433,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -190492,8 +191505,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -190548,7 +191561,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -190995,6 +192030,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -191034,6 +192115,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -191052,6 +192141,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -191085,8 +192213,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -191141,7 +192269,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -191588,6 +192738,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -191627,6 +192823,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -191645,6 +192849,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -191678,8 +192921,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -191734,7 +192977,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -192181,6 +193446,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -192220,6 +193531,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -192238,6 +193557,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -192271,8 +193629,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -192327,7 +193685,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
@@ -192774,6 +194154,52 @@
                 "action": "hold"
               }
             ]
+          },
+          "hunting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "pouncing": {
+            "band": "danger",
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -192813,6 +194239,14 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "pouncing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
           }
         ],
         "triggers": [
@@ -192831,6 +194265,45 @@
               }
             },
             "to": "answering"
+          },
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "out_of_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 2
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 6
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "winded"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "pouncing"
           }
         ],
         "traits": [
@@ -192864,8 +194337,8 @@
                 "rat"
               ],
               "within": 6,
-              "fight": "fighting",
-              "target": "foe",
+              "fight": "hunting",
+              "target": "prey",
               "calm": 10
             }
           },
@@ -192920,7 +194393,29 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Pounce",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "pouncing",
+                  "chance": 100
+                },
+                {
+                  "id": "winded",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 10000,
+            "sound": "*mrrow*"
+          }
+        ]
       },
       "respawn": {
         "fromMs": 1800000,
