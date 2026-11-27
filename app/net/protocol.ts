@@ -122,6 +122,11 @@ const pvpPatchSchema = v.object({
   on: v.boolean(),
 });
 
+const aimPatchSchema = v.object({
+  actorId: v.string(),
+  targetId: v.nullable(v.string()),
+});
+
 const extractionPatchSchema = v.object({
   actorId: v.string(),
   progress: v.nullable(v.object({ remainingMs: v.number(), durationMs: v.number() })),
@@ -266,6 +271,11 @@ export type PvpPatch = {
   on: boolean;
 };
 
+export type AimPatch = {
+  actorId: string;
+  targetId: string | null;
+};
+
 export type ExtractionPatch = {
   actorId: string;
   progress: ExtractionProgress | null;
@@ -394,6 +404,7 @@ export type ServerMessage =
       pvp: PvpPatch[];
       extractions: ExtractionPatch[];
       castings: CastingPatch[];
+      aims: AimPatch[];
       afflicted: AfflictedPatch[];
       equipment: Equipment;
       tags: string[];
@@ -433,6 +444,7 @@ export type ServerMessage =
       pvp: PvpPatch[];
       extractions: ExtractionPatch[];
       castings: CastingPatch[];
+      aims: AimPatch[];
     }
   | {
       type: "chat";
@@ -678,6 +690,7 @@ const serverMessageSchema = v.variant("type", [
     pvp: v.optional(v.array(pvpPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
     castings: v.optional(v.array(castingPatchSchema), () => []),
+    aims: v.optional(v.array(aimPatchSchema), () => []),
     afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
@@ -911,6 +924,7 @@ const serverMessageSchema = v.variant("type", [
     pvp: v.optional(v.array(pvpPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
     castings: v.optional(v.array(castingPatchSchema), () => []),
+    aims: v.optional(v.array(aimPatchSchema), () => []),
   }),
   v.object({
     type: v.literal("chat"),
@@ -972,7 +986,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 42;
+export const PROTOCOL_VERSION = 43;
 
 export const MAX_STEPS_AHEAD = 5;
 

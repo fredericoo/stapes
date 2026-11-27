@@ -40,6 +40,20 @@ describe("castLineDots", () => {
     ]);
   });
 
+  it("puts each dot where `onto` lands that fraction of the line", () => {
+    const fractions: number[] = [];
+    const dots = castLineDots({ x: 0, y: 0 }, { x: 6, y: 0 }, 0, (t) => {
+      fractions.push(t);
+      return { x: 10 + t * 6.5, y: 20.9 };
+    });
+    expect(fractions).toEqual([0, 0.5, 1]);
+    expect(dots).toEqual([
+      { x: 10, y: 20 },
+      { x: 13, y: 20 },
+      { x: 16, y: 20 },
+    ]);
+  });
+
   it("draws one dot when both ends share a pixel", () => {
     expect(castLineDots({ x: 4.2, y: 4.8 }, { x: 4.9, y: 4.1 }, 0)).toEqual([{ x: 4, y: 4 }]);
   });

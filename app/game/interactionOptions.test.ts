@@ -261,6 +261,7 @@ function actor(
     appearance: null,
     extracting: null,
     casting: null,
+    aiming: null,
     pvp,
     hidden: false,
   };

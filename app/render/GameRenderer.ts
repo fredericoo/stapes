@@ -126,6 +126,7 @@ import { type Reach, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { areaFloorCells } from "../game/area";
 import { heldWeaponReaches, rangedWeaponReaches, reachPointAt } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
+import { type ShotEnd, shotShadow } from "./shotShadow";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { HitFlash, HIT_FLASH_TINT } from "./hitFlash";
@@ -2437,24 +2438,49 @@ export class GameRenderer {
 
   private castLinesFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView[] {
     const out: CastLineView[] = [];
-    for (const caster of snap.actors) {
-      const targetId = caster.casting?.targetId;
-      if (!targetId || targetId === caster.id) continue;
-      const target = snap.actors.find((a) => a.id === targetId);
-      if (!target) continue;
-      if (!this.showsLineEnd(snap, caster, cut) || !this.showsLineEnd(snap, target, cut)) {
+    for (const actor of snap.actors) {
+      const cast = this.lineFrom(snap, cut, actor, actor.casting?.targetId, `cast:${actor.id}`);
+      if (cast) {
+        out.push(cast);
         continue;
       }
-      out.push({
-        id: caster.id,
-        from: this.bodyMiddle(snap.map, caster),
-        to: this.bodyMiddle(snap.map, target),
-        atYou: target.id === snap.self.id,
-      });
+      if (actor.id === snap.self.id) continue;
+      const aim = this.lineFrom(snap, cut, actor, actor.aiming, `aim:${actor.id}`);
+      if (aim) out.push({ ...aim, attack: !aim.atYou });
     }
     const attack = this.attackLineFor(snap, cut);
     if (attack) out.push(attack);
     return out;
+  }
+
+  private lineFrom(
+    snap: GameSnapshot,
+    cut: RoofCut | undefined,
+    from: ActorSnapshot,
+    targetId: string | null | undefined,
+    id: string,
+  ): CastLineView | null {
+    if (!targetId || targetId === from.id) return null;
+    const target = snap.actors.find((a) => a.id === targetId);
+    if (!target) return null;
+    if (!this.showsLineEnd(snap, from, cut) || !this.showsLineEnd(snap, target, cut)) return null;
+    return this.lineBetween(snap.map, id, from, target, target.id === snap.self.id);
+  }
+
+  private lineBetween(
+    map: MapFile,
+    id: string,
+    from: ActorSnapshot,
+    to: ActorSnapshot,
+    atYou: boolean,
+  ): CastLineView {
+    return {
+      id,
+      from: this.bodyMiddle(map, from),
+      to: this.bodyMiddle(map, to),
+      shadowAt: shotShadow(map, this.tilesById, this.shotEnd(map, from), this.shotEnd(map, to)),
+      atYou,
+    };
   }
 
   private attackLineFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView | null {
@@ -2473,11 +2499,17 @@ export class GameRenderer {
       return null;
     }
     return {
-      id: `attack:${self.id}`,
-      from: this.bodyMiddle(snap.map, self),
-      to: this.bodyMiddle(snap.map, target),
-      atYou: false,
+      ...this.lineBetween(snap.map, `attack:${self.id}`, self, target, false),
       attack: true,
+    };
+  }
+
+  private shotEnd(map: MapFile, actor: ActorSnapshot): ShotEnd {
+    const footAbs = this.standingFootAbs(map, actor, actor.stackIndex);
+    return {
+      ground: this.actorVisualWorld(map, actor),
+      footAbs,
+      shotAbs: footAbs + this.bodyOwnHeight(map, actor, actor.stackIndex) / 2,
     };
   }
 

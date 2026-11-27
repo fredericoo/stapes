@@ -630,6 +630,8 @@ export type ActorSnapshot = {
   appearance: HumanAppearance | null;
   extracting: ExtractionProgress | null;
   casting: CastProgress | null;
+  /** Whom this body's drawn ranged blow is at, while the shot would go. */
+  aiming: string | null;
   pvp: boolean;
   hidden: boolean;
 };
@@ -993,6 +995,7 @@ type ActorRuntime = {
     msLeft: number;
     sinceSeenMs: number;
     inReach: boolean;
+    ranged: boolean;
   } | null;
   nextBlow: Progress | null;
   attackRecoveryMs: number;
@@ -3351,10 +3354,12 @@ export class GameSession implements PlaySession {
         msLeft: swingWindupMs(attackerStats),
         sinceSeenMs: 0,
         inReach: true,
+        ranged: false,
       };
     }
     const windup = attacker.windup!;
     windup.inReach = true;
+    windup.ranged = isRanged(attackerStats);
     windup.sinceSeenMs = 0;
     if (!armed || returning) {
       /**
@@ -7499,9 +7504,16 @@ export class GameSession implements PlaySession {
       appearance: actor.appearance,
       extracting: actor.extraction?.progress ?? null,
       casting: actor.casting?.progress ?? null,
+      aiming: this.aimingOf(actor),
       pvp: actor.pvp,
       hidden: actor.hidden,
     };
+  }
+
+  private aimingOf(actor: ActorRuntime): string | null {
+    const windup = actor.windup;
+    if (!windup?.ranged || !windup.inReach || !actor.nextBlow) return null;
+    return windup.targetId;
   }
 
   actorSnapshots(): ActorSnapshot[] {
