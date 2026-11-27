@@ -31,7 +31,17 @@ export type Ellipsoid<P extends string> = {
   marking?: (along: number, across: number, up: number) => P | null;
 };
 
-type Pose = { swing: [number, number, number, number]; dropPx: number; lifts: boolean };
+type Four = [number, number, number, number];
+
+/**
+ * `swing` is how far along the beast each paw is from under its hip, in the
+ * order of `legs`. `lift`, for a beast with jointed `limb`s, is how far each
+ * leg is folded off the ground, from 0 planted to 1 tucked mid-swing.
+ */
+export type Pose = { swing: Four; dropPx: number; lifts: boolean; lift?: Four };
+
+/** A joint of a leg drawn as a chain, swept to the next joint with its radius blended between them. */
+export type LimbPoint = { at: Vec3; r: number; paw?: boolean };
 
 type Hit<P extends string> = { part: P; normal: Vec3 };
 
@@ -57,7 +67,32 @@ export type Beast<P extends string> = {
   /** Pixels too small for the model, put on after the cast where the model has them: eyes, tusks. */
   marks: { at: Vec3; index: number; side: Vec3 }[];
   stepMs: number;
+  /** Each leg as a chain of joints from the body to the paw, in place of the two-part leg the sizes above make. */
+  limb?: (leg: number, pose: Pose, drop: number) => LimbPoint[];
+  /** Its own frames, in place of the standing frame and two strides `posesFor` makes; the first is the standing one. */
+  poses?: Pose[];
+  /** The frames the walk plays, in order. */
+  walk?: number[];
+  /**
+   * Draws the beast this many times longer along its body when it faces one of
+   * these ways. Facing south or east it walks towards the viewer, and the
+   * projection lays its length over its height until it reads as a short lump.
+   */
+  stretch?: Partial<Record<Facing, number>>;
 };
+
+/** The walk's one-pixel sink in model units. */
+function dropOf<P extends string>(beast: Beast<P>, pose: Pose): number {
+  return pose.dropPx / beast.size;
+}
+
+export function posesOf<P extends string>(beast: Beast<P>): Pose[] {
+  return beast.poses ?? posesFor(beast.stride);
+}
+
+export function walkOf<P extends string>(beast: Beast<P>): number[] {
+  return beast.walk ?? [0, 1, 0, 2];
+}
 
 /**
  * The standing frame is also the walk's passing frame: one front foot a little
@@ -86,7 +121,7 @@ function jointOf<P extends string>(beast: Beast<P>, leg: number, pose: Pose): Jo
   const swing = pose.swing[leg]!;
   const front = leg < 2;
   const lifted = pose.lifts && swing < 0;
-  const hip: Vec3 = [along, across, beast.hipUp - pose.dropPx / beast.size];
+  const hip: Vec3 = [along, across, beast.hipUp - dropOf(beast, pose)];
   const foot: Vec3 = [along + swing, across, lifted ? FOOT_LIFT : 0];
   const fold = front ? (lifted ? FRONT_FOLD : 0) : -(lifted ? HIND_FOLD : HIND_REST_FOLD);
   const knee: Vec3 = [(hip[0] + foot[0]) / 2 + fold, across, (hip[2] + foot[2]) / 2];
@@ -113,19 +148,39 @@ function legHit<P extends string>(beast: Beast<P>, p: Vec3, joint: Joint): Hit<P
   return { part: lower.t > 1 - beast.footShare ? beast.footPart : beast.fur, normal: lower.off };
 }
 
+function chainHit<P extends string>(beast: Beast<P>, p: Vec3, chain: LimbPoint[]): Hit<P> | null {
+  for (let i = chain.length - 2; i >= 0; i--) {
+    const a = chain[i]!;
+    const b = chain[i + 1]!;
+    const { off, t } = fromSegment(p, a.at, b.at);
+    if (Math.hypot(...off) > a.r + (b.r - a.r) * t) continue;
+    return { part: b.paw && t > 0.5 ? beast.footPart : beast.fur, normal: off };
+  }
+  return null;
+}
+
 export function sampler<P extends string>(beast: Beast<P>, facing: Facing, pose: Pose) {
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
   const joints = beast.legs.map((_, i) => jointOf(beast, i, pose));
+  const stretch = beast.stretch?.[facing] ?? 1;
+  const chains = beast.limb
+    ? beast.legs.map((_, i) => beast.limb!(i, pose, dropOf(beast, pose)))
+    : null;
+  const legTop = chains
+    ? Math.max(...chains.flat().map((point) => point.at[2] + point.r))
+    : beast.hipUp;
   return (p: Vec3, scale: number): Hit<P> | null => {
     const x = (p[0] / scale - centre) / beast.size;
     const y = (p[1] / scale - centre) / beast.size;
-    const along = x * ax + y * ay;
+    const along = (x * ax + y * ay) / stretch;
     const across = -x * ay + y * ax;
-    const drop = pose.dropPx / beast.size;
+    const drop = dropOf(beast, pose);
     const up = p[2] / scale / beast.size + drop;
-    const toWorld = (n: Vec3): Vec3 =>
-      normalise([n[0] * ax - n[1] * ay, n[0] * ay + n[1] * ax, n[2]]);
+    const toWorld = ([nAlong, nAcross, nUp]: Vec3): Vec3 => {
+      const n = nAlong / stretch;
+      return normalise([n * ax - nAcross * ay, n * ay + nAcross * ax, nUp]);
+    };
 
     for (let i = beast.trunk.length - 1; i >= 0; i--) {
       const { part, at, radii, marking } = beast.trunk[i]!;
@@ -137,7 +192,14 @@ export function sampler<P extends string>(beast: Beast<P>, facing: Facing, pose:
       };
     }
     const legUp = up - drop;
-    if (legUp < 0 || legUp > beast.hipUp) return null;
+    if (legUp < 0 || legUp > legTop) return null;
+    if (chains) {
+      for (const chain of chains) {
+        const hit = chainHit(beast, [along, across, legUp], chain);
+        if (hit) return { part: hit.part, normal: toWorld(hit.normal) };
+      }
+      return null;
+    }
     for (const joint of joints) {
       const hit = legHit(beast, [along, across, legUp], joint);
       if (hit) return { part: hit.part, normal: toWorld(hit.normal) };
@@ -168,8 +230,9 @@ function markPixels<P extends string>(beast: Beast<P>, facing: Facing, pose: Pos
     const outY = side[0] * ay + side[1] * ax;
     if (outX + outY + side[2] <= 0) continue;
     const up = raised * beast.size - pose.dropPx;
-    const x = centre + (along * ax - across * ay) * beast.size;
-    const y = centre + (along * ay + across * ax) * beast.size;
+    const ahead = along * (beast.stretch?.[facing] ?? 1);
+    const x = centre + (ahead * ax - across * ay) * beast.size;
+    const y = centre + (ahead * ay + across * ax) * beast.size;
     seen.push({ u: Math.floor(x + ground - up), v: Math.floor(y + ground - up), index });
   }
   return seen;
@@ -231,11 +294,9 @@ export function facingFrames(firstRow: number, poses: readonly number[], duratio
   );
 }
 
-export const POSES_PER_BEAST = 3;
-
 /** Paints every facing and walking pose of `beast` into `sheet`, a row of frames per facing from `firstRow`. */
 export function paintBeast<P extends string>(sheet: PNG, beast: Beast<P>, firstRow: number) {
-  const poses = posesFor(beast.stride);
+  const poses = posesOf(beast);
   FACINGS.forEach((facing, f) => {
     const row = firstRow + f;
     poses.forEach((pose, column) => {
@@ -272,7 +333,7 @@ export async function writePreview(dir: string, name: string, sheet: PNG, beasts
   for (const beast of process.env.LARGE ? beasts : []) {
     for (const facing of FACINGS) {
       const model = {
-        sample: sampler(beast, facing, posesFor(beast.stride)[0]!),
+        sample: sampler(beast, facing, posesOf(beast)[0]!),
         shade: shader(beast),
       };
       const pixels = castModel(model, projection(beast), large);

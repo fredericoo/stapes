@@ -6,10 +6,12 @@ import {
   FRAME_PX,
   facingFrames,
   paintBeast,
-  POSES_PER_BEAST,
+  posesOf,
+  walkOf,
   writePreview,
 } from "./quadruped-caster";
 import { writeTileset } from "./tileset-output";
+import { wolfBeast } from "./wolf-model";
 
 const TILESET_ID = "forest-beasts";
 
@@ -327,6 +329,15 @@ const RACCOON_BATTLER = {
   ],
 };
 
+/** Grey, with a darker saddle and amber eyes; `generate:snow-beasts` casts the same wolf in snow colours. */
+const WOLF = wolfBeast("wolf", "Wolf", {
+  coat: [25, 22, 8],
+  saddle: [22, 8, 4],
+  pale: [28, 27, 25],
+  leg: [22, 8, 4],
+  eye: 19,
+});
+
 function tileOf<P extends string>(
   beast: Beast<P>,
   firstRow: number,
@@ -343,7 +354,7 @@ function tileOf<P extends string>(
     affectedByGravity: true,
     walkable: false,
     sprites: facingFrames(firstRow, [0], beast.stepMs * 2),
-    states: { moving: { sprites: facingFrames(firstRow, [0, 1, 0, 2], beast.stepMs) } },
+    states: { moving: { sprites: facingFrames(firstRow, walkOf(beast), beast.stepMs) } },
     ...fields,
   } as TileDef;
 }
@@ -368,12 +379,13 @@ const tiles = [
       respawn: { fromMs: 90000, toMs: 180000 },
     },
   } as Partial<TileDef>),
+  tileOf(WOLF, 2 * FACINGS.length, { height: 2, walkDurationMs: 140 } as Partial<TileDef>),
 ];
 
-const BEASTS = [BOAR, RACCOON] as Beast<string>[];
+const BEASTS = [BOAR, RACCOON, WOLF] as Beast<string>[];
 
 const sheet = new PNG({
-  width: POSES_PER_BEAST * FRAME_PX,
+  width: Math.max(...BEASTS.map((beast) => posesOf(beast).length)) * FRAME_PX,
   height: BEASTS.length * FACINGS.length * FRAME_PX,
 });
 sheet.data.fill(0);

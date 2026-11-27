@@ -2,35 +2,38 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { CELL_SIZE, type Direction, type TileDef, type TileSprite } from "../app/lib/types";
-import { paint, paintRgba, readJson, type Rgba, writeTileset } from "./tileset-output";
+import {
+  FACINGS as BEAST_FACINGS,
+  FRAME_CELLS,
+  facingFrames,
+  paintBeast,
+  posesOf,
+  walkOf,
+} from "./quadruped-caster";
+import { paint, writeTileset } from "./tileset-output";
+import { wolfBeast } from "./wolf-model";
 
-const DATA = path.resolve(import.meta.dirname, "..", "data");
 const TILESET = "snow-beasts";
 
-const WOLF_ROWS = 5;
-const YETI_ROW = WOLF_ROWS;
+/** The wolf of `generate:forest-beasts` in the colours of `snow` and the snow on a pine, with icy eyes. */
+const SNOW_WOLF = wolfBeast("snow-wolf", "Snow Wolf", {
+  coat: [28, 27, 25],
+  saddle: [27, 25, 22],
+  pale: [28, 28, 29],
+  leg: [27, 25, 22],
+  eye: 24,
+});
+
+/** The snow wolf's frames come first, a row of them per facing, and the yeti's below. */
+const YETI_ROW = BEAST_FACINGS.length * FRAME_CELLS;
 const YETI_CELLS = 6;
 /** The standing cell is one in from the sprite's south-east corner, which leaves room for the arm on that side. */
 const YETI_BASE = { x: YETI_CELLS - 2, y: YETI_CELLS - 2 };
 const YETI_PX = YETI_CELLS * CELL_SIZE;
-const SHEET_CELLS = { w: 3 * YETI_CELLS, h: WOLF_ROWS + 4 * YETI_CELLS };
-
-/** The wolf's coat, shade by shade, in the colours of `snow` and the snow on a pine. Its outline is kept. */
-const WOLF_COAT: Record<string, string> = {
-  "#3e3546": "#9babb2",
-  "#694f62": "#ffffff",
-  "#7f708a": "#ffffff",
-  "#9babb2": "#affcdb",
+const SHEET_CELLS = {
+  w: Math.max(3 * YETI_CELLS, posesOf(SNOW_WOLF).length * FRAME_CELLS),
+  h: YETI_ROW + 4 * YETI_CELLS,
 };
-
-/** The wolf's darkest fur is its outline colour, so the same colour inside the body is fur and is lightened. */
-const WOLF_OUTLINE = "#2e222f";
-const WOLF_DEEP_FUR = "#7f708a";
-
-function rgba(hex: string): Rgba {
-  const n = Number.parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, 255];
-}
 
 const NEIGHBOURS = [
   [1, 0],
@@ -40,45 +43,6 @@ const NEIGHBOURS = [
 ] as const;
 
 const AROUND = [...NEIGHBOURS, [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
-
-function spriteRects(tile: TileDef): { x: number; y: number; w: number; h: number }[] {
-  const sets = [tile.sprites, ...Object.values(tile.states ?? {}).map((s) => s.sprites)];
-  return sets.flatMap((set) =>
-    Object.values(set ?? {}).flatMap((sprite: TileSprite) =>
-      sprite.frames.map((f) => f.sprite.rect),
-    ),
-  );
-}
-
-/**
- * The snow wolf keeps the wolf's frames and their layout, so its sprites are
- * the wolf's own rects read from another sheet. Only the pixels inside those
- * rects are copied: the wolf's rows of `animals.png` hold the rabbit too.
- */
-async function drawWolf(sheet: PNG, wolf: TileDef) {
-  const animals = PNG.sync.read(await fs.readFile(path.join(DATA, "tilesets", "animals.png")));
-  for (const rect of spriteRects(wolf)) {
-    const w = rect.w * CELL_SIZE;
-    const h = rect.h * CELL_SIZE;
-    const x0 = (wolf.anchor.x + rect.x) * CELL_SIZE;
-    const y0 = (wolf.anchor.y + rect.y) * CELL_SIZE;
-    const hexAt = (x: number, y: number): string | null => {
-      if (x < 0 || y < 0 || x >= w || y >= h) return null;
-      const i = (animals.width * (y0 + y) + x0 + x) << 2;
-      if (animals.data[i + 3] === 0) return null;
-      return `#${[0, 1, 2].map((c) => animals.data[i + c]!.toString(16).padStart(2, "0")).join("")}`;
-    };
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const hex = hexAt(x, y);
-        if (!hex) continue;
-        const inside = NEIGHBOURS.every(([dx, dy]) => hexAt(x + dx, y + dy) !== null);
-        const fur = hex === WOLF_OUTLINE && inside ? WOLF_DEEP_FUR : (WOLF_COAT[hex] ?? hex);
-        paintRgba(sheet, rect.x * CELL_SIZE + x, rect.y * CELL_SIZE + y, rgba(fur));
-      }
-    }
-  }
-}
 
 type Vec3 = [number, number, number];
 
@@ -492,17 +456,17 @@ function yetiSprites(poses: readonly number[], durationMs: number) {
   ) as Record<Direction, TileSprite>;
 }
 
-function tiles(wolf: TileDef): TileDef[] {
+function tiles(): TileDef[] {
   const snowWolf: TileDef = {
-    id: "snow-wolf",
-    name: "Snow Wolf",
-    height: wolf.height,
-    type: wolf.type,
+    id: SNOW_WOLF.id,
+    name: SNOW_WOLF.name,
+    height: 2,
+    type: "directional",
     kind: "battler",
     attributes: {},
     anchor: { tilesetId: TILESET, x: 0, y: 0 },
-    sprites: wolf.sprites,
-    states: wolf.states,
+    sprites: facingFrames(0, [0], SNOW_WOLF.stepMs * 2),
+    states: { moving: { sprites: facingFrames(0, walkOf(SNOW_WOLF), SNOW_WOLF.stepMs) } },
   };
   const yeti: TileDef = {
     id: "yeti",
@@ -534,14 +498,11 @@ async function writePreview(dir: string) {
 }
 
 async function main() {
-  const catalogue = await readJson<TileDef[]>(path.join(DATA, "tiles.json"));
-  const wolf = catalogue.find((t) => t.id === "wolf");
-  if (!wolf) throw new Error("no wolf to recolour");
   const sheet = new PNG({ width: SHEET_CELLS.w * CELL_SIZE, height: SHEET_CELLS.h * CELL_SIZE });
   sheet.data.fill(0);
-  await drawWolf(sheet, wolf);
+  paintBeast(sheet, SNOW_WOLF, 0);
   drawYeti(sheet);
-  await writeTileset(TILESET, "Snow Beasts", sheet, tiles(wolf));
+  await writeTileset(TILESET, "Snow Beasts", sheet, tiles());
   /** `PREVIEW=<dir>` also writes the standing pose of each facing six times larger, to judge the model before it is pixels. */
   if (process.env.PREVIEW) await writePreview(process.env.PREVIEW);
 }

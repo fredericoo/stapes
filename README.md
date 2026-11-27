@@ -290,9 +290,9 @@ an agent drives", lists every call.
   `cat` tile, so its behaviour and stats are the cat's until edited.
   `scripts/scenes/cats.json` shows every coat on grass
 - `bun run generate:snow-beasts` — redraw `data/tilesets/snow-beasts.png` and
-  the sprites of `snow-wolf` and `yeti`. The snow wolf is the wolf's own
-  frames read out of `animals.png` with its coat recoloured, so it follows any
-  change to the wolf's frames. The yeti is a 3D figure of bones (chest,
+  the sprites of `snow-wolf` and `yeti`. The snow wolf is cast from the same
+  model as the wolf (`scripts/wolf-model.ts`) in snow colours, so it follows
+  any change to the wolf's shape. The yeti is a 3D figure of bones (chest,
   shoulders, head, horns, arms, fists, legs, feet) rendered through the game's
   projection in four facings and three poses of a stride: fur roughened by
   noise, bare skin on the hands, feet and face, and a toon render's lines:
@@ -411,9 +411,13 @@ an agent drives", lists every call.
   only what a new tile starts with; a re-run leaves the ones in `tiles.json`
   alone
 - `bun run generate:forest-beasts` — draw `data/tilesets/forest-beasts.png`
-  and write the `boar` and `raccoon` tiles, cast the way the bear is from one
-  four-legged model with a part list each: the boar's bristled ridge and
-  snout, the raccoon's mask and ringed tail. `PREVIEW=<dir>` writes the sheet
+  and write the `boar`, `raccoon` and `wolf` tiles, cast the way the bear is
+  from one four-legged model in `scripts/quadruped-caster.ts` with a part list
+  each: the boar's bristled ridge and snout, the raccoon's mask and ringed
+  tail. The wolf has more: legs jointed at stifle and hock or elbow and wrist,
+  a four-frame trot, and a body drawn half as long again facing south and
+  east, where it walks towards the viewer and the projection lays its length
+  over its height. `PREVIEW=<dir>` writes the sheet
   enlarged instead of touching `data/`, and `LARGE=1` with it also casts each
   facing six times larger, which takes minutes. As with the bear, the brain
   and battler in the script are only what a new tile starts with
