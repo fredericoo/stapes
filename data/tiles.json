@@ -207837,5 +207837,2412 @@
         "toMs": 420000
       }
     }
+  },
+  {
+    "id": "troll",
+    "name": "Troll",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "trolls",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 300,
+    "interactions": {
+      "brain": {
+        "initial": "lurking",
+        "states": {
+          "lurking": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Mmm. Food."
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "fight"
+          },
+          "investigating": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Who there?"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "quarry"
+                  }
+                }
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ],
+            "band": "roam"
+          },
+          "casting": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ],
+            "band": "roam"
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "roam"
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": [
+              "lurking",
+              "hunting",
+              "investigating",
+              "casting",
+              "homing"
+            ],
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              },
+              "cells": 3
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "hunting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "heard_noise",
+              "cells": 28
+            },
+            "bind": {
+              "quarry": {
+                "type": "speaker"
+              }
+            },
+            "to": "investigating"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "quarry"
+                }
+              },
+              "cells": 30
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "after",
+              "ms": 12000
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "after",
+              "ms": 900
+            },
+            "to": "lurking"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          },
+          {
+            "trait": "sleeps",
+            "with": {
+              "while": {
+                "cond": "time_of_day",
+                "fromHour": 7,
+                "toHour": 19
+              },
+              "spell": 1
+            }
+          },
+          {
+            "trait": "flees-when-hurt",
+            "with": {
+              "threat": "prey",
+              "below": 25,
+              "near": 8,
+              "cry": "WAAAH"
+            }
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 85,
+        "masteries": {
+          "blunt": 54,
+          "toughness": 58,
+          "agility": 6
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Fists",
+          "damage": 8,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 30,
+          "spd": 30,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              },
+              {
+                "tileId": "skull-player",
+                "chance": 100
+              },
+              {
+                "tileId": "troll-tusk",
+                "chance": 60
+              }
+            ]
+          },
+          {
+            "slot": "charm",
+            "tileId": "bone-charm",
+            "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "simple-hammer",
+            "chance": 50
+          }
+        ],
+        "remains": "skull-troll",
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Curl up",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000,
+            "casterEffect": {
+              "durationMs": 600,
+              "particles": {
+                "ratePerSecond": 16,
+                "ttlFromMs": 600,
+                "ttlToMs": 1000,
+                "spawnRadiusCells": 0.3,
+                "spawnElevFrom": 1,
+                "spawnElevTo": 2,
+                "riseFrom": 0.5,
+                "riseTo": 1.5,
+                "driftCellsPerSecond": 0.3,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": 0,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 1,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#ffffff"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c9d6ea"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#7d8fb3"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 180000,
+        "toMs": 300000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 16,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 20,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 24,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 28,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 16,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 20,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 24,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 28,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "river-troll",
+    "name": "River Troll",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "trolls",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 300,
+    "interactions": {
+      "brain": {
+        "initial": "lurking",
+        "states": {
+          "lurking": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "SPLOOSH"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "fight"
+          },
+          "investigating": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "blub"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "quarry"
+                  }
+                }
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ],
+            "band": "roam"
+          },
+          "casting": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ],
+            "band": "roam"
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "roam"
+          },
+          "icing": {
+            "band": "danger",
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "krrrk"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": [
+              "lurking",
+              "hunting",
+              "investigating",
+              "casting",
+              "homing"
+            ],
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              },
+              "cells": 3
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "hunting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "heard_noise",
+              "cells": 28
+            },
+            "bind": {
+              "quarry": {
+                "type": "speaker"
+              }
+            },
+            "to": "investigating"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "quarry"
+                }
+              },
+              "cells": 30
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "after",
+              "ms": 12000
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "after",
+              "ms": 900
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "icing",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
+        ],
+        "triggers": [
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 40
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "crystallised"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "icing"
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 100,
+        "masteries": {
+          "blunt": 60,
+          "arcane": 24,
+          "toughness": 66,
+          "agility": 6,
+          "water": 20
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Fists",
+          "damage": 9,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 30,
+          "spd": 30,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "essence-water",
+                "chance": 5
+              },
+              {
+                "tileId": "arcane-stone",
+                "chance": 10
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              },
+              {
+                "tileId": "skull-player",
+                "chance": 100
+              },
+              {
+                "tileId": "troll-tusk",
+                "chance": 60
+              }
+            ]
+          },
+          {
+            "slot": "charm",
+            "tileId": "bone-charm",
+            "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "simple-hammer",
+            "chance": 50
+          }
+        ],
+        "elements": [
+          "water"
+        ],
+        "remains": "skull-troll",
+        "spells": [
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 15,
+              "variance": 40,
+              "projectile": "frost-shard",
+              "statuses": [
+                {
+                  "id": "chilled",
+                  "chance": 50,
+                  "fromMs": 4000,
+                  "toMs": 7000
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 3000,
+            "uninterruptible": true,
+            "sound": "ptooo",
+            "requirements": {
+              "arcane": 20,
+              "water": 10
+            },
+            "reach": {
+              "cells": 5.5,
+              "height": 3
+            },
+            "name": "River spit"
+          },
+          {
+            "type": "stone",
+            "name": "Ice over",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "crystallised",
+                  "chance": 100,
+                  "fromMs": 12000,
+                  "toMs": 12000
+                }
+              ]
+            },
+            "cooldownMs": 45000,
+            "casterEffect": {
+              "durationMs": 300,
+              "particles": {
+                "ratePerSecond": 120,
+                "ttlFromMs": 300,
+                "ttlToMs": 600,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 5,
+                "driftCellsPerSecond": 1.2,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -20,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#e8d6b0"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c2a878"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#5a4630"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 180000,
+        "toMs": 300000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 32,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 36,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 40,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 44,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 32,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 36,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 40,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 44,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      }
+    },
+    "swims": true
+  },
+  {
+    "id": "moss-troll",
+    "name": "Moss Troll",
+    "height": 4,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "trolls",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 300,
+    "interactions": {
+      "brain": {
+        "initial": "lurking",
+        "states": {
+          "lurking": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "hunting": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "GRROOAN"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "fight"
+          },
+          "investigating": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "creeeak"
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "roam"
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ],
+            "band": "roam"
+          },
+          "rooting": {
+            "band": "danger",
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "crrrk"
+              }
+            ],
+            "do": [
+              {
+                "action": "cast",
+                "spell": 2
+              },
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": [
+              "lurking",
+              "hunting",
+              "investigating",
+              "homing"
+            ],
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              },
+              "cells": 2
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
+                }
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "hunting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "lurking",
+            "if": {
+              "cond": "heard_noise",
+              "cells": 28
+            },
+            "bind": {
+              "quarry": {
+                "type": "speaker"
+              }
+            },
+            "to": "investigating"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "quarry"
+                }
+              },
+              "cells": 30
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "after",
+              "ms": 12000
+            },
+            "to": "lurking"
+          },
+          {
+            "from": "rooting",
+            "if": {
+              "cond": "after",
+              "ms": 0
+            },
+            "to": "hunting"
+          }
+        ],
+        "traits": [
+          {
+            "trait": "evades-the-unreachable",
+            "with": {}
+          }
+        ],
+        "triggers": [
+          {
+            "band": "danger",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 35
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "blossoming"
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "rooting"
+          }
+        ]
+      },
+      "battler": {
+        "baseHp": 100,
+        "masteries": {
+          "blunt": 60,
+          "arcane": 24,
+          "toughness": 66,
+          "agility": 6,
+          "nature": 20
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Fists",
+          "damage": 9,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 30,
+          "spd": 30,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "blunt"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "kit": [
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "essence-nature",
+                "chance": 5
+              },
+              {
+                "tileId": "arcane-stone",
+                "chance": 10
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              },
+              {
+                "tileId": "skull-player",
+                "chance": 100
+              },
+              {
+                "tileId": "troll-tusk",
+                "chance": 60
+              }
+            ]
+          },
+          {
+            "slot": "charm",
+            "tileId": "bone-charm",
+            "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "simple-hammer",
+            "chance": 50
+          }
+        ],
+        "elements": [
+          "nature"
+        ],
+        "remains": "skull-troll",
+        "spells": [
+          {
+            "type": "stone",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 15,
+              "variance": 40,
+              "projectile": "thorn-leaf",
+              "statuses": [
+                {
+                  "id": "poison",
+                  "chance": 50,
+                  "fromMs": 5000,
+                  "toMs": 15000
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 3000,
+            "uninterruptible": true,
+            "sound": "pfffff",
+            "requirements": {
+              "arcane": 20,
+              "nature": 10
+            },
+            "reach": {
+              "cells": 5.5,
+              "height": 3
+            },
+            "name": "Spore breath"
+          },
+          {
+            "type": "stone",
+            "name": "Take root",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "blossoming",
+                  "chance": 100,
+                  "fromMs": 8000,
+                  "toMs": 8000
+                }
+              ]
+            },
+            "cooldownMs": 45000,
+            "casterEffect": {
+              "durationMs": 300,
+              "particles": {
+                "ratePerSecond": 120,
+                "ttlFromMs": 300,
+                "ttlToMs": 600,
+                "spawnRadiusCells": 0.25,
+                "spawnElevFrom": 0,
+                "spawnElevTo": 1,
+                "riseFrom": 2,
+                "riseTo": 5,
+                "driftCellsPerSecond": 1.2,
+                "lit": false,
+                "ownDepth": true,
+                "gravity": -20,
+                "offsetX": "",
+                "offsetY": "",
+                "offsetElev": "",
+                "shape": null,
+                "sizeFromPx": 5,
+                "sizeToPx": null,
+                "radiusFromPx": 1,
+                "radiusToPx": 2,
+                "alphaFrom": 1,
+                "alphaTo": 0,
+                "ramp": [
+                  {
+                    "at": 0,
+                    "color": "#e8d6b0"
+                  },
+                  {
+                    "at": 0.5,
+                    "color": "#c2a878"
+                  },
+                  {
+                    "at": 1,
+                    "color": "#5a4630"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 180000,
+        "toMs": 300000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 48,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 48,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 48,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 48,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 52,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 52,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 52,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 52,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 56,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 56,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 56,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 56,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 60,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 60,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 60,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 60,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 48,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 52,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 56,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 60,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      }
+    }
   }
 ]

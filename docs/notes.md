@@ -2023,7 +2023,7 @@ sell.
 | boar | `boar-tusk` | 70% | Idris Kaya | 2 |
 | bog imp | `imp-horn` | 60% | Idris Kaya | 3 |
 | bear | `bear-claw` | 75% | Idris Kaya | 5 |
-| cave troll | `troll-tusk` | 60% | Idris Kaya | 6 |
+| cave troll, troll, river troll, moss troll | `troll-tusk` | 60% | Idris Kaya | 6 |
 | yeti | `yeti-fur` | 80% | Idris Kaya | 20 |
 | cyclops | `cyclops-eye` | 80% | Idris Kaya | 25 |
 | the three slimes | `*-slime-jelly` | 75% | Noor Halabi | 1 |
@@ -2052,7 +2052,8 @@ what the creature costs to kill, the way the spoil prices do:
 | ----------------------------------------------- | ----------------------- | ------ |
 | snake, the three slimes, snow wolf (8 hp)       | its element's           | 1%     |
 | the three wisps (24 hp)                         | its element's           | 2%     |
-| cave troll (100 hp), bear (160 hp)              | fire, nature            | 5%     |
+| cave troll, river troll, moss troll (100 hp)    | its element's           | 5%     |
+| bear (160 hp)                                   | nature                  | 5%     |
 | yeti (1400 hp, back every 30 to 45 minutes)     | water                   | 10%    |
 
 At 1% an essence takes about a hundred kills of the weakest creatures, and
@@ -8934,7 +8935,8 @@ charm that spent itself the moment you were scratched was a charm that was never
 ready when it mattered, and pressing it is a decision. Nothing shipped is
 automatic now, and `automaticFires` stays for authors who want one.
 
-**Bodies.** The snake is nature and the cave troll is fire. Everything else —
+**Bodies.** The snake is nature, the cave troll is fire, the river troll is
+water and the moss troll is nature. Everything else —
 rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the
 honest default: a rat is not weak to anything, and nothing here makes it so.
 
@@ -12144,6 +12146,24 @@ it, so the answer to the breath is to leave its reach, and the long bar is what
 leaves time to. It is a fire spell because its *requirements* name Fire, which is the only place
 a spell's element is written down — and the troll was given the Arcane and Fire
 to meet them, since an unmet requirement refuses the cast outright.
+
+**The other trolls are the cave troll with one thing changed each.** The
+`river-troll` (water) and the `moss-troll` (nature) have the cave troll's hit
+points, masteries, fists and kit, with its Fire mastery, element and essence
+swapped for their own, and its breath for a bolt of the same damage, bar and
+cooldown: `River spit` chills and `Spore breath` poisons. `verify ratings`
+gives all three the same rating. The `troll` has no element and no bolt, 85 hit
+points and lower Blunt and Toughness, so it rates a little under them.
+
+What differs is the brain. The `troll` sleeps from 7 to 19 (`sleeps`), speaks
+when it hunts, and backs away at a quarter of its health (`flees-when-hurt`).
+The `river-troll` has `swims`, and at 40% of its health casts `Ice over`, twelve
+seconds of `crystallised`. The `moss-troll` holds still where it was placed,
+does not walk towards a noise, hunts only what comes within 2 cells, and at 35%
+casts `Take root`, eight seconds of `blossoming`. Both last resorts are a
+`danger` trigger that holds while the status is absent, so the troll casts once
+and goes back to the fight; the status's default thirty seconds would mend the
+moss troll almost fully, which is why both carry their own duration.
 
 **The snake constricts.** `Constrict` is a hold at arm's length, and it moves no
 health at all: what it leaves is `paralysed`, which takes a body to a tenth of
