@@ -417,6 +417,15 @@ an agent drives", lists every call.
   stride. Only the drawing is generated, and its brain, battler and spells
   stay as authored. `PREVIEW=<dir>` writes the sheet enlarged instead; a full
   cast takes about nine minutes
+- `bun run generate:trolls` — draw `data/tilesets/trolls.png` and point the
+  `cave-troll` tile at it, cast through `scripts/quadruped-caster.ts` from
+  `scripts/troll-model.ts`: one stooped, long-armed troll body in three kinds,
+  the cave troll (fire), the river troll (water) and the moss troll (nature),
+  each in a five-cell frame, standing and in a four-frame stride. Only the
+  cave troll has a tile; the other two are on the sheet below it, four rows
+  each. Only the drawing is generated, and the cave troll's brain, battler
+  and spells stay as authored. `PREVIEW=<dir>` writes the sheet enlarged
+  instead; a full cast takes about ten minutes
 - `bun run generate:forest-beasts` — draw `data/tilesets/forest-beasts.png`
   and write the `boar`, `raccoon` and `wolf` tiles, cast the way the bear is
   from one four-legged model in `scripts/quadruped-caster.ts` with a part list

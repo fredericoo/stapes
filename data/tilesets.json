@@ -404,5 +404,12 @@
     "file": "cyclops.png",
     "width": 240,
     "height": 192
+  },
+  {
+    "id": "trolls",
+    "name": "Trolls",
+    "file": "trolls.png",
+    "width": 160,
+    "height": 512
   }
 ]

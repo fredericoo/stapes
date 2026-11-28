@@ -71120,9 +71120,9 @@
     "kind": "battler",
     "attributes": {},
     "anchor": {
-      "tilesetId": "animals",
+      "tilesetId": "trolls",
       "x": 0,
-      "y": 14
+      "y": 0
     },
     "lightPassing": true,
     "affectedByGravity": true,
@@ -71502,37 +71502,131 @@
     "states": {
       "moving": {
         "sprites": {
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 0,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              }
+            ]
+          },
           "n": {
             "frames": [
               {
                 "sprite": {
                   "rect": {
-                    "x": 2,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "x": 4,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
+                "durationMs": 120
               },
               {
                 "sprite": {
                   "rect": {
-                    "x": 0,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "x": 8,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
               }
             ]
           },
@@ -71541,66 +71635,62 @@
               {
                 "sprite": {
                   "rect": {
-                    "x": 6,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
-                  },
-                  "base": {
-                    "x": 1,
-                    "y": 1
-                  }
-                },
-                "durationMs": 160
-              },
-              {
-                "sprite": {
-                  "rect": {
                     "x": 4,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
-              }
-            ]
-          },
-          "s": {
-            "frames": [
-              {
-                "sprite": {
-                  "rect": {
-                    "x": 10,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
-                  },
-                  "base": {
-                    "x": 1,
-                    "y": 1
-                  }
-                },
-                "durationMs": 160
+                "durationMs": 120
               },
               {
                 "sprite": {
                   "rect": {
                     "x": 8,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 12,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 8,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
               }
             ]
           },
@@ -71609,32 +71699,62 @@
               {
                 "sprite": {
                   "rect": {
-                    "x": 14,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "x": 4,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 8,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
               },
               {
                 "sprite": {
                   "rect": {
                     "x": 12,
-                    "y": 0,
-                    "w": 2,
-                    "h": 2
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
                   },
                   "base": {
-                    "x": 1,
-                    "y": 1
+                    "x": 2,
+                    "y": 2
                   }
                 },
-                "durationMs": 160
+                "durationMs": 120
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 16,
+                    "y": 12,
+                    "w": 4,
+                    "h": 4
+                  },
+                  "base": {
+                    "x": 2,
+                    "y": 2
+                  }
+                },
+                "durationMs": 120
               }
             ]
           }
@@ -71642,22 +71762,41 @@
       }
     },
     "sprites": {
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 4,
+                "h": 4
+              },
+              "base": {
+                "x": 2,
+                "y": 2
+              }
+            },
+            "durationMs": 240
+          }
+        ]
+      },
       "n": {
         "frames": [
           {
             "sprite": {
               "rect": {
-                "x": 2,
-                "y": 0,
-                "w": 2,
-                "h": 2
+                "x": 0,
+                "y": 4,
+                "w": 4,
+                "h": 4
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 2,
+                "y": 2
               }
             },
-            "durationMs": 200
+            "durationMs": 240
           }
         ]
       },
@@ -71666,36 +71805,17 @@
           {
             "sprite": {
               "rect": {
-                "x": 6,
-                "y": 0,
-                "w": 2,
-                "h": 2
+                "x": 0,
+                "y": 8,
+                "w": 4,
+                "h": 4
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 2,
+                "y": 2
               }
             },
-            "durationMs": 200
-          }
-        ]
-      },
-      "s": {
-        "frames": [
-          {
-            "sprite": {
-              "rect": {
-                "x": 10,
-                "y": 0,
-                "w": 2,
-                "h": 2
-              },
-              "base": {
-                "x": 1,
-                "y": 1
-              }
-            },
-            "durationMs": 200
+            "durationMs": 240
           }
         ]
       },
@@ -71704,17 +71824,17 @@
           {
             "sprite": {
               "rect": {
-                "x": 14,
-                "y": 0,
-                "w": 2,
-                "h": 2
+                "x": 0,
+                "y": 12,
+                "w": 4,
+                "h": 4
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 2,
+                "y": 2
               }
             },
-            "durationMs": 200
+            "durationMs": 240
           }
         ]
       }

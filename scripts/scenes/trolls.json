@@ -1,0 +1,17 @@
+{
+  "time": "12:00",
+  "zoom": 6,
+  "look": [5, 3],
+  "cells": [
+    { "from": [-3, -3], "to": [13, 9], "tiles": ["grass-2"] },
+    { "from": [-3, 3], "to": [13, 9], "tiles": ["dirt"] },
+    { "at": [1, 1], "tiles": ["grass-2", { "tile": "cave-troll", "facing": "s" }] },
+    { "at": [4, 1], "tiles": ["grass-2", { "tile": "cave-troll", "facing": "e" }] },
+    { "at": [7, 1], "tiles": ["grass-2", { "tile": "cave-troll", "facing": "n" }] },
+    { "at": [10, 1], "tiles": ["grass-2", { "tile": "cave-troll", "facing": "w" }] },
+    { "at": [1, 5], "tiles": ["dirt", { "tile": "cave-troll", "facing": "s" }] },
+    { "at": [4, 5], "tiles": ["dirt", { "tile": "skeleton", "facing": "s" }] },
+    { "at": [7, 5], "tiles": ["dirt", { "tile": "bear", "facing": "s" }] },
+    { "at": [10, 6], "tiles": ["dirt", { "tile": "cyclops", "facing": "s" }] }
+  ]
+}
