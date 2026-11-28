@@ -1,10 +1,7 @@
-import type { Vec3 } from "./limb-caster";
-import type { Beast, Ellipsoid, LimbPoint, Pose } from "./quadruped-caster";
+import { type Bone, jointedLimbs } from "./jointed-limbs";
+import type { Beast, Ellipsoid, Pose } from "./quadruped-caster";
 
 type CyclopsPart = "skin" | "brow" | "hide" | "hair" | "eye" | "hand" | "foot";
-
-/** A joint as [along from under the hip or shoulder, height above the ground, radius]. */
-type Bone = [number, number, number];
 
 /**
  * Short, thick, bowed legs: the thigh forward to a knee over the toes, the
@@ -54,32 +51,12 @@ const LIMBS: [number, number][] = [
 ];
 const LEGS = 2;
 
-/**
- * A limb's shape blends from planted to folded by its `lift`, then the whole
- * limb swings about its top joint by `swing`. The stride's drop squashes a
- * leg towards the ground, so a planted foot stays down while the body sinks,
- * and carries an arm down with the shoulder.
- */
-function limb(index: number, pose: Pose, drop: number): LimbPoint[] {
-  const [along, across] = LIMBS[index]!;
-  const isLeg = index < LEGS;
-  const planted = isLeg ? LEG_PLANTED : ARM_PLANTED;
-  const folded = isLeg ? LEG_FOLDED : ARM_FOLDED;
-  const t = pose.lift?.[index] ?? 0;
-  const [rootAlong, rootUp] = planted[0]!;
-  const angle = Math.atan2(pose.swing[index]!, rootUp);
-  const squash = (rootUp - drop) / rootUp;
-  return planted.map((bone, i) => {
-    const other = folded[i]!;
-    const dx = bone[0] + (other[0] - bone[0]) * t - rootAlong;
-    const dz = bone[1] + (other[1] - bone[1]) * t - rootUp;
-    const swungX = dx * Math.cos(angle) - dz * Math.sin(angle);
-    const swungZ = dx * Math.sin(angle) + dz * Math.cos(angle);
-    const up = isLeg ? (rootUp + swungZ) * squash : rootUp + swungZ - drop;
-    const at: Vec3 = [along + rootAlong + swungX, across, up];
-    return { at, r: bone[2], paw: i === planted.length - 1 };
-  });
-}
+const limb = jointedLimbs(
+  LIMBS,
+  LEGS,
+  { planted: LEG_PLANTED, folded: LEG_FOLDED },
+  { planted: ARM_PLANTED, folded: ARM_FOLDED },
+);
 
 /**
  * A heavy stride: a foot lands ahead with the body a pixel lower, then passes
