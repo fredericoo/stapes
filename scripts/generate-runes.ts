@@ -1,5 +1,5 @@
 import { PNG } from "pngjs";
-import { RUNE_KINDS, type RuneEssence, type RuneMaterial } from "../app/lib/runes";
+import { LEGENDARY_RUNES, RUNE_KINDS, type RuneEssence, type RuneMaterial } from "../app/lib/runes";
 import type { TileDef } from "../app/lib/types";
 import { paint, writeTileset } from "./tileset-output";
 
@@ -254,6 +254,7 @@ const GLYPHS = {
   zigzag: ["...#.", "..#..", ".###.", "...#.", "..#..", ".#..."],
   spear: ["..#..", ".###.", "..#..", "..#..", "..#..", "..#.."],
   impact: ["..#..", "..#..", "..#..", "#####", "#...#", "#...#"],
+  cube: ["..###", ".#..#", "###.#", "#..##", "#..#.", "###.."],
 } satisfies Record<string, Glyph>;
 
 interface Rune {
@@ -297,6 +298,15 @@ const RUNES: Rune[][] = [
     { id: "lance", glyph: "spear" },
     { id: "stomp", glyph: "impact" },
   ],
+];
+
+/**
+ * A legendary rune is no blank's: it is ice set in a gold rim, so it reads as
+ * none of the three materials. Each sits in a free cell of its essence's row.
+ */
+const RELIC: Base = { mask: BASES.crystal.mask, fill: 30, lit: 19, dark: 17 };
+const LEGENDS: { id: string; glyph: keyof typeof GLYPHS; cx: number; cy: number }[] = [
+  { id: "glacier", glyph: "cube", cx: 5, cy: 1 },
 ];
 
 const BLANKS: { id: string; name: string; material: Material }[] = [
@@ -376,8 +386,9 @@ function drawRune(
   material: Material,
   essence: Essence,
   mark?: { glyph: Glyph; colour: number },
+  relic?: Base,
 ) {
-  const base = {
+  const base = relic ?? {
     ...BASES[material],
     ...(material === "crystal" && essence !== "neutral" ? CRYSTAL_TINTS[essence] : {}),
     ...(material === "bone" ? BONE_SHAPES[bones++ % BONE_SHAPES.length] : {}),
@@ -459,6 +470,20 @@ RUNES.forEach((row, cy) =>
     tiles.push({ id: `rune-${rune.id}`, ...cellSprite(cx, cy) } as TileDef);
   }),
 );
+
+for (const legend of LEGENDS) {
+  const id = `rune-${legend.id}`;
+  if (!LEGENDARY_RUNES[id]) throw new Error(`${id} is not in LEGENDARY_RUNES`);
+  drawRune(
+    legend.cx,
+    legend.cy,
+    "crystal",
+    "neutral",
+    { glyph: GLYPHS[legend.glyph], colour: 31 },
+    RELIC,
+  );
+  tiles.push({ id, ...cellSprite(legend.cx, legend.cy) } as TileDef);
+}
 
 const blankRow = RUNES.length;
 BLANKS.forEach((blank, cx) => {

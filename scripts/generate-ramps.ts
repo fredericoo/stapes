@@ -64,6 +64,14 @@ const SNOW_LIT: Record<Direction, { top: Rgba; speck: Rgba }> = {
 };
 const snowyRamp = (facing: Direction): RampPalette => ({ ...FROST, ...SNOW_LIT[facing] });
 const FROSTED_BLOCK: RampPalette = { ...FROST, top: SNOW, speck: SNOW };
+/** Pale on top and deepening down the sides, so a block of ice reads apart from the snow it stands on. */
+const ICE_BLOCK: RampPalette = {
+  outline: paletteRgba(31),
+  top: paletteRgba(29),
+  speck: paletteRgba(28),
+  south: { base: paletteRgba(30), speck: paletteRgba(29) },
+  east: { base: paletteRgba(24), speck: paletteRgba(31) },
+};
 const STAIRS = {
   tread: hex("#9babb2"),
   edge: hex("#45293f"),
@@ -266,6 +274,7 @@ await assertClimbsUphill(TILE_IDS);
 
 const BLOCK_ID = "frosted-half-stone";
 const TIMBER_ID = "timber-block";
+const ICE_ID = "ice-cube";
 const BLOCK_ROW = TILE_IDS.length;
 const blockSurface: Surface = () => RISE;
 
@@ -297,6 +306,7 @@ DIRECTIONS.forEach((facing, column) => {
 });
 drawSprite(sheet, 0, BLOCK_ROW * SPRITE_PX, blockSurface, rampColour(FROSTED_BLOCK), null);
 drawSprite(sheet, SPRITE_PX, BLOCK_ROW * SPRITE_PX, blockSurface, timberColour, null);
+drawSprite(sheet, 2 * SPRITE_PX, BLOCK_ROW * SPRITE_PX, blockSurface, rampColour(ICE_BLOCK), null);
 
 const block = {
   id: BLOCK_ID,
@@ -312,8 +322,16 @@ const timber = {
   sprite: frames(0, 0),
 } as unknown as TileDef;
 
+const ice = {
+  id: ICE_ID,
+  type: "simple",
+  anchor: { tilesetId: TILESET_ID, x: 2 * SPRITE_CELLS, y: BLOCK_ROW * SPRITE_CELLS },
+  sprite: frames(0, 0),
+} as unknown as TileDef;
+
 await writeTileset(TILESET_ID, "Ramps", sheet, [
   ...TILE_IDS.map((id, row) => tileDef(id, row)),
   block,
   timber,
+  ice,
 ]);

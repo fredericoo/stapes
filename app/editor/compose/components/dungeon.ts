@@ -35,6 +35,10 @@ const LevelSchema = v.object({
   /** Where the way up to the level above goes; the nearest place it fits is used. */
   up: v.optional(field.point(), { x: 0, y: 0, pinX: "center", pinY: "center" }),
   upBy: v.optional(v.picklist(WAYS), "stairs"),
+  /** On the first level, in a hill: climb out onto the hilltop by `upBy` instead of through a mouth in its cliff. */
+  ontoTop: v.optional(v.boolean(), false),
+  /** In a hill: more ways out of this level, each a mouth on the stretch of cliff nearest the point. */
+  mouths: v.optional(field.points(), []),
 });
 
 type LevelProps = v.InferOutput<typeof LevelSchema>;
@@ -59,7 +63,9 @@ export function dungeonLevels(dungeon: MapNode): Map<string, number> {
  * cave on its own level, with stairs or a ladder up to the level above it.
  * The first climbs to whatever is over the dungeon's level, the surface for
  * a dungeon below ground, and on level 0 or above, inside a hill, its way up
- * is a mouth in the nearest cliff instead.
+ * is a mouth in the nearest cliff instead, unless it is set to climb out onto
+ * the hilltop. A level inside a hill may have mouths of its own as well, so a
+ * dungeon dug up through a mountain has ways out on its sides.
  *
  * A Chasm part is cut before any level is dug, so every cave keeps its rock
  * shell off the chasm and no flight of stairs is placed where the chasm
@@ -103,11 +109,18 @@ export const dungeon: Component<DungeonProps> = {
     }
     const floors: Array<Set<string>> = [];
     for (const [i, part] of levels.entries()) {
-      const { up, upBy, ...own } = part.props as LevelProps;
+      const { up, upBy, ontoTop, mouths, ...own } = part.props as LevelProps;
       const z = ctx.z - i;
-      const way = i === 0 && z >= 0 ? "mouths" : upBy === "ladder" ? "ladders" : "stairs";
+      const inHill = z >= 0;
+      const throughMouth = i === 0 && inHill && !ontoTop;
+      const way = throughMouth ? "mouths" : upBy === "ladder" ? "ladders" : "stairs";
       const steps = upBy === "ramp" ? RAMP_TILE : own.steps;
-      const props = v.parse(CaveSchema, { ...own, steps, [way]: [up] });
+      const props = v.parse(CaveSchema, {
+        ...own,
+        steps,
+        mouths: inHill ? mouths : [],
+        [way]: throughMouth ? [up, ...mouths] : [up],
+      });
       const current = map;
       const plan = cave.build(
         {

@@ -3,29 +3,13 @@ import { parseMap } from "../../app/lib/mapData";
 import { traitsById, withTraits } from "../../app/lib/traits";
 import { normalizeTiles } from "../../app/lib/types";
 import { tilesByIdFromList } from "../../app/lib/validation";
-import {
-  applyExceptions,
-  describeArea,
-  parseExceptions,
-  type VerifyException,
-} from "../../app/verify/exceptions";
+import { applyExceptions, describeArea } from "../../app/verify/exceptions";
 import { checkLandscape, type LandscapeProblem } from "../../app/verify/landscape";
 import { type Command, type Outcome, UsageError, percent } from "./cli";
+import { EXCEPTIONS_FILE, readExceptions } from "./exceptionsFile";
 
-const EXCEPTIONS_FILE = "verify-exceptions.json";
 /** Failures printed one by one before the rest are only counted, so a map that breaks a rule everywhere still prints a readable report. */
 const LISTED_PER_KIND = 20;
-
-async function readExceptions(dir: string): Promise<VerifyException[]> {
-  const file = Bun.file(join(dir, EXCEPTIONS_FILE));
-  if (!(await file.exists())) return [];
-  try {
-    return parseExceptions(JSON.parse(await file.text()));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new UsageError(`${join(dir, EXCEPTIONS_FILE)} does not load: ${message}`);
-  }
-}
 
 function failureLines(failing: readonly LandscapeProblem[]): string[] {
   const byKind = new Map<string, LandscapeProblem[]>();

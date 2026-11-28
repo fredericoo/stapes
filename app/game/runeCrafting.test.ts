@@ -4,7 +4,7 @@ import { ELEMENTS } from "../lib/element";
 import { resolveCraft, type CraftRecipe } from "../lib/interactions";
 import { resolveStone } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { BLANK_OF, ESSENCE_OF, RUNE_KINDS, type RuneKind } from "../lib/runes";
+import { BLANK_OF, ESSENCE_OF, LEGENDARY_RUNES, RUNE_KINDS, type RuneKind } from "../lib/runes";
 import type { MapFile } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
@@ -105,11 +105,13 @@ describe("the runemaster's carving pools", () => {
     }
     const runes = tiles.filter((t) => resolveStone(t) && t.id.startsWith("rune-"));
     expect(Object.fromEntries(carvedFrom)).toEqual(RUNE_KINDS);
-    expect(runes.map((t) => t.id).sort()).toEqual(Object.keys(RUNE_KINDS).sort());
+    expect(runes.map((t) => t.id).sort()).toEqual(
+      [...Object.keys(RUNE_KINDS), ...Object.keys(LEGENDARY_RUNES)].sort(),
+    );
   });
 
   it("put a rune under an element only when casting it needs that element", () => {
-    for (const [tileId, { essence }] of Object.entries(RUNE_KINDS)) {
+    for (const [tileId, { essence }] of Object.entries({ ...RUNE_KINDS, ...LEGENDARY_RUNES })) {
       const needs = ELEMENTS.filter(
         (e) => (resolveStone(tilesById[tileId]!)?.requirements?.[e] ?? 0) > 0,
       );
@@ -168,7 +170,7 @@ describe("what a creature drops", () => {
   it("is never a rune", () => {
     for (const { id, battler } of creatures) {
       expect(
-        kitIds(battler).filter((tileId) => tileId in RUNE_KINDS),
+        kitIds(battler).filter((tileId) => tileId in RUNE_KINDS || tileId in LEGENDARY_RUNES),
         id,
       ).toEqual([]);
     }

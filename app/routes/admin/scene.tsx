@@ -56,6 +56,7 @@ export default function ScenePage() {
           weather: built.weather,
           weatherAreas: built.weatherAreas,
           viewerCell: built.look,
+          viewerZ: built.look.z,
           wading: wadingFor(
             built.map,
             built.bodies.map((body) => ({

@@ -50,3 +50,11 @@ export const ESSENCE_OF: Readonly<Record<Element, string>> = {
   water: "essence-water",
   nature: "essence-nature",
 };
+
+/**
+ * Runes nobody carves: each is found once, in one place in the world, so it
+ * has no blank and is in no carving pool. The essence is what casting it needs.
+ */
+export const LEGENDARY_RUNES: Readonly<Record<string, { essence: RuneEssence }>> = {
+  "rune-glacier": { essence: "water" },
+};

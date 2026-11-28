@@ -211,10 +211,14 @@ export function cutChasm(lay: Lay, plan: ChasmPlan): StackEdit[] {
 const isLedge = (plan: ChasmPlan, i: number, x: number, y: number) =>
   isOpen(plan, i, x, y) && (i === plan.holes.length - 2 || !isOpen(plan, i + 1, x, y));
 
-/** Rock a tunnel may be cut through: an empty cell, or nothing but one solid wall standing on ground. */
+/**
+ * Rock a tunnel may be cut through: an empty cell, or nothing but one solid
+ * wall standing on flat ground. Inside a hill a cave's wall stands on the
+ * hill's ground and the cave's floor, two tiles under it.
+ */
 function cuttable(stack: readonly PlacedTile[], tilesById: Record<string, TileDef>): boolean {
   if (stack.length === 0) return true;
-  if (stack.length > 2) return false;
+  if (stack.slice(0, -1).some((p) => tilesById[p.tileId]?.height !== 0)) return false;
   const top = tilesById[stack.at(-1)!.tileId];
   return top?.walkable === false && top.height === HEIGHT_PER_LEVEL && !stack.at(-1)!.direction;
 }
