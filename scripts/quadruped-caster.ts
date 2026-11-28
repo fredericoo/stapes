@@ -64,8 +64,12 @@ export type Tube<P extends string> = {
   group: (segment: number) => string;
 };
 
-/** `free` draws it after the outline and over empty pixels too, for something thinner than the model that sticks out of it. */
-export type Mark = { at: Vec3; index: number; side: Vec3; free?: boolean };
+/**
+ * `free` draws it over empty pixels too, for something thinner than the model
+ * that sticks out of it: after the outline, or with `edged` before it, so the
+ * outline runs round the mark as well.
+ */
+export type Mark = { at: Vec3; index: number; side: Vec3; free?: boolean; edged?: boolean };
 
 type Hit<P extends string> = { part: P; normal: Vec3; group: string };
 
@@ -157,6 +161,66 @@ export function posesFor(stride: number): Pose[] {
     { swing: [0.5, -0.3, -0.5, 0.3], dropPx: 0, lifts: false },
     { swing: [stride, -stride, -stride, stride], dropPx: 1, lifts: true },
     { swing: [-stride, stride, stride, -stride], dropPx: 1, lifts: true },
+  ];
+}
+
+/** A joint as [along from under the hip or shoulder, height above the ground, radius]. */
+export type Bone = [number, number, number];
+
+type Gait = { planted: Bone[]; folded: Bone[] };
+
+/**
+ * A `limb` from two shapes of each leg. The shape blends from planted to
+ * folded by the leg's `lift`, then the whole leg swings about its top joint so
+ * the paw lands `swing` ahead. The walk's drop squashes it towards the ground,
+ * so a planted paw stays down while the body sinks.
+ */
+export function jointedLimb(legs: [number, number][], gaits: { front: Gait; hind: Gait }) {
+  return (leg: number, pose: Pose, drop: number): LimbPoint[] => {
+    const [along, across] = legs[leg]!;
+    const { planted, folded } = leg < 2 ? gaits.front : gaits.hind;
+    const t = pose.lift?.[leg] ?? 0;
+    const [rootAlong, rootUp] = planted[0]!;
+    const angle = Math.atan2(pose.swing[leg]!, rootUp);
+    const squash = (rootUp - drop) / rootUp;
+    return planted.map((bone, i) => {
+      const other = folded[i]!;
+      const dx = bone[0] + (other[0] - bone[0]) * t - rootAlong;
+      const dz = bone[1] + (other[1] - bone[1]) * t - rootUp;
+      const swungX = dx * Math.cos(angle) - dz * Math.sin(angle);
+      const swungZ = dx * Math.sin(angle) + dz * Math.cos(angle);
+      const at: Vec3 = [along + rootAlong + swungX, across, (rootUp + swungZ) * squash];
+      return { at, r: bone[2], paw: i === planted.length - 1 };
+    });
+  };
+}
+
+const LANDING_LIFT = 0.3;
+const PASSING = 0.4;
+
+/**
+ * A trot for a beast with jointed legs: each diagonal pair lands `stride`
+ * ahead together, then passes under the body planted while the other pair
+ * swings through folded. The body is a pixel lower on the landings. The first
+ * frame stands on `standing`, and the walk plays the other four in order.
+ */
+export function trotPoses(stride: number, standing: Four): Pose[] {
+  return [
+    { swing: standing, dropPx: 0, lifts: false },
+    {
+      swing: [stride, -stride, -stride, stride],
+      lift: [0, LANDING_LIFT, LANDING_LIFT, 0],
+      dropPx: 1,
+      lifts: true,
+    },
+    { swing: [-PASSING, PASSING, PASSING, -PASSING], lift: [0, 1, 1, 0], dropPx: 0, lifts: true },
+    {
+      swing: [-stride, stride, stride, -stride],
+      lift: [LANDING_LIFT, 0, 0, LANDING_LIFT],
+      dropPx: 1,
+      lifts: true,
+    },
+    { swing: [PASSING, -PASSING, -PASSING, PASSING], lift: [1, 0, 0, 1], dropPx: 0, lifts: true },
   ];
 }
 
@@ -302,8 +366,8 @@ function markPixels<P extends string>(beast: Beast<P>, facing: Facing, pose: Pos
   const [ax, ay] = AHEAD[facing];
   const centre = CELL_SIZE / 2;
   const ground = frameOf(beast).base * CELL_SIZE;
-  const seen: { u: number; v: number; index: number; free: boolean }[] = [];
-  for (const { at, index, side, free } of marksOf(beast, pose)) {
+  const seen: { u: number; v: number; index: number; free: boolean; edged: boolean }[] = [];
+  for (const { at, index, side, free, edged } of marksOf(beast, pose)) {
     const [along, across, raised] = at;
     const outX = side[0] * ax - side[1] * ay;
     const outY = side[0] * ay + side[1] * ax;
@@ -317,6 +381,7 @@ function markPixels<P extends string>(beast: Beast<P>, facing: Facing, pose: Pos
       v: Math.floor(y + ground - up),
       index,
       free: free ?? false,
+      edged: edged ?? false,
     });
   }
   return seen;
@@ -398,8 +463,8 @@ export function cast<P extends string>(beast: Beast<P>, facing: Facing, pose: Po
   }
   const size = frameOf(beast).px;
   const marks = markPixels(beast, facing, pose);
-  for (const { u, v, index, free } of marks) {
-    if (!free && pixels[v * size + u]! >= 0) pixels[v * size + u] = index;
+  for (const { u, v, index, free, edged: before } of marks) {
+    if (free ? before : pixels[v * size + u]! >= 0) pixels[v * size + u] = index;
   }
   const onEdge = (n: number) =>
     n < size || n >= size * (size - 1) || n % size === 0 || n % size === size - 1;
@@ -407,8 +472,8 @@ export function cast<P extends string>(beast: Beast<P>, facing: Facing, pose: Po
     throw new Error(`the ${beast.id} facing ${facing} runs off its frame`);
   }
   const edged = outlined(pixels, size);
-  for (const { u, v, index, free } of marks) {
-    if (free) edged[v * size + u] = index;
+  for (const { u, v, index, free, edged: before } of marks) {
+    if (free && !before) edged[v * size + u] = index;
   }
   return edged;
 }

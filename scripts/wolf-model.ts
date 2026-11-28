@@ -1,5 +1,4 @@
-import type { Vec3 } from "./limb-caster";
-import type { Beast, LimbPoint, Pose } from "./quadruped-caster";
+import { type Beast, type Bone, jointedLimb, trotPoses } from "./quadruped-caster";
 
 type WolfPart = "coat" | "saddle" | "pale" | "tail" | "tailSaddle" | "tip" | "nose" | "leg" | "paw";
 
@@ -26,9 +25,6 @@ const paleBelow =
   (up: number) =>
   (_along: number, _across: number, at: number): WolfPart | null =>
     at < up ? "pale" : null;
-
-/** A joint as [along from under the hip or shoulder, height above the ground, radius]. */
-type Bone = [number, number, number];
 
 /**
  * A hind leg zig-zags: the thigh runs forward and down from the hip to the
@@ -79,57 +75,8 @@ const LEGS: [number, number][] = [
   [-3.1, -1.0],
 ];
 
-/**
- * The leg's shape blends from planted to folded by its `lift`, then the whole
- * leg swings about its top joint so the paw lands `swing` ahead. The walk's
- * drop squashes it towards the ground, so a planted paw stays down while the
- * body sinks.
- */
-function limb(leg: number, pose: Pose, drop: number): LimbPoint[] {
-  const [along, across] = LEGS[leg]!;
-  const front = leg < 2;
-  const planted = front ? FRONT_PLANTED : HIND_PLANTED;
-  const folded = front ? FRONT_FOLDED : HIND_FOLDED;
-  const t = pose.lift?.[leg] ?? 0;
-  const [rootAlong, rootUp] = planted[0]!;
-  const angle = Math.atan2(pose.swing[leg]!, rootUp);
-  const squash = (rootUp - drop) / rootUp;
-  return planted.map((bone, i) => {
-    const other = folded[i]!;
-    const dx = bone[0] + (other[0] - bone[0]) * t - rootAlong;
-    const dz = bone[1] + (other[1] - bone[1]) * t - rootUp;
-    const swungX = dx * Math.cos(angle) - dz * Math.sin(angle);
-    const swungZ = dx * Math.sin(angle) + dz * Math.cos(angle);
-    const at: Vec3 = [along + rootAlong + swungX, across, (rootUp + swungZ) * squash];
-    return { at, r: bone[2], paw: i === planted.length - 1 };
-  });
-}
-
-/**
- * A trot: each diagonal pair lands ahead together, then passes under the body
- * planted while the other pair swings through folded. The body is a pixel
- * lower on the landings. The first frame stands, a little staggered.
- */
+/** A trot, with the body a pixel lower on the landings. */
 const STRIDE = 1.5;
-const LANDING_LIFT = 0.3;
-const PASSING = 0.4;
-const POSES: Pose[] = [
-  { swing: [0.4, -0.2, -0.3, 0.2], dropPx: 0, lifts: false },
-  {
-    swing: [STRIDE, -STRIDE, -STRIDE, STRIDE],
-    lift: [0, LANDING_LIFT, LANDING_LIFT, 0],
-    dropPx: 1,
-    lifts: true,
-  },
-  { swing: [-PASSING, PASSING, PASSING, -PASSING], lift: [0, 1, 1, 0], dropPx: 0, lifts: true },
-  {
-    swing: [-STRIDE, STRIDE, STRIDE, -STRIDE],
-    lift: [LANDING_LIFT, 0, 0, LANDING_LIFT],
-    dropPx: 1,
-    lifts: true,
-  },
-  { swing: [PASSING, -PASSING, -PASSING, PASSING], lift: [1, 0, 0, 1], dropPx: 0, lifts: true },
-];
 
 const TAIL = "tail";
 
@@ -220,8 +167,11 @@ export function wolfBeast(id: string, name: string, colours: WolfColours): Beast
       { at: [5.6, -0.7, 8.6], index: colours.eye, side: [0.5, -1, 0.4] },
     ],
     stepMs: 70,
-    limb,
-    poses: POSES,
+    limb: jointedLimb(LEGS, {
+      front: { planted: FRONT_PLANTED, folded: FRONT_FOLDED },
+      hind: { planted: HIND_PLANTED, folded: HIND_FOLDED },
+    }),
+    poses: trotPoses(STRIDE, [0.4, -0.2, -0.3, 0.2]),
     walk: [1, 2, 3, 4],
     stretch: { s: TOWARDS_VIEWER_STRETCH, e: TOWARDS_VIEWER_STRETCH },
     lines: LINE_GAP_PX,
