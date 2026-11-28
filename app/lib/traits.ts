@@ -440,6 +440,11 @@ function mapStateDef(raw: unknown, visit: Visitor, at: string): unknown {
     if (band === DROP) delete out.band;
     else out.band = band;
   }
+  if (Object.hasOwn(raw, "walkDurationMs")) {
+    const ms = mapScalar(raw.walkDurationMs, "ms", visit, within(at, "step ms"));
+    if (ms === DROP) delete out.walkDurationMs;
+    else out.walkDurationMs = ms;
+  }
   if (Object.hasOwn(raw, "onEnter")) {
     const effects = mapList(raw.onEnter, mapEffect, visit, within(at, "on enter"));
     if (Array.isArray(effects) && effects.length === 0) delete out.onEnter;

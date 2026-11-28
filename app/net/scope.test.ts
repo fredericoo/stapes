@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { WALK_DURATION_MS } from "../game/constants";
 import { chunkKeyFor } from "../lib/mapData";
 import { CHUNK_SIZE } from "../lib/types";
 import type { MotionEvent } from "./protocol";
@@ -101,6 +102,7 @@ describe("who an event is for", () => {
       from: { x: 1, y: 0, z: 0 },
       to: { x: 2, y: 0, z: 0 },
       direction: "e",
+      durationMs: WALK_DURATION_MS,
     };
 
     expect(audienceOf(walk)).toEqual({ kind: "actor", actorId: "rat" });

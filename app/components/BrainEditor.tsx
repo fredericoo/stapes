@@ -574,6 +574,11 @@ function StateCard({
     onChange(band && band !== "idle" ? { ...rest, band: band as Band } : rest);
   };
 
+  const setWalkDurationMs = (walkDurationMs: number | undefined) => {
+    const { walkDurationMs: _drop, ...rest } = state;
+    onChange(walkDurationMs === undefined ? rest : { ...rest, walkDurationMs });
+  };
+
   return (
     <div className="flex flex-col gap-2 border-2 border-border bg-paper p-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -603,6 +608,21 @@ function StateCard({
             holds at {held}: a trait it is handed to raises it
           </span>
         ) : null}
+        <label
+          className="flex items-center gap-1 text-[10px] uppercase text-muted"
+          title="Milliseconds per cell walked while in this state — larger is slower. Blank walks at the body's own step."
+        >
+          step ms
+          <OptionalNumberInput
+            min={1}
+            step={10}
+            value={state.walkDurationMs}
+            placeholder="body"
+            onChange={setWalkDurationMs}
+            className="w-20"
+            aria-label="Step time in this state, in milliseconds"
+          />
+        </label>
         {onRemove ? (
           <Button size="sm" variant="danger" className="ml-auto" onClick={onRemove}>
             Remove

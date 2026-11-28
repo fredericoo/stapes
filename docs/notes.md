@@ -4293,19 +4293,12 @@ the pack gets *worse*, because releasing earlier only means re-acquiring sooner
 that shuffles on the spot, halved instead. See `brain.test.ts`, "gathers without
 piling up".
 
-**It also broke how fast the browser drew the legs.** The server does not send
-a step's duration. The client computes it from the tile at the step's `from`
-cell (`RemoteSession.walkDurationAt`). A leg that starts on the same tick the
-previous one landed arrives in the same patch as the cells that put the body on
-`from`. The client applies events after cells but before `rebuildPredicted`,
-and `walkDurationAt` used to read `map`, which at that moment is still the
-previous frame's board, and to take the top tile of the stack as the body. On
-that board `from` held only grass, so every chase leg was timed at the default
-200ms: a troll, snake or cat crossed each cell in 200ms instead of 300–400ms and
-then stood at the far side until the server committed the step. A wander never
-showed it, because its next step waits for the next brain round and so arrives
-in a later patch. The fix reads `serverMap` and finds the body in the stack by
-its owner, which is the same question the server's `walkDurationOf` asks.
+**It also broke how fast the browser drew the legs,** back when the client
+worked out another body's step duration from the tile at `from`: a leg that
+started on the tick the previous one landed was timed against a board that did
+not hold the body yet. `walkStarted` now carries the server's `durationMs`, so
+there is nothing left to derive. See "A pace is a percentage, and the server
+sends every step's length".
 
 ## A blow used to wait for a decision as well
 
@@ -12364,38 +12357,39 @@ A status override with only one of `fromMs`/`toMs` currently reports two
 lines, "give both ends" and "duration range is inverted", because both
 `v.check`s in `statusGrantSchema` run. The first is the real one.
 
-## A pace is a percentage, and it never travels
+## A pace is a percentage, and the server sends every step's length
 
 `walkDurationMs` on a tile is how fast a body walks when nothing is touching it.
 A status can now move that, as a **percentage of speed**: `-50` is half the pace
 and therefore twice the milliseconds, and sources sum before anything divides, so
 two chills at `-30` come to `-60` rather than to `-51`.
 
-**The constraint that shaped it is that a pace is derived on both sides of the
-wire and never sent.** `walkStarted` carries no duration — the browser knows
-which tile is walking and works it out for itself, which is cheaper than a field
-on every step and cannot disagree. Anything allowed to move a pace therefore has
-to be something the browser can read too, and that is the whole reason the
-percentage is a plain number rather than a formula like every other status
-modifier:
+**`walkStarted` carries the step's `durationMs`, and the browser draws another
+body's step for exactly that long.** It used to carry none: the browser worked
+the duration out from the walker's tile, its broadcast statuses and the ground.
+A brain state can now set its own `walkDurationMs` (see "A brain state sets its
+own pace" below), and the browser is never told which state a creature is in,
+so a derived duration would draw a hunting wolf at its prowling pace. One number
+per step is the price.
+
+**The viewer's own step is still derived, and that keeps the old constraint.**
+The browser predicts its own walk before the server has heard of it, so it has
+to compute the duration from what it holds: its tile, its own statuses and the
+ground. That is the reason the percentage is a plain number rather than a
+formula like every other status modifier:
 
 - A modifier is evaluated against a scope that includes how long the status has
-  left to run. The browser is broadcast other bodies' status **ids** and nothing
-  else — `applyStatusIds` builds every instance at `UNKNOWN_REMAINING_MS` — so a
-  pace that varied with the remainder would have the two sides drawing the same
-  step at two different speeds.
+  left to run. A pace that varied with the remainder would have the prediction
+  and the server timing the same step differently.
 - Modifiers are deltas to `FightingStats`, applied where those are read. The
-  browser cannot build `FightingStats` for **anybody else**: it does not know
-  what they are wearing or what they have practised. Walking pace it has to
-  know, for every body it draws taking a step. (It does build one block, for its
-  own body, because equipment and masteries arrive on the viewer's own channels
-  — see "The stats panel derives its own body's block" below. That is one body
-  and not the board.)
+  browser builds that block for its own body only (see "The stats panel derives
+  its own body's block" below); a pace has to be readable without it.
 
 So `walkSpeedPercent` sits beside `modifiers` rather than in it, and
 `walkSpeedPercentFrom` is reachable without going through `withStatusModifiers`.
 `RemoteSession` takes the status catalogue in its constructor for this one
-purpose, alongside the tiles — both are authored data a pace is derived from.
+purpose, alongside the tiles — both are authored data its own pace is derived
+from.
 `spd`, which is still a modifier, is how fast you **swing**.
 
 **The band is `-90` to `400`, and the floor is the load-bearing end.** The
@@ -12422,6 +12416,34 @@ reads `resolveWalkDurationMs` and not the moved figure: how long a swing costs i
 a fact about the swing, both ends already derive it from the tile alone, and
 tying it to whatever the swinger happened to be standing in would make the
 recovery depend on state the client may not hold at the moment of the blow.
+
+### A brain state sets its own pace
+
+A creature walks at its tile's `walkDurationMs` unless the brain state it holds
+names one: `walkDurationMs` on a `BrainStateDef` **replaces** the body's step
+while it is in that state, and statuses and the ground still scale the result.
+`GameSession.walkDurationOf` reads it when a step starts, so a state change
+mid-step takes effect on the next cell.
+
+**The tile's figure is the creature's top speed, and the states slow it down.**
+The shipped creatures keep their authored `walkDurationMs` as the chase pace and
+give their wandering, grazing, homing and feeding states a larger figure; a few
+bursts (a bear's or boar's charge, a cat's pounce) go below it. That direction
+is forced by three readers of the tile's figure that know nothing of brains:
+`strikeRecoveryMs` plants a swinger for `STRIKE_RECOVERY_STEPS` of it,
+`bots/homeRange.ts` decides a creature can be outrun by comparing it with the
+player's, and the `scripts/generate-*.ts` casters write it into `tiles.json`.
+Slowing the tile instead would change all three.
+
+**A trait's own states take a `pace` argument.** Traits that bring a state the
+body walks in (`returns-home`, `investigates-noises`, `eats-when-hungry`,
+`forages`, `scavenges`, `skittish`, `flees-the-stronger`, `flees-when-hurt`,
+`evades-the-unreachable`, `shelters-from-rain`, `follows-its-kind`, `unsticks`)
+write `walkDurationMs: {"arg": "pace"}` on it, and `predator` passes its own
+`pace` through to `returns-home`. Left out, the state walks at the body's pace.
+The flee traits are left unset on the shipped creatures on purpose: a rat that
+bolted faster than its chase pace outran Tove in `campDrill.test.ts`, and the
+base is already the creature's top speed.
 
 ### The stats panel derives its own body's block
 

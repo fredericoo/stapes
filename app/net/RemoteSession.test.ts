@@ -158,6 +158,7 @@ const walkStarted: MotionEvent = {
   from: { x: 0, y: 0, z: 0 },
   to: { x: 1, y: 0, z: 0 },
   direction: "e",
+  durationMs: WALK_DURATION_MS,
 };
 
 const stepCommitted: CellPatch[] = [
@@ -267,6 +268,7 @@ describe("RemoteSession walk interpolation", () => {
           from: { x: 1, y: 0, z: 0 },
           to: { x: 2, y: 0, z: 0 },
           direction: "e",
+          durationMs: WALK_DURATION_MS,
         },
       ]),
     );
@@ -1836,6 +1838,7 @@ describe("RemoteSession bodies taken off the board", () => {
             from: { x: 2, y: 0, z: 0 },
             to: { x: 1, y: 0, z: 0 },
             direction: "w",
+            durationMs: WALK_DURATION_MS,
           },
         ],
       ),
@@ -1862,6 +1865,7 @@ describe("RemoteSession bodies taken off the board", () => {
             from: { x: 2, y: 0, z: 0 },
             to: { x: 1, y: 0, z: 0 },
             direction: "w",
+            durationMs: WALK_DURATION_MS,
           },
         ],
       ),
@@ -1886,6 +1890,7 @@ describe("RemoteSession bodies taken off the board", () => {
             from: { x: 2, y: 0, z: 0 },
             to: { x: 1, y: 0, z: 0 },
             direction: "w",
+            durationMs: WALK_DURATION_MS,
           },
         ],
       ),
@@ -1913,6 +1918,7 @@ describe("RemoteSession bodies taken off the board", () => {
             from: { x: 1, y: 0, z: 0 },
             to: { x: 0, y: 0, z: 0 },
             direction: "w",
+            durationMs: WALK_DURATION_MS,
           },
         ],
       ),
@@ -1937,6 +1943,8 @@ describe("RemoteSession bodies taken off the board", () => {
 
 describe("RemoteSession another body's pace", () => {
   const TORTOISE = "tortoise";
+  /** Twice the tortoise's own pace, so a client that derived the leg itself would land halfway. */
+  const SERVER_LEG_MS = WALK_DURATION_MS * 4;
   const tortoiseBody: PlacedTile = {
     tileId: "tortoise",
     direction: "w",
@@ -1965,7 +1973,7 @@ describe("RemoteSession another body's pace", () => {
     return { socket, session };
   }
 
-  it("walks a leg that starts in the patch landing the last one at the body's own pace", () => {
+  it("walks another body's leg for as long as the server says it takes", () => {
     const { socket, session } = connectedWithTortoise();
 
     socket.deliver(
@@ -1981,6 +1989,7 @@ describe("RemoteSession another body's pace", () => {
             from: { x: 2, y: 0, z: 0 },
             to: { x: 1, y: 0, z: 0 },
             direction: "w",
+            durationMs: SERVER_LEG_MS,
           },
         ],
       ),
@@ -1988,7 +1997,7 @@ describe("RemoteSession another body's pace", () => {
     session.update(WALK_DURATION_MS);
 
     const tortoise = session.getSnapshot().actors.find((a) => a.id === TORTOISE);
-    expect(tortoise?.walkProgress).toBe(0.5);
+    expect(tortoise?.walkProgress).toBe(0.25);
   });
 });
 
