@@ -5,7 +5,7 @@ description: >
   updating pull request descriptions.
 ---
 
-# The Last Stones PR Descriptions
+# Rune Isle PR Descriptions
 
 Write functional PR descriptions that help reviewers quickly understand the change, intent, and impact.
 

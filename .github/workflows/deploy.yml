@@ -186,7 +186,7 @@ jobs:
     env:
       BUTLER_VERSION: 15.31.0
       BUTLER_SHA256: 4f2a3f22b12f870923504d4b6935535cad377b45859f5fe9419e3adc0611a48c
-      ITCH_TARGET: fredericoo/the-last-stones:html5
+      ITCH_TARGET: fredericoo/rune-isle:html5
     steps:
       - uses: actions/checkout@v5
 

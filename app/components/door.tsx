@@ -18,11 +18,10 @@ export function DoorLogo() {
   return (
     <img
       src="/logo.png"
-      alt="The Last Stones"
+      alt="Rune Isle"
       width={263}
-      height={104}
+      height={75}
       className="w-[263px] max-w-full min-[574px]:w-[526px]"
-      style={{ imageRendering: "pixelated" }}
     />
   );
 }

@@ -14,7 +14,7 @@ import { ToastProvider } from "./ui/Toast";
 import { TooltipProvider } from "./ui/Tooltip";
 
 export function meta(): Route.MetaDescriptors {
-  return [{ title: "The Last Stones" }];
+  return [{ title: "Rune Isle" }];
 }
 
 export const links: Route.LinksFunction = () => [

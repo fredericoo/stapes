@@ -1,4 +1,4 @@
-# the-last-stones
+# rune-isle
 
 ## 0.25.0
 
@@ -381,7 +381,7 @@
 
 ### Minor Changes
 
-- Read every release's changes at thelaststones.com/changelog, linked from the bottom of the home page.
+- Read every release's changes at runeisle.com/changelog, linked from the bottom of the home page.
 - Things a few steps away now show in the interaction list as well. Pressing one walks you over and does it.
 - The bag, equipment and stats buttons now flash when something changes while their panel is closed: a new item, something equipped, a new effect (red if it hurts you, green if it helps) or a mastery level. The game's interface now uses the same pixel font as the names in the world, and items you just carry are now called objects.
 - Each release now comes with a list of what changed in it.

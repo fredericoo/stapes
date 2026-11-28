@@ -1,4 +1,4 @@
-# The Last Stones
+# Rune Isle
 
 A tile world you can walk around in and edit. Each tile is 8×8 pixels, drawn in
 an oblique cabinet projection with Three.js.

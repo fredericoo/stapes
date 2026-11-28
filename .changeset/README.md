@@ -10,7 +10,7 @@ Pick `minor` for something new a player can do or see, `patch` for a fix or a ch
 
 ```md
 ---
-"the-last-stones": minor
+"rune-isle": minor
 ---
 
 Wolves now hear you as well as see you, so breaking line of sight no longer shakes them off.

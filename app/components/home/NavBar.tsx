@@ -10,9 +10,9 @@ export const NAV_HEIGHT_PX = 52;
  */
 export function NavBar({ shown, nameHref = "#top" }: { shown: boolean; nameHref?: string }) {
   return (
-    <nav aria-label="The Last Stones" className="home-nav" data-shown={shown}>
+    <nav aria-label="Rune Isle" className="home-nav" data-shown={shown}>
       <a href={nameHref} className="home-pixel home-nav-name">
-        The Last Stones
+        Rune Isle
       </a>
       <div className="home-nav-actions">
         <Link to="/items" className="home-nav-link">

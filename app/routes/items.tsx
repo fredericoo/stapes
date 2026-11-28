@@ -26,9 +26,9 @@ import { Button, Input, Segmented, Select } from "../ui";
 import type { Route } from "./+types/items";
 import "./home.css";
 
-const TITLE = "Items · The Last Stones";
+const TITLE = "Items · Rune Isle";
 const DESCRIPTION =
-  "Every weapon, armour, stone and potion in The Last Stones: what it does and where to get it.";
+  "Every weapon, armour, stone and potion in Rune Isle: what it does and where to get it.";
 
 const PAGE_STYLE: CSSProperties = { fontFamily: SYSTEM_MONO, "--home-nav-h": `${NAV_HEIGHT_PX}px` };
 

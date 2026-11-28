@@ -1,4 +1,4 @@
-# The Last Stones
+# Rune Isle
 
 A multiplayer tile game, and the editors that make its world. Each tile is 8×8
 pixels, drawn in an oblique cabinet projection with Three.js. One Bun process
@@ -538,7 +538,7 @@ an agent drives", lists every call.
   smaller crowd. Run it with `BUN_OPTIONS=` empty if your shell sets `--smol`,
   which collects garbage far more often than production does. `docs/notes.md`,
   "A thousand players, profiled", has what it measured and how to compare runs
-- `bun run bots --qty 10 --url thelaststones.com` — play `--qty` bots
+- `bun run bots --qty 10 --url runeisle.com` — play `--qty` bots
   against the world at `--url` (`https://` is assumed when no scheme is
   given; the default is `http://localhost:3000`). Each signs in as a player,
   with a name from the game's name generator and an account created the first

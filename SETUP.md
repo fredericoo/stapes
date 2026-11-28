@@ -101,18 +101,19 @@ hostname — so production and every preview share port 443 without conflicting.
 
 ### Which records are proxied, and why it matters
 
-- **`thelaststones.com` and `www.thelaststones.com` are orange (proxied),
+- **`runeisle.com` and `www.runeisle.com` are orange (proxied),
   SSL/TLS mode Full (strict).** Cloudflare gives them a hidden origin IP, bot
   and DDoS filtering, and edge caching for the content-hashed client assets —
   which is the CDN this single-region deployment otherwise gives up. WebSockets
   pass through it fine; verified with a live `wss://` handshake.
-- **`www.thelaststones.com` redirects to `thelaststones.com`** with a
+- **`www.runeisle.com` redirects to `runeisle.com`** with a
   Cloudflare Redirect Rule (301, path and query kept). Only `PUBLIC_ORIGIN`
   may post to the account routes once a session cookie exists, so a page served
   on `www` signs in and then has its sign-out and password change refused.
-- **`stapes.frederic.ooo` is the old public name.** It is still orange and
-  still on the production app's domains, but it is no longer `PUBLIC_ORIGIN`,
-  so signing in there works and signing out or changing a password is refused.
+- **`thelaststones.com` and `stapes.frederic.ooo` are old public names.** They
+  are still orange and still on the production app's domains, but neither is
+  `PUBLIC_ORIGIN`, so signing in there works and signing out or changing a
+  password is refused.
 - **Everything else stays grey.** The Coolify panel gains nothing from being
   proxied, and `next.stapes` needs an unobstructed ACME renewal.
 
@@ -233,7 +234,7 @@ leaks.
 `PUBLIC_ORIGIN` gains a second job here: it is the only origin allowed to post
 to the account routes, which is the whole of the cross-site request protection.
 Point it at the name people actually type, or sign-in works and changing a
-password does not. In production that is `https://thelaststones.com`, which is
+password does not. In production that is `https://runeisle.com`, which is
 a different value from GitHub's `PUBLIC_ORIGIN` in step 5.
 
 Add a second persistent storage while you are here — name `stapes-backups`,
@@ -663,9 +664,9 @@ Maintenance card, which also changes the message while the world is closed. `GET
 
 ## 9. The itch.io page
 
-[fredericoo.itch.io/the-last-stones](https://fredericoo.itch.io/the-last-stones)
+[fredericoo.itch.io/rune-isle](https://fredericoo.itch.io/rune-isle)
 is a launch page, not the game: `itch/index.html` shows the logo and a **Play**
-button that opens thelaststones.com in a new tab. The game cannot run inside
+button that opens runeisle.com in a new tab. The game cannot run inside
 itch's frame, and `docs/deploy.md` says why. After every production deploy,
 the `itch` job in `deploy.yml` pushes the page with butler, itch's upload tool,
 labelled with the commit that just went live. It costs nothing, and the game does not depend
@@ -681,7 +682,7 @@ Once, on itch:
    ever shows up in a build log, revoke it on the same page.
 3. **Push once.** Release, or run the Deploy workflow by hand with
    `environment: production`. A staging deploy skips the job. The job
-   pushes to the `html5` channel of `fredericoo/the-last-stones`, which is
+   pushes to the `html5` channel of `fredericoo/rune-isle`, which is
    `ITCH_TARGET` in `deploy.yml`.
 4. **Edit game → Uploads.** Tick **This file will be played in the browser** on
    the new `html5` upload. butler cannot set it, and it stays set for every push
