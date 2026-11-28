@@ -160,6 +160,66 @@ export function posesFor(stride: number): Pose[] {
   ];
 }
 
+/** A joint as [along from under the hip or shoulder, height above the ground, radius]. */
+export type Bone = [number, number, number];
+
+type Gait = { planted: Bone[]; folded: Bone[] };
+
+/**
+ * A `limb` from two shapes of each leg. The shape blends from planted to
+ * folded by the leg's `lift`, then the whole leg swings about its top joint so
+ * the paw lands `swing` ahead. The walk's drop squashes it towards the ground,
+ * so a planted paw stays down while the body sinks.
+ */
+export function jointedLimb(legs: [number, number][], gaits: { front: Gait; hind: Gait }) {
+  return (leg: number, pose: Pose, drop: number): LimbPoint[] => {
+    const [along, across] = legs[leg]!;
+    const { planted, folded } = leg < 2 ? gaits.front : gaits.hind;
+    const t = pose.lift?.[leg] ?? 0;
+    const [rootAlong, rootUp] = planted[0]!;
+    const angle = Math.atan2(pose.swing[leg]!, rootUp);
+    const squash = (rootUp - drop) / rootUp;
+    return planted.map((bone, i) => {
+      const other = folded[i]!;
+      const dx = bone[0] + (other[0] - bone[0]) * t - rootAlong;
+      const dz = bone[1] + (other[1] - bone[1]) * t - rootUp;
+      const swungX = dx * Math.cos(angle) - dz * Math.sin(angle);
+      const swungZ = dx * Math.sin(angle) + dz * Math.cos(angle);
+      const at: Vec3 = [along + rootAlong + swungX, across, (rootUp + swungZ) * squash];
+      return { at, r: bone[2], paw: i === planted.length - 1 };
+    });
+  };
+}
+
+const LANDING_LIFT = 0.3;
+const PASSING = 0.4;
+
+/**
+ * A trot for a beast with jointed legs: each diagonal pair lands `stride`
+ * ahead together, then passes under the body planted while the other pair
+ * swings through folded. The body is a pixel lower on the landings. The first
+ * frame stands on `standing`, and the walk plays the other four in order.
+ */
+export function trotPoses(stride: number, standing: Four): Pose[] {
+  return [
+    { swing: standing, dropPx: 0, lifts: false },
+    {
+      swing: [stride, -stride, -stride, stride],
+      lift: [0, LANDING_LIFT, LANDING_LIFT, 0],
+      dropPx: 1,
+      lifts: true,
+    },
+    { swing: [-PASSING, PASSING, PASSING, -PASSING], lift: [0, 1, 1, 0], dropPx: 0, lifts: true },
+    {
+      swing: [-stride, stride, stride, -stride],
+      lift: [LANDING_LIFT, 0, 0, LANDING_LIFT],
+      dropPx: 1,
+      lifts: true,
+    },
+    { swing: [PASSING, -PASSING, -PASSING, PASSING], lift: [1, 0, 0, 1], dropPx: 0, lifts: true },
+  ];
+}
+
 /** A leg swung back is pushing off: its foot is just off the ground, a front leg bends forward at the wrist and a hind leg back at the hock. */
 const FOOT_LIFT = 0.8;
 const FRONT_FOLD = 0.8;
