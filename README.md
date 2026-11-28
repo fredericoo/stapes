@@ -417,6 +417,14 @@ an agent drives", lists every call.
   stride. Only the drawing is generated, and its brain, battler and spells
   stay as authored. `PREVIEW=<dir>` writes the sheet enlarged instead; a full
   cast takes about nine minutes
+- `bun run generate:deer` — draw `data/tilesets/deer.png` and point the `deer`
+  tile at it, cast through `scripts/quadruped-caster.ts` from
+  `scripts/deer-model.ts`: a stag with the wolf's kind of jointed legs and
+  four-frame trot in a five-cell frame, and antlers drawn as outlined lines
+  one pixel wide over the cast. Only the drawing is generated, and its brain and battler stay
+  as authored. `PREVIEW=<dir>` writes the sheet enlarged instead; a full cast
+  takes about four minutes. `scripts/scenes/deer.json` shows every facing
+  beside the wolf, the boar and the rabbit
 - `bun run generate:forest-beasts` — draw `data/tilesets/forest-beasts.png`
   and write the `boar`, `raccoon` and `wolf` tiles, cast the way the bear is
   from one four-legged model in `scripts/quadruped-caster.ts` with a part list

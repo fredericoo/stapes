@@ -1,0 +1,212 @@
+{
+  "time": "12:00",
+  "zoom": 4,
+  "look": [6, 4],
+  "cells": [
+    {
+      "from": [-4, -4],
+      "to": [18, 13],
+      "tiles": ["grass-2"]
+    },
+    {
+      "at": [0, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "deer",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [0, 3],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "deer",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [0, 6],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "deer",
+          "facing": "n"
+        }
+      ]
+    },
+    {
+      "at": [0, 9],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "deer",
+          "facing": "w"
+        }
+      ]
+    },
+    {
+      "at": [3, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "player",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [3, 3],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "player",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [3, 6],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "player",
+          "facing": "n"
+        }
+      ]
+    },
+    {
+      "at": [3, 9],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "player",
+          "facing": "w"
+        }
+      ]
+    },
+    {
+      "at": [6, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "wolf",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [6, 3],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "wolf",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [6, 6],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "wolf",
+          "facing": "n"
+        }
+      ]
+    },
+    {
+      "at": [6, 9],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "wolf",
+          "facing": "w"
+        }
+      ]
+    },
+    {
+      "at": [9, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "boar",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [9, 3],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "boar",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [9, 6],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "boar",
+          "facing": "n"
+        }
+      ]
+    },
+    {
+      "at": [9, 9],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "boar",
+          "facing": "w"
+        }
+      ]
+    },
+    {
+      "at": [12, 0],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "rabbit",
+          "facing": "s"
+        }
+      ]
+    },
+    {
+      "at": [12, 3],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "rabbit",
+          "facing": "e"
+        }
+      ]
+    },
+    {
+      "at": [12, 6],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "rabbit",
+          "facing": "n"
+        }
+      ]
+    },
+    {
+      "at": [12, 9],
+      "tiles": [
+        "grass-2",
+        {
+          "tile": "rabbit",
+          "facing": "w"
+        }
+      ]
+    }
+  ]
+}

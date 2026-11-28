@@ -404,5 +404,12 @@
     "file": "cyclops.png",
     "width": 240,
     "height": 192
+  },
+  {
+    "id": "deer",
+    "name": "Deer",
+    "file": "deer.png",
+    "width": 200,
+    "height": 160
   }
 ]
