@@ -4179,7 +4179,7 @@ describe("the vermin we ship", () => {
     });
     session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
-    advance(session, BRAIN_TICK_MS * 24);
+    advance(session, BRAIN_TICK_MS * 36);
 
     expect(bodies(session, "snake")[0]!.x).toBeLessThan(WALL_X);
   });

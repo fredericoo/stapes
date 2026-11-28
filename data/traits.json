@@ -351,6 +351,11 @@
         "kind": "condition",
         "optional": true,
         "label": "hunts only when"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "walks home every"
       }
     },
     "traits": [
@@ -391,6 +396,9 @@
           },
           "drops": {
             "arg": "drops"
+          },
+          "pace": {
+            "arg": "pace"
           }
         }
       }
@@ -414,11 +422,19 @@
         "kind": "boolean",
         "default": false,
         "label": "allow drops"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "states": {
       "homing": {
         "band": "roam",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_toward",
@@ -499,6 +515,11 @@
         "kind": "text",
         "optional": true,
         "label": "noise as it goes"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -515,6 +536,9 @@
             }
           }
         ],
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_toward",
@@ -603,11 +627,19 @@
         "kind": "band",
         "default": "need",
         "label": "urge"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "states": {
       "casting": {
         "band": "roam",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": {
           "arg": "doing"
         }
@@ -734,6 +766,11 @@
         "kind": "condition",
         "optional": true,
         "label": "also gives up when"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -750,6 +787,9 @@
             }
           }
         ],
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "consume",
@@ -905,6 +945,11 @@
         "kind": "condition",
         "optional": true,
         "label": "also gives up when"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -913,6 +958,9 @@
     "states": {
       "browsing": {
         "band": "errand",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "extract",
@@ -1106,6 +1154,11 @@
         "kind": "condition",
         "optional": true,
         "label": "also gives up when"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -1122,6 +1175,9 @@
             }
           }
         ],
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "consume",
@@ -1259,6 +1315,11 @@
         "kind": "text",
         "default": "!",
         "label": "noise as it bolts"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -1278,6 +1339,9 @@
         "emit": {
           "channel": "alarm",
           "value": "on"
+        },
+        "walkDurationMs": {
+          "arg": "pace"
         },
         "do": [
           {
@@ -1416,6 +1480,11 @@
         "kind": "text",
         "optional": true,
         "label": "noise as it bolts"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -1432,6 +1501,9 @@
             }
           }
         ],
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_away_from",
@@ -1632,6 +1704,11 @@
         "kind": "text",
         "optional": true,
         "label": "noise as it goes"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "states": {
@@ -1645,6 +1722,9 @@
             }
           }
         ],
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_away_from",
@@ -1744,6 +1824,11 @@
         "kind": "boolean",
         "default": false,
         "label": "allow drops"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -1752,6 +1837,9 @@
     "states": {
       "evading": {
         "band": "danger",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_away_from",
@@ -1859,6 +1947,11 @@
         "kind": "cells",
         "optional": true,
         "label": "catches up past"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "slots": {
@@ -1867,6 +1960,9 @@
     "states": {
       "following": {
         "band": "roam",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "step_toward",
@@ -1887,6 +1983,9 @@
       },
       "loitering": {
         "band": "roam",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "walk_n_steps",
@@ -3019,11 +3118,19 @@
         "kind": "cells",
         "default": 12,
         "label": "looks within"
+      },
+      "pace": {
+        "kind": "ms",
+        "optional": true,
+        "label": "steps every"
       }
     },
     "states": {
       "sheltering": {
         "band": "errand",
+        "walkDurationMs": {
+          "arg": "pace"
+        },
         "do": [
           {
             "action": "take_shelter",
