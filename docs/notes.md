@@ -12165,6 +12165,14 @@ casts `Take root`, eight seconds of `blossoming`. Both last resorts are a
 and goes back to the fight; the status's default thirty seconds would mend the
 moss troll almost fully, which is why both carry their own duration.
 
+The `troll` and the `river-troll` walk towards a noise from 12 cells and give
+up at 14, where the cave troll's figures are 28 and 30. They live above
+ground, and with an 8-cell leash that keeps them within 20 cells of where
+they were placed, inside the 24 cells the scatters' road masks leave. Eight
+trolls are scattered by `north-wilds-trolls` and `west-wilds-trolls`, five
+moss trolls by `deep-woods-moss-trolls`, and five river trolls stand on the
+banks of `westwater` as `tile` nodes, each more than 40 cells from a road.
+
 **The snake constricts.** `Constrict` is a hold at arm's length, and it moves no
 health at all: what it leaves is `paralysed`, which takes a body to a tenth of
 its walking pace for two to three and a half seconds. A bolt with a status and no

@@ -136,7 +136,7 @@ twice its even level, so do not place by the star.
 | ---- | ------------- | ----- | -------------- | --------------------- |
 | 0 | 1–5 | the wreck valley, the camp, the old harbour cellar, `wreck-cave` | none | rat 1, bat 1, small slimes 1–2, two snakes 8 off the road |
 | 1 | 5–15 | the roads between the camp, the inn and both towns, and the land beside them: `camp-heath`, `meadow-pests`, `lake-shore`, `south-shore`, `south-downs`, `west-shore`, `woodland-wilds` | bow, hammer or axe, cap and boots (requirement 5) | rats, raccoons 4, snakes 8, boars 11, nature, water and fire slimes 5, and moss and tide wisps by night |
-| 2 | 15–50 | the deep woods off the roads (`wood-wolves`), `north-wilds`, `west-wilds`, the bog, the desert, `sunken-crypt`, `bat-cave`, `bear-den` | the towns' second tier (requirement 10–15), then the third (22–33) | wolf 15, bog imp 14, skeleton 24, snow wolf 28, cobra 33 in the desert, bear 35, anaconda 34 in the bog and a few in the deep woods, with zone-1 kinds among them |
+| 2 | 15–50 | the deep woods off the roads (`wood-wolves`), `north-wilds`, `west-wilds`, the bog, the desert, `sunken-crypt`, `bat-cave`, `bear-den` | the towns' second tier (requirement 10–15), then the third (22–33) | wolf 15, bog imp 14, skeleton 24, snow wolf 28, cobra 33 in the desert, bear 35, anaconda 34 in the bog and a few in the deep woods, troll 33 in `north-wilds-trolls` and `west-wilds-trolls`, moss troll 35 in `deep-woods-moss-trolls`, river troll 35 on the banks of `westwater`, with zone-1 kinds among them |
 | 3 | 50+ | the peak, `ice-caves` | third tier | snow wolf 28 on the way, the yeti 65 for a party |
 | 4 | 65+ | `obsidian-deeps`, the lava gorge | — | cave troll 35 today; the zone has no creature that fits it yet |
 
