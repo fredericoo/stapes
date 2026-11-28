@@ -1754,6 +1754,23 @@ describe("walking at its own pace", () => {
       },
     }),
     tile({
+      id: "hurried-plodder",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      walkDurationMs: WALK_DURATION_MS * 2,
+      interactions: {
+        brain: {
+          initial: "hurry",
+          states: {
+            hurry: { walkDurationMs: WALK_DURATION_MS / 2, do: [{ action: "step_random" }] },
+          },
+          transitions: [],
+        },
+      },
+    }),
+    tile({
       id: "sprinter",
       height: 2,
       actor: true,
@@ -1798,6 +1815,16 @@ describe("walking at its own pace", () => {
 
     const walk = session.actorSnapshots().find((a) => a.tileId === "plodder")!.walk;
     expect(walk?.durationMs).toBe(WALK_DURATION_MS * 2);
+  });
+
+  it("times a step by the brain state's pace over the body's own", () => {
+    const session = new GameSession(withDeer(field(9), 0, 0, "hurried-plodder"), paced, {
+      actorIds: ["alice"],
+    });
+    advance(session, BRAIN_TICK_MS);
+
+    const walk = session.actorSnapshots().find((a) => a.tileId === "hurried-plodder")!.walk;
+    expect(walk?.durationMs).toBe(WALK_DURATION_MS / 2);
   });
 
   it("leaves a body that authored no pace walking like a player", () => {
@@ -4152,7 +4179,7 @@ describe("the vermin we ship", () => {
     });
     session.setResidentHomes([{ ownerId: STRAYED_ID, cell: { x: 0, y: 0, z: 0 } }]);
 
-    advance(session, BRAIN_TICK_MS * 24);
+    advance(session, BRAIN_TICK_MS * 36);
 
     expect(bodies(session, "snake")[0]!.x).toBeLessThan(WALL_X);
   });

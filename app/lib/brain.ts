@@ -137,9 +137,15 @@ export type BrainSignalValue = "on" | "off";
 
 export type BrainEmitDef = { channel: string; value: BrainSignalValue };
 
+/**
+ * `walkDurationMs` replaces the body's own step time while it holds this
+ * state, so a creature can amble while it wanders and run once it hunts.
+ * Statuses and the ground still scale it, as they scale the body's own.
+ */
 export type BrainStateDef = {
   onEnter?: BrainEffectDef[];
   emit?: BrainEmitDef;
+  walkDurationMs?: number;
   do: BrainActionDef[];
 };
 
@@ -359,6 +365,7 @@ const brainSchema = v.object({
     v.object({
       onEnter: v.optional(v.array(effectSchema)),
       emit: v.optional(emitSchema),
+      walkDurationMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
       do: v.array(actionSchema),
     }),
   ),

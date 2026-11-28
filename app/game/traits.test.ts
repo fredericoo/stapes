@@ -491,6 +491,29 @@ describe("a brain built from traits", () => {
     expect(noisesFrom(loud)).toEqual(["sniff"]);
   });
 
+  it("walks a trait's own state at the pace its caller hands it, or the body's own", () => {
+    const catalogue = traitsById([
+      {
+        id: "bolts",
+        name: "Bolts",
+        params: { pace: { kind: "ms", optional: true } },
+        states: {
+          bolting: { band: "danger", walkDurationMs: { arg: "pace" }, do: [{ action: "hold" }] },
+        },
+        triggers: [{ band: "danger", if: { cond: "attacked" }, to: "bolting" }],
+      },
+    ]);
+    const boltingPace = (call: AuthoredBrain["traits"]) => {
+      const { brain, issues } = expandBrain(wolf(call), catalogue);
+      expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
+      return brain!.states["bolts/bolting"]!.walkDurationMs;
+    };
+    const SPRINT_MS = 90;
+
+    expect(boltingPace([{ trait: "bolts" }])).toBeUndefined();
+    expect(boltingPace([{ trait: "bolts", with: { pace: SPRINT_MS } }])).toBe(SPRINT_MS);
+  });
+
   it("leaves out every row into an optional state that was not handed one", () => {
     const catalogue = traitsById([
       {

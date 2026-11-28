@@ -3288,6 +3288,7 @@ export class GameServer {
           from: actor.walk.from,
           to: actor.walk.to,
           direction: actor.walk.direction,
+          durationMs: actor.walk.durationMs,
         });
       }
       if (actor.fall && actor.fall !== sent?.fall) {

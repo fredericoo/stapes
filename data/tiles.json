@@ -8375,6 +8375,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -8390,6 +8391,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -8407,6 +8409,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -8423,6 +8426,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -8448,6 +8452,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -8474,6 +8479,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -8611,7 +8617,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -8650,12 +8657,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -53344,6 +53354,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -53359,6 +53370,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -53376,6 +53388,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -53392,6 +53405,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -53417,6 +53431,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -53443,6 +53458,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -53580,7 +53596,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -53619,12 +53636,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -54053,6 +54073,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -54068,6 +54089,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -54085,6 +54107,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -54101,6 +54124,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -54126,6 +54150,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -54152,6 +54177,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -54289,7 +54315,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -54328,12 +54355,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -54762,6 +54792,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -54777,6 +54808,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -54794,6 +54826,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -54810,6 +54843,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -54835,6 +54869,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -54861,6 +54896,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -54998,7 +55034,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -55037,12 +55074,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -55471,6 +55511,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -55486,6 +55527,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -55503,6 +55545,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -55519,6 +55562,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -55544,6 +55588,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -55570,6 +55615,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -55707,7 +55753,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -55746,12 +55793,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -56180,6 +56230,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -56195,6 +56246,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -56212,6 +56264,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -56228,6 +56281,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -56253,6 +56307,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -56279,6 +56334,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -56416,7 +56472,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -56455,12 +56512,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -63256,20 +63316,24 @@
         "traits": [
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "eats-when-hungry",
             "with": {
               "food": [
                 "apple"
-              ]
+              ],
+              "pace": 300
             }
           }
         ],
         "initial": "graze",
         "states": {
           "graze": {
+            "walkDurationMs": 340,
             "do": [
               {
                 "action": "wait",
@@ -63289,6 +63353,7 @@
             ]
           },
           "browsing": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "extract",
@@ -68250,6 +68315,7 @@
         "initial": "scurry",
         "states": {
           "scurry": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -68258,6 +68324,7 @@
             ]
           },
           "sniffing": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -68352,13 +68419,15 @@
           {
             "trait": "scavenges",
             "with": {
-              "cry": "squeak"
+              "cry": "squeak",
+              "pace": 220
             }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 10
+              "leash": 10,
+              "pace": 220
             }
           }
         ]
@@ -68667,6 +68736,7 @@
             ]
           },
           "slither": {
+            "walkDurationMs": 480,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -68745,7 +68815,8 @@
               "within": 7,
               "calm": 10,
               "leash": 10,
-              "target": "prey"
+              "target": "prey",
+              "pace": 480
             }
           }
         ]
@@ -69486,6 +69557,7 @@
         "initial": "prowling",
         "states": {
           "prowling": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -69494,6 +69566,7 @@
             ]
           },
           "following": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -69549,6 +69622,7 @@
                 "text": "hnnn"
               }
             ],
+            "walkDurationMs": 180,
             "do": [
               {
                 "action": "step_away_from",
@@ -69566,6 +69640,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -69574,6 +69649,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -69596,6 +69672,7 @@
                 "text": "sniff"
               }
             ],
+            "walkDurationMs": 200,
             "do": [
               {
                 "action": "step_toward",
@@ -69619,6 +69696,7 @@
                 "text": "snf"
               }
             ],
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "consume",
@@ -69644,6 +69722,7 @@
             ]
           },
           "seeking_den": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "take_shelter",
@@ -70774,6 +70853,7 @@
         "initial": "flitting",
         "states": {
           "flitting": {
+            "walkDurationMs": 140,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -70883,7 +70963,8 @@
               "calm": 12,
               "leash": 14,
               "drops": true,
-              "target": "prey"
+              "target": "prey",
+              "pace": 140
             }
           },
           {
@@ -70896,7 +70977,8 @@
                   "ms": 2000
                 }
               ],
-              "urge": "roam"
+              "urge": "roam",
+              "pace": 140
             }
           }
         ]
@@ -71253,6 +71335,7 @@
         "initial": "lurking",
         "states": {
           "lurking": {
+            "walkDurationMs": 450,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -71308,6 +71391,7 @@
                 "text": "hnf"
               }
             ],
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "step_toward",
@@ -71325,6 +71409,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 450,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -71333,6 +71418,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 450,
             "do": [
               {
                 "action": "step_toward",
@@ -78844,6 +78930,7 @@
         "initial": "graze",
         "states": {
           "graze": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "wait",
@@ -78875,12 +78962,15 @@
                 {
                   "action": "hold"
                 }
-              ]
+              ],
+              "pace": 260
             }
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 200
+            }
           }
         ]
       },
@@ -81186,6 +81276,7 @@
         "initial": "roaming",
         "states": {
           "roaming": {
+            "walkDurationMs": 420,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -81242,6 +81333,7 @@
                 "text": "slurp"
               }
             ],
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "consume",
@@ -81267,6 +81359,7 @@
             ]
           },
           "browsing": {
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "extract",
@@ -81303,6 +81396,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 420,
             "do": [
               {
                 "action": "step_toward",
@@ -81319,6 +81413,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 420,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -81327,6 +81422,7 @@
             ]
           },
           "to_fire": {
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "step_toward",
@@ -81349,6 +81445,7 @@
                 "text": "skrrt skrrt"
               }
             ],
+            "walkDurationMs": 420,
             "do": [
               {
                 "action": "cast",
@@ -81375,6 +81472,7 @@
             ]
           },
           "gathering": {
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "step_toward",
@@ -81393,6 +81491,7 @@
             ]
           },
           "escaping": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_random"
@@ -82772,6 +82871,7 @@
         "initial": "wandering",
         "states": {
           "wandering": {
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -82817,6 +82917,7 @@
                 "text": "crunch"
               }
             ],
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "consume",
@@ -82848,6 +82949,7 @@
                 "text": "hrmph"
               }
             ],
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "step_toward",
@@ -82865,6 +82967,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -82901,6 +83004,7 @@
             ]
           },
           "raging": {
+            "walkDurationMs": 200,
             "do": [
               {
                 "action": "cast",
@@ -84029,6 +84133,7 @@
         "initial": "shambling",
         "states": {
           "shambling": {
+            "walkDurationMs": 650,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -84087,7 +84192,8 @@
               "within": 8,
               "calm": 14,
               "leash": 14,
-              "target": "prey"
+              "target": "prey",
+              "pace": 650
             }
           }
         ]
@@ -84590,6 +84696,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 850,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -84721,7 +84828,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 850
             }
           }
         ]
@@ -85391,6 +85499,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 650,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -85447,7 +85556,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 650
             }
           }
         ]
@@ -86079,6 +86189,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 850,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -86210,7 +86321,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 850
             }
           }
         ]
@@ -86882,6 +86994,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 650,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -86938,7 +87051,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 650
             }
           }
         ]
@@ -87526,6 +87640,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 850,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -87657,7 +87772,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 850
             }
           }
         ]
@@ -88289,6 +88405,7 @@
         "initial": "oozing",
         "states": {
           "oozing": {
+            "walkDurationMs": 650,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -88345,7 +88462,8 @@
               "within": 8,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 650
             }
           }
         ]
@@ -98386,6 +98504,7 @@
         "initial": "drifting",
         "states": {
           "drifting": {
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -98397,6 +98516,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "step_toward",
@@ -98455,6 +98575,7 @@
             ]
           },
           "backing": {
+            "walkDurationMs": 180,
             "do": [
               {
                 "action": "cast",
@@ -99004,6 +99125,7 @@
         "initial": "drifting",
         "states": {
           "drifting": {
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -99015,6 +99137,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "step_toward",
@@ -99073,6 +99196,7 @@
             ]
           },
           "backing": {
+            "walkDurationMs": 180,
             "do": [
               {
                 "action": "cast",
@@ -99622,6 +99746,7 @@
         "initial": "drifting",
         "states": {
           "drifting": {
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -99633,6 +99758,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "step_toward",
@@ -99691,6 +99817,7 @@
             ]
           },
           "backing": {
+            "walkDurationMs": 180,
             "do": [
               {
                 "action": "cast",
@@ -109557,6 +109684,7 @@
         "initial": "lumbering",
         "states": {
           "lumbering": {
+            "walkDurationMs": 420,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -109597,6 +109725,7 @@
           },
           "denning": {
             "band": "errand",
+            "walkDurationMs": 380,
             "do": [
               {
                 "action": "step_toward",
@@ -109635,6 +109764,7 @@
           },
           "charging": {
             "band": "danger",
+            "walkDurationMs": 160,
             "do": [
               {
                 "action": "cast",
@@ -109843,7 +109973,8 @@
               ],
               "full": 240000,
               "urge": "danger",
-              "cry": "snf"
+              "cry": "snf",
+              "pace": 380
             }
           },
           {
@@ -109862,7 +109993,8 @@
                     "id": "fed"
                   }
                 ]
-              }
+              },
+              "pace": 380
             }
           },
           {
@@ -109890,12 +110022,15 @@
           {
             "trait": "returns-home",
             "with": {
-              "leash": 24
+              "leash": 24,
+              "pace": 420
             }
           },
           {
             "trait": "unsticks",
-            "with": {}
+            "with": {
+              "pace": 420
+            }
           }
         ]
       },
@@ -114128,6 +114263,7 @@
         "initial": "prowling",
         "states": {
           "prowling": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -114136,6 +114272,7 @@
             ]
           },
           "following": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -114191,6 +114328,7 @@
                 "text": "hnnn"
               }
             ],
+            "walkDurationMs": 180,
             "do": [
               {
                 "action": "step_away_from",
@@ -114208,6 +114346,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -114216,6 +114355,7 @@
             ]
           },
           "homing": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -114238,6 +114378,7 @@
                 "text": "sniff"
               }
             ],
+            "walkDurationMs": 200,
             "do": [
               {
                 "action": "step_toward",
@@ -114261,6 +114402,7 @@
                 "text": "snf"
               }
             ],
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "consume",
@@ -114286,6 +114428,7 @@
             ]
           },
           "seeking_den": {
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "take_shelter",
@@ -115434,6 +115577,7 @@
         "initial": "wandering",
         "states": {
           "wandering": {
+            "walkDurationMs": 360,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -115489,6 +115633,7 @@
                 "text": "crunch"
               }
             ],
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "consume",
@@ -115520,6 +115665,7 @@
                 "text": "hrmph"
               }
             ],
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "step_toward",
@@ -115537,6 +115683,7 @@
             ]
           },
           "casting": {
+            "walkDurationMs": 360,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -190607,6 +190754,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -190622,6 +190770,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -190639,6 +190788,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -190655,6 +190805,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -190680,6 +190831,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -190706,6 +190858,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -190843,7 +190996,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -190882,12 +191036,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -191315,6 +191472,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -191330,6 +191488,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -191347,6 +191506,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -191363,6 +191523,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -191388,6 +191549,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -191414,6 +191576,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -191551,7 +191714,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -191590,12 +191754,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -192023,6 +192190,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -192038,6 +192206,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -192055,6 +192224,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -192071,6 +192241,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -192096,6 +192267,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -192122,6 +192294,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -192259,7 +192432,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -192298,12 +192472,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -192731,6 +192908,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -192746,6 +192924,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -192763,6 +192942,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -192779,6 +192959,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -192804,6 +192985,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -192830,6 +193012,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -192967,7 +193150,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -193006,12 +193190,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -193439,6 +193626,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -193454,6 +193642,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -193471,6 +193660,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -193487,6 +193677,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -193512,6 +193703,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -193538,6 +193730,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -193675,7 +193868,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -193714,12 +193908,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -194147,6 +194344,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -194162,6 +194360,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -194179,6 +194378,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -194195,6 +194395,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -194220,6 +194421,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -194246,6 +194448,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -194383,7 +194586,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -194422,12 +194626,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -194855,6 +195062,7 @@
             ]
           },
           "roam": {
+            "walkDurationMs": 520,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -194870,6 +195078,7 @@
                 "text": "meow"
               }
             ],
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "step_toward",
@@ -194887,6 +195096,7 @@
           },
           "following": {
             "band": "need",
+            "walkDurationMs": 220,
             "do": [
               {
                 "action": "step_toward",
@@ -194903,6 +195113,7 @@
             ]
           },
           "fighting": {
+            "walkDurationMs": 300,
             "do": [
               {
                 "action": "attack",
@@ -194928,6 +195139,7 @@
             ]
           },
           "hunting": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "attack",
@@ -194954,6 +195166,7 @@
           },
           "pouncing": {
             "band": "danger",
+            "walkDurationMs": 150,
             "do": [
               {
                 "action": "cast",
@@ -195091,7 +195304,8 @@
               ],
               "sight": 0,
               "below": 14,
-              "cry": "hiss!"
+              "cry": "hiss!",
+              "pace": 200
             }
           },
           {
@@ -195130,12 +195344,15 @@
           },
           {
             "trait": "shelters-from-rain",
-            "with": {}
+            "with": {
+              "pace": 300
+            }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 520
             }
           }
         ]
@@ -205942,6 +206159,7 @@
         "initial": "rooting",
         "states": {
           "rooting": {
+            "walkDurationMs": 320,
             "do": [
               {
                 "action": "wait",
@@ -205987,6 +206205,7 @@
           },
           "charging": {
             "band": "danger",
+            "walkDurationMs": 120,
             "do": [
               {
                 "action": "cast",
@@ -206092,7 +206311,8 @@
                 "rotten-apple",
                 "stale-berry"
               ],
-              "cry": "snf"
+              "cry": "snf",
+              "pace": 300
             }
           },
           {
@@ -206101,18 +206321,22 @@
               "bush": [
                 "bush"
               ],
-              "berry": "berry"
+              "berry": "berry",
+              "pace": 300
             }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 320
             }
           },
           {
             "trait": "unsticks",
-            "with": {}
+            "with": {
+              "pace": 320
+            }
           }
         ]
       },
@@ -206561,6 +206785,7 @@
         "initial": "snuffling",
         "states": {
           "snuffling": {
+            "walkDurationMs": 240,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -206569,6 +206794,7 @@
             ]
           },
           "sniffing": {
+            "walkDurationMs": 260,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -206658,7 +206884,8 @@
           {
             "trait": "scavenges",
             "with": {
-              "cry": "chitter"
+              "cry": "chitter",
+              "pace": 240
             }
           },
           {
@@ -206667,13 +206894,15 @@
               "bush": [
                 "bush"
               ],
-              "berry": "berry"
+              "berry": "berry",
+              "pace": 240
             }
           },
           {
             "trait": "returns-home",
             "with": {
-              "leash": 12
+              "leash": 12,
+              "pace": 240
             }
           }
         ]
@@ -207109,6 +207338,7 @@
             ]
           },
           "slither": {
+            "walkDurationMs": 400,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -207188,7 +207418,8 @@
               "within": 6,
               "calm": 12,
               "leash": 12,
-              "target": "prey"
+              "target": "prey",
+              "pace": 400
             }
           }
         ]
@@ -207661,6 +207892,7 @@
             ]
           },
           "gliding": {
+            "walkDurationMs": 540,
             "do": [
               {
                 "action": "walk_n_steps",
@@ -207750,7 +207982,8 @@
               "within": 2,
               "calm": 9,
               "leash": 8,
-              "target": "prey"
+              "target": "prey",
+              "pace": 540
             }
           }
         ]

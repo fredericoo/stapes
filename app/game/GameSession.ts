@@ -423,6 +423,7 @@ import {
   wadesAt,
   walkDurationMsFor,
 } from "./movement";
+import { walkDurationFrom } from "../lib/walkSpeed";
 import {
   CHASE_MAX_NODES,
   detourSlackFor,
@@ -5699,11 +5700,19 @@ export class GameSession implements PlaySession {
   }
 
   private walkDurationOf(actor: ActorRuntime, from: ActorLocation): number {
-    return walkDurationMsFor(
-      this.defFor(actor),
+    const def = this.defFor(actor);
+    const speedPercent =
       walkSpeedPercentFrom(actor.statuses, this.statusDefs) +
-        groundWalkSpeedPercent(this.map, from, this.tilesById),
-    );
+      groundWalkSpeedPercent(this.map, from, this.tilesById);
+    const stateMs = this.brainStateWalkDurationMs(actor, def);
+    if (stateMs === undefined) return walkDurationMsFor(def, speedPercent);
+    return walkDurationFrom(stateMs, speedPercent);
+  }
+
+  private brainStateWalkDurationMs(actor: ActorRuntime, def: TileDef): number | undefined {
+    const state = actor.brain?.state;
+    if (state === undefined || actor.brainOff) return undefined;
+    return resolveBrain(def)?.states[state]?.walkDurationMs;
   }
 
   private hasStatus(actor: ActorRuntime, id: string, atLeastMs: number | undefined): boolean {

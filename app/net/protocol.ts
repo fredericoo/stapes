@@ -301,6 +301,7 @@ export type MotionEvent =
       from: { x: number; y: number; z: number };
       to: { x: number; y: number; z: number };
       direction: "n" | "e" | "s" | "w";
+      durationMs: number;
     }
   | {
       kind: "fallStarted";
@@ -808,6 +809,7 @@ const serverMessageSchema = v.variant("type", [
           from: coordSchema,
           to: coordSchema,
           direction: directionSchema,
+          durationMs: v.number(),
         }),
         v.object({
           kind: v.literal("fallStarted"),
@@ -986,7 +988,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 export const GAME_SOCKET_PATH = "/online/ws";
 
-export const PROTOCOL_VERSION = 43;
+export const PROTOCOL_VERSION = 44;
 
 export const MAX_STEPS_AHEAD = 5;
 

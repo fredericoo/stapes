@@ -1,4 +1,5 @@
 import { MAP_FILE_VERSION } from "../lib/types";
+import { WALK_DURATION_MS } from "../game/constants";
 import { describe, expect, it } from "vitest";
 import { parseClientMessage, parseServerMessage, type MotionEvent } from "./protocol";
 import { SWING_OUTCOMES } from "../game/GameSession";
@@ -511,6 +512,7 @@ describe("nothing is quietly dropped in transit", () => {
         from: { x: 0, y: 0, z: 0 },
         to: { x: 1, y: 0, z: 0 },
         direction: "e",
+        durationMs: WALK_DURATION_MS,
       },
       fallStarted: { kind: "fallStarted", actorId: "rat", feetAbs: 4, landingAbs: 0 },
       slideStarted: {

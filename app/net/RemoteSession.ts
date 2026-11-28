@@ -781,23 +781,6 @@ export class RemoteSession implements PlaySession {
     }
   }
 
-  /**
-   * Read off `serverMap`, not `map`. Events are applied after the frame's
-   * cells and before `rebuildPredicted`, so at this point `map` is still the
-   * previous frame's board.
-   */
-  private walkDurationAt(actorId: string, at: { x: number; y: number; z: number }): number {
-    const stack = getStack(this.serverMap, at.x, at.y, at.z);
-    const stackIndex = stack.findIndex((placed) => placed.owner === actorId);
-    const def = stackIndex < 0 ? undefined : this.tilesById[stack[stackIndex]!.tileId];
-    if (!def) return WALK_DURATION_MS;
-    return walkDurationMsFor(
-      def,
-      this.walkSpeedPercentOf(actorId) +
-        groundWalkSpeedPercent(this.serverMap, { ...at, stackIndex }, this.tilesById),
-    );
-  }
-
   private attributesOf(self: ActorSnapshot): Attributes | null {
     if (self.maxHp === null) return null;
     const bodyDef = this.tilesById[self.tileId];
@@ -818,10 +801,8 @@ export class RemoteSession implements PlaySession {
     return incapacitated(this.statuses, this.statusDefs);
   }
 
-  private walkSpeedPercentOf(actorId: string): number {
-    const statuses =
-      actorId === this.selfId ? this.statuses : (this.statusesById.get(actorId) ?? NO_STATUSES);
-    return walkSpeedPercentFrom(statuses, this.statusDefs);
+  private ownWalkSpeedPercent(): number {
+    return walkSpeedPercentFrom(this.statuses, this.statusDefs);
   }
 
   private applyCells(cells: CellPatch[]): readonly string[] {
@@ -980,7 +961,7 @@ export class RemoteSession implements PlaySession {
         to: event.to,
         direction: event.direction,
         elapsedMs: 0,
-        durationMs: this.walkDurationAt(event.actorId, event.from),
+        durationMs: event.durationMs,
       };
     } else if (event.kind === "fallStarted") {
       motion.fall = {
@@ -1168,7 +1149,7 @@ export class RemoteSession implements PlaySession {
     const seq = this.nextStepSeq++;
     const durationMs = walkDurationMsFor(
       def,
-      this.walkSpeedPercentOf(this.selfId) + groundWalkSpeedPercent(this.map, loc, this.tilesById),
+      this.ownWalkSpeedPercent() + groundWalkSpeedPercent(this.map, loc, this.tilesById),
     );
     motion.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
